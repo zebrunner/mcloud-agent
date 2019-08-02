@@ -8,7 +8,7 @@ MCloud is dockerized QA infrastructure for remote web access to physical devices
 ## Contents
 * [Software prerequisites](#software-prerequisites)
 * [Initial setup](#initial-setup)
-* [Services start/stop/restart](#services-restart)
+* [Usage](#usage)
 * [License](#license)
 
 ## Software prerequisites
