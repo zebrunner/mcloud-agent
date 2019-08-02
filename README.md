@@ -69,13 +69,13 @@ ansible-playbook -vvv -i hosts devices.yml
 * Connect Android device physically into USB direct port or through the hub
 * For the 1st connection trust device picking "always trust..." on device
 * Open in your browser http://<PUBLIC_IP>, authenticate yourself based on preconfigured auth system.
-* Connected device should be registered automatically with ability to connect to it remotely
-* Dedicated fully isolated android container is started for each device
+* Connected device should appear automatically in iSTF with ability to use it remotely
+* Dedicated fully isolated android container is started per each device
 ```
 docker ps -a | grep device
 ```
 * Disconnect device from the server. In 30-60 seconds it should change state in iSTF to disconnected as well. Appropriate container is removed automatically
-* <B>Note:</> adb server should not be started on the master host during devices connect/disconnect! Otherwise device will be unavailable for isolated adb inside container
+* <B>Note:</B> adb server should not be started on the master host during devices connect/disconnect! Otherwise device will be unavailable for isolated adb inside container
 
 ## License
 Code - [Apache Software License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
