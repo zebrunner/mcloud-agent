@@ -68,7 +68,7 @@ ansible-playbook -vvv -i hosts devices.yml
 * Enable developer option for each device (TODO: exact and recommended configuration steps should be provided for Android device)
 * Connect Android device physically into USB direct port or through the hub
 * For the 1st connection trust device picking "always trust..." on device
-* Open in your browser http://<PUBLIC_IP>, authenticate yourself based on preconfigured auth system and enjoy.
+* Open in your browser http://<PUBLIC_IP>, authenticate yourself based on preconfigured auth system.
 * Connected device should be registered automatically with ability to connect to it remotely
 * Dedicated fully isolated android container is started for each device
 ```
