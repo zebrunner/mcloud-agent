@@ -62,7 +62,7 @@ ansible-playbook -vvv -i hosts devices.yml
    * Appium location: /opt/appium
    * OpenCV library for FindByImage support as part of npm components
    * Container creation/removal script deployed to /usr/local/bin/device2docker
-   * Udev rules whitelisted all our devices in /etc/udev/rules.d/51-android.rules
+   * Udev rules with whitelisted devices are in /etc/udev/rules.d/51-android.rules
    
 ## Usage
 * Enable developer option for each device (TODO: exact and recommended configuration steps should be provided for Android device)
