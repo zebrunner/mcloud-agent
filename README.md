@@ -1,4 +1,4 @@
-MCloud master instance
+MCloud android-slave instance
 ==================
 
 MCloud is dockerized QA infrastructure for remote web access to physical devices (Android and iOS). Is is fully integrated into the [qps-infra](http://www.qps-infra.io) ecosystem and can be used for manual so automation usage.
@@ -15,23 +15,60 @@ MCloud is dockerized QA infrastructure for remote web access to physical devices
 * Change current user uid/guid to uid=1000 and gid=1000 - (https://github.com/jenkinsci/docker)
   Note: for current user just change uid/guid inside /etc/passwd and reboot host
 * Install [docker](http://www.techrepublic.com/article/how-to-install-docker-on-ubuntu-16-04/)
-* Installed [docker-composer](https://docs.docker.com/compose/install/#install-compose)
+* Install [ansible](https://www.techrepublic.com/article/how-to-install-ansible-on-ubuntu-server-16-04/)
 
 ## Initial setup
-* Execute ./setup.sh shell script providing public and private addresses of the iSTF farm
+* Pull latest [appium-device](https://cloud.docker.com/u/qaprosoft/repository/docker/qaprosoft/appium-device/tags) docker image (TODO: automate it later as part of ansible playbook script)
 ```
-./setup.sh demo.qaprosoft.com 192.168.88.10
+docker pull qaprosoft/appium-device:1.15
 ```
-<B>Note</B>: public ip and 80 http port should be accessible from user's browsers. Private ip should be used for internal services communication. Also to be able to connect to devices remotely range of ports should be opened (7400-7700).
-* Setup Android provider using steps from android-slave branch (TODO: publish steps and ansible scripts with details)
-* Setup iOS provider using steps from ios-slave (not officially released yet)
-
-## Services start/stop/restart
-* Use ./stop.sh script to stop everything
-* User ./start.sh to start all containers
-
+* Clone https://github.com/qaprosoft/infrappium repo 
+* Update roles/devices/vars/main.yml:
+  * Update stf_private_host and stf_public_host using the actual value from MCloud master setup. Physically android-slave can be located on the same Linux server where STF master and QPS-Infra are deployed
+  * Update selenium_hub_host and selenium_hub_port values. By default we have values for the schema where qps-infra is deployed on the same server (selenium-hub container name)
+  * Declare/whitelist all Android devices using sructure below
+```
+devices:
+  - id: 085922ed01829ce3
+    name: Nexus_5
+    adb_port: 5038
+    min_port: 7401
+    max_port: 7410
+    proxy_port: 9000
+  - id: 0186a5f28f9837e9
+    name: Nexus_4
+    adb_port: 5039
+    min_port: 7411
+    max_port: 7420
+    proxy_port: 9001
+```
+   * Note: Make sure to provide valid devices udid values
+   * Name value will be used for registration this device in STF (it is recommened to avoid special symbols and spaces)
+   * Provide unique adb port values for each device as they will be shared to the master Linux server
+   * Provide unique range of 10 ports for each Android device. Those ports should be accessible from client's browser sessions otherwise gray screen is displayed or "adb connect" doesn't work.
+   * Provide unique number of proxy_port per each device (they can be used in integration with Carina traffic sniffering fucntionality: http://qaprosoft.github.io/carina/proxy/)
+ * Run ansible-playbook script to install all kind of prerequisites onto the system:
+```
+ansible-playbook -vvv -i hosts devices.yml
+```
+   * Android SDK location: /opt/android-linux-sdk
+   * Appium location: /opt/appium
+   * OpenCV library for FindByImage support as part of npm components
+   * Container creation/removal script deployed to /usr/local/bin/device2docker
+   * Udev rules whitelisted all our devices in /etc/udev/rules.d/51-android.rules
+   
 ## Usage
+* Enable developer option for each device (TODO: exact and recommended configuration steps should be provided for Android device)
+* Connect Android device physically into USB direct port or through the hub
+* For the 1st connection trust device picking "always trust..." on device
 * Open in your browser http://<PUBLIC_IP>, authenticate yourself based on preconfigured auth system and enjoy.
+* Connected device should be registered automatically with ability to connect to it remotely
+* Dedicated fully isolated android container is started for each device
+```
+docker ps -a | grep device
+```
+* Disconnect device from the server. In 30-60 seconds it should change state in iSTF to disconnected as well. Appropriate container is removed automatically
+* <B>Note:</> adb server should not be started on the master host during devices connect/disconnect! Otherwise device will be unavailable for isolated adb inside container
 
 ## License
 Code - [Apache Software License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
