@@ -29,8 +29,12 @@ git clone https://github.com/qaprosoft/infrappium
 * Update roles/devices/vars/main.yml:
   * Update stf_private_host and stf_public_host using the actual value from MCloud master setup. Physically android-slave can be located on the same Linux server where STF master and QPS-Infra are deployed
   * Update selenium_hub_host and selenium_hub_port values. By default we have values for the schema when qps-infra is deployed on the same server (selenium-hub container name)
-  * Declare/whitelist all Android devices using sructure below
+  * Declare/whitelist all Android devices using structure below
 ```
+stf_private_host: 192.168.88.10
+stf_public_host: stf.mydomain.com
+selenium_hub_host: selenium-hub
+selenium_hub_port: 4444
 devices:
   - id: 085922ed01829ce3
     name: Nexus_5
