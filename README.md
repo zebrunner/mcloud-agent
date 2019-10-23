@@ -20,7 +20,7 @@ MCloud is dockerized QA infrastructure for remote web access to physical devices
 ## Initial setup
 * Pull latest [appium-device](https://cloud.docker.com/u/qaprosoft/repository/docker/qaprosoft/appium-device/tags) docker image (TODO: automate it later as part of ansible playbook script)
 ```
-docker pull qaprosoft/appium-device:1.15
+docker pull qaprosoft/appium-device:1.17
 ```
 * Clone https://github.com/qaprosoft/infrappium repo
 ```
