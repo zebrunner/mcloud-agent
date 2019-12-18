@@ -12,7 +12,7 @@ MCloud is dockerized QA infrastructure for remote web access to physical devices
 * [License](#license)
 
 ## Software prerequisites
-* Install [docker](http://www.techrepublic.com/article/how-to-install-docker-on-ubuntu-16-04/)
+* Install docker ([Ubuntu 16](http://www.techrepublic.com/article/how-to-install-docker-on-ubuntu-16-04/), [Ubuntu 18](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-18-04), )
 * Install [ansible](https://www.techrepublic.com/article/how-to-install-ansible-on-ubuntu-server-16-04/)
 
 ## Initial setup
