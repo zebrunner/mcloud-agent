@@ -12,8 +12,9 @@ MCloud is dockerized QA infrastructure for remote web access to physical devices
 * [License](#license)
 
 ## Software prerequisites
-* Install docker ([Ubuntu 16](http://www.techrepublic.com/article/how-to-install-docker-on-ubuntu-16-04/), [Ubuntu 18](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-18-04), )
+* Install docker ([Ubuntu 16](http://www.techrepublic.com/article/how-to-install-docker-on-ubuntu-16-04/))
 * Install [ansible](https://www.techrepublic.com/article/how-to-install-ansible-on-ubuntu-server-16-04/)
+* Install [CMake](https://cgold.readthedocs.io/en/latest/first-step/installation.html)
 
 ## Initial setup
 * Pull latest [appium-device](https://cloud.docker.com/u/qaprosoft/repository/docker/qaprosoft/appium-device/tags) docker image (TODO: automate it later as part of ansible playbook script)
