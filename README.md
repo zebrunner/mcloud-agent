@@ -57,7 +57,7 @@ devices:
 ```
 ansible-playbook -vvv -i hosts devices.yml
 ```
-   * Android SDK location: /opt/android-linux-sdk
+   * Android SDK location: /opt/android-sdk-linux
    * Appium location: /opt/appium
    * OpenCV library for FindByImage support as part of npm components
    * Container creation/removal script deployed to /usr/local/bin/device2docker
