@@ -1,4 +1,4 @@
-Zebrunner device farm (Android slave)
+Zebrunner Device Farm (Android slave)
 ==================
 
 ## Contents
