@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DOCKER_IMAGE_ID=`docker images | grep '{{ android-device_image }}' | grep '{{ android-device_version }}' | awk '{print($3)}'`
+DOCKER_IMAGE_ID=`docker images | grep '{{ android_device_image }}' | grep '{{ android_device_version }}' | awk '{print($3)}'`
 CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | cut -d '-' -f 2-` )
 CONNECTED_DEVICES=( `ls /dev/ | grep device | cut -d '-' -f 2-` )
 echo ACTION: $ACTION
@@ -38,8 +38,8 @@ function create_container () {
     local symlink=/dev/device-$device
 
     local opnecvVolume=""
-    if [[ -d {{ opencv_install_location }}/node_modules ]]; then
-      opencvVolume=" -v {{ opencv_install_location }}/node_modules:/opt/node_modules "
+    if [[ -d {{ opencv_home }}/node_modules ]]; then
+      opencvVolume=" -v {{ opencv_home }}/node_modules:/opt/node_modules "
     fi
 
     #TODO: think about removal hosts duplicates
