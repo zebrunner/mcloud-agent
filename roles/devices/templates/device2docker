@@ -37,19 +37,15 @@ function create_container () {
 
     local symlink=/dev/device-$device
 
-    local opnecvVolume=""
-    if [[ -d {{ opencv_home }}/node_modules ]]; then
-      opencvVolume=" -v {{ opencv_home }}/node_modules:/opt/node_modules "
-    fi
-
     #TODO: think about removal hosts duplicates
     local addedHost=" --add-host {{ stf_public_host }}:{{ stf_private_host }} --add-host {{ stf_provider_public_host }}:{{ stf_provider_private_host }} "
 
     docker run -d --name "device-$device" --log-opt max-size=50m -m 1g --device=$symlink:/dev/bus/usb/003/011 --net={{ stf_docker_network }} \
 	--health-start-period 60s \
 	--restart always \
-	-v mcloud-appium-volume:/opt/mcloud $opencvVolume $addedHost \
-	-v mcloud-key-volume:/root/.android \
+	-v mcloud-appium-volume:/opt/mcloud -v mcloud-opencv-volume:/opt/opencv \
+        -v mcloud-key-volume:/root/.android \
+	$addedHost \
 	-v {{ nginx_home }}:{{ nginx_home }} \
 	-v /opt/apk:/opt/apk \
         -e NODE_OPTIONS=--max_old_space_size={{ max_old_space_size_value }} \
