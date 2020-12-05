@@ -1,0 +1,129 @@
+#!/bin/bash
+
+DOCKER_IMAGE_ID=`docker images | grep '{{ android_device_image }}' | grep '{{ android_device_version }}' | awk '{print($3)}'`
+CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | cut -d '-' -f 2-` )
+CONNECTED_DEVICES=( `ls /dev/ | grep device | cut -d '-' -f 2-` )
+echo ACTION: $ACTION
+
+
+function delete_container () {
+    local device=$1
+    local container=`docker ps -a | grep $device | sed 's/^\([a-z0-9]*\).*$/\1/g'`
+    docker rm $container -f || echo 'already deleted'
+}
+
+function create_container () {
+    local device=$1
+    echo "device: $device"
+
+    local udid=`echo $device | cut -d '-' -f 1`
+    echo "udid: $udid"
+
+    local devices=/usr/local/bin/devices.txt
+    local device_name=`cat ${devices} | grep "$udid" | cut -d '|' -f 1`
+    echo "device_name: $device_name"
+
+    local device_adb_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 3`
+    echo "device_adb_port: $device_adb_port"
+
+    local stf_min_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 4`
+    echo "stf_min_port: $stf_min_port"
+
+    local stf_max_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 5`
+    echo "stf_max_port: $stf_max_port"
+
+    local proxy_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 6`
+    echo "proxy_port: $proxy_port"
+
+    local symlink=/dev/device-$device
+
+    local opnecvVolume=""
+    if [[ -d {{ opencv_home }}/node_modules ]]; then
+      opencvVolume=" -v {{ opencv_home }}/node_modules:/opt/node_modules "
+    fi
+
+    #TODO: think about removal hosts duplicates
+    local addedHost=" --add-host {{ stf_public_host }}:{{ stf_private_host }} --add-host {{ stf_provider_public_host }}:{{ stf_provider_private_host }} "
+
+    docker run -d --name "device-$device" --log-opt max-size=50m -m 1g --device=$symlink:/dev/bus/usb/003/011 --net={{ stf_docker_network }} \
+	--health-start-period 60s \
+	--restart always \
+	-v mcloud-appium-volume:/opt/mcloud $opencvVolume $addedHost \
+	-v mcloud-key-volume:/root/.android \
+	-v {{ nginx_home }}:{{ nginx_home }} \
+	-v /opt/apk:/opt/apk \
+        -e NODE_OPTIONS=--max_old_space_size={{ max_old_space_size_value }} \
+        -e DEVICENAME=$device_name -e DEVICEUDID=$udid \
+	-e ADB_PORT=$device_adb_port \
+	-p $device_adb_port:5037 \
+	-p $stf_min_port-$stf_max_port:$stf_min_port-$stf_max_port \
+	-e MIN_PORT=$stf_min_port \
+	-e MAX_PORT=$stf_max_port \
+	-e STF_PRIVATE_HOST={{ stf_private_host }} -e STF_PUBLIC_HOST={{ stf_public_host }} \
+	-e STF_HOST_PROVIDER_PRIVATE={{ stf_provider_private_host }} -e STF_HOST_PROVIDER_PUBLIC={{ stf_provider_public_host }} \
+	-e STF_TCP_SUB_PORT={{ stf_tcp_sub_port }} -e STF_TCP_PUB_PORT={{ stf_tcp_pub_port }} \
+	-e RETHINKDB_PORT_28015_TCP={{ stf_rethinkdb }} \
+	-e SELENIUM_HUB_HOST={{ selenium_hub_host }} -e SELENIUM_HUB_PORT={{ selenium_hub_port }} \
+	-e PROXY_PORT=$proxy_port \
+        $DOCKER_IMAGE_ID || echo 'already created'
+}
+
+function update_symlink () {
+    local device=$1
+    local device_path=`ls -l /dev/ | grep $device | sed 's/^.*> \(.*\)$/\1/g'`
+    if [[ $device_path != /dev* ]]
+    then
+        local symlink=/dev/device-$device
+        local temp_symlink=/dev/temp-$device
+        device_path=/dev/$device_path
+        setfacl -m u:$USER:rw $device_path
+        ln -s $device_path $temp_symlink
+        mv $temp_symlink $symlink
+        rm $temp_symlink
+    fi
+}
+
+if [[ $ACTION = "add" ]]
+then
+    for device in "${CONNECTED_DEVICES[@]}"
+    do
+        update_symlink $device
+        present=0
+        for container in "${CONTAINERS[@]}"
+        do
+            if [[ $device = $container ]]
+            then
+                present=1
+            fi
+        done
+        if [[ $present = 0 ]]
+        then
+            create_container $device
+        fi
+    done
+elif [[ $ACTION = "remove" ]]
+then
+    sleep 5
+    CONNECTED_DEVICES=( `ls /dev/ | grep device | cut -d '-' -f 2-` )
+    for container in "${CONTAINERS[@]}"
+    do
+	echo verifying container: $container
+        present=0
+        for device in "${CONNECTED_DEVICES[@]}"
+        do
+	    echo verifying device: $device
+            if [[ $device = $container ]]
+            then
+		echo $device still alive
+                present=1
+            fi
+        done
+        if [[ $present = 0 ]]
+        then
+	    echo delete container: $container
+            delete_container $container
+        fi
+    done
+fi
+
+exit 0

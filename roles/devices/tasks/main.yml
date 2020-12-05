@@ -1,0 +1,18 @@
+---
+
+- name: 'Installing python3-pip'
+  apt:
+    pkg: python3-pip
+    state: present
+
+- name: 'Installing Ansible PIP dependencies'
+  pip:
+    name: docker-py
+    state: present
+
+- name: Configurate udev
+  include: udev.yml
+  tags: registerDevice
+
+- name: Configurate ssl security
+  include: ssl.yml

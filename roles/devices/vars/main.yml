@@ -1,0 +1,63 @@
+---
+# public and private ip/hostname of the current provider host. Use the same as stf_public_host/stf_private_host if main services and stf provider located on the same computer
+stf_provider_public_host: 192.168.88.95
+stf_provider_private_host: 192.168.88.95
+
+# public and private ip/hostname of the server where main stf services are deployed
+stf_public_host: 192.168.88.95
+stf_private_host: 192.168.88.95
+
+stf_tcp_sub_port: 7250
+stf_tcp_pub_port: 7270
+
+stf_docker_network: infra
+
+#tcp url to rethinkdb. Make sure to use valid hostname/ip if it is located on different host.
+stf_rethinkdb: tcp://rethinkdb:28015
+
+selenium_hub_host: selenium-hub
+selenium_hub_port: 4444
+
+devices:
+  - id: 42009c44d068b461
+    name: Samsung_Galaxy_J3
+    adb_port: 5038
+    min_port: 7401
+    max_port: 7410
+    proxy_port: 9000
+  - id: 5200e0a5e2982529
+    name: Samsung_Galaxy_J5
+    adb_port: 5039
+    min_port: 7411
+    max_port: 7420
+    proxy_port: 9001
+  - id: 52003eafc01f25ad
+    name: Samsung_Galaxy_J7
+    adb_port: 5040
+    min_port: 7421
+    max_port: 7430
+    proxy_port: 9002
+  - id: 5200649f4909a42d
+    name: Samsung_Galaxy_A5
+    adb_port: 5041
+    min_port: 7431
+    max_port: 7440
+    proxy_port: 9003
+  - id: ce0217124acd220405
+    name: Samsung_Galaxy_S7
+    adb_port: 5042
+    min_port: 7441
+    max_port: 7450
+    proxy_port: 9004
+  - id: 988a1c424436513832
+    name: Samsung_Galaxy_S8_Plus
+    adb_port: 5043
+    min_port: 7451
+    max_port: 7460
+    proxy_port: 9005
+  - id: RQ3004CE5F
+    name: Sony_Xperia_XA1
+    adb_port: 5044
+    min_port: 7461
+    max_port: 7470
+    proxy_port: 9006
