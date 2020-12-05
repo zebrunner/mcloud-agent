@@ -16,9 +16,10 @@ ansible-galaxy collection install community.general
 ```
 
 ## Initial setup
-* Update roles/devices/vars/main.yml:
-  * Update stf_private_host and stf_public_host using the actual value from MCloud master setup. Physically android-slave can be located on the same Linux server where STF services are deployed
-  * Update selenium_hub_host and selenium_hub_port values. By default we have values for the schema when MCloud is deployed on the same server (selenium-hub container name)
+* Update `hosts` file to manage several hosts by Ansible otherwise localhost only will be configured.
+* Update `roles/devices/vars/main.yml` file:
+  * Set stf_private_host and stf_public_host using the actual value from MCloud master setup. Physically android-slave can be located on the same Linux server where STF is deployed
+  * Set selenium_hub_host and selenium_hub_port values. By default we have values for the schema when MCloud is deployed on the same server
   * Declare/whitelist all Android devices using structure below
 ```
 stf_private_host: 192.168.88.10
@@ -39,8 +40,8 @@ devices:
     max_port: 7420
     proxy_port: 9001
 ```
-   * Note: Make sure to provide valid devices udid values
-   * Name value will be used for registration this device in STF (it is recommened to avoid special symbols and spaces)
+   * Note: Make sure to provide valid device udid values
+   * Name value will be used for registration this device in STF (it is recommended to avoid special symbols and spaces)
    * Provide unique adb port values for each device as they will be shared to the master Linux server
    * Provide unique range of 10 ports for each Android device. Those ports should be accessible from client's browser sessions otherwise gray screen is displayed or "adb connect" doesn't work.
    * Provide unique number of proxy_port per each device (they can be used in integration with Carina traffic sniffering fucntionality: http://qaprosoft.github.io/carina/proxy/)
