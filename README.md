@@ -8,22 +8,13 @@ Zebrunner Device Farm (Android slave)
 * [License](#license)
 
 ## Software prerequisites
-* Install docker ([Ubuntu 16](http://www.techrepublic.com/article/how-to-install-docker-on-ubuntu-16-04/))
-* Install [ansible](https://www.techrepublic.com/article/how-to-install-ansible-on-ubuntu-server-16-04/)
-* Install [CMake](https://cgold.readthedocs.io/en/latest/first-step/installation.html)
+* Install docker ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-20-04), [Amazon Linux 2](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/docker-basics.html), [Redhat/Cent OS](https://www.cyberciti.biz/faq/install-use-setup-docker-on-rhel7-centos7-linux/))
+* Install ansible ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-20-04))
 
 ## Initial setup
-* Pull latest [appium-device](https://cloud.docker.com/u/qaprosoft/repository/docker/qaprosoft/appium-device/tags) docker image (TODO: automate it later as part of ansible playbook script)
-```
-docker pull qaprosoft/appium-device:1.17
-```
-* Clone https://github.com/qaprosoft/infrappium repo
-```
-git clone https://github.com/qaprosoft/infrappium
-```
 * Update roles/devices/vars/main.yml:
-  * Update stf_private_host and stf_public_host using the actual value from MCloud master setup. Physically android-slave can be located on the same Linux server where STF master and QPS-Infra are deployed
-  * Update selenium_hub_host and selenium_hub_port values. By default we have values for the schema when qps-infra is deployed on the same server (selenium-hub container name)
+  * Update stf_private_host and stf_public_host using the actual value from MCloud master setup. Physically android-slave can be located on the same Linux server where STF services are deployed
+  * Update selenium_hub_host and selenium_hub_port values. By default we have values for the schema when MCloud is deployed on the same server (selenium-hub container name)
   * Declare/whitelist all Android devices using structure below
 ```
 stf_private_host: 192.168.88.10
@@ -49,15 +40,17 @@ devices:
    * Provide unique adb port values for each device as they will be shared to the master Linux server
    * Provide unique range of 10 ports for each Android device. Those ports should be accessible from client's browser sessions otherwise gray screen is displayed or "adb connect" doesn't work.
    * Provide unique number of proxy_port per each device (they can be used in integration with Carina traffic sniffering fucntionality: http://qaprosoft.github.io/carina/proxy/)
- * Run ansible-playbook script to install all kind of prerequisites onto the system:
+ * Run ansible-playbook script to download required components and setup udev rules:
 ```
 ansible-playbook -vvv -i hosts devices.yml
 ```
-   * Android SDK location: /opt/android-sdk-linux
-   * Appium location: /opt/appium
-   * OpenCV library for FindByImage support as part of npm components
+ > To provide extra arguments including sudo permissions you can use
+```
+ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD ssl_crt=/home/ubuntu/ssl.crt ssl_key=/home/ubuntu/ssl.key" devices.yml
+```
    * Container creation/removal script deployed to /usr/local/bin/device2docker
    * Udev rules with whitelisted devices are in /etc/udev/rules.d/51-android.rules
+   * Whitelisted devices custom properties are in /usr/local/bin/devices.txt
    
 ## Usage
 * Enable developer option for each device (TODO: exact and recommended configuration steps should be provided for Android device)

@@ -1,0 +1,10 @@
+---
+android-device_image: zebrunner/android-device
+android-device_version: 1.0
+
+appium_version: latest
+
+nginx_home: /opt/nginx
+ssl_crt: ssl.crt
+ssl_key: ssl.key
+
