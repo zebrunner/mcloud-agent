@@ -11,9 +11,9 @@
     state: directory
 
 - name: copy ssl certificate
-  copy:  src="{{ ssl_crt }}" dest="{{ nginx_home }}"/ssl/ssl.crt
+  copy:  src="{{ ssl_crt }}" dest="{{ nginx_home }}/ssl/ssl.crt"
   failed_when: false
 
 - name: copy ssl key
-  copy: src="{{ ssl_key }}" dest="{{ nginx_home }}"/ssl/ssl.key
+  copy: src="{{ ssl_key }}" dest="{{ nginx_home }}/ssl/ssl.key"
   failed_when: false
