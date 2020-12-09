@@ -1,0 +1,19 @@
+---
+
+- name: Pull an android-device image
+  community.general.docker_image:
+    name: "{{ android_device_image }}:{{ android_device_version }}"
+    source: pull
+
+- name: Download appium.tar.gz from public zebrunner-ce S3 storage
+  get_url: url="https://zebrunner-ce.s3.amazonaws.com/mcloud/{{ mcloud_version }}/appium.tar.gz" dest=.
+
+- name: Generate docker volume using mcloud.tar.gz archive
+  shell: docker run --rm -v $(pwd)/appium.tar.gz:/var/tmp/appium.tar.gz -v mcloud-appium-volume:/opt/mcloud "ubuntu:16.04" bash -c "rm -rf /opt/mcloud/* && cd / && tar -xzvf /var/tmp/appium.tar.gz"
+
+- name: Download opencv.tar.gz from public zebrunner-ce S3 storage
+  get_url: url="https://zebrunner-ce.s3.amazonaws.com/mcloud/{{ mcloud_version }}/opencv.tar.gz" dest=.
+
+- name: Generate docker volume using opencv.tar.gz archive
+  shell: docker run --rm -v $(pwd)/opencv.tar.gz:/var/tmp/opencv.tar.gz -v mcloud-opencv-volume:/opt/opencv "ubuntu:16.04" bash -c "rm -rf /opt/opencv/* && cd / && tar -xzvf /var/tmp/opencv.tar.gz"
+

@@ -1,0 +1,13 @@
+---
+android_device_image: zebrunner/android-device
+android_device_version: 1.0
+
+mcloud_version: latest
+
+nginx_home: /opt/nginx
+ssl_crt: ssl.crt
+ssl_key: ssl.key
+
+# to fix "FATAL ERROR: CALL_AND_RETRY_LAST Allocation failed - JavaScript heap out of memory" during video recording
+max_old_space_size_value: 8172
+
