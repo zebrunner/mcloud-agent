@@ -26,7 +26,7 @@ ansible-galaxy collection install community.general
 stf_provider_host: 192.168.88.10
 stf_private_host: 192.168.88.10
 stf_public_host: stf.mydomain.com
-selenium_hub_host: selenium-hub
+selenium_hub_host: mcloud-grid
 selenium_hub_port: 4444
 devices:
   - id: 085922ed01829ce3
