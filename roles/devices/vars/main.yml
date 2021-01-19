@@ -1,9 +1,9 @@
 ---
 # private ip/hostname of the provider host. It should be resolvable and accessible from the main stf host
-stf_provider_host: 192.168.88.95
+stf_provider_host: 192.168.88.96
 
 # public and private ip/hostname of the server where main stf services are deployed
-stf_public_host: 192.168.88.95
+stf_public_host: demo.zebrunner.farm
 stf_private_host: 192.168.88.95
 
 stf_tcp_sub_port: 7250
