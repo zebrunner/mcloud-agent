@@ -37,8 +37,7 @@ function create_container () {
 
     local symlink=/dev/device-$device
 
-    #TODO: think about removal hosts duplicates
-    local addedHost=" --add-host {{ stf_public_host }}:{{ stf_private_host }} --add-host {{ stf_provider_public_host }}:{{ stf_provider_private_host }} "
+    local addedHost=" --add-host {{ stf_public_host }}:{{ stf_private_host }} "
 
     docker run -d --name "device-$device" --log-opt max-size=50m -m 1g --device=$symlink:/dev/bus/usb/003/011 --net={{ stf_docker_network }} \
 	--health-start-period 60s \
@@ -56,7 +55,7 @@ function create_container () {
 	-e MIN_PORT=$stf_min_port \
 	-e MAX_PORT=$stf_max_port \
 	-e STF_PRIVATE_HOST={{ stf_private_host }} -e STF_PUBLIC_HOST={{ stf_public_host }} \
-	-e STF_HOST_PROVIDER_PRIVATE={{ stf_provider_private_host }} -e STF_HOST_PROVIDER_PUBLIC={{ stf_provider_public_host }} \
+	-e STF_HOST_PROVIDER={{ stf_provider_host }} \
 	-e STF_TCP_SUB_PORT={{ stf_tcp_sub_port }} -e STF_TCP_PUB_PORT={{ stf_tcp_pub_port }} \
 	-e RETHINKDB_PORT_28015_TCP={{ stf_rethinkdb }} \
 	-e SELENIUM_HUB_HOST={{ selenium_hub_host }} -e SELENIUM_HUB_PORT={{ selenium_hub_port }} \

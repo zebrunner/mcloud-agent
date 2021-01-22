@@ -1,10 +1,9 @@
 ---
-# public and private ip/hostname of the current provider host. Use the same as stf_public_host/stf_private_host if main services and stf provider located on the same computer
-stf_provider_public_host: 192.168.88.95
-stf_provider_private_host: 192.168.88.95
+# private ip/hostname of the provider host. It should be resolvable and accessible from the main stf host
+stf_provider_host: 192.168.88.96
 
 # public and private ip/hostname of the server where main stf services are deployed
-stf_public_host: 192.168.88.95
+stf_public_host: demo.zebrunner.farm
 stf_private_host: 192.168.88.95
 
 stf_tcp_sub_port: 7250
@@ -15,7 +14,8 @@ stf_docker_network: infra
 #tcp url to rethinkdb. Make sure to use valid hostname/ip if it is located on different host.
 stf_rethinkdb: tcp://rethinkdb:28015
 
-selenium_hub_host: selenium-hub
+# host and port of this container: https://github.com/zebrunner/mcloud/blob/8442bceec096f886c02bf84a39816f10c694ad9e/docker-compose.yml#L17
+selenium_hub_host: mcloud-grid
 selenium_hub_port: 4444
 
 devices:
