@@ -3,8 +3,16 @@
 DOCKER_IMAGE_ID=`docker images | grep '{{ android_device_image }}' | grep '{{ android_device_version }}' | awk '{print($3)}'`
 CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | cut -d '-' -f 2-` )
 CONNECTED_DEVICES=( `ls /dev/ | grep device | cut -d '-' -f 2-` )
+if [ -z $ACTION ]; then
+    ACTION=$1
+fi
 echo ACTION: $ACTION
 
+function recreate_container() {
+    local device=$1
+    delete_container $device
+    create_container $device
+}
 
 function delete_container () {
     local device=$1
@@ -119,6 +127,9 @@ then
             delete_container $container
         fi
     done
+elif [[ $ACTION = "recreate" ]]
+then
+    recreate_container $2
 fi
 
 exit 0
