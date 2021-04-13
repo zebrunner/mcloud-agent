@@ -1,6 +1,6 @@
 ---
 android_device_image: zebrunner/android-device
-android_device_version: 1.0
+android_device_version: 1.1-beta2
 
 mcloud_version: latest
 
