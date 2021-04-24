@@ -10,6 +10,8 @@ echo ACTION: $ACTION
 
 function recreate_container() {
     local device=$1
+    # #21 improve recreate device container parametrization
+    device=${device#"device-"}
     delete_container $device
     create_container $device
 }
