@@ -71,8 +71,8 @@ function create_container () {
         -e STF_PROVIDER_MIN_PORT=$stf_min_port -e STF_PROVIDER_MAX_PORT=$stf_max_port \
 	-p $stf_min_port-$stf_max_port:$stf_min_port-$stf_max_port \
 	-e STF_PROVIDER_PUBLIC_IP={{ stf_public_host }} \
-        -e STF_PROVIDER_CONNECT_SUB=tcp://{{ stf_private_host }}:{{ stf_tcp_sub_port }} \
-        -e STF_PROVIDER_CONNECT_PUSH=tcp://{{ stf_private_host }}:{{ stf_tcp_pub_port }} \
+        -e STF_PROVIDER_CONNECT_SUB={{ stf_provider_connect_sub }} \
+        -e STF_PROVIDER_CONNECT_PUSH={{ stf_provider_connect_push }} \
 	-e STF_HOST_PROVIDER={{ stf_provider_host }} \
 	-e RETHINKDB_PORT_28015_TCP={{ stf_rethinkdb }} \
 	-e SELENIUM_HUB_HOST={{ selenium_hub_host }} -e SELENIUM_HUB_PORT={{ selenium_hub_port }} \

@@ -6,8 +6,8 @@ stf_provider_host: 192.168.88.96
 stf_public_host: demo.zebrunner.farm
 stf_private_host: 192.168.88.95
 
-stf_tcp_sub_port: 7250
-stf_tcp_pub_port: 7270
+stf_provider_connect_sub=tcp://demo.zebrunner.farm:7250
+stf_provider_connect_push=tcp://demo.zebrunner.farm:7270
 
 stf_docker_network: infra
 
