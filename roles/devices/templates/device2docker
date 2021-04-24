@@ -10,6 +10,8 @@ echo ACTION: $ACTION
 
 function recreate_container() {
     local device=$1
+    # #21 improve recreate device container parametrization
+    device=${device#"device-"}
     delete_container $device
     create_container $device
 }
@@ -43,31 +45,36 @@ function create_container () {
     local proxy_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 6`
     echo "proxy_port: $proxy_port"
 
-    local symlink=/dev/device-$device
+    local appium_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 7`
+    echo "appium_port: $appium_port"
 
-    local addedHost=" --add-host {{ stf_public_host }}:{{ stf_private_host }} "
+
+    local symlink=/dev/device-$device
 
     docker run -d --name "device-$device" --log-opt max-size=50m -m 1g --device=$symlink:/dev/bus/usb/003/011 --net={{ stf_docker_network }} \
 	--health-start-period 60s \
 	--restart always \
 	-v mcloud-appium-volume:/opt/mcloud -v mcloud-opencv-volume:/opt/opencv \
         -v mcloud-key-volume:/root/.android \
-	$addedHost \
 	-v {{ nginx_home }}:{{ nginx_home }} \
 	-v /opt/apk:/opt/apk \
         -e NODE_OPTIONS=--max_old_space_size={{ max_old_space_size_value }} \
-        -e DEVICENAME=$device_name -e DEVICEUDID=$udid \
+        -e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
+        -p $device_adb_port:5037 \
 	-e ADB_PORT=$device_adb_port \
-	-p $device_adb_port:5037 \
+        -e STF_PROVIDER_APPIUM_HOST={{ stf_provider_host }} \
+        -e STF_PROVIDER_APPIUM_PORT=$appium_port \
+        -p $appium_port:$appium_port \
+        -e STF_PROVIDER_MIN_PORT=$stf_min_port -e STF_PROVIDER_MAX_PORT=$stf_max_port \
 	-p $stf_min_port-$stf_max_port:$stf_min_port-$stf_max_port \
-	-e MIN_PORT=$stf_min_port \
-	-e MAX_PORT=$stf_max_port \
-	-e STF_PRIVATE_HOST={{ stf_private_host }} -e STF_PUBLIC_HOST={{ stf_public_host }} \
+	-e STF_PROVIDER_PUBLIC_IP={{ stf_public_host }} \
+        -e STF_PROVIDER_CONNECT_SUB={{ stf_provider_connect_sub }} \
+        -e STF_PROVIDER_CONNECT_PUSH={{ stf_provider_connect_push }} \
 	-e STF_HOST_PROVIDER={{ stf_provider_host }} \
-	-e STF_TCP_SUB_PORT={{ stf_tcp_sub_port }} -e STF_TCP_PUB_PORT={{ stf_tcp_pub_port }} \
 	-e RETHINKDB_PORT_28015_TCP={{ stf_rethinkdb }} \
 	-e SELENIUM_HUB_HOST={{ selenium_hub_host }} -e SELENIUM_HUB_PORT={{ selenium_hub_port }} \
 	-e PROXY_PORT=$proxy_port \
+	-p $proxy_port:$proxy_port \
         $DOCKER_IMAGE_ID || echo 'already created'
 }
 

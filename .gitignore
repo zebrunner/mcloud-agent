@@ -3,3 +3,4 @@ variables.env
 nginx/conf.d/default.conf
 stf-storage-temp
 rethinkdb
+*.tar.gz
