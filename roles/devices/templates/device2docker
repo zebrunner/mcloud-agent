@@ -45,6 +45,10 @@ function create_container () {
     local proxy_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 6`
     echo "proxy_port: $proxy_port"
 
+    local appium_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 7`
+    echo "appium_port: $appium_port"
+
+
     local symlink=/dev/device-$device
 
     local addedHost=" --add-host {{ stf_public_host }}:{{ stf_private_host }} "
@@ -62,16 +66,18 @@ function create_container () {
         -p $device_adb_port:5037 \
 	-e ADB_PORT=$device_adb_port \
         -e STF_PROVIDER_APPIUM_HOST={{ stf_provider_host }} \
+        -e STF_PROVIDER_APPIUM_PORT=$appium_port \
+        -p $appium_port:$appium_port \
+        -e STF_PROVIDER_MIN_PORT=$stf_min_port -e STF_PROVIDER_MAX_PORT=$stf_max_port \
 	-p $stf_min_port-$stf_max_port:$stf_min_port-$stf_max_port \
-	-e STF_PROVIDER_MIN_PORT=$stf_min_port -e STF_PROVIDER_MAX_PORT=$stf_max_port \
 	-e STF_PROVIDER_PUBLIC_IP={{ stf_public_host }} \
-        -e STF_PRIVATE_HOST={{ stf_private_host }} \
         -e STF_PROVIDER_CONNECT_SUB=tcp://{{ stf_private_host }}:{{ stf_tcp_sub_port }} \
         -e STF_PROVIDER_CONNECT_PUSH=tcp://{{ stf_private_host }}:{{ stf_tcp_pub_port }} \
 	-e STF_HOST_PROVIDER={{ stf_provider_host }} \
 	-e RETHINKDB_PORT_28015_TCP={{ stf_rethinkdb }} \
 	-e SELENIUM_HUB_HOST={{ selenium_hub_host }} -e SELENIUM_HUB_PORT={{ selenium_hub_port }} \
 	-e PROXY_PORT=$proxy_port \
+	-p $proxy_port:$proxy_port \
         $DOCKER_IMAGE_ID || echo 'already created'
 }
 

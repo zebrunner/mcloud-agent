@@ -29,14 +29,16 @@ stf_public_host: stf.mydomain.com
 selenium_hub_host: mcloud-grid
 selenium_hub_port: 4444
 devices:
-  - id: 085922ed01829ce3
-    name: Nexus_5
+  - id: 42009c44d068b461
+    name: Samsung_Galaxy_J3
+    appium_port: 4723
     adb_port: 5038
     min_port: 7401
     max_port: 7410
     proxy_port: 9000
-  - id: 0186a5f28f9837e9
-    name: Nexus_4
+  - id: 5200e0a5e2982529
+    name: Samsung_Galaxy_J5
+    appium_port: 4724
     adb_port: 5039
     min_port: 7411
     max_port: 7420
@@ -44,7 +46,8 @@ devices:
 ```
    * Note: Make sure to provide valid device udid values
    * Name value will be used for registration this device in STF (it is recommended to avoid special symbols and spaces)
-   * Provide unique adb port values for each device as they will be shared to the master Linux server
+   * Provide unique appium port values for each device as they will be shared to the provider Linux server
+   * Provide unique adb port values for each device as they will be shared to the provider Linux server
    * Provide unique range of 10 ports for each Android device. Those ports should be accessible from client's browser sessions otherwise gray screen is displayed or "adb connect" doesn't work.
    * Provide unique number of proxy_port per each device (they can be used in integration with Carina traffic sniffering fucntionality: http://qaprosoft.github.io/carina/proxy/)
  * Run ansible-playbook script to download required components and setup udev rules:
