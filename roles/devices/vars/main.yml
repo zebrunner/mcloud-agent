@@ -1,12 +1,12 @@
 ---
+# public ip/hostname of the server where STF services are deployed
+stf_public_host: demo.zebrunner.farm
+
 # private ip/hostname of the provider host. It should be resolvable and accessible from the main stf host
 stf_provider_host: 192.168.88.96
 
-# public and private ip/hostname of the server where main stf services are deployed
-stf_public_host: demo.zebrunner.farm
-
-stf_provider_connect_sub=tcp://demo.zebrunner.farm:7250
-stf_provider_connect_push=tcp://demo.zebrunner.farm:7270
+stf_provider_connect_sub: tcp://demo.zebrunner.farm:7250
+stf_provider_connect_push: tcp://demo.zebrunner.farm:7270
 
 stf_docker_network: infra
 
