@@ -3,6 +3,9 @@
 - name: Pull an android-device image
   shell: docker pull "{{ android_device_image }}:{{ android_device_version }}"
 
+- name: Create infra network if absent
+  shell: docker network inspect infra >/dev/null 2>&1 || docker network create infra
+
 - name: Download appium.tar.gz from public zebrunner-ce S3 storage
   get_url: url="https://zebrunner-ce.s3.amazonaws.com/mcloud/{{ mcloud_version }}/appium.tar.gz" dest=.
 
