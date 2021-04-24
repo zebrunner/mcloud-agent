@@ -19,12 +19,11 @@ ansible-galaxy collection install community.general
 * Update `hosts` file to manage several hosts by Ansible otherwise localhost only will be configured.
 * Update `roles/devices/vars/main.yml` file:
   * Set stf_provider_host to the private ip of your android slave (it should be accessible from MCloud master host)
-  * Set stf_private_host and stf_public_host using the actual value from MCloud master setup. Physically mcloud-andriod slave can be located on the same Linux server where STF is deployed
+  * Set stf_public_host using the actual value from MCloud master setup. Physically mcloud-andriod slave can be located on the same Linux server where STF is deployed
   * Set selenium_hub_host and selenium_hub_port values. By default we have values for the schema when MCloud is deployed on the same server
   * Declare/whitelist all Android devices using structure below
 ```
 stf_provider_host: 192.168.88.10
-stf_private_host: 192.168.88.10
 stf_public_host: stf.mydomain.com
 selenium_hub_host: mcloud-grid
 selenium_hub_port: 4444
