@@ -1,21 +1,33 @@
 ---
-# public ip/hostname of the server where STF services are deployed
-stf_public_host: demo.zebrunner.farm
-
-# private ip/hostname of the provider host. It should be resolvable and accessible from the main stf host
-stf_provider_host: 192.168.88.96
-
-stf_provider_connect_sub: tcp://demo.zebrunner.farm:7250
-stf_provider_connect_push: tcp://demo.zebrunner.farm:7270
-
 stf_docker_network: infra
 
-#tcp url to rethinkdb. Make sure to use valid hostname/ip if it is located on different host.
-stf_rethinkdb: tcp://rethinkdb:28015
+# [OBLIGATORY] Set host address of the server where STF services are deployed
+stf_public_host: demo.zebrunner.farm
 
-# host and port of this container: https://github.com/zebrunner/mcloud/blob/8442bceec096f886c02bf84a39816f10c694ad9e/docker-compose.yml#L17
+# [OPTIONAL] Set tcp url to rethinkdb and stf-triproxy-dev.
+# make sure to use valid hostname and port if services are located on different host.
+stf_rethinkdb: tcp://rethinkdb:28015
+stf_provider_connect_sub: tcp://stf-triproxy-dev:7250
+stf_provider_connect_push: tcp://stf-triproxy-dev:7270
+
+# [OPTIONAL] Set host address and port of mcloud-grid container: https://github.com/zebrunner/mcloud/blob/8442bceec096f886c02bf84a39816f10c694ad9e/docker-compose.yml#L17
+# make sure to use valid hostname and port if it is located on different host.
 selenium_hub_host: mcloud-grid
 selenium_hub_port: 4444
+
+# [OBLIGATORY] Set host address of current STF provider server. It should be resolvable and accessible from the stf_public_host!
+stf_provider_host: 192.168.88.96
+
+# [OPTIONAL] provider/location name for devices. Use short city name like NYC
+stf_provider_name: mcloud-android
+
+# [OBLIGATORY] Declare valid devices metadata
+# - id: device udid 
+#   name: devce name as it will be registered in STF (avoid special symbols and spaces!)
+#   appium_port: unique port value for sharing appium services from the container to outside
+#   adb_port: unique port value for sharing adb server from the container to outside
+#   min_port and max_port: unique range of 10 ports per device for system STF purposes. These ports should be accessible from client's browser!
+#   proxy_port: unique port value to configure emebedded proxy (they can be used in integration with Carina traffic sniffering fucntionality: http://qaprosoft.github.io/carina/proxy/)
 
 devices:
   - id: 42009c44d068b461
@@ -39,31 +51,3 @@ devices:
     min_port: 7421
     max_port: 7430
     proxy_port: 9002
-  - id: 5200649f4909a42d
-    name: Samsung_Galaxy_A5
-    appium_port: 4726
-    adb_port: 5041
-    min_port: 7431
-    max_port: 7440
-    proxy_port: 9003
-  - id: ce0217124acd220405
-    name: Samsung_Galaxy_S7
-    appium_port: 4727
-    adb_port: 5042
-    min_port: 7441
-    max_port: 7450
-    proxy_port: 9004
-  - id: 988a1c424436513832
-    name: Samsung_Galaxy_S8_Plus
-    appium_port: 4728
-    adb_port: 5043
-    min_port: 7451
-    max_port: 7460
-    proxy_port: 9005
-  - id: RQ3004CE5F
-    name: Sony_Xperia_XA1
-    appium_port: 4729
-    adb_port: 5044
-    min_port: 7461
-    max_port: 7470
-    proxy_port: 9006

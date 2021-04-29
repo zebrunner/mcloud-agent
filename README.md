@@ -13,36 +13,8 @@ Zebrunner Device Farm (Android slave)
 
 ## Initial setup
 * Update `hosts` file to manage several hosts by Ansible otherwise localhost only will be configured.
-* Update `roles/devices/vars/main.yml` file:
-  * Set stf_public_host using the actual ip/hostname of the MCloud master host. Physically mcloud-andriod slave can be located on the same Linux server where MCloud master is deployed.
-  * Set valid tcp address for stf_rethinkdb, stf_provider_connect_sub and stf_provider_connect_push. By default they located on MCloud master host.
-  * Set stf_provider_host to the ip/hostname of your android slave (it should be accessible from MCloud master host)
-  * Set selenium_hub_host and selenium_hub_port values. By default we have values for the schema when MCloud is deployed on the same server
-  * Declare/whitelist all Android devices using devices block structure
-```
-devices:
-  - id: 42009c44d068b461
-    name: Samsung_Galaxy_J3
-    appium_port: 4723
-    adb_port: 5038
-    min_port: 7401
-    max_port: 7410
-    proxy_port: 9000
-  - id: 5200e0a5e2982529
-    name: Samsung_Galaxy_J5
-    appium_port: 4724
-    adb_port: 5039
-    min_port: 7411
-    max_port: 7420
-    proxy_port: 9001
-```
-   * Note: Make sure to provide valid device udid values
-   * Name will be used for registration this device in STF (it is recommended to avoid special symbols and spaces)
-   * Provide unique appium port values for each device as they will be shared to the provider Linux server
-   * Provide unique adb port values for each device as they will be shared to the provider Linux server
-   * Provide unique range of 10 ports for each Android device. Those ports should be accessible from client's browser sessions otherwise gray screen is displayed or "adb connect" doesn't work.
-   * Provide unique number of proxy_port per each device (they can be used in integration with Carina traffic sniffering fucntionality: http://qaprosoft.github.io/carina/proxy/)
- * Run ansible-playbook script to download required components and setup udev rules:
+* Update `roles/devices/vars/main.yml` file according to the obligatory/optional comments inside.
+* Run ansible-playbook script to download required components and setup udev rules:
 ```
 ansible-playbook -vvv -i hosts devices.yml
 ```
@@ -58,14 +30,14 @@ ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=P
 * Enable developer option for each device (TODO: exact and recommended configuration steps should be provided for Android device)
 * Connect Android device physically into USB direct port or through the hub
 * For the 1st connection trust device picking "always trust..." on device
-* Open in your browser http://<PUBLIC_IP>, authenticate yourself based on preconfigured auth system.
-* Connected device should appear automatically in iSTF with ability to use it remotely
+* Open in your browser http://<PUBLIC_IP>/stf, authenticate yourself based on preconfigured auth system.
+* Connected device should appear automatically in STF with ability to use it remotely
 * Dedicated fully isolated android container is started per each device
 ```
 docker ps -a | grep device
 ```
 * Disconnect device from the server. In 30-60 seconds it should change state in STF to disconnected as well. Appropriate container is removed automatically.
-* <B>Note:</B> adb server should not be started on the master host during devices connect/disconnect! Otherwise device will be unavailable for isolated adb inside container
+* <B>Note:</B> adb server should not be started on the master host during devices connect/disconnect! Otherwise devices will be unavailable inside isolated container
 * To recreate container you can execute `device2docker recreate <deviceContainerName>`
 
 ## License
