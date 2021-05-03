@@ -74,7 +74,6 @@ function create_container () {
 	-e RETHINKDB_PORT_28015_TCP={{ stf_rethinkdb }} \
 	-e SELENIUM_HUB_HOST={{ selenium_hub_host }} -e SELENIUM_HUB_PORT={{ selenium_hub_port }} \
 	-e PROXY_PORT=$proxy_port \
-	-p $proxy_port:$proxy_port \
         $DOCKER_IMAGE_ID || echo 'already created'
 }
 
