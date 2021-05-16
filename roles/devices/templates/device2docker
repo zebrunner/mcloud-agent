@@ -54,7 +54,7 @@ function create_container () {
     docker run -d --name "device-$device" --log-opt max-size=50m -m 1g --device=$symlink:/dev/bus/usb/003/011 --net={{ stf_docker_network }} \
 	--health-start-period 60s \
 	--restart always \
-	-v mcloud-appium-volume:/opt/mcloud -v mcloud-opencv-volume:/opt/opencv \
+	-v mcloud-appium-volume:/opt/mcloud \
         -v mcloud-key-volume:/root/.android \
 	-v {{ nginx_home }}:{{ nginx_home }} \
 	-v /opt/apk:/opt/apk \
