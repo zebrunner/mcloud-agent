@@ -1,8 +1,8 @@
 ---
 android_device_image: zebrunner/android-device
-android_device_version: 1.1
+android_device_version: 1.2
 
-mcloud_version: develop
+mcloud_version: latest
 
 nginx_home: /opt/nginx
 ssl_crt: ssl.crt
