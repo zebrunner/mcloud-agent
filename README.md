@@ -22,9 +22,9 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
   ```
   ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD ssl_crt=/home/ubuntu/ssl.crt ssl_key=/home/ubuntu/ssl.key" devices.yml
   ```
-   * Container creation/removal script deployed to /usr/local/bin/device2docker
-   * Udev rules with whitelisted devices are in /etc/udev/rules.d/51-android.rules
-   * Whitelisted devices custom properties are in /usr/local/bin/devices.txt
+   * Container creation/removal script deployed to `/usr/local/bin/device2docker`
+   * Udev rules with whitelisted devices are in `/etc/udev/rules.d/51-android.rules`
+   * Whitelisted devices custom properties are in `/usr/local/bin/devices.txt`
    
 ## Usage
 * Enable developer option for each device (TODO: exact and recommended configuration steps should be provided for Android device).
