@@ -15,13 +15,13 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * Update `hosts` file to manage several hosts by Ansible; otherwise only the localhost will be configured.
 * Update `roles/devices/vars/main.yml` file according to the obligatory/optional comments inside.
 * Run ansible-playbook script to download required components and setup udev rules:
-```
-ansible-playbook -vvv -i hosts devices.yml
-```
- > To provide extra arguments including sudo permissions, you can use
-```
-ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD ssl_crt=/home/ubuntu/ssl.crt ssl_key=/home/ubuntu/ssl.key" devices.yml
-```
+  ```
+  ansible-playbook -vvv -i hosts devices.yml
+  ```
+  > To provide extra arguments including sudo permissions, you can use
+  ```
+  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD ssl_crt=/home/ubuntu/ssl.crt ssl_key=/home/ubuntu/ssl.key" devices.yml
+  ```
    * Container creation/removal script deployed to /usr/local/bin/device2docker
    * Udev rules with whitelisted devices are in /etc/udev/rules.d/51-android.rules
    * Whitelisted devices custom properties are in /usr/local/bin/devices.txt
@@ -33,9 +33,9 @@ ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=P
 * Open in your browser http://<PUBLIC_IP>/stf, authenticate yourself based on the preconfigured auth system.
 * Connected devices should appear automatically in STF with the ability to use them remotely.
 * Dedicated fully isolated Android containers are started per each device.
-```
-docker ps -a | grep device
-```
+  ```
+  docker ps -a | grep device
+  ```
 * Disconnect the device from the server. In 30-60 seconds, it should change the state in STF to disconnected as well. Appropriate container is removed automatically.
 * <B>Note:</B> adb server should not be started on the master host during devices connection/disconnection! Otherwise, the devices will be unavailable inside the isolated container.
 * To recreate the container you can execute `device2docker recreate <deviceContainerName>`
