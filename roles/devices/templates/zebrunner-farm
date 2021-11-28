@@ -15,28 +15,28 @@ if [ -z $ACTION ]; then
 fi
 echo ACTION: $ACTION
 
-function recreate_container() {
+function recreate_containers() {
     local device=$1
-    echo "recreate_container local device: $device"
+    echo "recreate_containers local device: $device"
 
     device=${device#"device-"}
 
-    echo "recreate_container local device: $device"
-    delete_container $device
-    create_container $device
+    echo "recreate_containers local device: $device"
+    delete_containers $device
+    create_containers $device
 }
 
-function delete_container () {
+function delete_containers () {
     local device=$1
-    echo "delete_container local device: $device"
+    echo "delete_containers local device: $device"
     local container=`docker ps -a | grep $device | sed 's/^\([a-z0-9]*\).*$/\1/g'`
     docker rm $container -f || echo 'already deleted'
     docker rm $container-appium -f || echo 'already deleted'
 }
 
-function create_container () {
+function create_containers () {
     local device=$1
-    echo "create_container locale device: $device"
+    echo "create_containers locale device: $device"
 
     local udid=`echo $device | cut -d '-' -f 2`
     echo "udid: $udid"
@@ -139,7 +139,7 @@ then
         done
         if [[ $present = 0 ]]
         then
-            create_container $device
+            create_containers $device
         fi
     done
 elif [[ $ACTION = "remove" ]]
@@ -162,13 +162,13 @@ then
         done
         if [[ $present = 0 ]]
         then
-	    echo delete container: $container
-            delete_container $container
+	    echo delete containers: $container
+            delete_containers $container
         fi
     done
 elif [[ $ACTION = "recreate" ]]
 then
-    recreate_container $2
+    recreate_containers $2
 fi
 
 exit 0
