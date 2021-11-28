@@ -1,13 +1,14 @@
 ---
-android_device_image: zebrunner/android-device
-android_device_version: 1.2
+ANDROID_DEVICE_IMAGE: zebrunner/android-device
+ANDROID_DEVICE_VERSION: 2.0-beta1
 
-mcloud_version: latest
+APPIUM_VERSION: 1.22
 
-nginx_home: /opt/nginx
-ssl_crt: ssl.crt
-ssl_key: ssl.key
+NGINX_HOME: /opt/nginx
+SSL_CRT: ssl.crt
+SSL_KEY: ssl.key
 
+#TODO: test if we can remove it as video recording moved outside the stf device container
 # to fix "FATAL ERROR: CALL_AND_RETRY_LAST Allocation failed - JavaScript heap out of memory" during video recording
-max_old_space_size_value: 8172
+MAX_OLD_SPACE_SIZE_VALUE: 8172
 

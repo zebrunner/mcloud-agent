@@ -1,4 +1,4 @@
 {% for device in devices %}
-SUBSYSTEM=="usb", ENV{ID_SERIAL_SHORT}=="{{ device.id }}", MODE="0666", SYMLINK+="device-{{ device.id }}-{{ device.name }}"
+SUBSYSTEM=="usb", ENV{ID_SERIAL_SHORT}=="{{ device.id }}", MODE="0666", SYMLINK+="device-{{ device.name }}-{{ device.id }}"
 {% endfor %}
-SUBSYSTEM=="usb", RUN+="/usr/local/bin/device2docker"
+SUBSYSTEM=="usb", RUN+="/usr/local/bin/zebrunner-farm"

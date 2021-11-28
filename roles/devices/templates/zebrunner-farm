@@ -1,8 +1,15 @@
 #!/bin/bash
 
-DOCKER_IMAGE_ID=`docker images | grep '{{ android_device_image }}' | grep '{{ android_device_version }}' | awk '{print($3)}'`
+#TODO: #25: add spaces before and after ' {{ ANDROID_DEVICE_VERSION }} ' to find exact image id!
+DOCKER_IMAGE_ID=`docker images | grep '{{ ANDROID_DEVICE_IMAGE }}' | grep '{{ ANDROID_DEVICE_VERSION }}' | awk '{print($3)}'`
+echo DOCKER_IMAGE_ID: $DOCKER_IMAGE_ID
+
 CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | cut -d '-' -f 2-` )
+echo CONTAINERS: $CONTAINERS
+
 CONNECTED_DEVICES=( `ls /dev/ | grep device | cut -d '-' -f 2-` )
+echo CONNECTED_DEVICES: $CONNECTED_DEVICES
+
 if [ -z $ACTION ]; then
     ACTION=$1
 fi
@@ -10,23 +17,28 @@ echo ACTION: $ACTION
 
 function recreate_container() {
     local device=$1
-    # #21 improve recreate device container parametrization
+    echo "recreate_container local device: $device"
+
     device=${device#"device-"}
+
+    echo "recreate_container local device: $device"
     delete_container $device
     create_container $device
 }
 
 function delete_container () {
     local device=$1
+    echo "delete_container local device: $device"
     local container=`docker ps -a | grep $device | sed 's/^\([a-z0-9]*\).*$/\1/g'`
+    docker rm $container -f || echo 'already deleted'
     docker rm $container -f || echo 'already deleted'
 }
 
 function create_container () {
     local device=$1
-    echo "device: $device"
+    echo "create_container locale device: $device"
 
-    local udid=`echo $device | cut -d '-' -f 1`
+    local udid=`echo $device | cut -d '-' -f 2`
     echo "udid: $udid"
 
     local devices=/usr/local/bin/devices.txt
@@ -51,29 +63,49 @@ function create_container () {
 
     local symlink=/dev/device-$device
 
-    docker run -d --name "device-$device" --log-opt max-size=50m -m 1g --device=$symlink:/dev/bus/usb/003/011 --net={{ stf_docker_network }} \
+    local net={{ STF_DOCKER_NETWORK }}
+
+    docker network inspect ${net} >/dev/null 2>&1 || docker network create ${net}
+
+#TODO: move aws s3 to env vars
+    docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
+	--device=$symlink:/dev/bus/usb/003/011 \
+        -v mcloud-key-volume:/root/.android \
+        -v {{ NGINX_HOME }}:{{ NGINX_HOME }} \
+        -e RETAIN_TASK=true \
+	-e REMOTE_ADB=false \
+	-e CONNECT_TO_GRID=true \
+	-e CUSTOM_NODE_CONFIG=true \
+	-e APPIUM_HOST=${device_name}-appium \
+        -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
+	-e DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
+	-e ADB_PORT=$device_adb_port \
+	-e PROXY_PORT=$proxy_port \
+        -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
+	-e STF_PROVIDER_MAX_PORT=$stf_max_port \
+	-e STF_PROVIDER_APPIUM_PORT=$appium_port \
+	-p $appium_port:4723 \
+        -e RELAXED_SECURITY=true \
+        -e BUCKET={{ S3_BUCKET }}  -e TENANT={{ S3_TENANT }}  -e AWS_ACCESS_KEY_ID={{ S3_ACCESS_KEY_ID }} -e AWS_SECRET_ACCESS_KEY={{ S3_SECRET }} -e AWS_DEFAULT_REGION={{ S3_REGION }} \
+        public.ecr.aws/zebrunner/appium:{{ APPIUM_VERSION }}
+
+    docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
+	--link device-${device_name}-${udid}-appium:appium \
+        -e STF_PROVIDER_ADB_HOST=appium \
 	--health-start-period 60s \
 	--restart always \
-	-v mcloud-appium-volume:/opt/mcloud \
-        -v mcloud-key-volume:/root/.android \
-	-v {{ nginx_home }}:{{ nginx_home }} \
-	-v /opt/apk:/opt/apk \
-        -e NODE_OPTIONS=--max_old_space_size={{ max_old_space_size_value }} \
+        -v {{ NGINX_HOME }}:{{ NGINX_HOME }} \
+        -e NODE_OPTIONS=--max_old_space_size={{ MAX_OLD_SPACE_SIZE_VALUE }} \
         -e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
-        -p $device_adb_port:5037 \
-	-e ADB_PORT=$device_adb_port \
-	-e STF_PROVIDER_HOST={{ stf_provider_host }} \
-        -e STF_PROVIDER_NAME="{{ stf_provider_name }}" \
+        -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
+        -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}" \
         -e STF_PROVIDER_APPIUM_PORT=$appium_port \
-        -p $appium_port:$appium_port \
         -e STF_PROVIDER_MIN_PORT=$stf_min_port -e STF_PROVIDER_MAX_PORT=$stf_max_port \
 	-p $stf_min_port-$stf_max_port:$stf_min_port-$stf_max_port \
-	-e STF_PROVIDER_PUBLIC_IP={{ stf_public_host }} \
-        -e STF_PROVIDER_CONNECT_SUB={{ stf_provider_connect_sub }} \
-        -e STF_PROVIDER_CONNECT_PUSH={{ stf_provider_connect_push }} \
-	-e RETHINKDB_PORT_28015_TCP={{ stf_rethinkdb }} \
-	-e SELENIUM_HUB_HOST={{ selenium_hub_host }} -e SELENIUM_HUB_PORT={{ selenium_hub_port }} \
-	-e PROXY_PORT=$proxy_port \
+        -e STF_PROVIDER_PUBLIC_IP={{ STF_PUBLIC_HOST }} \
+        -e STF_PROVIDER_CONNECT_SUB={{ STF_PROVIDER_CONNECT_SUB }} \
+        -e STF_PROVIDER_CONNECT_PUSH={{ STF_PROVIDER_CONNECT_PUSH }} \
+        -e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \
         $DOCKER_IMAGE_ID || echo 'already created'
 }
 
@@ -112,7 +144,8 @@ then
     done
 elif [[ $ACTION = "remove" ]]
 then
-    sleep 5
+    #TODO: test if pause is needed 
+    #sleep 5
     CONNECTED_DEVICES=( `ls /dev/ | grep device | cut -d '-' -f 2-` )
     for container in "${CONTAINERS[@]}"
     do
