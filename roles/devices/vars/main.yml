@@ -1,53 +1,62 @@
 ---
-stf_docker_network: infra
+STF_DOCKER_NETWORK: infra
 
 # [OBLIGATORY] Set host address of the server where STF services are deployed
-stf_public_host: demo.zebrunner.farm
+STF_PUBLIC_HOST: demo.zebrunner.farm
 
 # [OPTIONAL] Set tcp url to rethinkdb and stf-triproxy-dev.
-# make sure to use valid hostname and port if services are located on different host.
-stf_rethinkdb: tcp://rethinkdb:28015
-stf_provider_connect_sub: tcp://stf-triproxy-dev:7250
-stf_provider_connect_push: tcp://stf-triproxy-dev:7270
+# IMPORTANT! make sure to use valid hostname and port if STF services are located on different host.
+STF_RETHINKDB: tcp://rethinkdb:28015
+STF_PROVIDER_CONNECT_SUB: tcp://stf-triproxy-dev:7250
+STF_PROVIDER_CONNECT_PUSH: tcp://stf-triproxy-dev:7270
 
 # [OPTIONAL] Set host address and port of mcloud-grid container: https://github.com/zebrunner/mcloud/blob/8442bceec096f886c02bf84a39816f10c694ad9e/docker-compose.yml#L17
-# make sure to use valid hostname and port if it is located on different host.
-selenium_hub_host: mcloud-grid
-selenium_hub_port: 4444
+# IMPORTANT! make sure to use valid hostname and port if it is located on different host.
+SELENIUM_HUB_HOST: mcloud-grid
+SELENIUM_HUB_PORT: 4444
 
-# [OBLIGATORY] Set host address of current STF provider server. It should be resolvable and accessible from the stf_public_host!
-stf_provider_host: 192.168.88.96
+# [OBLIGATORY] Set host address of current STF provider server. It should be resolvable and accessible from the STF_PUBLIC_HOST!
+STF_PROVIDER_HOST: 192.168.88.96
 
 # [OPTIONAL] provider/location name for devices. Use short city name like NYC
-stf_provider_name: mcloud-android
+STF_PROVIDER_NAME: mcloud-android
+
+# [OPTIONAL] S3 compatible storage for video recordings. Use embedded minio storage from Community Edition by default
+# TODO: https://github.com/zebrunner/mcloud/issues/113 reuse embedded minio storage from reporting for video recordings
+S3_BUCKET: zebrunner
+S3_TENANT: 
+S3_ENDPOINT: http://minio:9000
+S3_ACCESS_KEY_ID: zebrunner
+S3_SECRET: J33dNyeTDj
+S3_REGION: us-east-1
 
 # [OBLIGATORY] Declare valid devices metadata
-# - id: device udid 
+# - id: device udid which is shown by `adb devices`
 #   name: devce name as it will be registered in STF (avoid special symbols and spaces!)
-#   appium_port: unique port value for sharing appium services from the container to outside
-#   adb_port: unique port value for sharing adb server from the container to outside
-#   min_port and max_port: unique range of 10 ports per device for system STF purposes. These ports should be accessible from client's browser!
-#   proxy_port: unique port value to configure emebedded proxy (they can be used in integration with Carina traffic sniffering fucntionality: http://qaprosoft.github.io/carina/proxy/)
+#   appium_port: unique port value for sharing appium services from the container to outside selenium hub
+#   adb_port: unique port value for sharing adb server from the device appium container to outside
+#   proxy_port: unique port value to configure emebedded proxy (they can be used in integration with Carina traffic sniffering fucntionality: https://zebrunner.github.io/carina/advanced/proxy/)
+#   min_port and max_port: unique range of 7 ports per device for system STF purposes. These ports on STF_PROVIDER_HOST should be accessible from client's browser otherwise gray screen, no remote adb connect etc.
 
 devices:
-  - id: 42009c44d068b461
-    name: Samsung_Galaxy_J3
-    appium_port: 4723
-    adb_port: 5038
-    min_port: 7401
+  - id: 4d003e5f4aad21e7
+    name: Samsung_S5
+    appium_port: 7401
+    adb_port: 7402
+    proxy_port: 7403
+    min_port: 7404
     max_port: 7410
-    proxy_port: 9000
-  - id: 5200e0a5e2982529
-    name: Samsung_Galaxy_J5
-    appium_port: 4724
-    adb_port: 5039
-    min_port: 7411
+  - id: NE1GAM47A3105862
+    name: Nokia_3
+    appium_port: 7411
+    adb_port: 7412
+    proxy_port: 7413
+    min_port: 7414
     max_port: 7420
-    proxy_port: 9001
-  - id: 52003eafc01f25ad
-    name: Samsung_Galaxy_J7
-    appium_port: 4725
-    adb_port: 5040
-    min_port: 7421
+  - id: R28M1384YQY
+    name: Samsung_Galaxy_S10
+    appium_port: 7421
+    adb_port: 7422
+    proxy_port: 7423
+    min_port: 7424
     max_port: 7430
-    proxy_port: 9002

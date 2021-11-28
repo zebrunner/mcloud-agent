@@ -1,13 +1,8 @@
 ---
 
-- name: 'Installing python3-pip'
-  apt:
-    pkg: python3-pip
-    state: present
-
 - name: Configurate udev
   include: udev.yml
-  tags: registerDevice
+  tags: registerDevices
 
 - name: Configurate ssl security
   include: ssl.yml

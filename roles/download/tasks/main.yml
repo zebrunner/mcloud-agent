@@ -1,13 +1,7 @@
 ---
 
 - name: Pull an android-device image
-  shell: docker pull "{{ android_device_image }}:{{ android_device_version }}"
+  shell: docker pull "{{ ANDROID_DEVICE_IMAGE }}:{{ ANDROID_DEVICE_VERSION }}"
 
 - name: Create infra network if absent
-  shell: docker network inspect infra >/dev/null 2>&1 || docker network create infra
-
-- name: Download appium.tar.gz from public zebrunner-ce S3 storage
-  get_url: url="https://zebrunner-ce.s3.amazonaws.com/mcloud/{{ mcloud_version }}/appium.tar.gz" dest=.
-
-- name: Generate docker volume using mcloud.tar.gz archive
-  shell: docker run --rm -v $(pwd)/appium.tar.gz:/var/tmp/appium.tar.gz -v mcloud-appium-volume:/opt/mcloud "ubuntu:16.04" bash -c "rm -rf /opt/mcloud/* && cd / && tar -xzvf /var/tmp/appium.tar.gz"
+  shell: docker network inspect "{{ STF_DOCKER_NETWORK }}" >/dev/null 2>&1 || docker network create "{{ STF_DOCKER_NETWORK }}"

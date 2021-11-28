@@ -2,18 +2,18 @@
 
 - name: Create nginx folder
   file:
-    path: "{{ nginx_home }}"
+    path: "{{ NGINX_HOME }}"
     state: directory
 
 - name: Create nginx ssl folder
   file:
-    path: "{{ nginx_home }}/ssl"
+    path: "{{ NGINX_HOME }}/ssl"
     state: directory
 
 - name: copy ssl certificate
-  copy:  src="{{ ssl_crt }}" dest="{{ nginx_home }}/ssl/ssl.crt"
+  copy:  src="{{ SSL_CRT }}" dest="{{ NGINX_HOME }}/ssl/ssl.crt"
   failed_when: false
 
 - name: copy ssl key
-  copy: src="{{ ssl_key }}" dest="{{ nginx_home }}/ssl/ssl.key"
+  copy: src="{{ SSL_KEY }}" dest="{{ NGINX_HOME }}/ssl/ssl.key"
   failed_when: false

@@ -1,7 +1,7 @@
 ---
 
 - name: copy script to launch container with appium for device
-  template: src=device2docker  dest=/usr/local/bin/ mode=755
+  template: src=zebrunner-farm  dest=/usr/local/bin/ mode=755
 
 - name: copy rules to launch script on connected device
   template: src=51-android.rules  dest=/etc/udev/rules.d/
