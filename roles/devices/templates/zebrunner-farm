@@ -1,5 +1,7 @@
 #!/bin/bash
 
+DEVICE_IMAGE={{ ANDROID_DEVICE_IMAGE }}
+DEVICE_VERSION={{ ANDROID_DEVICE_VERSION }}
 
 function delete_containers () {
     local device=$1
@@ -227,7 +229,10 @@ function start_containers() {
   docker start $container-appium
 }
 
-
+function version() {
+  echo "MCloud docker: ${DEVICE_IMAGE}"
+  echo "      version: ${DEVICE_VERSION}"
+}
 echo_telegram() {
     echo "
       For more help join telegram channel: https://t.me/zebrunner
@@ -251,7 +256,8 @@ function echo_help() {
 }
 
 
-DOCKER_IMAGE_ID=`docker images | grep '{{ ANDROID_DEVICE_IMAGE }}' | grep ' {{ ANDROID_DEVICE_VERSION }} ' | awk '{print($3)}'`
+# spaces before and after DEVICE_VERSION to identify exact image id
+DOCKER_IMAGE_ID=`docker images | grep "${DEVICE_IMAGE}" | grep " ${DEVICE_VERSION} " | awk '{print($3)}'`
 #echo DOCKER_IMAGE_ID: $DOCKER_IMAGE_ID
 
 CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | cut -d '-' -f 2-` )
