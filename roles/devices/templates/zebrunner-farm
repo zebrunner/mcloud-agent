@@ -1,29 +1,5 @@
 #!/bin/bash
 
-DOCKER_IMAGE_ID=`docker images | grep '{{ ANDROID_DEVICE_IMAGE }}' | grep ' {{ ANDROID_DEVICE_VERSION }} ' | awk '{print($3)}'`
-echo DOCKER_IMAGE_ID: $DOCKER_IMAGE_ID
-
-CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | cut -d '-' -f 2-` )
-echo CONTAINERS: $CONTAINERS
-
-CONNECTED_DEVICES=( `ls /dev/ | grep device | cut -d '-' -f 2-` )
-echo CONNECTED_DEVICES: $CONNECTED_DEVICES
-
-if [ -z $ACTION ]; then
-    ACTION=$1
-fi
-echo ACTION: $ACTION
-
-function recreate_containers() {
-    local device=$1
-    echo "recreate_containers local device: $device"
-
-    device=${device#"device-"}
-
-    echo "recreate_containers local device: $device"
-    delete_containers $device
-    create_containers $device
-}
 
 function delete_containers () {
     local device=$1
@@ -37,8 +13,13 @@ function create_containers () {
     local device=$1
     echo "create_containers locale device: $device"
 
+    # cut device- to support manual and udev recreation
+    device=${device#"device-"}
+
     local udid=`echo $device | cut -d '-' -f 2`
     echo "udid: $udid"
+
+    #TODO: verify if device containers already exist and do nothing then
 
     local devices=/usr/local/bin/devices.txt
     local device_name=`cat ${devices} | grep "$udid" | cut -d '|' -f 1`
@@ -122,8 +103,7 @@ function update_symlink () {
     fi
 }
 
-if [[ $ACTION = "add" ]]
-then
+function add() {
     for device in "${CONNECTED_DEVICES[@]}"
     do
         update_symlink $device
@@ -140,11 +120,9 @@ then
             create_containers $device
         fi
     done
-elif [[ $ACTION = "remove" ]]
-then
-    #TODO: test if pause is needed 
-    #sleep 5
-    CONNECTED_DEVICES=( `ls /dev/ | grep device | cut -d '-' -f 2-` )
+}
+
+function remove() {
     for container in "${CONTAINERS[@]}"
     do
 	echo verifying container: $container
@@ -164,9 +142,165 @@ then
             delete_containers $container
         fi
     done
-elif [[ $ACTION = "recreate" ]]
-then
-    recreate_containers $2
-fi
+}
+
+function stop() {
+  local filter_device=$1
+  local devices=/usr/local/bin/devices.txt
+
+  # if $device is empty do stop for all connected devices otherwise stop only filtered
+  if [ ! -z $filter_device ]; then
+    echo stopping containers for $filter_device...
+    local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
+    local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 2`
+
+    stop_containers device-${device_name}-${udid}
+  else
+    # as no device filter provided continue with stopping all device containers
+    for device in "${CONNECTED_DEVICES[@]}"
+    do
+      stop_containers device-$device
+    done
+  fi
+}
+
+function stop_containers() {
+  local container=$1
+  echo "stopping $container containers..."
+  docker stop $container
+  docker stop $container-appium
+}
+
+function down() {
+  local filter_device=$1
+  local devices=/usr/local/bin/devices.txt
+
+  # if $device is empty do rm for all connected devices otherwise rm only filtered
+  if [ ! -z $filter_device ]; then
+    echo removing containers for $filter_device...
+    local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
+    local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 2`
+
+    remove_containers device-${device_name}-${udid}
+  else
+    # as no device filter provided continue with removing all device containers
+    for device in "${CONNECTED_DEVICES[@]}"
+    do
+      remove_containers device-$device
+    done
+  fi
+}
+
+function remove_containers() {
+  local container=$1
+  echo "removing $container containers..."
+  docker rm -f $container
+  docker rm -f $container-appium
+}
+
+function start() {
+  local filter_device=$1
+  local devices=/usr/local/bin/devices.txt
+
+  # if $device is empty do start for all connected devices otherwise start only filtered
+  if [ ! -z $filter_device ]; then
+    echo starting containers for $filter_device...
+    local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
+    local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 2`
+
+    create_containers device-${device_name}-${udid}
+    start_containers device-${device_name}-${udid}
+  else
+    # as no device filter provided continue with starting all device containers
+    for device in "${CONNECTED_DEVICES[@]}"
+    do
+      create_containers device-$device
+      start_containers device-$device
+    done
+  fi
+}
+
+function start_containers() {
+  local container=$1
+  echo "starting $container containers..."
+  docker start $container
+  docker start $container-appium
+}
+
+
+echo_telegram() {
+    echo "
+      For more help join telegram channel: https://t.me/zebrunner
+      "
+}
+
+function echo_help() {
+    echo "
+      Usage: zebrunner-farm [option]
+      Arguments:
+          start   [udid] Start devices containers or exact device by udid
+          stop    [udid] Stop and keep devices containers or exact device by udid
+          restart [udid] Restart all devices containers or exact device by udid
+          down    [udid] Stop and remove devices containers
+          shutdown       Stop and remove devices container, destroy all configuration
+          backup         Backup MCloud setup
+          restore        Restore MCloud setup
+          version        Version of MCloud device image"
+      echo_telegram
+      exit 0
+}
+
+
+DOCKER_IMAGE_ID=`docker images | grep '{{ ANDROID_DEVICE_IMAGE }}' | grep ' {{ ANDROID_DEVICE_VERSION }} ' | awk '{print($3)}'`
+#echo DOCKER_IMAGE_ID: $DOCKER_IMAGE_ID
+
+CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | cut -d '-' -f 2-` )
+#echo CONTAINERS: $CONTAINERS
+
+CONNECTED_DEVICES=( `ls /dev/ | grep device | cut -d '-' -f 2-` )
+#echo CONNECTED_DEVICES: $CONNECTED_DEVICES
+
+
+case "$1" in
+    add)
+        add
+        ;;
+    remove)
+        remove
+        ;;
+    start)
+        start $2
+        ;;
+    stop)
+        stop $2
+        ;;
+    restart)
+        down $2
+        start $2
+        ;;
+    down)
+        down $2
+        ;;
+    shutdown)
+        shutdown
+        ;;
+    backup)
+        backup
+        ;;
+    restore)
+        restore
+        ;;
+    upgrade)
+        upgrade
+        ;;
+    version)
+        version
+        ;;
+    *)
+        echo "Unknown option detected: $1"
+        echo_help
+        exit 1
+        ;;
+esac
 
 exit 0
