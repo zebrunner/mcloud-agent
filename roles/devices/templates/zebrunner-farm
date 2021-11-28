@@ -1,63 +1,38 @@
 #!/bin/bash
 
-DOCKER_IMAGE_ID=`docker images | grep '{{ ANDROID_DEVICE_IMAGE }}' | grep ' {{ ANDROID_DEVICE_VERSION }} ' | awk '{print($3)}'`
-echo DOCKER_IMAGE_ID: $DOCKER_IMAGE_ID
-
-CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | cut -d '-' -f 2-` )
-echo CONTAINERS: $CONTAINERS
-
-CONNECTED_DEVICES=( `ls /dev/ | grep device | cut -d '-' -f 2-` )
-echo CONNECTED_DEVICES: $CONNECTED_DEVICES
-
-if [ -z $ACTION ]; then
-    ACTION=$1
-fi
-echo ACTION: $ACTION
-
-function recreate_containers() {
-    local device=$1
-    echo "recreate_containers local device: $device"
-
-    device=${device#"device-"}
-
-    echo "recreate_containers local device: $device"
-    delete_containers $device
-    create_containers $device
-}
-
-function delete_containers () {
-    local device=$1
-    echo "delete_containers local device: $device"
-    local container=`docker ps -a | grep $device | sed 's/^\([a-z0-9]*\).*$/\1/g'`
-    docker rm $container -f || echo 'already deleted'
-    docker rm $container-appium -f || echo 'already deleted'
-}
+DEVICE_IMAGE={{ ANDROID_DEVICE_IMAGE }}
+DEVICE_VERSION={{ ANDROID_DEVICE_VERSION }}
 
 function create_containers () {
     local device=$1
-    echo "create_containers locale device: $device"
+    echo "creating $device containers"
+
+    # cut device- to support manual and udev recreation
+    device=${device#"device-"}
 
     local udid=`echo $device | cut -d '-' -f 2`
     echo "udid: $udid"
 
+    #TODO: verify if device containers already exist and do nothing then
+
     local devices=/usr/local/bin/devices.txt
     local device_name=`cat ${devices} | grep "$udid" | cut -d '|' -f 1`
-    echo "device_name: $device_name"
+#    echo "device_name: $device_name"
 
     local device_adb_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 3`
-    echo "device_adb_port: $device_adb_port"
+#    echo "device_adb_port: $device_adb_port"
 
     local stf_min_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 4`
-    echo "stf_min_port: $stf_min_port"
+#    echo "stf_min_port: $stf_min_port"
 
     local stf_max_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 5`
-    echo "stf_max_port: $stf_max_port"
+#    echo "stf_max_port: $stf_max_port"
 
     local proxy_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 6`
-    echo "proxy_port: $proxy_port"
+#    echo "proxy_port: $proxy_port"
 
     local appium_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 7`
-    echo "appium_port: $appium_port"
+#    echo "appium_port: $appium_port"
 
 
     local symlink=/dev/device-$device
@@ -122,8 +97,7 @@ function update_symlink () {
     fi
 }
 
-if [[ $ACTION = "add" ]]
-then
+function add() {
     for device in "${CONNECTED_DEVICES[@]}"
     do
         update_symlink $device
@@ -140,11 +114,9 @@ then
             create_containers $device
         fi
     done
-elif [[ $ACTION = "remove" ]]
-then
-    #TODO: test if pause is needed 
-    #sleep 5
-    CONNECTED_DEVICES=( `ls /dev/ | grep device | cut -d '-' -f 2-` )
+}
+
+function remove() {
     for container in "${CONTAINERS[@]}"
     do
 	echo verifying container: $container
@@ -160,13 +132,282 @@ then
         done
         if [[ $present = 0 ]]
         then
-	    echo delete containers: $container
-            delete_containers $container
+            remove_containers $container
         fi
     done
-elif [[ $ACTION = "recreate" ]]
-then
-    recreate_containers $2
-fi
+}
+
+function stop() {
+  local filter_device=$1
+  local devices=/usr/local/bin/devices.txt
+
+  # if $device is empty do stop for all connected devices otherwise stop only filtered
+  if [ ! -z $filter_device ]; then
+    echo stopping containers for $filter_device...
+    local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
+    local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 2`
+
+    stop_containers device-${device_name}-${udid}
+  else
+    # as no device filter provided continue with stopping all device containers
+    for device in "${CONNECTED_DEVICES[@]}"
+    do
+      stop_containers device-$device
+    done
+  fi
+}
+
+function stop_containers() {
+  local container=$1
+  echo "stopping $container containers..."
+  docker stop $container
+  docker stop $container-appium
+}
+
+function down() {
+  local filter_device=$1
+  local devices=/usr/local/bin/devices.txt
+
+  # if $device is empty do rm for all connected devices otherwise rm only filtered
+  if [ ! -z $filter_device ]; then
+    echo removing containers for $filter_device...
+    local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
+    local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 2`
+
+    remove_containers device-${device_name}-${udid}
+  else
+    # as no device filter provided continue with removing all device containers
+    for device in "${CONNECTED_DEVICES[@]}"
+    do
+      remove_containers device-$device
+    done
+  fi
+}
+
+function remove_containers() {
+  local container=$1
+  echo "removing $container containers..."
+  docker rm -f $container
+  docker rm -f $container-appium
+}
+
+function start() {
+  local filter_device=$1
+  local devices=/usr/local/bin/devices.txt
+
+  # if $device is empty do start for all connected devices otherwise start only filtered
+  if [ ! -z $filter_device ]; then
+    echo starting containers for $filter_device...
+    local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
+    local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 2`
+
+    create_containers device-${device_name}-${udid}
+    start_containers device-${device_name}-${udid}
+  else
+    # as no device filter provided continue with starting all device containers
+    for device in "${CONNECTED_DEVICES[@]}"
+    do
+      create_containers device-$device
+      start_containers device-$device
+    done
+  fi
+}
+
+function start_containers() {
+  local container=$1
+  echo "starting $container containers..."
+  docker start $container
+  docker start $container-appium
+}
+
+function backup() {
+  echo_warning "Make sure to execute from mcloud-android folder!"
+  confirm "" "      Do you want to continue?" "n"
+  if [ $? -eq 0 ]; then
+    exit 1
+  fi
+
+  if [ ! -d backup ]; then
+    echo_warning "There is no backup folder detected!"
+    exit 1
+  fi
+
+  # copy udev related files into ./backup folder
+  cp /usr/local/bin/zebrunner-farm backup/
+  cp /usr/local/bin/devices.txt backup/
+  cp /etc/udev/rules.d/51-android.rules backup/
+
+  if [ -f backup/zebrunner-farm ] && [ -f backup/devices.txt ] && [ -f backup/51-android.rules ]; then
+    echo "MCloud backup succeed."
+  else
+    echo_warning "MCloud backup failed!"
+    echo_telegram
+  fi
+}
+
+function restore() {
+  echo_warning "Make sure you are inside mcloud-android folder and be able to execute sudo commands!"
+  confirm "" "      Do you want to continue?" "n"
+  if [ $? -eq 0 ]; then
+    exit 1
+  fi
+
+  sudo cp backup/zebrunner-farm /usr/local/bin/zebrunner-farm
+  sudo cp backup/devices.txt /usr/local/bin/devices.txt
+  sudo cp backup/51-android.rules /etc/udev/rules.d/51-android.rules
+
+  if [ -f /usr/local/bin/zebrunner-farm ] && [ -f /usr/local/bin/devices.txt ] && [ -f /etc/udev/rules.d/51-android.rules ]; then
+    echo "MCloud restore succeed."
+  else
+    echo_warning "MCloud restore failed!"
+    echo_telegram
+  fi
+
+}
+
+function shutdown() {
+  echo_warning "Shutdown will erase all MCloud settings and data!"
+  confirm "" "      Do you want to continue?" "n"
+  if [[ $? -eq 0 ]]; then
+    exit
+  fi
+
+  sudo rm -f /usr/local/bin/zebrunner-farm
+  sudo rm -f /usr/local/bin/devices.txt
+  sudo rm -f /etc/udev/rules.d/51-android.rules
+
+  if [ -f /usr/local/bin/zebrunner-farm ] || [ -f /usr/local/bin/devices.txt ] || [ -f /etc/udev/rules.d/51-android.rules ]; then
+    echo_warning "MCloud shutdown failed!"
+    echo_telegram
+  else
+    echo "MCloud shutdown succeed."
+  fi
+}
+
+function confirm() {
+    local message=$1
+    local question=$2
+    local isEnabled=$3
+
+    if [[ "$isEnabled" == "1" ]]; then
+      isEnabled="y"
+    fi
+    if [[ "$isEnabled" == "0" ]]; then
+      isEnabled="n"
+    fi
+
+    while true; do
+      if [[ ! -z $message ]]; then
+        echo "$message"
+      fi
+
+      read -r -p "$question y/n [$isEnabled]:" response
+      if [[ -z $response ]]; then
+        if [[ "$isEnabled" == "y" ]]; then
+          return 1
+        fi
+        if [[ "$isEnabled" == "n" ]]; then
+          return 0
+        fi
+      fi
+
+      if [[ "$response" == "y" || "$response" == "Y" ]]; then
+        return 1
+      fi
+
+      if [[ "$response" == "n" ||  "$response" == "N" ]]; then
+        return 0
+      fi
+
+      echo "Please answer y (yes) or n (no)."
+      echo
+    done
+}
+
+function version() {
+  echo "MCloud docker: ${DEVICE_IMAGE}"
+  echo "      version: ${DEVICE_VERSION}"
+}
+
+echo_warning() {
+    echo "
+      WARNING! $1"
+}
+
+echo_telegram() {
+    echo "
+      For more help join telegram channel: https://t.me/zebrunner
+      "
+}
+
+function echo_help() {
+    echo "
+      Usage: zebrunner-farm [option]
+      Arguments:
+          start   [udid] Start devices containers or exact device by udid
+          stop    [udid] Stop and keep devices containers or exact device by udid
+          restart [udid] Restart all devices containers or exact device by udid
+          down    [udid] Stop and remove devices containers
+          shutdown       Stop and remove devices container, destroy all configuration
+          backup         Backup MCloud setup
+          restore        Restore MCloud setup
+          version        Version of MCloud device image"
+      echo_telegram
+      exit 0
+}
+
+
+# spaces before and after DEVICE_VERSION to identify exact image id
+DOCKER_IMAGE_ID=`docker images | grep "${DEVICE_IMAGE}" | grep " ${DEVICE_VERSION} " | awk '{print($3)}'`
+#echo DOCKER_IMAGE_ID: $DOCKER_IMAGE_ID
+
+CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | cut -d '-' -f 2-` )
+#echo CONTAINERS: $CONTAINERS
+
+CONNECTED_DEVICES=( `ls /dev/ | grep device | cut -d '-' -f 2-` )
+#echo CONNECTED_DEVICES: $CONNECTED_DEVICES
+
+
+case "$1" in
+    add)
+        add
+        ;;
+    remove)
+        remove
+        ;;
+    start)
+        start $2
+        ;;
+    stop)
+        stop $2
+        ;;
+    restart)
+        down $2
+        start $2
+        ;;
+    down)
+        down $2
+        ;;
+    shutdown)
+        shutdown
+        ;;
+    backup)
+        backup
+        ;;
+    restore)
+        restore
+        ;;
+    upgrade)
+        upgrade
+        ;;
+    version)
+        version
+        ;;
+    *)
+        echo "Unknown option detected: $1"
+        echo_help
+        exit 1
+        ;;
+esac
 
 exit 0
