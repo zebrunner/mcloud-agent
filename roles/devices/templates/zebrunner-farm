@@ -1,7 +1,6 @@
 #!/bin/bash
 
-#TODO: #25: add spaces before and after ' {{ ANDROID_DEVICE_VERSION }} ' to find exact image id!
-DOCKER_IMAGE_ID=`docker images | grep '{{ ANDROID_DEVICE_IMAGE }}' | grep '{{ ANDROID_DEVICE_VERSION }}' | awk '{print($3)}'`
+DOCKER_IMAGE_ID=`docker images | grep '{{ ANDROID_DEVICE_IMAGE }}' | grep ' {{ ANDROID_DEVICE_VERSION }} ' | awk '{print($3)}'`
 echo DOCKER_IMAGE_ID: $DOCKER_IMAGE_ID
 
 CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | cut -d '-' -f 2-` )
