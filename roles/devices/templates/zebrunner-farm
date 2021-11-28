@@ -3,14 +3,6 @@
 DEVICE_IMAGE={{ ANDROID_DEVICE_IMAGE }}
 DEVICE_VERSION={{ ANDROID_DEVICE_VERSION }}
 
-function delete_containers () {
-    local device=$1
-    echo "delete_containers local device: $device"
-    local container=`docker ps -a | grep $device | sed 's/^\([a-z0-9]*\).*$/\1/g'`
-    docker rm $container -f || echo 'already deleted'
-    docker rm $container-appium -f || echo 'already deleted'
-}
-
 function create_containers () {
     local device=$1
     echo "creating $device containers"
@@ -140,8 +132,7 @@ function remove() {
         done
         if [[ $present = 0 ]]
         then
-	    echo delete containers: $container
-            delete_containers $container
+            remove_containers $container
         fi
     done
 }
@@ -291,8 +282,6 @@ function shutdown() {
   else
     echo "MCloud shutdown succeed."
   fi
-
-
 }
 
 function confirm() {
