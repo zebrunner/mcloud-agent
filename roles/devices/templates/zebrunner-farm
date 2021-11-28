@@ -31,7 +31,7 @@ function delete_container () {
     echo "delete_container local device: $device"
     local container=`docker ps -a | grep $device | sed 's/^\([a-z0-9]*\).*$/\1/g'`
     docker rm $container -f || echo 'already deleted'
-    docker rm $container -f || echo 'already deleted'
+    docker rm $container-appium -f || echo 'already deleted'
 }
 
 function create_container () {
