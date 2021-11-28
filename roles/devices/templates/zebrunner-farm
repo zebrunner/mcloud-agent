@@ -67,7 +67,6 @@ function create_containers () {
 
     docker network inspect ${net} >/dev/null 2>&1 || docker network create ${net}
 
-#TODO: move aws s3 to env vars
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
 	--device=$symlink:/dev/bus/usb/003/011 \
         -v mcloud-key-volume:/root/.android \
