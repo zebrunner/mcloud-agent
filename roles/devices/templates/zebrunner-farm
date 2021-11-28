@@ -13,7 +13,7 @@ function delete_containers () {
 
 function create_containers () {
     local device=$1
-    echo "create_containers locale device: $device"
+    echo "creating $device containers"
 
     # cut device- to support manual and udev recreation
     device=${device#"device-"}
@@ -25,22 +25,22 @@ function create_containers () {
 
     local devices=/usr/local/bin/devices.txt
     local device_name=`cat ${devices} | grep "$udid" | cut -d '|' -f 1`
-    echo "device_name: $device_name"
+#    echo "device_name: $device_name"
 
     local device_adb_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 3`
-    echo "device_adb_port: $device_adb_port"
+#    echo "device_adb_port: $device_adb_port"
 
     local stf_min_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 4`
-    echo "stf_min_port: $stf_min_port"
+#    echo "stf_min_port: $stf_min_port"
 
     local stf_max_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 5`
-    echo "stf_max_port: $stf_max_port"
+#    echo "stf_max_port: $stf_max_port"
 
     local proxy_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 6`
-    echo "proxy_port: $proxy_port"
+#    echo "proxy_port: $proxy_port"
 
     local appium_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 7`
-    echo "appium_port: $appium_port"
+#    echo "appium_port: $appium_port"
 
 
     local symlink=/dev/device-$device
@@ -229,10 +229,122 @@ function start_containers() {
   docker start $container-appium
 }
 
+function backup() {
+  echo_warning "Make sure to execute from mcloud-android folder!"
+  confirm "" "      Do you want to continue?" "n"
+  if [ $? -eq 0 ]; then
+    exit 1
+  fi
+
+  if [ ! -d backup ]; then
+    echo_warning "There is no backup folder detected!"
+    exit 1
+  fi
+
+  # copy udev related files into ./backup folder
+  cp /usr/local/bin/zebrunner-farm backup/
+  cp /usr/local/bin/devices.txt backup/
+  cp /etc/udev/rules.d/51-android.rules backup/
+
+  if [ -f backup/zebrunner-farm ] && [ -f backup/devices.txt ] && [ -f backup/51-android.rules ]; then
+    echo "MCloud backup succeed."
+  else
+    echo_warning "MCloud backup failed!"
+    echo_telegram
+  fi
+}
+
+function restore() {
+  echo_warning "Make sure you are inside mcloud-android folder and be able to execute sudo commands!"
+  confirm "" "      Do you want to continue?" "n"
+  if [ $? -eq 0 ]; then
+    exit 1
+  fi
+
+  sudo cp backup/zebrunner-farm /usr/local/bin/zebrunner-farm
+  sudo cp backup/devices.txt /usr/local/bin/devices.txt
+  sudo cp backup/51-android.rules /etc/udev/rules.d/51-android.rules
+
+  if [ -f /usr/local/bin/zebrunner-farm ] && [ -f /usr/local/bin/devices.txt ] && [ -f /etc/udev/rules.d/51-android.rules ]; then
+    echo "MCloud restore succeed."
+  else
+    echo_warning "MCloud restore failed!"
+    echo_telegram
+  fi
+
+}
+
+function shutdown() {
+  echo_warning "Shutdown will erase all MCloud settings and data!"
+  confirm "" "      Do you want to continue?" "n"
+  if [[ $? -eq 0 ]]; then
+    exit
+  fi
+
+  sudo rm -f /usr/local/bin/zebrunner-farm
+  sudo rm -f /usr/local/bin/devices.txt
+  sudo rm -f /etc/udev/rules.d/51-android.rules
+
+  if [ -f /usr/local/bin/zebrunner-farm ] || [ -f /usr/local/bin/devices.txt ] || [ -f /etc/udev/rules.d/51-android.rules ]; then
+    echo_warning "MCloud shutdown failed!"
+    echo_telegram
+  else
+    echo "MCloud shutdown succeed."
+  fi
+
+
+}
+
+function confirm() {
+    local message=$1
+    local question=$2
+    local isEnabled=$3
+
+    if [[ "$isEnabled" == "1" ]]; then
+      isEnabled="y"
+    fi
+    if [[ "$isEnabled" == "0" ]]; then
+      isEnabled="n"
+    fi
+
+    while true; do
+      if [[ ! -z $message ]]; then
+        echo "$message"
+      fi
+
+      read -r -p "$question y/n [$isEnabled]:" response
+      if [[ -z $response ]]; then
+        if [[ "$isEnabled" == "y" ]]; then
+          return 1
+        fi
+        if [[ "$isEnabled" == "n" ]]; then
+          return 0
+        fi
+      fi
+
+      if [[ "$response" == "y" || "$response" == "Y" ]]; then
+        return 1
+      fi
+
+      if [[ "$response" == "n" ||  "$response" == "N" ]]; then
+        return 0
+      fi
+
+      echo "Please answer y (yes) or n (no)."
+      echo
+    done
+}
+
 function version() {
   echo "MCloud docker: ${DEVICE_IMAGE}"
   echo "      version: ${DEVICE_VERSION}"
 }
+
+echo_warning() {
+    echo "
+      WARNING! $1"
+}
+
 echo_telegram() {
     echo "
       For more help join telegram channel: https://t.me/zebrunner
