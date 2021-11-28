@@ -22,7 +22,7 @@ ansible-playbook -vvv -i hosts devices.yml
 ```
 ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD SSL_CRT=/home/ubuntu/ssl.crt SSL_KEY=/home/ubuntu/ssl.key" devices.yml
 ```
-   * Deviced management script deployed to /usr/local/bin/zebrunner-farm
+   * Devices management script deployed to /usr/local/bin/zebrunner-farm
    * Udev rules with whitelisted devices are in /etc/udev/rules.d/51-android.rules
    * Whitelisted devices custom properties are in /usr/local/bin/devices.txt
    
