@@ -1,2 +1,4 @@
 *.bak
 backup/*
+variables.env
+.env
