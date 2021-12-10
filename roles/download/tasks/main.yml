@@ -1,6 +1,6 @@
 ---
 
-- name: Pull an android-device image
+- name: Pull an Zebrunner MCloud device image
   shell: docker pull "{{ ANDROID_DEVICE_IMAGE }}:{{ ANDROID_DEVICE_VERSION }}"
 
 - name: Create infra network if absent
