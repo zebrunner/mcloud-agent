@@ -1,6 +1,6 @@
 ---
-ANDROID_DEVICE_IMAGE: zebrunner/android-device
-ANDROID_DEVICE_VERSION: 2.0-beta1
+ANDROID_DEVICE_IMAGE: zebrunner/device
+ANDROID_DEVICE_VERSION: 1.0-beta9
 
 APPIUM_VERSION: 1.22
 
