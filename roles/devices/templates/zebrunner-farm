@@ -258,9 +258,9 @@ function backup() {
   # copy udev related files into ./backup folder
   cp /usr/local/bin/zebrunner-farm backup/
   cp /usr/local/bin/devices.txt backup/
-  cp /etc/udev/rules.d/51-android.rules backup/
+  cp /etc/udev/rules.d/mcloud.rules backup/
 
-  if [ -f backup/zebrunner-farm ] && [ -f backup/devices.txt ] && [ -f backup/51-android.rules ]; then
+  if [ -f backup/zebrunner-farm ] && [ -f backup/devices.txt ] && [ -f backup/mcloud.rules ]; then
     echo "MCloud backup succeed."
   else
     echo_warning "MCloud backup failed!"
@@ -277,9 +277,9 @@ function restore() {
 
   sudo cp backup/zebrunner-farm /usr/local/bin/zebrunner-farm
   sudo cp backup/devices.txt /usr/local/bin/devices.txt
-  sudo cp backup/51-android.rules /etc/udev/rules.d/51-android.rules
+  sudo cp backup/mcloud.rules /etc/udev/rules.d/mcloud.rules
 
-  if [ -f /usr/local/bin/zebrunner-farm ] && [ -f /usr/local/bin/devices.txt ] && [ -f /etc/udev/rules.d/51-android.rules ]; then
+  if [ -f /usr/local/bin/zebrunner-farm ] && [ -f /usr/local/bin/devices.txt ] && [ -f /etc/udev/rules.d/mcloud.rules ]; then
     echo "MCloud restore succeed."
   else
     echo_warning "MCloud restore failed!"
@@ -297,9 +297,9 @@ function shutdown() {
 
   sudo rm -f /usr/local/bin/zebrunner-farm
   sudo rm -f /usr/local/bin/devices.txt
-  sudo rm -f /etc/udev/rules.d/51-android.rules
+  sudo rm -f /etc/udev/rules.d/mcloud.rules
 
-  if [ -f /usr/local/bin/zebrunner-farm ] || [ -f /usr/local/bin/devices.txt ] || [ -f /etc/udev/rules.d/51-android.rules ]; then
+  if [ -f /usr/local/bin/zebrunner-farm ] || [ -f /usr/local/bin/devices.txt ] || [ -f /etc/udev/rules.d/mcloud.rules ]; then
     echo_warning "MCloud shutdown failed!"
     echo_telegram
   else
