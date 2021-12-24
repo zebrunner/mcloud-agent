@@ -1,13 +1,13 @@
 ---
 
 - name: copy script to launch container with appium for device
-  template: src=zebrunner-farm  dest=/usr/local/bin/ mode=755
+  template: src=zebrunner-farm dest=/usr/local/bin/ mode=755
 
 - name: copy rules to launch script on connected device
-  template: src=90_mcloud.rules  dest=/etc/udev/rules.d/
+  template: src=90_mcloud.rules dest=/etc/udev/rules.d/
 
 - name: copy devices details
-  template: src=devices.txt  dest=/usr/local/bin/
+  template: src=devices.txt dest=/usr/local/bin/
 
 - name: restart udev
   command: udevadm control --reload
