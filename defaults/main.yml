@@ -4,10 +4,6 @@ ANDROID_DEVICE_VERSION: 2.0-beta27
 
 APPIUM_VERSION: 1.22
 
-NGINX_HOME: /opt/nginx
-SSL_CRT: ssl.crt
-SSL_KEY: ssl.key
-
 #TODO: test if we can remove it as video recording moved outside the stf device container
 # to fix "FATAL ERROR: CALL_AND_RETRY_LAST Allocation failed - JavaScript heap out of memory" during video recording
 MAX_OLD_SPACE_SIZE_VALUE: 8172

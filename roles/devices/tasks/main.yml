@@ -3,6 +3,3 @@
 - name: Configurate udev
   include: udev.yml
   tags: registerDevices
-
-- name: Configurate ssl security
-  include: ssl.yml

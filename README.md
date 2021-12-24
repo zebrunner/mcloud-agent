@@ -24,7 +24,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
   ```
  > To provide extra arguments including sudo permissions you can use
   ```
-  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD SSL_CRT=/home/ubuntu/ssl.crt SSL_KEY=/home/ubuntu/ssl.key" devices.yml
+  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD" devices.yml
   ```
    * Devices management script deployed to /usr/local/bin/zebrunner-farm
    * Udev rules with whitelisted devices are in /etc/udev/rules.d/51-android.rules
