@@ -3,7 +3,13 @@
 DEVICE_IMAGE={{ ANDROID_DEVICE_IMAGE }}
 DEVICE_VERSION={{ ANDROID_DEVICE_VERSION }}
 
-if [ -z $ACTION ]; then
+if [ ! -z $ACTION ]; then
+  # triggered by udev rule where device serial (udid) is a must to proceed!
+  if [ -z $ID_SERIAL_SHORT ]; then
+    echo "do nothing as device id/udid missed."
+    exit 0
+  fi
+else
     ACTION=$1
 fi
 echo ACTION: $ACTION
@@ -15,7 +21,6 @@ fi
 
 # useful export command to detect existing env vars per each device/vendor
 #export
-
 
 function create_containers () {
     local device=$1
