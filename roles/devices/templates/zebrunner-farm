@@ -3,6 +3,20 @@
 DEVICE_IMAGE={{ ANDROID_DEVICE_IMAGE }}
 DEVICE_VERSION={{ ANDROID_DEVICE_VERSION }}
 
+if [ -z $ACTION ]; then
+    ACTION=$1
+fi
+echo ACTION: $ACTION
+
+if [ -z $ID_SERIAL_SHORT ]; then
+  echo "do nothing as device id/udid missed."
+  exit 0
+fi
+
+# useful export command to detect existing env vars per each device/vendor
+#export
+
+
 function create_containers () {
     local device=$1
     echo "creating $device containers"
@@ -141,61 +155,6 @@ function create_containers () {
         -e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \
         $DOCKER_IMAGE_ID || echo 'already created'
   fi
-}
-
-function update_symlink () {
-    local device=$1
-    local device_path=`ls -l /dev/ | grep $device | sed 's/^.*> \(.*\)$/\1/g'`
-    if [[ $device_path != /dev* ]]
-    then
-        local symlink=/dev/device-$device
-        local temp_symlink=/dev/temp-$device
-        device_path=/dev/$device_path
-        setfacl -m u:$USER:rw $device_path
-        ln -s $device_path $temp_symlink
-        mv $temp_symlink $symlink
-        rm $temp_symlink
-    fi
-}
-
-function add() {
-    for device in "${CONNECTED_DEVICES[@]}"
-    do
-        update_symlink $device
-        present=0
-        for container in "${CONTAINERS[@]}"
-        do
-            if [[ $device = $container ]]
-            then
-                present=1
-            fi
-        done
-        if [[ $present = 0 ]]
-        then
-            create_containers $device
-        fi
-    done
-}
-
-function remove() {
-    for container in "${CONTAINERS[@]}"
-    do
-	echo verifying container: $container
-        present=0
-        for device in "${CONNECTED_DEVICES[@]}"
-        do
-	    echo verifying device: $device
-            if [[ $device = $container ]]
-            then
-		echo $device still alive
-                present=1
-            fi
-        done
-        if [[ $present = 0 ]]
-        then
-            remove_containers $container
-        fi
-    done
 }
 
 function stop() {
@@ -422,19 +381,19 @@ function echo_help() {
 DOCKER_IMAGE_ID=`docker images | grep "${DEVICE_IMAGE}" | grep " ${DEVICE_VERSION} " | awk '{print($3)}'`
 #echo DOCKER_IMAGE_ID: $DOCKER_IMAGE_ID
 
-CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | cut -d '-' -f 2-` )
+CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | grep -v appium | cut -d '-' -f 2-` )
 #echo CONTAINERS: $CONTAINERS
 
 CONNECTED_DEVICES=( `ls /dev/ | grep device | cut -d '-' -f 2-` )
 #echo CONNECTED_DEVICES: $CONNECTED_DEVICES
 
 
-case "$1" in
+case "$ACTION" in
     add)
-        add
+        start ${ID_SERIAL_SHORT}
         ;;
     remove)
-        remove
+        down ${ID_SERIAL_SHORT}
         ;;
     start)
         start $2
@@ -443,7 +402,7 @@ case "$1" in
         stop $2
         ;;
     restart)
-        down $2
+        stop $2
         start $2
         ;;
     down)
