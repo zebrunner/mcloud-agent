@@ -7,9 +7,19 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
   <a href="https://zebrunner.com/"><img alt="Zebrunner" src="https://github.com/zebrunner/zebrunner/raw/master/docs/img/zebrunner_intro.png"></a>
 </p>
 
+## Hardware requirements
+
+|                         	| Requirements                                                     	|
+|:-----------------------:	|------------------------------------------------------------------	|
+| <b>Operating System</b> 	| Ubuntu 16.04, 18.04, 20.04, 21.04 <br>Linux CentOS 7+<br>Amazon Linux2|
+| <b>       CPU      </b> 	| 8+ Cores                                                         	|
+| <b>      Memory    </b> 	| 32 Gb RAM                                                        	|
+| <b>    Free space  </b> 	| SSD 128Gb+ of free space                                         	|
+
 ## Software prerequisites
 * Install docker ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-20-04), [Amazon Linux 2](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/docker-basics.html), [Redhat/Cent OS](https://www.cyberciti.biz/faq/install-use-setup-docker-on-rhel7-centos7-linux/))
 * Install ansible ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-20-04))
+* Install and start usbmuxd service
 
 ## Initial setup
 * Update `hosts` file to manage several hosts by Ansible; otherwise only the localhost will be configured.
@@ -27,6 +37,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
   ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD" devices.yml
   ```
    * Devices management script deployed to /usr/local/bin/zebrunner-farm
+   * Udev rules to start usbmuxd service for every iOS connected device are in /etc/udev/rules.d/39-usbmuxd.rules
    * Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules
    * Whitelisted devices custom properties are in /usr/local/bin/devices.txt
    
