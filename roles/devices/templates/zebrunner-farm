@@ -400,7 +400,7 @@ case "$ACTION" in
         stop $2
         ;;
     restart)
-        stop $2
+        down $2
         start $2
         ;;
     down)
