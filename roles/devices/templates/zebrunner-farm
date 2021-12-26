@@ -14,11 +14,6 @@ else
 fi
 echo ACTION: $ACTION
 
-if [ -z $ID_SERIAL_SHORT ]; then
-  echo "do nothing as device id/udid missed."
-  exit 0
-fi
-
 # useful export command to detect existing env vars per each device/vendor
 #export
 
