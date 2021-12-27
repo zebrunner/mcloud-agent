@@ -1,34 +1,14 @@
 #!/bin/bash
 
-# shellcheck disable=SC1091
-source patch/utility.sh
+## shellcheck disable=SC1091
+#source patch/utility.sh
 
   setup() {
-    # load default interactive installer settings
-    source backup/settings.env.original
-
-    # load ./backup/settings.env if exist to declare ZBR* vars from previous run!
-    if [[ -f backup/settings.env ]]; then
-      source backup/settings.env
-    fi
-
-    set_mcloud_settings
-    url="$ZBR_PROTOCOL://$ZBR_HOSTNAME:$ZBR_MCLOUD_PORT"
-
-    cp .env.original .env
-    #TODO: Think about parametrization and asking actual value
-    replace .env "TCP_RETHINK_DB=" "TCP_RETHINK_DB=tcp://$ZBR_HOSTNAME:28015"
-    #TODO: verify connection to rethinkdb 28015 tcpip port is available!
-
-    cp variables.env.original variables.env
-    replace variables.env "STF_URL=" "STF_URL=${url}"
-
-    # export all ZBR* variables to save user input
-    export_settings
+    echo "Follow https://github.com/zebrunner/mcloud-android#readme to setup MCloud agent as of now!"
   }
 
   shutdown() {
-    if [ ! -f .env ]; then
+    if [ ! -f /usr/local/bin/zebrunner-farm ]; then
       echo_warning "You have to setup services in advance using: ./zebrunner.sh setup"
       echo_telegram
       exit -1
@@ -40,84 +20,51 @@ source patch/utility.sh
       exit
     fi
 
-    docker-compose --env-file .env -f docker-compose.yml down -v
-
-    rm -f backup/settings.env
-    rm -f variables.env
-    rm -f .env
+    sudo rm -f /usr/local/bin/zebrunner-farm
+    sudo rm -f /usr/local/bin/devices.txt
+    sudo rm -f /etc/udev/rules.d/90_mcloud.rules
   }
 
 
   start() {
-    # create infra network only if not exist
-    docker network inspect infra >/dev/null 2>&1 || docker network create infra
-
-    if [[ ! -f .env ]]; then
-      # need proceed with setup steps in advance!
-      setup
+    if [[ ! -f /usr/local/bin/zebrunner-farm ]]; then
+      echo_warning "You have to setup services in advance using: ./zebrunner.sh setup"
+      echo_telegram
+      exit -1
     fi
 
-    docker-compose --env-file .env -f docker-compose.yml up -d
+    /usr/local/bin/zebrunner-farm start
   }
 
   stop() {
-    docker-compose --env-file .env -f docker-compose.yml stop
+    /usr/local/bin/zebrunner-farm stop
   }
 
   down() {
-    docker-compose --env-file .env -f docker-compose.yml down
+    /usr/local/bin/zebrunner-farm down
   }
 
   backup() {
-    cp .env .env.bak
-    cp variables.env variables.env.bak
-    cp backup/settings.env backup/settings.env.bak
+    cp /usr/local/bin/zebrunner-farm backup/
+    cp /usr/local/bin/devices.txt backup/
+    cp /etc/udev/rules.d/90_mcloud.rules backup/
   }
 
   restore() {
     stop
-    cp .env.bak .env
-    cp variables.env.bak variables.env
-    cp backup/settings.env.bak backup/settings.env
+
+    sudo cp backup/zebrunner-farm /usr/local/bin/
+    sudo cp backup/devices.txt /usr/local/bin/
+    sudo cp backup/90_mcloud.rules /etc/udev/rules.d/
+    # reload udevadm rules
+    sudo udevadm control --reload-rules
+
     down
   }
 
   version() {
-    source .env.original
-    echo "MCloud Agent: ${TAG_STF}"
-  }
-
-  set_mcloud_settings() {
-    echo "Zebrunner MCloud Settings"
-    local is_confirmed=0
-    if [[ -z $ZBR_HOSTNAME ]]; then
-      ZBR_HOSTNAME=`curl -s ifconfig.me`
-    fi
-
-    while [[ $is_confirmed -eq 0 ]]; do
-      read -r -p "Protocol [$ZBR_PROTOCOL]: " local_protocol
-      if [[ ! -z $local_protocol ]]; then
-        ZBR_PROTOCOL=$local_protocol
-      fi
-
-      read -r -p "Fully qualified domain name (ip) [$ZBR_HOSTNAME]: " local_hostname
-      if [[ ! -z $local_hostname ]]; then
-        ZBR_HOSTNAME=$local_hostname
-      fi
-
-      read -r -p "Port [$ZBR_MCLOUD_PORT]: " local_port
-      if [[ ! -z $local_port ]]; then
-        ZBR_MCLOUD_PORT=$local_port
-      fi
-
-      confirm "Zebrunner MCloud STF URL: $ZBR_PROTOCOL://$ZBR_HOSTNAME:$ZBR_MCLOUD_PORT/stf" "Continue?" "y"
-      is_confirmed=$?
-    done
-
-    export ZBR_PROTOCOL=$ZBR_PROTOCOL
-    export ZBR_HOSTNAME=$ZBR_HOSTNAME
-    export ZBR_MCLOUD_PORT=$ZBR_MCLOUD_PORT
-
+    source .env
+    echo "MCloud Agent: ${MCLOUD_VERSION}"
   }
 
   echo_warning() {
@@ -147,24 +94,6 @@ source patch/utility.sh
       exit 0
   }
 
-  replace() {
-    #TODO: https://github.com/zebrunner/zebrunner/issues/328 organize debug logging for setup/replace
-    file=$1
-    #echo "file: $file"
-    content=$(<"$file") # read the file's content into
-    #echo "content: $content"
-
-    old=$2
-    #echo "old: $old"
-
-    new=$3
-    #echo "new: $new"
-    content=${content//"$old"/$new}
-
-    #echo "content: $content"
-    printf '%s' "$content" >"$file"    # write new content to disk
-  }
-
 
 BASEDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${BASEDIR}" || exit
@@ -174,17 +103,17 @@ case "$1" in
         setup
         ;;
     start)
-	start
+        start $2
         ;;
     stop)
-        stop
+        stop $2
         ;;
     restart)
-        down
-        start
+        down $2
+        start $2
         ;;
     down)
-        down
+        down $2
         ;;
     shutdown)
         shutdown
