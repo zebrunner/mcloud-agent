@@ -67,6 +67,8 @@ function create_containers () {
         --restart always \
 	--device=$symlink:/dev/bus/usb/003/011 \
         -v mcloud-key-volume:/root/.android \
+	-v appium-storage-volume:/opt/appium-storage \
+        -v /opt/zebrunner:/opt/zebrunner \
 	-e PLATFORM_NAME=$platform_name \
 	-e DEVICE_UDID=$udid \
         -e RETAIN_TASK=true \
@@ -84,6 +86,7 @@ function create_containers () {
 	-p $appium_port:4723 \
         -e RELAXED_SECURITY=true \
         -e BUCKET={{ S3_BUCKET }} -e TENANT={{ S3_TENANT }} -e AWS_ACCESS_KEY_ID={{ S3_ACCESS_KEY_ID }} -e AWS_SECRET_ACCESS_KEY={{ S3_SECRET }} -e AWS_DEFAULT_REGION={{ S3_REGION }} \
+	-e OPTIMIZE_APP_DOWNLOAD=true \
         public.ecr.aws/zebrunner/appium:{{ APPIUM_VERSION }}
 
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
@@ -109,6 +112,7 @@ function create_containers () {
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
         --restart always \
+	-v appium-storage-volume:/opt/appium-storage \
 	-v /opt/zebrunner:/opt/zebrunner \
         -v /var/run/usbmuxd:/var/run/usbmuxd \
         -v /var/lib/lockdown:/var/lib/lockdown \
@@ -133,6 +137,7 @@ function create_containers () {
         -p $appium_port:4723 \
         -e RELAXED_SECURITY=true \
         -e BUCKET={{ S3_BUCKET }} -e TENANT={{ S3_TENANT }} -e AWS_ACCESS_KEY_ID={{ S3_ACCESS_KEY_ID }} -e AWS_SECRET_ACCESS_KEY={{ S3_SECRET }} -e AWS_DEFAULT_REGION={{ S3_REGION }} \
+	-e OPTIMIZE_APP_DOWNLOAD=true \
         public.ecr.aws/zebrunner/appium:{{ APPIUM_VERSION }}
 
 
