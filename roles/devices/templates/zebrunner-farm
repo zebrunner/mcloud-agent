@@ -107,7 +107,13 @@ function create_containers () {
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
         --restart always \
 	-v /opt/zebrunner:/opt/zebrunner \
+        -v /var/run/usbmuxd:/var/run/usbmuxd \
+        -v /var/lib/lockdown:/var/lib/lockdown \
+        -v {{ WDA_IPA_PATH }}:/opt/WebDriverAgent.ipa \
 	-e WDA_ENV=/opt/zebrunner/wda-${udid}.env \
+        -e WDA_LOG_FILE=/opt/zebrunner/wda-${udid}.log \
+        -e P12FILE="{{ P12FILE }}" \
+        -e P12PASSWORD="{{ P12PASSWORD }}" \
         -e PLATFORM_NAME=$platform_name \
         -e DEVICE_UDID=$udid \
         -e RETAIN_TASK=true \
@@ -136,9 +142,7 @@ function create_containers () {
         --link device-${device_name}-${udid}-appium:appium \
         -v /opt/zebrunner:/opt/zebrunner \
         -v /var/run/usbmuxd:/var/run/usbmuxd \
-        -v /var/lib/lockdown:/var/lib/lockdown \
         -e WDA_ENV=/opt/zebrunner/wda-${udid}.env \
-	-e WDA_LOG_FILE=/opt/zebrunner/wda-${udid}.log \
         -e PLATFORM_NAME=$platform_name \
         -e NODE_OPTIONS=--max_old_space_size={{ MAX_OLD_SPACE_SIZE_VALUE }} \
         -e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
@@ -414,9 +418,6 @@ case "$ACTION" in
         ;;
     restore)
         restore
-        ;;
-    upgrade)
-        upgrade
         ;;
     version)
         version
