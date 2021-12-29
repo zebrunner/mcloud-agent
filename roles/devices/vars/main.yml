@@ -30,7 +30,7 @@ S3_ACCESS_KEY_ID: zebrunner
 S3_SECRET: J33dNyeTDj
 S3_REGION: us-east-1
 
-+# [OPTIONAL] iOS organization p12 file with supervised devices
+# [OPTIONAL] iOS organization p12 file with supervised devices
 P12FILE: 
 P12PASSWORD: 
 # Path to prebuild WebDriverAgent.ipa
