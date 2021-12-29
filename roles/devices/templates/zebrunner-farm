@@ -34,6 +34,9 @@ function create_containers () {
     local device_name=`cat ${devices} | grep "$udid" | cut -d '|' -f 1`
     echo "device_name: $device_name"
 
+    local udid=`cat ${devices} | grep "$udid" | cut -d '|' -f 2`
+    echo "udid: $udid"
+
     local platform_name=`cat ${devices} | grep "$udid" | cut -d '|' -f 2`
     echo "platform_name: $platform_name"
 
