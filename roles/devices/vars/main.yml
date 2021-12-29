@@ -34,7 +34,7 @@ S3_REGION: us-east-1
 P12FILE: 
 P12PASSWORD: 
 # Path to prebuild WebDriverAgent.ipa
-WDA_IPA_PATH: /opt//WebDriverAgent.ipa
+WDA_IPA_PATH: /opt/WebDriverAgent.ipa
 
 
 # [OBLIGATORY] Declare valid devices metadata
