@@ -19,7 +19,6 @@ fi
 
 function create_containers () {
     local device=$1
-    echo "creating $device containers"
 
     # cut device- to support manual and udev recreation
     device=${device#"device-"}
@@ -28,8 +27,21 @@ function create_containers () {
     local udid=`echo $device | cut -d '-' -f 2`
     echo "udid: $udid"
 
-    #TODO: verify if device containers already exist and do nothing then
+    #verify if device containers already exist and do nothing then
+    docker ps -a | grep -v appium | grep $device > /dev/null
+    local isDeviceExists=$?
+    #echo isDeviceExists: $isDeviceExists
 
+    docker ps -a | grep appium | grep $device > /dev/null
+    local isAppiumExists=$?
+    #echo isAppiumExists: $isAppiumExists
+
+    if [ $isDeviceExists -eq 0 ] && [ $isAppiumExists -eq 0 ]; then
+      echo "Containers for $device already exist."
+      return 0
+    fi
+
+    echo "creating $device containers"
     local devices=/usr/local/bin/devices.txt
     local device_name=`cat ${devices} | grep "$udid" | cut -d '|' -f 1`
     echo "device_name: $device_name"
