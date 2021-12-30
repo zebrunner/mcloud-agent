@@ -329,11 +329,11 @@ function echo_help() {
     echo "
       Usage: zebrunner-farm [option]
       Arguments:
-          start   [udid] Start devices containers or exact device by udid
-          stop    [udid] Stop and keep devices containers or exact device by udid
+          start [udid]   Start devices containers or exact device by udid
+          stop [udid]    Stop and keep devices containers or exact device by udid
           restart [udid] Restart all devices containers or exact device by udid
-          down    [udid] Stop and remove devices containers
-          shutdown       Stop and remove devices container, destroy all configuration
+          down [udid]    Stop and remove devices containers
+          shutdown       Stop and remove devices containers, destroy all configuration
           version        Version of MCloud device image"
       echo_telegram
       exit 0
