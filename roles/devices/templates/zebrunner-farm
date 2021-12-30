@@ -247,7 +247,7 @@ function start_containers() {
   local container=$1
   echo "starting $container containers..."
   docker start $container
-#  docker start $container-appium
+  docker start $container-appium
 }
 
 function shutdown() {
