@@ -36,15 +36,15 @@
       exit -1
     fi
 
-    /usr/local/bin/zebrunner-farm start
+    /usr/local/bin/zebrunner-farm start $1
   }
 
   stop() {
-    /usr/local/bin/zebrunner-farm stop
+    /usr/local/bin/zebrunner-farm stop $1
   }
 
   down() {
-    /usr/local/bin/zebrunner-farm down
+    /usr/local/bin/zebrunner-farm down $1
   }
 
   backup() {
