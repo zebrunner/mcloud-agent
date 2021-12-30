@@ -262,65 +262,6 @@ function start_containers() {
   docker start $container-appium
 }
 
-function shutdown() {
-  echo_warning "Shutdown will erase all MCloud settings and data!"
-  confirm "" "      Do you want to continue?" "n"
-  if [[ $? -eq 0 ]]; then
-    exit
-  fi
-
-  sudo rm -f /usr/local/bin/zebrunner-farm
-  sudo rm -f /usr/local/bin/devices.txt
-  sudo rm -f /etc/udev/rules.d/90_mcloud.rules
-
-  if [ -f /usr/local/bin/zebrunner-farm ] || [ -f /usr/local/bin/devices.txt ] || [ -f /etc/udev/rules.d/90_mcloud.rules ]; then
-    echo_warning "MCloud shutdown failed!"
-    echo_telegram
-  else
-    echo "MCloud shutdown succeed."
-  fi
-}
-
-function confirm() {
-    local message=$1
-    local question=$2
-    local isEnabled=$3
-
-    if [[ "$isEnabled" == "1" ]]; then
-      isEnabled="y"
-    fi
-    if [[ "$isEnabled" == "0" ]]; then
-      isEnabled="n"
-    fi
-
-    while true; do
-      if [[ ! -z $message ]]; then
-        echo "$message"
-      fi
-
-      read -r -p "$question y/n [$isEnabled]:" response
-      if [[ -z $response ]]; then
-        if [[ "$isEnabled" == "y" ]]; then
-          return 1
-        fi
-        if [[ "$isEnabled" == "n" ]]; then
-          return 0
-        fi
-      fi
-
-      if [[ "$response" == "y" || "$response" == "Y" ]]; then
-        return 1
-      fi
-
-      if [[ "$response" == "n" ||  "$response" == "N" ]]; then
-        return 0
-      fi
-
-      echo "Please answer y (yes) or n (no)."
-      echo
-    done
-}
-
 function status() {
   #63: implement status call
 }
@@ -350,7 +291,6 @@ function echo_help() {
           stop [udid]    Stop and keep devices containers or exact device by udid
           restart [udid] Restart all devices containers or exact device by udid
           down [udid]    Stop and remove devices containers
-          shutdown       Stop and remove devices containers, destroy all configuration
           version        Version of MCloud device image"
       echo_telegram
       exit 0
