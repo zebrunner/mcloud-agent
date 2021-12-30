@@ -116,10 +116,10 @@ function create_containers () {
 	-v /opt/zebrunner:/opt/zebrunner \
         -v /var/run/usbmuxd:/var/run/usbmuxd \
         -v /var/lib/lockdown:/var/lib/lockdown \
-        -v {{ WDA_IPA_PATH }}:/opt/WebDriverAgent.ipa \
+        -v "{{ WDA_IPA_PATH }}:/opt/WebDriverAgent.ipa" \
 	-e WDA_ENV=/opt/zebrunner/wda-${udid}.env \
         -e WDA_LOG_FILE=/opt/zebrunner/wda-${udid}.log \
-        -e P12FILE="{{ P12FILE }}" \
+	-v "{{ P12FILE }}:/opt/zebrunner/mcloud.p12" \
         -e P12PASSWORD="{{ P12PASSWORD }}" \
         -e PLATFORM_NAME=$platform_name \
         -e DEVICE_UDID=$udid \
@@ -250,51 +250,6 @@ function start_containers() {
 #  docker start $container-appium
 }
 
-function backup() {
-  echo_warning "Make sure to execute from mcloud-android folder!"
-  confirm "" "      Do you want to continue?" "n"
-  if [ $? -eq 0 ]; then
-    exit 1
-  fi
-
-  if [ ! -d backup ]; then
-    echo_warning "There is no backup folder detected!"
-    exit 1
-  fi
-
-  # copy udev related files into ./backup folder
-  cp /usr/local/bin/zebrunner-farm backup/
-  cp /usr/local/bin/devices.txt backup/
-  cp /etc/udev/rules.d/90_mcloud.rules backup/
-
-  if [ -f backup/zebrunner-farm ] && [ -f backup/devices.txt ] && [ -f backup/90_mcloud.rules ]; then
-    echo "MCloud backup succeed."
-  else
-    echo_warning "MCloud backup failed!"
-    echo_telegram
-  fi
-}
-
-function restore() {
-  echo_warning "Make sure you are inside mcloud-android folder and be able to execute sudo commands!"
-  confirm "" "      Do you want to continue?" "n"
-  if [ $? -eq 0 ]; then
-    exit 1
-  fi
-
-  sudo cp backup/zebrunner-farm /usr/local/bin/zebrunner-farm
-  sudo cp backup/devices.txt /usr/local/bin/devices.txt
-  sudo cp backup/90_mcloud.rules /etc/udev/rules.d/90_mcloud.rules
-
-  if [ -f /usr/local/bin/zebrunner-farm ] && [ -f /usr/local/bin/devices.txt ] && [ -f /etc/udev/rules.d/90_mcloud.rules ]; then
-    echo "MCloud restore succeed."
-  else
-    echo_warning "MCloud restore failed!"
-    echo_telegram
-  fi
-
-}
-
 function shutdown() {
   echo_warning "Shutdown will erase all MCloud settings and data!"
   confirm "" "      Do you want to continue?" "n"
@@ -379,8 +334,6 @@ function echo_help() {
           restart [udid] Restart all devices containers or exact device by udid
           down    [udid] Stop and remove devices containers
           shutdown       Stop and remove devices container, destroy all configuration
-          backup         Backup MCloud setup
-          restore        Restore MCloud setup
           version        Version of MCloud device image"
       echo_telegram
       exit 0
@@ -420,12 +373,6 @@ case "$ACTION" in
         ;;
     shutdown)
         shutdown
-        ;;
-    backup)
-        backup
-        ;;
-    restore)
-        restore
         ;;
     version)
         version
