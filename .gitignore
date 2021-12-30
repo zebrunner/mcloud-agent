@@ -2,3 +2,4 @@
 backup/*
 variables.env
 .env
+roles/devices/vars/main.yml
