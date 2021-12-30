@@ -21,6 +21,8 @@
       exit
     fi
 
+    down
+
     sudo rm -f /usr/local/bin/zebrunner-farm
     sudo rm -f /usr/local/bin/devices.txt
     sudo rm -f /etc/udev/rules.d/90_mcloud.rules
