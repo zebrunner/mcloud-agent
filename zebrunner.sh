@@ -108,19 +108,6 @@
     fi
   }
 
-
-  restore() {
-    stop
-
-    sudo cp backup/zebrunner-farm /usr/local/bin/
-    sudo cp backup/devices.txt /usr/local/bin/
-    sudo cp backup/90_mcloud.rules /etc/udev/rules.d/
-    # reload udevadm rules
-    sudo udevadm control --reload-rules
-
-    down
-  }
-
   confirm() {
     local message=$1
     local question=$2
