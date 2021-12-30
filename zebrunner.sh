@@ -28,6 +28,15 @@
     rm -f roles/devices/vars/main.yml
   }
 
+  status() {
+    if [[ ! -f /usr/local/bin/zebrunner-farm ]]; then
+      echo_warning "MCloud agent is not configured yet! Use: ./zebrunner.sh setup"
+      echo_telegram
+      exit -1
+    fi
+
+    /usr/local/bin/zebrunner-farm status
+  }
 
   start() {
     if [[ ! -f /usr/local/bin/zebrunner-farm ]]; then
@@ -170,6 +179,7 @@
     echo "
       Usage: ./zebrunner.sh [option]
       Arguments:
+         status         Status of MCloud Agent and each whitelisted device
          start [udid]   Start devices containers or exact device by udid
          stop [udid]    Stop and keep devices containers or exact device by udid
          restart [udid] Restart all devices containers or exact device by udid
@@ -187,6 +197,9 @@ BASEDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${BASEDIR}" || exit
 
 case "$1" in
+    status)
+        status
+        ;;
     setup)
         setup
         ;;

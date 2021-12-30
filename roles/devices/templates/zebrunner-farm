@@ -321,6 +321,10 @@ function confirm() {
     done
 }
 
+function status() {
+  #63: implement status call
+}
+
 function version() {
   echo "MCloud docker: ${DEVICE_IMAGE}"
   echo "      version: ${DEVICE_VERSION}"
@@ -341,6 +345,7 @@ function echo_help() {
     echo "
       Usage: zebrunner-farm [option]
       Arguments:
+          status         Status of MCloud Agent and each whitelisted device
           start [udid]   Start devices containers or exact device by udid
           stop [udid]    Stop and keep devices containers or exact device by udid
           restart [udid] Restart all devices containers or exact device by udid
@@ -364,6 +369,9 @@ CONNECTED_DEVICES=( `ls /dev/ | grep device | cut -d '-' -f 2-` )
 
 
 case "$ACTION" in
+    status)
+        status
+        ;;
     add)
         start ${ID_SERIAL_SHORT}
         ;;
