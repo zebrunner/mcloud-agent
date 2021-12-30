@@ -4,6 +4,7 @@
 #source patch/utility.sh
 
   setup() {
+    cp roles/devices/vars/main.yml.original roles/devices/vars/main.yml
     echo "Follow https://github.com/zebrunner/mcloud-android#readme to setup MCloud agent as of now!"
   }
 
@@ -23,6 +24,8 @@
     sudo rm -f /usr/local/bin/zebrunner-farm
     sudo rm -f /usr/local/bin/devices.txt
     sudo rm -f /etc/udev/rules.d/90_mcloud.rules
+    # restore original main.yml
+    rm -f roles/devices/vars/main.yml
   }
 
 
