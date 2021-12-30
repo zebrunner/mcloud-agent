@@ -63,19 +63,3 @@ devices:
     proxy_port: 7433
     min_port: 7434
     max_port: 7440
-  - id: 3a33c3122eb111c4fe3411c3a3f1bdeff0049b59
-    os: ios
-    name: iPhone_7
-    appium_port: 7441
-    adb_port: 7442
-    proxy_port: 7443
-    min_port: 7444
-    max_port: 7450
-  - id: b09fa26acc4c3f777e9b8b49e3348b7243f862b5
-    os: ios
-    name: iPhone_8
-    appium_port: 7451
-    adb_port: 7452
-    proxy_port: 7453
-    min_port: 7454
-    max_port: 7460
