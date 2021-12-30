@@ -12,7 +12,7 @@ if [ ! -z $ACTION ]; then
 else
     ACTION=$1
 fi
-echo ACTION: $ACTION
+#echo ACTION: $ACTION
 
 # useful export command to detect existing env vars per each device/vendor
 #export
