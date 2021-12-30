@@ -170,14 +170,14 @@
     echo "
       Usage: ./zebrunner.sh [option]
       Arguments:
-      	  start          Start container
-      	  stop           Stop and keep container
-      	  restart        Restart container
-      	  down           Stop and remove container
-      	  shutdown       Stop and remove container, clear volumes
-      	  backup         Backup container
-      	  restore        Restore container
-      	  version        Version of container"
+         start [udid]   Start devices containers or exact device by udid
+         stop [udid]    Stop and keep devices containers or exact device by udid
+         restart [udid] Restart all devices containers or exact device by udid
+         down [udid]    Stop and remove devices containers
+      	 shutdown       Stop and remove devices containers, clear volumes
+      	 backup         Backup MCloud agent setup
+      	 restore        Restore MCloud agent setup
+      	 version        Version of MCloud"
       echo_telegram
       exit 0
   }
