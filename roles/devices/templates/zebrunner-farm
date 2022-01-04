@@ -114,7 +114,9 @@ function create_containers () {
         -e STF_PROVIDER_APPIUM_PORT=$appium_port \
         -e STF_PROVIDER_MIN_PORT=$stf_min_port -e STF_PROVIDER_MAX_PORT=$stf_max_port \
 	-p $stf_min_port-$stf_max_port:$stf_min_port-$stf_max_port \
-        -e STF_PROVIDER_PUBLIC_IP={{ STF_PUBLIC_HOST }} \
+        -e STF_PROVIDER_PUBLIC_IP={{ PUBLIC_IP }} \
+	-e PUBLIC_IP_PORT={{ PUBLIC_IP_PORT }} \
+	-e PUBLIC_IP_PROTOCOL={{ PUBLIC_IP_PROTOCOL }} \
         -e STF_PROVIDER_CONNECT_SUB={{ STF_PROVIDER_CONNECT_SUB }} \
         -e STF_PROVIDER_CONNECT_PUSH={{ STF_PROVIDER_CONNECT_PUSH }} \
         -e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \
@@ -167,7 +169,9 @@ function create_containers () {
         -e STF_PROVIDER_APPIUM_PORT=$appium_port \
         -e STF_PROVIDER_MIN_PORT=$stf_min_port -e STF_PROVIDER_MAX_PORT=$stf_max_port \
         -p $stf_min_port-$stf_max_port:$stf_min_port-$stf_max_port \
-        -e STF_PROVIDER_PUBLIC_IP={{ STF_PUBLIC_HOST }} \
+        -e STF_PROVIDER_PUBLIC_IP={{ PUBLIC_IP }} \
+        -e PUBLIC_IP_PORT={{ PUBLIC_IP_PORT }} \
+        -e PUBLIC_IP_PROTOCOL={{ PUBLIC_IP_PROTOCOL }} \
         -e STF_PROVIDER_CONNECT_SUB={{ STF_PROVIDER_CONNECT_SUB }} \
         -e STF_PROVIDER_CONNECT_PUSH={{ STF_PROVIDER_CONNECT_PUSH }} \
         -e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \

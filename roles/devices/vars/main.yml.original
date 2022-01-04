@@ -1,8 +1,10 @@
 ---
 STF_DOCKER_NETWORK: infra
 
-# [OBLIGATORY] Set host address of the server where STF services are deployed
-STF_PUBLIC_HOST: demo.zebrunner.farm
+# [OBLIGATORY] Set host address, port and protocol of the server where STF services are deployed
+PUBLIC_IP: demo.zebrunner.farm
+PUBLIC_IP_PORT: 80
+PUBLIC_IP_PROTOCOL: http
 
 # [OPTIONAL] Set tcp url to rethinkdb and stf-triproxy-dev.
 # IMPORTANT! make sure to use valid hostname and port if STF services are located on different host.
@@ -15,7 +17,7 @@ STF_PROVIDER_CONNECT_PUSH: tcp://stf-triproxy-dev:7270
 SELENIUM_HUB_HOST: mcloud-grid
 SELENIUM_HUB_PORT: 4444
 
-# [OBLIGATORY] Set host address of current STF provider server. It should be resolvable and accessible from the STF_PUBLIC_HOST!
+# [OBLIGATORY] Set host address of current STF provider server. It should be resolvable and accessible from the PUBLIC_IP!
 STF_PROVIDER_HOST: demo.zebrunner.farm
 
 # [OPTIONAL] provider/location name for devices. Use short city name like NYC
