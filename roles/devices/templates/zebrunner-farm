@@ -259,7 +259,7 @@ function start_containers() {
 }
 
 function status() {
-  #63: implement status call
+  echo "#63: implement status call"
 }
 
 function version() {
