@@ -22,7 +22,6 @@ STF_PROVIDER_HOST: demo.zebrunner.farm
 STF_PROVIDER_NAME: mcloud-android
 
 # [OPTIONAL] S3 compatible storage for video recordings. Use embedded minio storage from Community Edition by default
-# TODO: https://github.com/zebrunner/mcloud/issues/113 reuse embedded minio storage from reporting for video recordings
 S3_BUCKET: zebrunner
 S3_TENANT: 
 S3_ENDPOINT: http://minio:9000
