@@ -28,6 +28,8 @@
     sudo rm -f /etc/udev/rules.d/90_mcloud.rules
     # restore original main.yml
     rm -f roles/devices/vars/main.yml
+
+    docker volume rm appium-storage-volume
   }
 
   status() {
