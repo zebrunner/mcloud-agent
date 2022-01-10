@@ -12,10 +12,10 @@ if [ ! -z $ACTION ]; then
 else
     ACTION=$1
 fi
-echo ACTION: $ACTION
+#echo ACTION: $ACTION
 
 # useful export command to detect existing env vars per each device/vendor
-export
+#export
 
 function create_containers () {
     local device=$1
@@ -53,19 +53,19 @@ function create_containers () {
     echo "udid: $udid"
 
     local device_adb_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 4`
-#    echo "device_adb_port: $device_adb_port"
+    echo "device_adb_port: $device_adb_port"
 
     local stf_min_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 5`
-#    echo "stf_min_port: $stf_min_port"
+    echo "stf_min_port: $stf_min_port"
 
     local stf_max_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 6`
-#    echo "stf_max_port: $stf_max_port"
+    echo "stf_max_port: $stf_max_port"
 
     local proxy_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 7`
-#    echo "proxy_port: $proxy_port"
+    echo "proxy_port: $proxy_port"
 
     local appium_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 8`
-#    echo "appium_port: $appium_port"
+    echo "appium_port: $appium_port"
 
 
     local symlink=/dev/device-$device
@@ -122,33 +122,6 @@ function create_containers () {
         -e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \
         $DOCKER_IMAGE_ID || echo 'already created'
   elif [ $platform_name == "ios" ]; then
-    # Experimentally confirmed that we have to try 3 times for 3 seconds to trust/pair fresh device
-    export PAIR_CMD="ios pair --udid=$udid"
-    echo "Pairing iOS device $udid"
-    if [ -f "{{ P12FILE }}" ] && [ ! -z "{{ P12PASSWORD }}" ]; then
-      export PAIR_CMD="ios pair --p12file=""{{ P12FILE }}"" --password=""{{ P12PASSWORD }}"" --udid=$udid"
-    fi
-
-    local isPaired=1
-    # confirmed by experiment that minimal number of attempts and pause is 3 to identify device attached and paired
-    for ((i=1; i<=3; i++))
-    do
-      if [ ${isPaired} -eq 1 ]; then
-        ${PAIR_CMD}
-        isPaired=$?
-        echo "isPared: $isPaired"
-        sleep 1
-      else
-        break
-      fi
-    done
-
-    if [ ${isPaired} -eq 1 ]; then
-      echo "ERROR! Unable to pair iOS device: $udid"
-      # Below exit completely and do not start appium and stf containers
-      exit 0
-    fi
-
     # TODO: run our appium container tuned for iOS. Combine later into the single run command
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
@@ -160,6 +133,8 @@ function create_containers () {
         -v "{{ WDA_IPA_PATH }}:/opt/WebDriverAgent.ipa" \
 	-e WDA_ENV=/opt/zebrunner/wda-${udid}.env \
         -e WDA_LOG_FILE=/opt/zebrunner/wda-${udid}.log \
+	-v "{{ P12FILE }}:/opt/zebrunner/mcloud.p12" \
+        -e P12PASSWORD="{{ P12PASSWORD }}" \
         -e PLATFORM_NAME=$platform_name \
         -e DEVICE_UDID=$udid \
         -e RETAIN_TASK=true \
