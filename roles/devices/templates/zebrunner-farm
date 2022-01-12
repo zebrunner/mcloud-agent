@@ -53,19 +53,19 @@ function create_containers () {
     echo "udid: $udid"
 
     local device_adb_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 4`
-    echo "device_adb_port: $device_adb_port"
+#    echo "device_adb_port: $device_adb_port"
 
     local stf_min_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 5`
-    echo "stf_min_port: $stf_min_port"
+#    echo "stf_min_port: $stf_min_port"
 
     local stf_max_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 6`
-    echo "stf_max_port: $stf_max_port"
+#    echo "stf_max_port: $stf_max_port"
 
     local proxy_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 7`
-    echo "proxy_port: $proxy_port"
+#    echo "proxy_port: $proxy_port"
 
     local appium_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 8`
-    echo "appium_port: $appium_port"
+#    echo "appium_port: $appium_port"
 
 
     local symlink=/dev/device-$device
