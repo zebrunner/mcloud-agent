@@ -89,6 +89,7 @@ function create_containers () {
 	-e CUSTOM_NODE_CONFIG=true \
 	-e APPIUM_HOST=${device_name}-appium \
         -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
+        -e DEFAULT_CAPABILITIES=true \
 	-e DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
 	-e ADB_PORT=$device_adb_port \
 	-e PROXY_PORT=$proxy_port \
@@ -142,6 +143,7 @@ function create_containers () {
         -e CUSTOM_NODE_CONFIG=true \
         -e APPIUM_HOST=${device_name}-appium \
         -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
+	-e DEFAULT_CAPABILITIES=true \
         -e DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
         -e ADB_PORT=$device_adb_port \
         -e PROXY_PORT=$proxy_port \
