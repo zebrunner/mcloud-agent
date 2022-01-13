@@ -3,5 +3,8 @@
 - name: Pull an Zebrunner MCloud device image
   shell: docker pull "{{ ANDROID_DEVICE_IMAGE }}:{{ ANDROID_DEVICE_VERSION }}"
 
+- name: Pull an Zebrunner Appium image
+  shell: docker pull "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}"
+
 - name: Create infra network if absent
   shell: docker network inspect "{{ STF_DOCKER_NETWORK }}" >/dev/null 2>&1 || docker network create "{{ STF_DOCKER_NETWORK }}"
