@@ -59,7 +59,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 ### SmartTestFarm
 * Open in your browser http://<PUBLIC_IP>/stf, authenticate yourself based on preconfigured auth system.
-* Connected device should appear automatically in STF with ability to use it remotely.
+* Connected device should be available in STF.
 * Disconnect device from the server. Device containers removed asap, in 15-30 sec device should change state in STF to disconnected as well.
 * Use different commands from `./zebrunner.sh start/stop/restart` to manage devices
   > Run `./zebrunner.sh` to see available options
