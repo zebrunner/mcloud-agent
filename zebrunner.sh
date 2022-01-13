@@ -30,6 +30,7 @@
     rm -f roles/devices/vars/main.yml
 
     docker volume rm appium-storage-volume
+    docker volume rm mcloud-storage-volume
   }
 
   status() {
