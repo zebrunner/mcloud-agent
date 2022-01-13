@@ -8,3 +8,9 @@
 
 - name: Create infra network if absent
   shell: docker network inspect "{{ STF_DOCKER_NETWORK }}" >/dev/null 2>&1 || docker network create "{{ STF_DOCKER_NETWORK }}"
+
+- name: Download developer-images.tar.gz from public zebrunner-ce S3 storage
+  get_url: url="https://zebrunner-ce.s3.amazonaws.com/mcloud/{{ DEVELOPER_IMAGES_VERSION }}/developer-images.tar.gz" dest=.
+
+- name: Generate docker volume using developer-images.tar.gz archive
+  shell: docker run --rm -v $(pwd)/developer-images.tar.gz:/var/tmp/developer-images.tar.gz -v mcloud-storage-volume:/opt/zebrunner "ubuntu:16.04" bash -c "rm -rf /opt/zebrunner/DeveloperDiskImages && cd /opt/zebrunner && tar -xzvf /var/tmp/developer-images.tar.gz"
