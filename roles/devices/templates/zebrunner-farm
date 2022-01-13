@@ -156,7 +156,7 @@ function create_containers () {
 	-e MCLOUD=true \
         {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}
 
-    #TODO: invetsigate if we need linking with appium container
+    #TODO: invetsigate if we need linking with appium container for iOS
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
         --restart always \
         --link device-${device_name}-${udid}-appium:appium \
