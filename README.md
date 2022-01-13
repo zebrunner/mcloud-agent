@@ -30,11 +30,11 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
   ```
   ansible-playbook -vvv -i hosts devices.yml
   ```
- > To reregister devices list only you can use command:
+  > To reregister devices list only you can use command:
   ```
   ansible-playbook -vvv -i hosts devices.yml --tag registerDevices
   ```
- > To provide extra arguments including sudo permissions you can use
+  > To provide extra arguments including sudo permissions you can use
   ```
   ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD" devices.yml
   ```
