@@ -80,7 +80,7 @@ function create_containers () {
 	--device=$symlink:/dev/bus/usb/003/011 \
         -v mcloud-key-volume:/root/.android \
 	-v appium-storage-volume:/opt/appium-storage \
-        -v /opt/zebrunner:/opt/zebrunner \
+        -v mcloud-storage-volume:/opt/zebrunner \
 	-e PLATFORM_NAME=$platform_name \
 	-e DEVICE_UDID=$udid \
         -e RETAIN_TASK=true \
@@ -128,7 +128,7 @@ function create_containers () {
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
         --restart always \
 	-v appium-storage-volume:/opt/appium-storage \
-	-v /opt/zebrunner:/opt/zebrunner \
+	-v mcloud-storage-volume:/opt/zebrunner \
         -v /var/run/usbmuxd:/var/run/usbmuxd \
         -v /var/lib/lockdown:/var/lib/lockdown \
         -v "{{ WDA_IPA_PATH }}:/opt/WebDriverAgent.ipa" \
