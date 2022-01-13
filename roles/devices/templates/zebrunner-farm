@@ -42,7 +42,7 @@ function create_containers () {
     fi
 
     echo "creating $device containers"
-    local devices=/usr/local/bin/devices.txt
+    local devices=/usr/local/bin/mcloud-devices.txt
     local device_name=`cat ${devices} | grep "$udid" | cut -d '|' -f 1`
     echo "device_name: $device_name"
 
@@ -183,7 +183,7 @@ function create_containers () {
 
 function stop() {
   local filter_device=$1
-  local devices=/usr/local/bin/devices.txt
+  local devices=/usr/local/bin/mcloud-devices.txt
 
   # if $device is empty do stop for all connected devices otherwise stop only filtered
   if [ ! -z $filter_device ]; then
@@ -210,7 +210,7 @@ function stop_containers() {
 
 function down() {
   local filter_device=$1
-  local devices=/usr/local/bin/devices.txt
+  local devices=/usr/local/bin/mcloud-devices.txt
 
   # if $device is empty do rm for all connected devices otherwise rm only filtered
   if [ ! -z $filter_device ]; then
@@ -244,7 +244,7 @@ function verify_containers() {
 
 function start() {
   local filter_device=$1
-  local devices=/usr/local/bin/devices.txt
+  local devices=/usr/local/bin/mcloud-devices.txt
 
   # if $device is empty do start for all connected devices otherwise start only filtered
   if [ ! -z $filter_device ]; then
@@ -273,7 +273,7 @@ function start_containers() {
 
 function status() {
   local filter_device=$1
-  local devices=/usr/local/bin/devices.txt
+  local devices=/usr/local/bin/mcloud-devices.txt
 
   # if $device is empty do start for all connected devices otherwise start only filtered
   if [ ! -z $filter_device ]; then

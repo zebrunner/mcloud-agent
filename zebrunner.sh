@@ -24,7 +24,7 @@
     down
 
     sudo rm -f /usr/local/bin/zebrunner-farm
-    sudo rm -f /usr/local/bin/devices.txt
+    sudo rm -f /usr/local/bin/mcloud-devices.txt
     sudo rm -f /etc/udev/rules.d/90_mcloud.rules
     # restore original main.yml
     rm -f roles/devices/vars/main.yml
@@ -69,11 +69,11 @@
 
     # copy udev related files into ./backup folder
     cp /usr/local/bin/zebrunner-farm backup/
-    cp /usr/local/bin/devices.txt backup/
+    cp /usr/local/bin/mcloud-devices.txt backup/
     cp /etc/udev/rules.d/90_mcloud.rules backup/
     cp roles/devices/vars/main.yml roles/devices/vars/main.yml.bak
 
-    if [ -f backup/zebrunner-farm ] && [ -f backup/devices.txt ] && [ -f backup/90_mcloud.rules ] && [ -f roles/devices/vars/main.yml.bak ]; then
+    if [ -f backup/zebrunner-farm ] && [ -f backup/mcloud-devices.txt ] && [ -f backup/90_mcloud.rules ] && [ -f roles/devices/vars/main.yml.bak ]; then
       echo "MCloud backup succeed."
     else
       echo_warning "MCloud backup failed!"
@@ -88,14 +88,14 @@
     fi
 
     sudo cp backup/zebrunner-farm /usr/local/bin/zebrunner-farm
-    sudo cp backup/devices.txt /usr/local/bin/devices.txt
+    sudo cp backup/mcloud-devices.txt /usr/local/bin/mcloud-devices.txt
     sudo cp backup/90_mcloud.rules /etc/udev/rules.d/90_mcloud.rules
     cp roles/devices/vars/main.yml.bak roles/devices/vars/main.yml
 
     # reload udevadm rules
     sudo udevadm control --reload-rules
 
-    if [ -f /usr/local/bin/zebrunner-farm ] && [ -f /usr/local/bin/devices.txt ] && [ -f /etc/udev/rules.d/90_mcloud.rules ] && [ -f roles/devices/vars/main.yml ]; then
+    if [ -f /usr/local/bin/zebrunner-farm ] && [ -f /usr/local/bin/mcloud-devices.txt ] && [ -f /etc/udev/rules.d/90_mcloud.rules ] && [ -f roles/devices/vars/main.yml ]; then
       echo "MCloud restore succeed."
     else
       echo_warning "MCloud restore failed!"

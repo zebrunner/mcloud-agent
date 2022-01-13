@@ -7,7 +7,7 @@
   template: src=90_mcloud.rules dest=/etc/udev/rules.d/
 
 - name: copy devices details
-  template: src=devices.txt dest=/usr/local/bin/
+  template: src=mcloud-devices.txt dest=/usr/local/bin/
 
 - name: restart udev
   command: udevadm control --reload
