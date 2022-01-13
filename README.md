@@ -38,9 +38,9 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
   ```
   ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD" devices.yml
   ```
-   * Devices management script deployed to /usr/local/bin/zebrunner-farm
-   * Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules
-   * Whitelisted devices custom properties are in /usr/local/bin/devices.txt
+ * Devices management script deployed to /usr/local/bin/zebrunner-farm
+ * Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules
+ * Whitelisted devices properties are in /usr/local/bin/devices.txt
    
 ## Usage
 
