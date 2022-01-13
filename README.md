@@ -48,8 +48,6 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * Enable Developer Option and USB Debugging for each Android device
 * Connect Android device physically into USB direct port or through the hub.
 * For the 1st connection trust device picking "always trust..." on device.
-* Open in your browser http://<PUBLIC_IP>/stf, authenticate yourself based on preconfigured auth system.
-* Connected device should appear automatically in STF with ability to use it remotely.
 
 ### iOS devices
 * Enable Settings -> Developer -> Enable UI Automation
@@ -59,12 +57,12 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * Connect iOS device physically into USB direct port or through the hub.
 * For non supervised iOS device click "Trust". For supervised it should be closed automatically.
 
-* Isolated Appium and STF containers are started per each device.
-```
-docker ps -a | grep device
-```
-* Disconnect device from the server. Device containers are removed asap, in 15-30 sec it should change state in STF to disconnected as well.
-* Use different commands from `./zebrunner.sh` to manage devices
+### SmartTestFarm
+* Open in your browser http://<PUBLIC_IP>/stf, authenticate yourself based on preconfigured auth system.
+* Connected device should appear automatically in STF with ability to use it remotely.
+* Disconnect device from the server. Device containers removed asap, in 15-30 sec device should change state in STF to disconnected as well.
+* Use different commands from `./zebrunner.sh start/stop/restart` to manage devices
+  > Run `./zebrunner.sh` to see available options
 
 ## Documentation and free support
 * [Zebrunner PRO](https://zebrunner.com)
