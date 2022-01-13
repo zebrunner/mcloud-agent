@@ -160,7 +160,7 @@ function create_containers () {
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
         --restart always \
         --link device-${device_name}-${udid}-appium:appium \
-        -v /opt/zebrunner:/opt/zebrunner \
+        -v mcloud-storage-volume:/opt/zebrunner \
         -v /var/run/usbmuxd:/var/run/usbmuxd \
         -e WDA_ENV=/opt/zebrunner/wda-${udid}.env \
         -e PLATFORM_NAME=$platform_name \
@@ -235,6 +235,13 @@ function remove_containers() {
   docker rm -f $container-appium
 }
 
+function verify_containers() {
+  local container=$1
+  echo "$container: `docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container`"
+  echo "$container-appium: `docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container-appium`"
+}
+
+
 function start() {
   local filter_device=$1
   local devices=/usr/local/bin/devices.txt
@@ -265,7 +272,26 @@ function start_containers() {
 }
 
 function status() {
-  echo "#63: implement status call"
+  local filter_device=$1
+  local devices=/usr/local/bin/devices.txt
+
+  # if $device is empty do start for all connected devices otherwise start only filtered
+  if [ ! -z $filter_device ]; then
+    echo verifying status for $filter_device...
+    local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
+    echo "device_name: $device_name"
+    local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
+    echo "udid: $udid"
+    verify_containers device-${device_name}-${udid}
+  else
+    echo "as no device filter provided continue with verifying all whitelisted devices!"
+#    for device in "${CONNECTED_DEVICES[@]}"
+#    do
+#      create_containers device-$device
+#      start_containers device-$device
+#    done
+  fi
+
 }
 
 function version() {
@@ -312,7 +338,7 @@ CONNECTED_DEVICES=( `ls /dev/ | grep device | cut -d '-' -f 2-` )
 
 case "$ACTION" in
     status)
-        status
+        status $2
         ;;
     add)
         start ${ID_SERIAL_SHORT}

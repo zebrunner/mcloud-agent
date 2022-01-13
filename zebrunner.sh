@@ -40,7 +40,7 @@
       exit -1
     fi
 
-    /usr/local/bin/zebrunner-farm status
+    /usr/local/bin/zebrunner-farm status $1
   }
 
   start() {
@@ -190,7 +190,7 @@ cd "${BASEDIR}" || exit
 
 case "$1" in
     status)
-        status
+        status $2
         ;;
     setup)
         setup
