@@ -22,10 +22,10 @@ function create_containers () {
 
     # cut device- to support manual and udev recreation
     device=${device#"device-"}
-    echo "device: $device"
+    #echo "device: $device"
 
     local udid=`echo $device | cut -d '-' -f 2`
-    echo "udid: $udid"
+    #echo "udid: $udid"
 
     #verify if device containers already exist and do nothing then
     docker ps -a | grep -v appium | grep $device > /dev/null
@@ -37,35 +37,35 @@ function create_containers () {
     #echo isAppiumExists: $isAppiumExists
 
     if [ $isDeviceExists -eq 0 ] && [ $isAppiumExists -eq 0 ]; then
-      echo "Containers for $device already exist."
+      # do nothing as containers already exists!
       return 0
     fi
 
-    echo "creating $device containers"
+    echo "$device creating..."
     local devices=/usr/local/bin/mcloud-devices.txt
     local device_name=`cat ${devices} | grep "$udid" | cut -d '|' -f 1`
-    echo "device_name: $device_name"
+    #echo "device_name: $device_name"
 
     local platform_name=`cat ${devices} | grep "$udid" | cut -d '|' -f 2`
-    echo "platform_name: $platform_name"
+    #echo "platform_name: $platform_name"
 
     local udid=`cat ${devices} | grep "$udid" | cut -d '|' -f 3`
-    echo "udid: $udid"
+    #echo "udid: $udid"
 
     local device_adb_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 4`
-#    echo "device_adb_port: $device_adb_port"
+    #echo "device_adb_port: $device_adb_port"
 
     local stf_min_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 5`
-#    echo "stf_min_port: $stf_min_port"
+    #echo "stf_min_port: $stf_min_port"
 
     local stf_max_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 6`
-#    echo "stf_max_port: $stf_max_port"
+    #echo "stf_max_port: $stf_max_port"
 
     local proxy_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 7`
-#    echo "proxy_port: $proxy_port"
+    #echo "proxy_port: $proxy_port"
 
     local appium_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 8`
-#    echo "appium_port: $appium_port"
+    #echo "appium_port: $appium_port"
 
 
     local symlink=/dev/device-$device
@@ -194,16 +194,23 @@ function stop() {
     stop_containers device-${device_name}-${udid}
   else
     # as no device filter provided continue with stopping all device containers
-    for device in "${CONNECTED_DEVICES[@]}"
+    while read -r line
     do
-      stop_containers device-$device
-    done
+      local device_name=`echo ${line} | grep "$filter_device" | cut -d '|' -f 1`
+      #echo "device_name: $device_name"
+      local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
+      #echo "udid: $udid"
+      if [ -L /dev/device-${device_name}-${udid} ]; then
+        stop_containers device-${device_name}-${udid}
+      fi
+    done < ${devices}
   fi
 }
 
 function stop_containers() {
   local container=$1
-  echo "stopping $container containers..."
+  echo
+  echo "$container stopping..."
   docker stop $container
   docker stop $container-appium
 }
@@ -214,25 +221,41 @@ function down() {
 
   # if $device is empty do rm for all connected devices otherwise rm only filtered
   if [ ! -z $filter_device ]; then
-    echo removing containers for $filter_device...
+    #echo removing containers for $filter_device...
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
 
     remove_containers device-${device_name}-${udid}
   else
-    # as no device filter provided continue with removing all device containers
-    for device in "${CONNECTED_DEVICES[@]}"
+    while read -r line
     do
-      remove_containers device-$device
-    done
+      local device_name=`echo ${line} | grep "$filter_device" | cut -d '|' -f 1`
+      #echo "device_name: $device_name"
+      local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
+      #echo "udid: $udid"
+      if [ -L /dev/device-${device_name}-${udid} ]; then
+        remove_containers device-${device_name}-${udid}
+      fi
+    done < ${devices}
   fi
 }
 
 function remove_containers() {
   local container=$1
-  echo "removing $container containers..."
-  docker rm -f $container
-  docker rm -f $container-appium
+  #echo "$container removing..."
+  #verify if device containers already exist and do nothing then
+  docker ps -a | grep -v appium | grep $container > /dev/null
+  if [ $? -eq 0 ]; then
+    docker rm -f $container
+  fi
+
+  docker ps -a | grep appium | grep $container > /dev/null
+  if [ $? -eq 0 ]; then
+    docker rm -f $container-appium
+  fi
+
+  #docker rm -f $container
+  #docker rm -f $container-appium
 }
 
 function verify_containers() {
@@ -258,25 +281,30 @@ function start() {
 
   # if $device is empty do start for all connected devices otherwise start only filtered
   if [ ! -z $filter_device ]; then
-    echo starting containers for $filter_device...
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
 
     create_containers device-${device_name}-${udid}
     start_containers device-${device_name}-${udid}
   else
-    # as no device filter provided continue with starting all device containers
-    for device in "${CONNECTED_DEVICES[@]}"
+    while read -r line
     do
-      create_containers device-$device
-      start_containers device-$device
-    done
+      local device_name=`echo ${line} | grep "$filter_device" | cut -d '|' -f 1`
+      #echo "device_name: $device_name"
+      local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
+      #echo "udid: $udid"
+      if [ -L /dev/device-${device_name}-${udid} ]; then
+        create_containers device-${device_name}-${udid}
+        start_containers device-${device_name}-${udid}
+      fi
+    done < ${devices}
   fi
 }
 
 function start_containers() {
   local container=$1
-  echo "starting $container containers..."
+  echo
+  echo "$container starting..."
   docker start $container
   docker start $container-appium
 }
