@@ -237,8 +237,18 @@ function remove_containers() {
 
 function verify_containers() {
   local container=$1
-  echo "$container: `docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container`"
-  echo "$container-appium: `docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container-appium`"
+
+  local state=
+  if [ ! -L /dev/$container ]; then
+    state="Disconnected!"
+    echo "$container - DISCONNECTED"
+  else
+    local stfState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container`
+    local appiumState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container-appium`
+    echo $container
+    echo "Appium: $appiumState; STF: $stfState"
+  fi
+  echo
 }
 
 
@@ -277,19 +287,20 @@ function status() {
 
   # if $device is empty do start for all connected devices otherwise start only filtered
   if [ ! -z $filter_device ]; then
-    echo verifying status for $filter_device...
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
-    echo "device_name: $device_name"
+    #echo "device_name: $device_name"
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
-    echo "udid: $udid"
+    #echo "udid: $udid"
     verify_containers device-${device_name}-${udid}
   else
-    echo "as no device filter provided continue with verifying all whitelisted devices!"
-#    for device in "${CONNECTED_DEVICES[@]}"
-#    do
-#      create_containers device-$device
-#      start_containers device-$device
-#    done
+    while read -r line
+    do
+      local device_name=`echo ${line} | grep "$filter_device" | cut -d '|' -f 1`
+      #echo "device_name: $device_name"
+      local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
+      #echo "udid: $udid"
+      verify_containers device-${device_name}-${udid}
+    done < ${devices}
   fi
 
 }
