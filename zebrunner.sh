@@ -171,7 +171,7 @@
     echo "
       Usage: ./zebrunner.sh [option]
       Arguments:
-         status         Status of MCloud Agent and each whitelisted device
+         status [udid]  Status of MCloud Agent whitelisted devices or exact device by udid
          start [udid]   Start devices containers or exact device by udid
          stop [udid]    Stop and keep devices containers or exact device by udid
          restart [udid] Restart all devices containers or exact device by udid
@@ -224,7 +224,6 @@ case "$1" in
         echo_help
         ;;
     *)
-        echo "Invalid option detected: $1"
         echo_help
         exit 1
         ;;
