@@ -1,0 +1,414 @@
+#!/bin/bash
+
+DEVICE_IMAGE={{ ANDROID_DEVICE_IMAGE }}
+DEVICE_VERSION={{ ANDROID_DEVICE_VERSION }}
+
+if [ ! -z $ACTION ]; then
+  # triggered by udev rule where device serial (udid) is a must to proceed!
+  if [ -z $ID_SERIAL_SHORT ]; then
+    echo "do nothing as device id/udid missed."
+    exit 0
+  fi
+else
+    ACTION=$1
+fi
+#echo ACTION: $ACTION
+
+# useful export command to detect existing env vars per each device/vendor
+#export
+
+function create_containers () {
+    local device=$1
+
+    # cut device- to support manual and udev recreation
+    device=${device#"device-"}
+    #echo "device: $device"
+
+    local udid=`echo $device | cut -d '-' -f 2`
+    #echo "udid: $udid"
+
+    #verify if device containers already exist and do nothing then
+    docker ps -a | grep -v appium | grep $device > /dev/null
+    local isDeviceExists=$?
+    #echo isDeviceExists: $isDeviceExists
+
+    docker ps -a | grep appium | grep $device > /dev/null
+    local isAppiumExists=$?
+    #echo isAppiumExists: $isAppiumExists
+
+    if [ $isDeviceExists -eq 0 ] && [ $isAppiumExists -eq 0 ]; then
+      # do nothing as containers already exists!
+      return 0
+    fi
+
+    echo "$device creating..."
+    local devices=/usr/local/bin/mcloud-devices.txt
+    local device_name=`cat ${devices} | grep "$udid" | cut -d '|' -f 1`
+    #echo "device_name: $device_name"
+
+    local platform_name=`cat ${devices} | grep "$udid" | cut -d '|' -f 2`
+    #echo "platform_name: $platform_name"
+
+    local udid=`cat ${devices} | grep "$udid" | cut -d '|' -f 3`
+    #echo "udid: $udid"
+
+    local device_adb_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 4`
+    #echo "device_adb_port: $device_adb_port"
+
+    local stf_min_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 5`
+    #echo "stf_min_port: $stf_min_port"
+
+    local stf_max_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 6`
+    #echo "stf_max_port: $stf_max_port"
+
+    local proxy_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 7`
+    #echo "proxy_port: $proxy_port"
+
+    local appium_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 8`
+    #echo "appium_port: $appium_port"
+
+
+    local symlink=/dev/device-$device
+
+    local net={{ STF_DOCKER_NETWORK }}
+
+    docker network inspect ${net} >/dev/null 2>&1 || docker network create ${net}
+
+  if [ $platform_name == "android" ]; then
+    docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
+        --restart always \
+	--device=$symlink:/dev/bus/usb/003/011 \
+        -v mcloud-key-volume:/root/.android \
+	-v appium-storage-volume:/opt/appium-storage \
+        -v mcloud-storage-volume:/opt/zebrunner \
+	-e PLATFORM_NAME=$platform_name \
+	-e DEVICE_UDID=$udid \
+        -e RETAIN_TASK=true \
+	-e REMOTE_ADB=false \
+	-e CONNECT_TO_GRID=true \
+	-e CUSTOM_NODE_CONFIG=true \
+	-e APPIUM_HOST=${device_name}-appium \
+        -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
+        -e DEFAULT_CAPABILITIES=true \
+	-e DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
+	-e ADB_PORT=$device_adb_port \
+	-e PROXY_PORT=$proxy_port \
+        -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
+	-e STF_PROVIDER_MAX_PORT=$stf_max_port \
+	-e STF_PROVIDER_APPIUM_PORT=$appium_port \
+	-p $appium_port:4723 \
+        -e RELAXED_SECURITY=true \
+        -e S3_ENDPOINT={{ S3_ENDPOINT }} -e BUCKET={{ S3_BUCKET }} -e TENANT={{ S3_TENANT }} -e AWS_ACCESS_KEY_ID={{ S3_ACCESS_KEY_ID }} -e AWS_SECRET_ACCESS_KEY={{ S3_SECRET }} -e AWS_DEFAULT_REGION={{ S3_REGION }} \
+	-e MCLOUD=true \
+        {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}
+
+    docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
+	--link device-${device_name}-${udid}-appium:appium \
+        -e STF_PROVIDER_ADB_HOST=appium \
+	--health-start-period 60s \
+	--restart always \
+	-e PLATFORM_NAME=$platform_name \
+        -e NODE_OPTIONS=--max_old_space_size={{ MAX_OLD_SPACE_SIZE_VALUE }} \
+        -e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
+        -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
+        -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}" \
+        -e STF_PROVIDER_APPIUM_PORT=$appium_port \
+        -e STF_PROVIDER_MIN_PORT=$stf_min_port -e STF_PROVIDER_MAX_PORT=$stf_max_port \
+	-p $stf_min_port-$stf_max_port:$stf_min_port-$stf_max_port \
+        -e STF_PROVIDER_PUBLIC_IP={{ PUBLIC_IP }} \
+	-e PUBLIC_IP_PORT={{ PUBLIC_IP_PORT }} \
+	-e PUBLIC_IP_PROTOCOL={{ PUBLIC_IP_PROTOCOL }} \
+        -e STF_PROVIDER_CONNECT_SUB={{ STF_PROVIDER_CONNECT_SUB }} \
+        -e STF_PROVIDER_CONNECT_PUSH={{ STF_PROVIDER_CONNECT_PUSH }} \
+        -e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \
+        $DOCKER_IMAGE_ID || echo 'already created'
+  elif [ $platform_name == "ios" ]; then
+    # TODO: run our appium container tuned for iOS. Combine later into the single run command
+    # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
+    docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
+        --restart always \
+	-v appium-storage-volume:/opt/appium-storage \
+	-v mcloud-storage-volume:/opt/zebrunner \
+        -v /var/run/usbmuxd:/var/run/usbmuxd \
+        -v /var/lib/lockdown:/var/lib/lockdown \
+        -v "{{ WDA_IPA_PATH }}:/opt/WebDriverAgent.ipa" \
+	-e WDA_ENV=/opt/zebrunner/wda-${udid}.env \
+        -e WDA_LOG_FILE=/opt/zebrunner/wda-${udid}.log \
+	-v "{{ P12FILE }}:/opt/zebrunner/mcloud.p12" \
+        -e P12PASSWORD="{{ P12PASSWORD }}" \
+        -e PLATFORM_NAME=$platform_name \
+        -e DEVICE_UDID=$udid \
+        -e RETAIN_TASK=true \
+        -e CONNECT_TO_GRID=true \
+        -e CUSTOM_NODE_CONFIG=true \
+        -e APPIUM_HOST=${device_name}-appium \
+        -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
+	-e DEFAULT_CAPABILITIES=true \
+        -e DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
+        -e ADB_PORT=$device_adb_port \
+        -e PROXY_PORT=$proxy_port \
+        -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
+        -e STF_PROVIDER_MAX_PORT=$stf_max_port \
+        -e STF_PROVIDER_APPIUM_PORT=$appium_port \
+        -p $appium_port:4723 \
+        -e RELAXED_SECURITY=true \
+        -e S3_ENDPOINT={{ S3_ENDPOINT }} -e BUCKET={{ S3_BUCKET }} -e TENANT={{ S3_TENANT }} -e AWS_ACCESS_KEY_ID={{ S3_ACCESS_KEY_ID }} -e AWS_SECRET_ACCESS_KEY={{ S3_SECRET }} -e AWS_DEFAULT_REGION={{ S3_REGION }} \
+	-e MCLOUD=true \
+        {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}
+
+    #TODO: invetsigate if we need linking with appium container for iOS
+    docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
+        --restart always \
+        --link device-${device_name}-${udid}-appium:appium \
+        -v mcloud-storage-volume:/opt/zebrunner \
+        -v /var/run/usbmuxd:/var/run/usbmuxd \
+        -e WDA_ENV=/opt/zebrunner/wda-${udid}.env \
+        -e PLATFORM_NAME=$platform_name \
+        -e NODE_OPTIONS=--max_old_space_size={{ MAX_OLD_SPACE_SIZE_VALUE }} \
+        -e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
+        -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
+        -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}" \
+        -e STF_PROVIDER_APPIUM_PORT=$appium_port \
+        -e STF_PROVIDER_MIN_PORT=$stf_min_port -e STF_PROVIDER_MAX_PORT=$stf_max_port \
+        -p $stf_min_port-$stf_max_port:$stf_min_port-$stf_max_port \
+        -e STF_PROVIDER_PUBLIC_IP={{ PUBLIC_IP }} \
+        -e PUBLIC_IP_PORT={{ PUBLIC_IP_PORT }} \
+        -e PUBLIC_IP_PROTOCOL={{ PUBLIC_IP_PROTOCOL }} \
+        -e STF_PROVIDER_CONNECT_SUB={{ STF_PROVIDER_CONNECT_SUB }} \
+        -e STF_PROVIDER_CONNECT_PUSH={{ STF_PROVIDER_CONNECT_PUSH }} \
+        -e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \
+        $DOCKER_IMAGE_ID || echo 'already created'
+  fi
+}
+
+function stop() {
+  local filter_device=$1
+  local devices=/usr/local/bin/mcloud-devices.txt
+
+  # if $device is empty do stop for all connected devices otherwise stop only filtered
+  if [ ! -z $filter_device ]; then
+    echo stopping containers for $filter_device...
+    local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
+    local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
+
+    stop_containers device-${device_name}-${udid}
+  else
+    # as no device filter provided continue with stopping all device containers
+    while read -r line
+    do
+      local device_name=`echo ${line} | grep "$filter_device" | cut -d '|' -f 1`
+      #echo "device_name: $device_name"
+      local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
+      #echo "udid: $udid"
+      if [ -L /dev/device-${device_name}-${udid} ]; then
+        stop_containers device-${device_name}-${udid}
+      fi
+    done < ${devices}
+  fi
+}
+
+function stop_containers() {
+  local container=$1
+  echo
+  echo "$container stopping..."
+  docker stop $container
+  docker stop $container-appium
+}
+
+function down() {
+  local filter_device=$1
+  local devices=/usr/local/bin/mcloud-devices.txt
+
+  # if $device is empty do rm for all connected devices otherwise rm only filtered
+  if [ ! -z $filter_device ]; then
+    #echo removing containers for $filter_device...
+    local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
+    local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
+
+    remove_containers device-${device_name}-${udid}
+  else
+    while read -r line
+    do
+      local device_name=`echo ${line} | grep "$filter_device" | cut -d '|' -f 1`
+      #echo "device_name: $device_name"
+      local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
+      #echo "udid: $udid"
+      if [ -L /dev/device-${device_name}-${udid} ]; then
+        remove_containers device-${device_name}-${udid}
+      fi
+    done < ${devices}
+  fi
+}
+
+function remove_containers() {
+  local container=$1
+  #echo "$container removing..."
+  #verify if device containers already exist and do nothing then
+  docker ps -a | grep -v appium | grep $container > /dev/null
+  if [ $? -eq 0 ]; then
+    docker rm -f $container
+  fi
+
+  docker ps -a | grep appium | grep $container > /dev/null
+  if [ $? -eq 0 ]; then
+    docker rm -f $container-appium
+  fi
+
+  #docker rm -f $container
+  #docker rm -f $container-appium
+}
+
+function verify_containers() {
+  local container=$1
+
+  local state=
+  if [ ! -L /dev/$container ]; then
+    state="Disconnected!"
+    echo "$container - DISCONNECTED"
+  else
+    local stfState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container`
+    local appiumState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container-appium`
+    echo $container
+    echo "Appium: $appiumState; STF: $stfState"
+  fi
+  echo
+}
+
+
+function start() {
+  local filter_device=$1
+  local devices=/usr/local/bin/mcloud-devices.txt
+
+  # if $device is empty do start for all connected devices otherwise start only filtered
+  if [ ! -z $filter_device ]; then
+    local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
+    local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
+
+    create_containers device-${device_name}-${udid}
+    start_containers device-${device_name}-${udid}
+  else
+    while read -r line
+    do
+      local device_name=`echo ${line} | grep "$filter_device" | cut -d '|' -f 1`
+      #echo "device_name: $device_name"
+      local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
+      #echo "udid: $udid"
+      if [ -L /dev/device-${device_name}-${udid} ]; then
+        create_containers device-${device_name}-${udid}
+        start_containers device-${device_name}-${udid}
+      fi
+    done < ${devices}
+  fi
+}
+
+function start_containers() {
+  local container=$1
+  echo
+  echo "$container starting..."
+  docker start $container
+  docker start $container-appium
+}
+
+function status() {
+  local filter_device=$1
+  local devices=/usr/local/bin/mcloud-devices.txt
+
+  # if $device is empty do start for all connected devices otherwise start only filtered
+  if [ ! -z $filter_device ]; then
+    local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
+    #echo "device_name: $device_name"
+    local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
+    #echo "udid: $udid"
+    verify_containers device-${device_name}-${udid}
+  else
+    while read -r line
+    do
+      local device_name=`echo ${line} | grep "$filter_device" | cut -d '|' -f 1`
+      #echo "device_name: $device_name"
+      local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
+      #echo "udid: $udid"
+      verify_containers device-${device_name}-${udid}
+    done < ${devices}
+  fi
+
+}
+
+function version() {
+  echo "MCloud docker: ${DEVICE_IMAGE}"
+  echo "      version: ${DEVICE_VERSION}"
+}
+
+echo_warning() {
+    echo "
+      WARNING! $1"
+}
+
+echo_telegram() {
+    echo "
+      For more help join telegram channel: https://t.me/zebrunner
+      "
+}
+
+function echo_help() {
+    echo "
+      Usage: zebrunner-farm [option]
+      Arguments:
+          status         Status of MCloud Agent and each whitelisted device
+          start [udid]   Start devices containers or exact device by udid
+          stop [udid]    Stop and keep devices containers or exact device by udid
+          restart [udid] Restart all devices containers or exact device by udid
+          down [udid]    Stop and remove devices containers
+          version        Version of MCloud device image"
+      echo_telegram
+      exit 0
+}
+
+
+# spaces before and after DEVICE_VERSION to identify exact image id
+DOCKER_IMAGE_ID=`docker images | grep "${DEVICE_IMAGE}" | grep " ${DEVICE_VERSION} " | awk '{print($3)}'`
+#echo DOCKER_IMAGE_ID: $DOCKER_IMAGE_ID
+
+CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | grep -v appium | cut -d '-' -f 2-` )
+#echo CONTAINERS: $CONTAINERS
+
+CONNECTED_DEVICES=( `ls /dev/ | grep device | cut -d '-' -f 2-` )
+#echo CONNECTED_DEVICES: $CONNECTED_DEVICES
+
+
+case "$ACTION" in
+    status)
+        status $2
+        ;;
+    add)
+        start ${ID_SERIAL_SHORT}
+        ;;
+    remove)
+        down ${ID_SERIAL_SHORT}
+        ;;
+    start)
+        start $2
+        ;;
+    stop)
+        stop $2
+        ;;
+    restart)
+        down $2
+        start $2
+        ;;
+    down)
+        down $2
+        ;;
+    shutdown)
+        shutdown
+        ;;
+    version)
+        version
+        ;;
+    *)
+        echo "Unknown option detected: $1"
+        echo_help
+        exit 1
+        ;;
+esac
+
+exit 0

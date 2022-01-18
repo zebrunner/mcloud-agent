@@ -1,6 +1,6 @@
-docker-compose.yml
+*.bak
+backup/*
 variables.env
-nginx/conf.d/default.conf
-stf-storage-temp
-rethinkdb
-*.tar.gz
+.env
+roles/devices/vars/main.yml
+developer-images.tar.gz

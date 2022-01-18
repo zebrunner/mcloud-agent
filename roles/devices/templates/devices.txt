@@ -1,3 +1,0 @@
-{% for device in devices %}
-{{ device.name }}|{{ device.id }}|{{ device.adb_port }}|{{ device.min_port }}|{{ device.max_port }}|{{ device.proxy_port }}|{{ device.appium_port }}
-{% endfor %}

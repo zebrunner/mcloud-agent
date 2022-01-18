@@ -1,4 +1,0 @@
-{% for device in devices %}
-SUBSYSTEM=="usb", ENV{ID_SERIAL_SHORT}=="{{ device.id }}", MODE="0666", SYMLINK+="device-{{ device.id }}-{{ device.name }}"
-{% endfor %}
-SUBSYSTEM=="usb", RUN+="/usr/local/bin/device2docker"
