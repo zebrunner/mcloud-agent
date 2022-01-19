@@ -21,17 +21,19 @@ function create_containers () {
     local udid=$2
     #echo "udid: $udid"
 
+    local container=device-$device-$udid
+
     #verify if device containers already exist and do nothing then
-    docker ps -a | grep -v appium | grep $device > /dev/null
+    docker ps -a | grep -v appium | grep $container > /dev/null
     local isDeviceExists=$?
     #echo isDeviceExists: $isDeviceExists
 
-    docker ps -a | grep appium | grep $device > /dev/null
+    docker ps -a | grep appium | grep $container > /dev/null
     local isAppiumExists=$?
     #echo isAppiumExists: $isAppiumExists
 
     if [ $isDeviceExists -eq 0 ] && [ $isAppiumExists -eq 0 ]; then
-      # do nothing as containers already exists!
+      echo "WARN! do nothing as containers already exists!"
       return 0
     fi
 
@@ -172,6 +174,8 @@ function create_containers () {
         -e STF_PROVIDER_CONNECT_PUSH={{ STF_PROVIDER_CONNECT_PUSH }} \
         -e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \
 	{{ DEVICE_IMAGE }}:{{DEVICE_VERSION }} || echo 'already created'
+  else
+    echo "ERROR! platform_name is not valid: ${platform_name}"
   fi
 }
 
