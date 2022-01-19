@@ -1,8 +1,5 @@
 #!/bin/bash
 
-DEVICE_IMAGE={{ ANDROID_DEVICE_IMAGE }}
-DEVICE_VERSION={{ ANDROID_DEVICE_VERSION }}
-
 if [ ! -z $ACTION ]; then
   # triggered by udev rule where device serial (udid) is a must to proceed!
   if [ -z $ID_SERIAL_SHORT ]; then
@@ -12,19 +9,16 @@ if [ ! -z $ACTION ]; then
 else
     ACTION=$1
 fi
-#echo ACTION: $ACTION
+echo ACTION: $ACTION
 
 # useful export command to detect existing env vars per each device/vendor
 #export
 
 function create_containers () {
     local device=$1
-
-    # cut device- to support manual and udev recreation
-    device=${device#"device-"}
     #echo "device: $device"
 
-    local udid=`echo $device | cut -d '-' -f 2`
+    local udid=$2
     #echo "udid: $udid"
 
     #verify if device containers already exist and do nothing then
@@ -100,7 +94,7 @@ function create_containers () {
         -e RELAXED_SECURITY=true \
         -e S3_ENDPOINT={{ S3_ENDPOINT }} -e BUCKET={{ S3_BUCKET }} -e TENANT={{ S3_TENANT }} -e AWS_ACCESS_KEY_ID={{ S3_ACCESS_KEY_ID }} -e AWS_SECRET_ACCESS_KEY={{ S3_SECRET }} -e AWS_DEFAULT_REGION={{ S3_REGION }} \
 	-e MCLOUD=true \
-        {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}
+        {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }} || echo 'already created'
 
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
 	--link device-${device_name}-${udid}-appium:appium \
@@ -121,7 +115,7 @@ function create_containers () {
         -e STF_PROVIDER_CONNECT_SUB={{ STF_PROVIDER_CONNECT_SUB }} \
         -e STF_PROVIDER_CONNECT_PUSH={{ STF_PROVIDER_CONNECT_PUSH }} \
         -e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \
-        $DOCKER_IMAGE_ID || echo 'already created'
+	{{ DEVICE_IMAGE }}:{{DEVICE_VERSION }} || echo 'already created'
   elif [ $platform_name == "ios" ]; then
     # TODO: run our appium container tuned for iOS. Combine later into the single run command
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
@@ -177,7 +171,7 @@ function create_containers () {
         -e STF_PROVIDER_CONNECT_SUB={{ STF_PROVIDER_CONNECT_SUB }} \
         -e STF_PROVIDER_CONNECT_PUSH={{ STF_PROVIDER_CONNECT_PUSH }} \
         -e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \
-        $DOCKER_IMAGE_ID || echo 'already created'
+	{{ DEVICE_IMAGE }}:{{DEVICE_VERSION }} || echo 'already created'
   fi
 }
 
@@ -191,7 +185,7 @@ function stop() {
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
 
-    stop_containers device-${device_name}-${udid}
+    stop_containers ${device_name} ${udid}
   else
     # as no device filter provided continue with stopping all device containers
     while read -r line
@@ -201,14 +195,20 @@ function stop() {
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
       #echo "udid: $udid"
       if [ -L /dev/device-${device_name}-${udid} ]; then
-        stop_containers device-${device_name}-${udid}
+        stop_containers ${device_name} ${udid}
       fi
     done < ${devices}
   fi
 }
 
 function stop_containers() {
-  local container=$1
+  local device=$1
+  #echo "device: $device"
+
+  local udid=$2
+  #echo "udid: $udid"
+
+  local container=device-$device-$udid
   echo
   echo "$container stopping..."
   docker stop $container
@@ -225,7 +225,7 @@ function down() {
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
 
-    remove_containers device-${device_name}-${udid}
+    remove_containers ${device_name} ${udid}
   else
     while read -r line
     do
@@ -234,14 +234,20 @@ function down() {
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
       #echo "udid: $udid"
       if [ -L /dev/device-${device_name}-${udid} ]; then
-        remove_containers device-${device_name}-${udid}
+        remove_containers ${device_name} ${udid}
       fi
     done < ${devices}
   fi
 }
 
 function remove_containers() {
-  local container=$1
+  local device=$1
+  #echo "device: $device"
+
+  local udid=$2
+  #echo "udid: $udid"
+
+  local container=device-$device-$udid
   #echo "$container removing..."
   #verify if device containers already exist and do nothing then
   docker ps -a | grep -v appium | grep $container > /dev/null
@@ -254,13 +260,16 @@ function remove_containers() {
     docker rm -f $container-appium
   fi
 
-  #docker rm -f $container
-  #docker rm -f $container-appium
 }
 
 function verify_containers() {
-  local container=$1
+  local device=$1
+  #echo "device: $device"
 
+  local udid=$2
+  #echo "udid: $udid"
+
+  local container=device-$device-$udid
   local state=
   if [ ! -L /dev/$container ]; then
     state="Disconnected!"
@@ -284,8 +293,8 @@ function start() {
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
 
-    create_containers device-${device_name}-${udid}
-    start_containers device-${device_name}-${udid}
+    create_containers ${device_name} ${udid}
+    start_containers ${device_name} ${udid}
   else
     while read -r line
     do
@@ -294,15 +303,22 @@ function start() {
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
       #echo "udid: $udid"
       if [ -L /dev/device-${device_name}-${udid} ]; then
-        create_containers device-${device_name}-${udid}
-        start_containers device-${device_name}-${udid}
+        create_containers ${device_name} ${udid}
+        start_containers ${device_name} ${udid}
       fi
     done < ${devices}
   fi
 }
 
 function start_containers() {
-  local container=$1
+  local device=$1
+  #echo "device: $device"
+
+  local udid=$2
+  #echo "udid: $udid"
+
+  local container=device-$device-$udid
+
   echo
   echo "$container starting..."
   docker start $container
@@ -319,7 +335,7 @@ function status() {
     #echo "device_name: $device_name"
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
     #echo "udid: $udid"
-    verify_containers device-${device_name}-${udid}
+    verify_containers ${device_name} ${udid}
   else
     while read -r line
     do
@@ -327,7 +343,7 @@ function status() {
       #echo "device_name: $device_name"
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
       #echo "udid: $udid"
-      verify_containers device-${device_name}-${udid}
+      verify_containers ${device_name} ${udid}
     done < ${devices}
   fi
 
@@ -364,14 +380,10 @@ function echo_help() {
 }
 
 
-# spaces before and after DEVICE_VERSION to identify exact image id
-DOCKER_IMAGE_ID=`docker images | grep "${DEVICE_IMAGE}" | grep " ${DEVICE_VERSION} " | awk '{print($3)}'`
-#echo DOCKER_IMAGE_ID: $DOCKER_IMAGE_ID
-
-CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | grep -v appium | cut -d '-' -f 2-` )
+#CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | grep -v appium | cut -d '-' -f 2-` )
 #echo CONTAINERS: $CONTAINERS
 
-CONNECTED_DEVICES=( `ls /dev/ | grep device | cut -d '-' -f 2-` )
+#CONNECTED_DEVICES=( `ls /dev/ | grep device | cut -d '-' -f 2-` )
 #echo CONNECTED_DEVICES: $CONNECTED_DEVICES
 
 
@@ -381,6 +393,9 @@ case "$ACTION" in
         ;;
     add)
         start ${ID_SERIAL_SHORT}
+        ;;
+    bind)
+        echo "do nothing"
         ;;
     remove)
         down ${ID_SERIAL_SHORT}
