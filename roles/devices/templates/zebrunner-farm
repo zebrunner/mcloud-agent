@@ -64,8 +64,6 @@ function create_containers () {
     #echo "appium_port: $appium_port"
 
 
-    local symlink=/dev/device-$device
-
     local net={{ STF_DOCKER_NETWORK }}
 
     docker network inspect ${net} >/dev/null 2>&1 || docker network create ${net}
@@ -73,7 +71,7 @@ function create_containers () {
   if [ $platform_name == "android" ]; then
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
         --restart always \
-	--device=$symlink:/dev/bus/usb/003/011 \
+	--device=/dev/device-${device_name}-${udid}:/dev/bus/usb/003/011 \
         -v mcloud-key-volume:/root/.android \
 	-v appium-storage-volume:/opt/appium-storage \
         -v mcloud-storage-volume:/opt/zebrunner \
