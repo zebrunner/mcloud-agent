@@ -1,7 +1,7 @@
 ---
 
 - name: Pull an Zebrunner MCloud device image
-  shell: docker pull "{{ ANDROID_DEVICE_IMAGE }}:{{ ANDROID_DEVICE_VERSION }}"
+  shell: docker pull "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}"
 
 - name: Pull an Zebrunner Appium image
   shell: docker pull "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}"
