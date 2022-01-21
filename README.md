@@ -52,6 +52,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 ### iOS devices
 * Enable Settings -> Developer -> Enable UI Automation
 * Settings -> Safari -> Advanced -> Web Inspector
+* Enable Siri
 * [Optional] Supervise iOS devices using Apple Configurator and your organization to be able to Trust connection automatically
   > Valid organizational p12 file and password should be registered in `roles/devices/vars/main.yml`
 * Connect iOS device physically into USB direct port or through the hub.
