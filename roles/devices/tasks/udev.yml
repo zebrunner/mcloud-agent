@@ -11,3 +11,7 @@
 
 - name: restart udev
   command: udevadm control --reload
+
+- name: Generate docker volume and copy p12 to /opt/zebrunner/mcloud.p12
+  shell: docker run --rm -v "{{ P12FILE }}:/var/tmp/mcloud.p12" -v mcloud-storage-volume:/opt/zebrunner "ubuntu:16.04" bash -c "cp /var/tmp/mcloud.p12 /opt/zebrunner/"
+
