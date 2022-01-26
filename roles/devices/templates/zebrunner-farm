@@ -128,7 +128,6 @@ function create_containers () {
         -v "{{ WDA_IPA_PATH }}:/opt/WebDriverAgent.ipa" \
 	-e WDA_ENV=/opt/zebrunner/wda-${udid}.env \
         -e WDA_LOG_FILE=/opt/zebrunner/wda-${udid}.log \
-	-v "{{ P12FILE }}:/opt/zebrunner/mcloud.p12" \
         -e P12PASSWORD="{{ P12PASSWORD }}" \
         -e PLATFORM_NAME=$platform_name \
         -e DEVICE_UDID=$udid \
