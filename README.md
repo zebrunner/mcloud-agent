@@ -66,18 +66,18 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
   > Run `./zebrunner.sh` to see available options
 
 ## Troubleshooting
-Follow below algorithm to identify any configuration issue with MCloud agent:
-* Enable debug log level for udev rules: `sudo udevadm control --log-priority=debug`
-* Inspect syslog to check if `zebrunner-farm` shell script executed on every whitelised device connect/disconnect:
+Follow the below algorithm to identify any configuration issues with MCloud agent:
+* Enable the debug log level for udev rules: `sudo udevadm control --log-priority=debug`
+* Inspect syslog to check if the `zebrunner-farm` shell script executed on every whitelisted device is able to connect/disconnect:
   ```
   tail -f /var/log/syslog | grep zebrunner-farm
   ```
-* If no updates during connect/disconnect, please, verify correctnes of:
+* If there are no updates during connection/disconnection, please, verify the correctness of:
   * device udid values
   * presence of `/usr/local/bin/zebrunner-farm`
-  * correctnes of `/usr/local/bin/mcloud-devices.txt` and `/etc/udev/rules.d/90_mcloud.rules` files
-* Read carefully `zebrunner-farm` output in syslog to identify exact failure during containers creation
-* Analyze device container logs if status not `healthy`:
+  * correctness of `/usr/local/bin/mcloud-devices.txt` and `/etc/udev/rules.d/90_mcloud.rules` files
+* Read carefully the `zebrunner-farm` output in syslog to identify the exact failure during containers creation
+* Analyze device container logs if the status is not `healthy`:
   ```
   docker ps -a | grep device
   // appium and WebDriverAgent for iOS container:
