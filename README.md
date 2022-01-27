@@ -65,6 +65,20 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * Use different commands from `./zebrunner.sh start/stop/restart` to manage devices
   > Run `./zebrunner.sh` to see available options
 
+## Troubleshooting
+Follow below algorithm to identify any configuration issue with MCloud agent:
+* Enable debug log level for udev rules: `sudo udevadm control --log-priority=debug`
+* Inspect syslog to check if `zebrunner-farm` shell script executed on every whitelised device connect/disconnect:
+  ```
+  tail -f /var/log/syslog | grep zebrunner-farm
+  ```
+* If no updates during connect/disconnect, please, verify correctnes of:
+  * device udid values
+  * presence of `/usr/local/bin/zebrunner-farm`
+  * correctnes of `/usr/local/bin/mcloud-devices.txt` and `/etc/udev/rules.d/90_mcloud.rules` files
+* Read carefully `zebrunner-farm` stdout/stderr in syslog to identify exact failure during containers creation
+
+
 ## Documentation and free support
 * [Zebrunner PRO](https://zebrunner.com)
 * [Zebrunner CE](https://zebrunner.github.io/community-edition)
