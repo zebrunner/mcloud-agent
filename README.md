@@ -77,7 +77,14 @@ Follow below algorithm to identify any configuration issue with MCloud agent:
   * presence of `/usr/local/bin/zebrunner-farm`
   * correctnes of `/usr/local/bin/mcloud-devices.txt` and `/etc/udev/rules.d/90_mcloud.rules` files
 * Read carefully `zebrunner-farm` stdout/stderr in syslog to identify exact failure during containers creation
-
+* Analyze device container logs if status not `halthy`:
+  ```
+  docker ps -a | grep device
+  // appium and WebDriverAgent for iOS container:
+  docker logs -f device-<Name>-<udid>-appium
+  // STF provider container:
+  docker logs -f device-<Name>-<udid>
+  ```
 
 ## Documentation and free support
 * [Zebrunner PRO](https://zebrunner.com)
