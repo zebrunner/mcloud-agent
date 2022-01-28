@@ -1,4 +1,5 @@
 {% for device in devices %}
-SUBSYSTEM=="usb", ENV{ID_SERIAL_SHORT}=="{{  device.id | replace('-','') }}", MODE="0666", SYMLINK+="device-{{ device.name }}-{{ device.id }}"
+SUBSYSTEM=="usb", ENV{ID_SERIAL_SHORT}=="{{ device.id | replace('-','') }}", MODE="0666", SYMLINK+="device-{{ device.name }}-{{ device.id }}"
+ACTION=="remove", ENV{ID_SERIAL_SHORT}=="{{ device.id | replace('-','') }}", RUN+="/usr/local/bin/zebrunner-farm"
+ACTION=="add", ENV{ID_SERIAL_SHORT}=="{{ device.id | replace('-','') }}", RUN+="/usr/local/bin/zebrunner-farm"
 {% endfor %}
-SUBSYSTEM=="usb", RUN+="/usr/local/bin/zebrunner-farm"
