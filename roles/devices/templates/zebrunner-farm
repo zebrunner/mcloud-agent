@@ -72,7 +72,6 @@ function create_containers () {
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
         --restart on-failure:3 \
 	--device=/dev/device-${device_name}-${udid}:/dev/bus/usb/003/011 \
-	-v /dev/device-${device_name}-${udid}:/dev/bus/usb/003/011 \
         -v mcloud-key-volume:/root/.android \
 	-v appium-storage-volume:/opt/appium-storage \
         -v mcloud-storage-volume:/opt/zebrunner \
@@ -99,6 +98,7 @@ function create_containers () {
 
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
 	--link device-${device_name}-${udid}-appium:appium \
+        --device=/dev/device-${device_name}-${udid}:/dev/bus/usb/003/011 \
         -e STF_PROVIDER_ADB_HOST=appium \
 	--health-start-period 60s \
 	--restart on-failure:3 \
