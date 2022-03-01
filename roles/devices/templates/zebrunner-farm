@@ -68,6 +68,13 @@ function create_containers () {
 
     docker network inspect ${net} >/dev/null 2>&1 || docker network create ${net}
 
+    if [ ! "$(docker ps -q -f name=rethinkdb-proxy)" ]; then
+      docker run -itd --name rethinkdb-proxy --network ${net} \
+	--restart always \
+	-e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \
+	devicefarmer/ambassador:latest
+    fi
+
   if [ $platform_name == "android" ]; then
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
         --restart on-failure:3 \
@@ -115,7 +122,7 @@ function create_containers () {
 	-e PUBLIC_IP_PROTOCOL={{ PUBLIC_IP_PROTOCOL }} \
         -e STF_PROVIDER_CONNECT_SUB={{ STF_PROVIDER_CONNECT_SUB }} \
         -e STF_PROVIDER_CONNECT_PUSH={{ STF_PROVIDER_CONNECT_PUSH }} \
-        -e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \
+        -e RETHINKDB_PORT_28015_TCP=tcp://rethinkdb-proxy:28015 \
 	{{ DEVICE_IMAGE }}:{{DEVICE_VERSION }} || echo 'already created'
   elif [ $platform_name == "ios" ]; then
     # TODO: run our appium container tuned for iOS. Combine later into the single run command
@@ -170,7 +177,7 @@ function create_containers () {
         -e PUBLIC_IP_PROTOCOL={{ PUBLIC_IP_PROTOCOL }} \
         -e STF_PROVIDER_CONNECT_SUB={{ STF_PROVIDER_CONNECT_SUB }} \
         -e STF_PROVIDER_CONNECT_PUSH={{ STF_PROVIDER_CONNECT_PUSH }} \
-        -e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \
+        -e RETHINKDB_PORT_28015_TCP=tcp://rethinkdb-proxy:28015 \
 	{{ DEVICE_IMAGE }}:{{DEVICE_VERSION }} || echo 'already created'
   else
     echo "ERROR! platform_name is not valid: ${platform_name}"
