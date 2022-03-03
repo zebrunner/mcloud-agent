@@ -214,7 +214,9 @@ function stop_containers() {
   local container=device-$device-$udid
   echo
   echo "$container stopping..."
+  docker logs $container > /tmp/$container.log 2>&1
   docker stop $container
+  docker logs $container-appium > /tmp/$container-appium.log 2>&1
   docker stop $container-appium
 }
 
