@@ -127,6 +127,7 @@ function create_containers () {
         -v /var/run/usbmuxd:/var/run/usbmuxd \
         -v /var/lib/lockdown:/var/lib/lockdown \
         -v "{{ WDA_IPA_PATH }}:/opt/WebDriverAgent.ipa" \
+	-e APPIUM_CLI="--session-override" \
 	-e WDA_ENV=/opt/zebrunner/wda-${udid}.env \
         -e WDA_LOG_FILE=/opt/zebrunner/wda-${udid}.log \
         -e P12PASSWORD="{{ P12PASSWORD }}" \
