@@ -349,6 +349,9 @@ function status() {
       local device_name=`echo ${line} | grep "$filter_device" | cut -d '|' -f 1`
       #echo "device_name: $device_name"
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
+      if [ -z $udid ]; then
+        continue
+      fi
       #echo "udid: $udid"
       verify_containers ${device_name} ${udid}
     done < ${devices}
