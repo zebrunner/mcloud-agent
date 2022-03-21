@@ -94,8 +94,7 @@ You need supervise iOS device to be able to accept "Trust" alert messages automa
 9. Select your organization
 10. Select "Show all steps" on Configure iOS Setup Assistant
 11. Click Prepare
-12. Pick Apple Configurator -> Preferences -> Organizations -> Create new Organizations 
-- Click dropdown menu -> Export Supervision Identity-> Export p12 file
+12. Export Supervision Identity p12 file
 13. Put p12 file to mcloud-agent and share via P12FILE and P12PASSWORD variables in roles/devices/vars/main.yml file
 > Supervided devices after physical reconnect should be trusted automatically.
 
