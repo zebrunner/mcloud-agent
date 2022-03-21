@@ -58,6 +58,24 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * Connect iOS device physically into USB direct port or through the hub.
 * For non supervised iOS device click "Trust". For supervised it should be closed automatically.
 
+#### Prepare WebDriverAgent.ipa file
+
+You need an Apple Developer account to sign and build **WebDriverAgent**
+
+1. Open **WebDriverAgent.xcodeproj** in Xcode.
+2. Ensure a team is selected before building the application. To do this go to: *Targets* and select each target one at a time. There should be a field for assigning teams certificates to the target.
+3. Remove your **WebDriverAgent** folder from *DerivedData* and run *Clean build folder* (just in case)
+4. Next build the application by selecting the *WebDriverAgentRunner* target and build for *Generic iOS Device*. Run *Product => Build for testing*. This will create a *Products/Debug-iphoneos* in the specified project directory.  
+ *Example*: **/Users/<username>/Library/Developer/Xcode/DerivedData/WebDriverAgent-dzxbpamuepiwamhdbyvyfkbecyer/Build/Products/Debug-iphoneos**
+5. Go to the "Products/Debug-iphoneos" directory and run:
+ **mkdir Payload**
+6. Copy the WebDriverAgentRunner-Runner.app to the Payload directory:
+ **cp -r WebDriverAgentRunner-Runner.app Payload**
+7. Finally zip up the project as an ipa file:
+ **zip -r WebDriverAgent.ipa Payload**
+8. Get the WebDriverAgent.ipa file, put it onto the corrent host and share via WDA_IPA_PATH variable in roles/devices/vars/main.yml file
+  
+
 ### SmartTestFarm
 * Open in your browser http://<PUBLIC_IP>/stf, authenticate yourself based on preconfigured auth system.
 * Connected device should be available in STF.
