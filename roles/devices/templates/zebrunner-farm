@@ -70,7 +70,7 @@ function create_containers () {
 
   if [ $platform_name == "android" ]; then
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
-        --restart always \
+        --restart on-failure:3 \
 	--device=/dev/device-${device_name}-${udid}:/dev/bus/usb/003/011 \
         -v mcloud-key-volume:/root/.android \
 	-v appium-storage-volume:/opt/appium-storage \
@@ -98,9 +98,10 @@ function create_containers () {
 
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
 	--link device-${device_name}-${udid}-appium:appium \
+        --device=/dev/device-${device_name}-${udid}:/dev/bus/usb/003/011 \
         -e STF_PROVIDER_ADB_HOST=appium \
 	--health-start-period 60s \
-	--restart always \
+	--restart on-failure:3 \
 	-e PLATFORM_NAME=$platform_name \
         -e NODE_OPTIONS=--max_old_space_size={{ MAX_OLD_SPACE_SIZE_VALUE }} \
         -e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
@@ -120,12 +121,13 @@ function create_containers () {
     # TODO: run our appium container tuned for iOS. Combine later into the single run command
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
-        --restart always \
+        --restart on-failure:3 \
 	-v appium-storage-volume:/opt/appium-storage \
 	-v mcloud-storage-volume:/opt/zebrunner \
         -v /var/run/usbmuxd:/var/run/usbmuxd \
         -v /var/lib/lockdown:/var/lib/lockdown \
         -v "{{ WDA_IPA_PATH }}:/opt/WebDriverAgent.ipa" \
+	-e APPIUM_CLI="--session-override" \
 	-e WDA_ENV=/opt/zebrunner/wda-${udid}.env \
         -e WDA_LOG_FILE=/opt/zebrunner/wda-${udid}.log \
         -e P12PASSWORD="{{ P12PASSWORD }}" \
@@ -151,7 +153,7 @@ function create_containers () {
 
     #TODO: invetsigate if we need linking with appium container for iOS
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
-        --restart always \
+        --restart on-failure:3 \
         --link device-${device_name}-${udid}-appium:appium \
         -v mcloud-storage-volume:/opt/zebrunner \
         -v /var/run/usbmuxd:/var/run/usbmuxd \
@@ -181,7 +183,7 @@ function stop() {
   local devices=/usr/local/bin/mcloud-devices.txt
 
   # if $device is empty do stop for all connected devices otherwise stop only filtered
-  if [ ! -z $filter_device ]; then
+  if [ ! -z $filter_device ] && [ "$filter_device" != "ios" ] && [ "$filter_device" != "android" ]; then
     echo stopping containers for $filter_device...
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
@@ -212,7 +214,9 @@ function stop_containers() {
   local container=device-$device-$udid
   echo
   echo "$container stopping..."
+  docker logs $container > /tmp/$container.log 2>&1
   docker stop $container
+  docker logs $container-appium > /tmp/$container-appium.log 2>&1
   docker stop $container-appium
 }
 
@@ -221,7 +225,7 @@ function down() {
   local devices=/usr/local/bin/mcloud-devices.txt
 
   # if $device is empty do rm for all connected devices otherwise rm only filtered
-  if [ ! -z $filter_device ]; then
+  if [ ! -z $filter_device ] && [ "$filter_device" != "ios" ] && [ "$filter_device" != "android" ]; then
     #echo removing containers for $filter_device...
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
@@ -253,11 +257,13 @@ function remove_containers() {
   #verify if device containers already exist and do nothing then
   docker ps -a | grep -v appium | grep $container > /dev/null
   if [ $? -eq 0 ]; then
+    docker logs $container > /tmp/$container.log 2>&1
     docker rm -f $container
   fi
 
   docker ps -a | grep appium | grep $container > /dev/null
   if [ $? -eq 0 ]; then
+    docker logs $container-appium > /tmp/$container-appium.log 2>&1
     docker rm -f $container-appium
   fi
 
@@ -290,7 +296,7 @@ function start() {
   local devices=/usr/local/bin/mcloud-devices.txt
 
   # if $device is empty do start for all connected devices otherwise start only filtered
-  if [ ! -z $filter_device ]; then
+  if [ ! -z $filter_device ] && [ "$filter_device" != "ios" ] && [ "$filter_device" != "android" ]; then
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
 
@@ -331,7 +337,7 @@ function status() {
   local devices=/usr/local/bin/mcloud-devices.txt
 
   # if $device is empty do start for all connected devices otherwise start only filtered
-  if [ ! -z $filter_device ]; then
+  if [ ! -z $filter_device ] && [ "$filter_device" != "ios" ] && [ "$filter_device" != "android" ]; then
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     #echo "device_name: $device_name"
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
@@ -343,6 +349,9 @@ function status() {
       local device_name=`echo ${line} | grep "$filter_device" | cut -d '|' -f 1`
       #echo "device_name: $device_name"
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
+      if [ -z $udid ]; then
+        continue
+      fi
       #echo "udid: $udid"
       verify_containers ${device_name} ${udid}
     done < ${devices}
