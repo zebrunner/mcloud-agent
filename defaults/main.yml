@@ -1,9 +1,9 @@
 ---
 DEVICE_IMAGE: zebrunner/mcloud-device
-DEVICE_VERSION: 2.1-beta8
+DEVICE_VERSION: 2.1
 
 APPIUM_IMAGE: public.ecr.aws/zebrunner/appium
-APPIUM_VERSION: 1.2-beta9
+APPIUM_VERSION: 1.2
 
 #TODO: test if we can remove it as video recording moved outside the stf device container
 # to fix "FATAL ERROR: CALL_AND_RETRY_LAST Allocation failed - JavaScript heap out of memory" during video recording
