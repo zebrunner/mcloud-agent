@@ -74,7 +74,30 @@ You need an Apple Developer account to sign and build **WebDriverAgent**
 7. Finally zip up the project as an ipa file:
  **zip -r WebDriverAgent.ipa Payload**
 8. Get the WebDriverAgent.ipa file, put it onto the corrent host and share via WDA_IPA_PATH variable in roles/devices/vars/main.yml file
-  
+
+#### [Optional] Supervise device 
+
+You need supervise iOS device to be able to accept "Trust" alert messages automatically during reconnect.
+ 
+1. Connect device to Mac OS (Trust manually)
+2. Open Apple Configurator 2
+3. Erase all contents and exit from icloud id on iOS device
+4. Pick Apple Configurator -> Preferences -> Organizations -> Create new Organizations
+   -> Fill in all fields
+5. Click to connected iOS device and choose Prepare
+6. Obligatory actions to provision:
+- Manual configuration
+- Supervise devices
+- Allow devices to pair with other computer
+7. Click Next
+8. Select: "Do not enroll in MDM Enroll"  in MDM Server, click Next
+9. Select your organization
+10. Select "Show all steps" on Configure iOS Setup Assistant
+11. Click Prepare
+12. Pick Apple Configurator -> Preferences -> Organizations -> Create new Organizations 
+- Click dropdown menu -> Export Supervision Identity-> Export p12 file
+13. Put p12 file to mcloud-agent and share via P12FILE and P12PASSWORD variables in roles/devices/vars/main.yml file
+> Supervided devices after physical reconnect should be trusted automatically.
 
 ### SmartTestFarm
 * Open in your browser http://<PUBLIC_IP>/stf, authenticate yourself based on preconfigured auth system.
