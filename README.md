@@ -57,34 +57,48 @@ For non supervised iOS device just click "Trust" (supervise setting can be skipp
 
 #### [Optional] Supervise device 
 
- 
-   ##### Erase all contents and exit from icloud id on iOS device:
+ ##### Erase all contents and exit from icloud id on iOS device
 
 - Go to > Settings > General > Transfer or Reset iPhone.
 - Tap Erase All Content and Settings.
 - When iPhone restarts with all content and settings erased, you have the option to set up iPhone as new.
   
-1. Connect device to Mac OS (Trust manually)
+ #### Creating an organization
+  
+1. Downloand Apple Configurator 2 from Apple Store
 2. Open Apple Configurator 2
 3. Pick Apple Configurator -> Preferences -> Organizations -> Create new Organizations
    -> Fill in all fields
-4. Click to connected iOS device and choose Prepare
-5. Obligatory actions to provision:
+   
+   
+ #### Connecting the device
+ 
+1. Connect device to Mac OS (Trust manually)  
+2. Click to connected iOS device and click Prepare
+3. Obligatory actions to provision:
 - Manual configuration
 - Supervise devices
 - Allow devices to pair with other computer
-6. Click Next
-7. Select: "Do not enroll in MDM Enroll"  in MDM Server, click Next
-8. Select your organization
-9. Select "Show all steps" on Configure iOS Setup Assistant
-10. Click Prepare
-11. Export Supervision Identity p12 file
-12. Put p12 file to mcloud-agent and share via P12FILE and P12PASSWORD variables in roles/devices/vars/main.yml file
+4. Click Next
+5. Select: "Do not enroll in MDM Enroll"  in MDM Server, click Next
+6. Select your organization
+7. Select "Show all steps" on Configure iOS Setup Assistant
+8. Click Prepare
+9. Set up iPhone as new.
+
+####  Export Supervision Identity p12 file
+
+1. Pick Apple Configurator -> Preferences -> Organizations ->Select Organisationg-> Export Supervision identity-> Click Save
+2. Enter password-> Click Save
+3. Open p12 file -> enter passward -> Open Apple Configurator certificate->Сheck all boxes "Always Trust"
+4. Put p12 file to mcloud-agent and share via P12FILE and P12PASSWORD variables in roles/devices/vars/main.yml file
+5. Run ansible script 
+ - ansible-playbook -vvv -i hosts devices.yml --tag registerDevices
 > Supervided devices after physical reconnect should be trusted automatically.
 
-13. Set up iPhone as new.
 
 #### Automation steps
+
 * Enable Settings -> Developer -> Enable UI Automation
 * Settings -> Safari -> Advanced -> Web Inspector
 * Enable Siri
