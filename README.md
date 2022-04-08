@@ -70,9 +70,18 @@ For non supervised iOS device just click "Trust" (supervise setting can be skipp
 3. Pick Apple Configurator -> Preferences -> Organizations -> Create new Organizations
    -> Fill in all fields
    
+ ####  Export Supervision Identity p12 file
+
+1. Pick Apple Configurator -> Preferences -> Organizations ->Select Organisationg-> Export Supervision identity-> Click Save
+2. Enter password-> Click Save
+3. Open p12 file -> enter passward -> Open Apple Configurator certificate->Сheck all boxes "Always Trust"
+4. Put p12 file to mcloud-agent and share via P12FILE and P12PASSWORD variables in roles/devices/vars/main.yml file
+5. Run ansible script 
+ - ansible-playbook -vvv -i hosts devices.yml --tag registerDevices
+> Supervided devices after physical reconnect should be trusted automatically.   
    
  #### Connecting the device
- 
+ > Prepare all iOS devices one by one
 1. Connect device to Mac OS (Trust manually)  
 2. Click to connected iOS device and click Prepare
 3. Obligatory actions to provision:
@@ -85,17 +94,6 @@ For non supervised iOS device just click "Trust" (supervise setting can be skipp
 7. Select "Show all steps" on Configure iOS Setup Assistant
 8. Click Prepare
 9. Set up iPhone as new.
-
-####  Export Supervision Identity p12 file
-
-1. Pick Apple Configurator -> Preferences -> Organizations ->Select Organisationg-> Export Supervision identity-> Click Save
-2. Enter password-> Click Save
-3. Open p12 file -> enter passward -> Open Apple Configurator certificate->Сheck all boxes "Always Trust"
-4. Put p12 file to mcloud-agent and share via P12FILE and P12PASSWORD variables in roles/devices/vars/main.yml file
-5. Run ansible script 
- - ansible-playbook -vvv -i hosts devices.yml --tag registerDevices
-> Supervided devices after physical reconnect should be trusted automatically.
-
 
 #### Automation steps
 
