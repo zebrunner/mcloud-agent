@@ -103,7 +103,6 @@ function create_containers () {
 	--health-start-period 60s \
 	--restart on-failure:3 \
 	-e PLATFORM_NAME=$platform_name \
-        -e NODE_OPTIONS=--max_old_space_size={{ MAX_OLD_SPACE_SIZE_VALUE }} \
         -e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
         -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
         -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}" \
@@ -160,7 +159,6 @@ function create_containers () {
         -e WDA_ENV=/opt/zebrunner/wda-${udid}.env \
 	-e WDA_WAIT_TIMEOUT=180 \
         -e PLATFORM_NAME=$platform_name \
-        -e NODE_OPTIONS=--max_old_space_size={{ MAX_OLD_SPACE_SIZE_VALUE }} \
         -e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
         -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
         -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}" \
