@@ -258,13 +258,11 @@ function remove_containers() {
   #verify if device containers already exist and do nothing then
   docker ps -a | grep -v appium | grep $container > /dev/null
   if [ $? -eq 0 ]; then
-    docker logs $container
     docker rm -f $container
   fi
 
   docker ps -a | grep appium | grep $container > /dev/null
   if [ $? -eq 0 ]; then
-    docker logs $container-appium
     docker rm -f $container-appium
   fi
 
