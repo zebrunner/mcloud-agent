@@ -152,8 +152,11 @@
   }
 
   version() {
-    source .env
-    echo "Zebrunner MCloud Agent: ${MCLOUD_VERSION}"
+    device_version=`cat defaults/main.yml | grep DEVICE_VERSION | cut -d ":" -f 2`
+    echo "Zebrunner MCloud Agent device:${device_version}"
+    appium_version=`cat defaults/main.yml | grep APPIUM_VERSION | cut -d ":" -f 2`
+    echo "Zebrunner MCloud Agent appium:${appium_version}"
+
   }
 
   echo_warning() {
