@@ -287,13 +287,13 @@ function verify_containers() {
     #verify if device containers already exist and do nothing then
     docker ps -a | grep -v appium | grep $container > /dev/null
     if [ $? -eq 0 ]; then
-      stfState=`docker inspect --format='{{json .State.Health.Status}}' $container` >/dev/null 2>&1
+      stfState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container`
     fi
 
     local appiumState="REMOVED"
     docker ps -a | grep appium | grep $container > /dev/null
     if [ $? -eq 0 ]; then
-      appiumState=`docker inspect --format='{{json .State.Health.Status}}' $container-appium` >/dev/null 2>&1
+      appiumState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container-appium`
     fi
     echo $container
     echo "Appium: $appiumState; STF: $stfState"
