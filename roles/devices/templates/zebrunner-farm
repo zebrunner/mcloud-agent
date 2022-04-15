@@ -237,9 +237,7 @@ function down() {
       #echo "device_name: $device_name"
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
       #echo "udid: $udid"
-      if [ -L /dev/device-${device_name}-${udid} ]; then
-        remove_containers ${device_name} ${udid}
-      fi
+      remove_containers ${device_name} ${udid}
     done < ${devices}
   fi
 }
