@@ -70,7 +70,7 @@ function create_containers () {
 
   if [ $platform_name == "android" ]; then
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
-        --restart on-failure \
+        --restart on-failure:3 \
 	--device=/dev/device-${device_name}-${udid}:/dev/bus/usb/003/011 \
         -v mcloud-key-volume:/root/.android \
 	-v appium-storage-volume:/opt/appium-storage \
@@ -101,7 +101,7 @@ function create_containers () {
         --device=/dev/device-${device_name}-${udid}:/dev/bus/usb/003/011 \
         -e STF_PROVIDER_ADB_HOST=appium \
 	--health-start-period 60s \
-	--restart on-failure \
+	--restart on-failure:3 \
 	-e PLATFORM_NAME=$platform_name \
         -e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
         -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
@@ -120,7 +120,7 @@ function create_containers () {
     # TODO: run our appium container tuned for iOS. Combine later into the single run command
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
-        --restart on-failure \
+        --restart on-failure:3 \
 	-v appium-storage-volume:/opt/appium-storage \
 	-v mcloud-storage-volume:/opt/zebrunner \
         -v /var/run/usbmuxd:/var/run/usbmuxd \
@@ -152,7 +152,7 @@ function create_containers () {
 
     #TODO: invetsigate if we need linking with appium container for iOS
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
-        --restart on-failure \
+        --restart on-failure:3 \
         --link device-${device_name}-${udid}-appium:appium \
         -v mcloud-storage-volume:/opt/zebrunner \
         -v /var/run/usbmuxd:/var/run/usbmuxd \
