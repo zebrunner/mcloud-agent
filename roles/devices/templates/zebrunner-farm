@@ -156,6 +156,7 @@ function create_containers () {
         --link device-${device_name}-${udid}-appium:appium \
         -v mcloud-storage-volume:/opt/zebrunner \
         -v /var/run/usbmuxd:/var/run/usbmuxd \
+	-v /var/lib/lockdown:/var/lib/lockdown \
         -e WDA_ENV=/opt/zebrunner/wda-${udid}.env \
 	-e WDA_WAIT_TIMEOUT=180 \
         -e PLATFORM_NAME=$platform_name \
