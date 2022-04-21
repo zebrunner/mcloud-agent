@@ -408,7 +408,9 @@ case "$ACTION" in
         status $2
         ;;
     add)
-        start ${ID_SERIAL_SHORT}
+        # #122 on start obligatory re-created any existing exited containers
+        # add action means physical connect via usb and as result we have to remove any existing container for device!
+        restart ${ID_SERIAL_SHORT}
         ;;
     bind)
         echo "do nothing"
