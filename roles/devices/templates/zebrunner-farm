@@ -103,7 +103,6 @@ function create_containers () {
 	--health-start-period 60s \
 	--restart on-failure:3 \
 	-e PLATFORM_NAME=$platform_name \
-        -e NODE_OPTIONS=--max_old_space_size={{ MAX_OLD_SPACE_SIZE_VALUE }} \
         -e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
         -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
         -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}" \
@@ -157,10 +156,10 @@ function create_containers () {
         --link device-${device_name}-${udid}-appium:appium \
         -v mcloud-storage-volume:/opt/zebrunner \
         -v /var/run/usbmuxd:/var/run/usbmuxd \
+	-v /var/lib/lockdown:/var/lib/lockdown \
         -e WDA_ENV=/opt/zebrunner/wda-${udid}.env \
 	-e WDA_WAIT_TIMEOUT=180 \
         -e PLATFORM_NAME=$platform_name \
-        -e NODE_OPTIONS=--max_old_space_size={{ MAX_OLD_SPACE_SIZE_VALUE }} \
         -e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
         -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
         -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}" \
@@ -239,9 +238,7 @@ function down() {
       #echo "device_name: $device_name"
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
       #echo "udid: $udid"
-      if [ -L /dev/device-${device_name}-${udid} ]; then
-        remove_containers ${device_name} ${udid}
-      fi
+      remove_containers ${device_name} ${udid}
     done < ${devices}
   fi
 }
@@ -258,13 +255,11 @@ function remove_containers() {
   #verify if device containers already exist and do nothing then
   docker ps -a | grep -v appium | grep $container > /dev/null
   if [ $? -eq 0 ]; then
-    docker logs $container > /tmp/$container.log 2>&1
     docker rm -f $container
   fi
 
   docker ps -a | grep appium | grep $container > /dev/null
   if [ $? -eq 0 ]; then
-    docker logs $container-appium > /tmp/$container-appium.log 2>&1
     docker rm -f $container-appium
   fi
 
@@ -283,8 +278,18 @@ function verify_containers() {
     state="Disconnected!"
     echo "$container - DISCONNECTED"
   else
-    local stfState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container`
-    local appiumState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container-appium`
+    local stfState="REMOVED"
+    #verify if device containers already exist and do nothing then
+    docker ps -a | grep -v appium | grep $container > /dev/null
+    if [ $? -eq 0 ]; then
+      stfState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container`
+    fi
+
+    local appiumState="REMOVED"
+    docker ps -a | grep appium | grep $container > /dev/null
+    if [ $? -eq 0 ]; then
+      appiumState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container-appium`
+    fi
     echo $container
     echo "Appium: $appiumState; STF: $stfState"
   fi
@@ -403,6 +408,9 @@ case "$ACTION" in
         status $2
         ;;
     add)
+        # #122 on start obligatory re-created any existing exited containers
+        # add action means physical connect via usb and as result we have to remove any existing container for device!
+        down ${ID_SERIAL_SHORT}
         start ${ID_SERIAL_SHORT}
         ;;
     bind)
