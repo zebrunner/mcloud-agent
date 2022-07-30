@@ -67,6 +67,8 @@ function create_containers () {
     local net={{ STF_DOCKER_NETWORK }}
 
     docker network inspect ${net} >/dev/null 2>&1 || docker network create ${net}
+    usb_bus=`readlink -f /dev/device-${device_name}-${udid}`
+    echo "usb_bus: ${usb_bus}"
 
   if [ $platform_name == "android" ]; then
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
@@ -123,8 +125,7 @@ function create_containers () {
         --restart on-failure \
 	-v appium-storage-volume:/opt/appium-storage \
 	-v mcloud-storage-volume:/opt/zebrunner \
-        -v /var/run/usbmuxd:/var/run/usbmuxd \
-        -v /var/lib/lockdown:/var/lib/lockdown \
+        --device=/dev/device-${device_name}-${udid}:${usb_bus} \
         -v "{{ WDA_IPA_PATH }}:/opt/WebDriverAgent.ipa" \
 	-e APPIUM_CLI="--session-override" \
 	-e WDA_ENV=/opt/zebrunner/wda-${udid}.env \
@@ -155,8 +156,6 @@ function create_containers () {
         --restart on-failure \
         --link device-${device_name}-${udid}-appium:appium \
         -v mcloud-storage-volume:/opt/zebrunner \
-        -v /var/run/usbmuxd:/var/run/usbmuxd \
-	-v /var/lib/lockdown:/var/lib/lockdown \
         -e WDA_ENV=/opt/zebrunner/wda-${udid}.env \
 	-e WDA_WAIT_TIMEOUT=180 \
         -e PLATFORM_NAME=$platform_name \
