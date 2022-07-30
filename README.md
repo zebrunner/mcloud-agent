@@ -19,7 +19,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 ## Software prerequisites
 * Install docker ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-20-04), [Amazon Linux 2](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/docker-basics.html), [Redhat/Cent OS](https://www.cyberciti.biz/faq/install-use-setup-docker-on-rhel7-centos7-linux/)).
 * Install 2.9.6+ ansible ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-20-04)).
-* Install and start usbmuxd service to be able to connect iOS devices.
+* Install usbmuxd service to be able to connect iOS devices
 
 ## Initial setup
 * Run `./zebrunner.sh setup` script.
@@ -50,23 +50,16 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 ### iOS devices
 
-#### Adjust usbmuxd service
+#### Mask usbmuxd service
 
-1. Disable exit of usbmuxd service on disconnect of latest iOS device commenting in `/lib/udev/rules.d/39-usbmuxd.rules` such lines:
-  ```
-  ## Exit usbmuxd when the last device is removed
-  #ACTION=="remove", SUBSYSTEM=="usb", ENV{PRODUCT}=="5ac/12[9a][0-9a-f]/*", ENV{INTERFACE}=="255/*", RUN+="/usr/sbin/usbmuxd -x"
-  ```
-
-2. Add restart policy and ExecStartPost command updating `/lib/systemd/system/usbmuxd.service`:
-  ```
-  [Service]
-  Type=simple
-  ExecStart=/usr/sbin/usbmuxd --user usbmux --systemd
-  ExecStartPost=/usr/local/bin/zebrunner-farm restart ios
-  Restart=always
-  PIDFile=/var/run/usbmuxd.pid
-  ```
+```
+sudo systemctl mask usbmuxd
+sudo systemctl status usbmuxd
+->
+● usbmuxd.service
+   Loaded: masked (/dev/null; bad)
+   Active: inactive (dead)
+```
 
 #### [Optional] Supervise device 
 
