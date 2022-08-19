@@ -68,7 +68,7 @@ function create_containers () {
 
     docker network inspect ${net} >/dev/null 2>&1 || docker network create ${net}
     usb_bus=`readlink -f /dev/device-${device_name}-${udid}`
-    echo "usb_bus: ${usb_bus}"
+    #echo "usb_bus: ${usb_bus}"
 
   if [ $platform_name == "android" ]; then
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
