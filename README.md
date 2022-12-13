@@ -125,7 +125,8 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
 6. Copy the WebDriverAgentRunner-Runner.app to the Payload directory:
  **cp -r WebDriverAgentRunner-Runner.app Payload**
 7. Finally, zip up the project as an *.ipa file:
- **zip -r -j WebDriverAgent.ipa Payload**
+ **zip -r WebDriverAgent.ipa ./Payload**
+   > Make sure to specify relative `./Payload` to archive only Payload folder content 
 8. Get the WebDriverAgent.ipa file, put it onto the corrent host and share via WDA_IPA_PATH variable in the roles/devices/vars/main.yml file.
 
 
