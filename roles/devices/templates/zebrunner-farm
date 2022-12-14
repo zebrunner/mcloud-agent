@@ -127,8 +127,6 @@ function create_containers () {
         --device=/dev/device-${device_name}-${udid}:${usb_bus} \
         -v "{{ WDA_IPA_PATH }}:/opt/WebDriverAgent.ipa" \
 	-e APPIUM_CLI="--session-override" \
-	-e WDA_ENV=/opt/zebrunner/wda-${udid}.env \
-        -e WDA_LOG_FILE=/opt/zebrunner/wda-${udid}.log \
         -e P12PASSWORD="{{ P12PASSWORD }}" \
         -e PLATFORM_NAME=$platform_name \
         -e DEVICE_UDID=$udid \
@@ -155,7 +153,7 @@ function create_containers () {
         --restart on-failure \
         --link device-${device_name}-${udid}-appium:appium \
         -v mcloud-storage-volume:/opt/zebrunner \
-        -e WDA_ENV=/opt/zebrunner/wda-${udid}.env \
+	-e WDA_HOST=appium \
 	-e WDA_WAIT_TIMEOUT=180 \
         -e PLATFORM_NAME=$platform_name \
         -e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
