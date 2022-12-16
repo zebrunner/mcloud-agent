@@ -91,7 +91,8 @@ function create_containers () {
 	-e PROXY_PORT=$proxy_port \
         -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
 	-e STF_PROVIDER_MAX_PORT=$stf_max_port \
-	-p $appium_port:4723 \
+	-e APPIUM_PORT:$appium_port \
+	-p $appium_port:$appium_port \
         -e RELAXED_SECURITY=true \
         -e S3_ENDPOINT={{ S3_ENDPOINT }} -e BUCKET={{ S3_BUCKET }} -e TENANT={{ S3_TENANT }} -e AWS_ACCESS_KEY_ID={{ S3_ACCESS_KEY_ID }} -e AWS_SECRET_ACCESS_KEY={{ S3_SECRET }} -e AWS_DEFAULT_REGION={{ S3_REGION }} \
 	-e MCLOUD=true \
@@ -141,7 +142,8 @@ function create_containers () {
         -e PROXY_PORT=$proxy_port \
         -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
         -e STF_PROVIDER_MAX_PORT=$stf_max_port \
-        -p $appium_port:4723 \
+        -e APPIUM_PORT:$appium_port \
+        -p $appium_port:$appium_port \
         -e RELAXED_SECURITY=true \
         -e S3_ENDPOINT={{ S3_ENDPOINT }} -e BUCKET={{ S3_BUCKET }} -e TENANT={{ S3_TENANT }} -e AWS_ACCESS_KEY_ID={{ S3_ACCESS_KEY_ID }} -e AWS_SECRET_ACCESS_KEY={{ S3_SECRET }} -e AWS_DEFAULT_REGION={{ S3_REGION }} \
 	-e MCLOUD=true \
