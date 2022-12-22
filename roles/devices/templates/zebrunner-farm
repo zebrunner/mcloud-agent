@@ -91,8 +91,8 @@ function create_containers () {
 	-e PROXY_PORT=$proxy_port \
         -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
 	-e STF_PROVIDER_MAX_PORT=$stf_max_port \
-	-e STF_PROVIDER_APPIUM_PORT=$appium_port \
-	-p $appium_port:4723 \
+	-e APPIUM_PORT=$appium_port \
+	-p $appium_port:$appium_port \
         -e RELAXED_SECURITY=true \
         -e S3_ENDPOINT={{ S3_ENDPOINT }} -e BUCKET={{ S3_BUCKET }} -e TENANT={{ S3_TENANT }} -e AWS_ACCESS_KEY_ID={{ S3_ACCESS_KEY_ID }} -e AWS_SECRET_ACCESS_KEY={{ S3_SECRET }} -e AWS_DEFAULT_REGION={{ S3_REGION }} \
 	-e MCLOUD=true \
@@ -108,7 +108,6 @@ function create_containers () {
         -e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
         -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
         -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}" \
-        -e STF_PROVIDER_APPIUM_PORT=$appium_port \
         -e STF_PROVIDER_MIN_PORT=$stf_min_port -e STF_PROVIDER_MAX_PORT=$stf_max_port \
 	-p $stf_min_port-$stf_max_port:$stf_min_port-$stf_max_port \
         -e STF_PROVIDER_PUBLIC_IP={{ PUBLIC_IP }} \
@@ -127,9 +126,8 @@ function create_containers () {
 	-v mcloud-storage-volume:/opt/zebrunner \
         --device=/dev/device-${device_name}-${udid}:${usb_bus} \
         -v "{{ WDA_IPA_PATH }}:/opt/WebDriverAgent.ipa" \
+	-e WDA_BUNDLEID={{ WDA_BUNDLEID }} \
 	-e APPIUM_CLI="--session-override" \
-	-e WDA_ENV=/opt/zebrunner/wda-${udid}.env \
-        -e WDA_LOG_FILE=/opt/zebrunner/wda-${udid}.log \
         -e P12PASSWORD="{{ P12PASSWORD }}" \
         -e PLATFORM_NAME=$platform_name \
         -e DEVICE_UDID=$udid \
@@ -144,8 +142,8 @@ function create_containers () {
         -e PROXY_PORT=$proxy_port \
         -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
         -e STF_PROVIDER_MAX_PORT=$stf_max_port \
-        -e STF_PROVIDER_APPIUM_PORT=$appium_port \
-        -p $appium_port:4723 \
+        -e APPIUM_PORT=$appium_port \
+        -p $appium_port:$appium_port \
         -e RELAXED_SECURITY=true \
         -e S3_ENDPOINT={{ S3_ENDPOINT }} -e BUCKET={{ S3_BUCKET }} -e TENANT={{ S3_TENANT }} -e AWS_ACCESS_KEY_ID={{ S3_ACCESS_KEY_ID }} -e AWS_SECRET_ACCESS_KEY={{ S3_SECRET }} -e AWS_DEFAULT_REGION={{ S3_REGION }} \
 	-e MCLOUD=true \
@@ -156,13 +154,12 @@ function create_containers () {
         --restart on-failure \
         --link device-${device_name}-${udid}-appium:appium \
         -v mcloud-storage-volume:/opt/zebrunner \
-        -e WDA_ENV=/opt/zebrunner/wda-${udid}.env \
+	-e WDA_HOST=appium \
 	-e WDA_WAIT_TIMEOUT=180 \
         -e PLATFORM_NAME=$platform_name \
         -e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
         -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
         -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}" \
-        -e STF_PROVIDER_APPIUM_PORT=$appium_port \
         -e STF_PROVIDER_MIN_PORT=$stf_min_port -e STF_PROVIDER_MAX_PORT=$stf_max_port \
         -p $stf_min_port-$stf_max_port:$stf_min_port-$stf_max_port \
         -e STF_PROVIDER_PUBLIC_IP={{ PUBLIC_IP }} \
