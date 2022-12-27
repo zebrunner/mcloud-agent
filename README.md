@@ -119,7 +119,7 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
 2. Ensure a team is selected before building the application. To do this, go to *Targets* and select each target (one at a time). There should be a field for assigning team certificates to the target.
 3. Remove your **WebDriverAgent** folder from *DerivedData* and run *Clean build folder* (just in case).
 4. Build the application by selecting the *WebDriverAgentRunner* target and build for *Generic iOS Device*. Run *Product -> Build for testing*. This will create a *Products/Debug-iphoneos* in the specified project directory.  
- *Example*: **/Users/<username>/Library/Developer/Xcode/DerivedData/WebDriverAgent-dzxbpamuepiwamhdbyvyfkbecyer/Build/Products/Debug-iphoneos**
+ *Example*: **/Users/$USER/Library/Developer/Xcode/DerivedData/WebDriverAgent-dzxbpamuepiwamhdbyvyfkbecyer/Build/Products/Debug-iphoneos**
 5. Go to the "Products/Debug-iphoneos" directory and run:
  **mkdir Payload**
 6. Copy the WebDriverAgentRunner-Runner.app to the Payload directory:

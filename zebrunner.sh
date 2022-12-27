@@ -152,7 +152,7 @@
   }
 
   version() {
-    echo "Zebrunner MCloud Agent:"
+    echo "Zebrunner MCloud Agent"
     device_version=`cat defaults/main.yml | grep DEVICE_VERSION | cut -d ":" -f 2`
     echo "zebrunner/mcloud-device:${device_version}"
     appium_version=`cat defaults/main.yml | grep APPIUM_VERSION | cut -d ":" -f 2`
