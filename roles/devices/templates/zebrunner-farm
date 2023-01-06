@@ -81,6 +81,7 @@ function create_containers () {
 	-e DEVICE_UDID=$udid \
         -e RETAIN_TASK=true \
 	-e REMOTE_ADB=false \
+	-e EXIT_ON_ADB_FAILURE=1 \
 	-e CONNECT_TO_GRID=true \
 	-e CUSTOM_NODE_CONFIG=true \
 	-e APPIUM_HOST=${device_name}-appium \
