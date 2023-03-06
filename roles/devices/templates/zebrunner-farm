@@ -194,7 +194,7 @@ function stop() {
       #echo "device_name: $device_name"
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
       #echo "udid: $udid"
-      if [ -L /dev/device-${device_name}-${udid} ]; then
+      if [ -L "/dev/device-${device_name}-${udid}" ]; then
         stop_containers ${device_name} ${udid}
       fi
     done < ${devices}
@@ -271,7 +271,7 @@ function verify_containers() {
 
   local container=device-$device-$udid
   local state=
-  if [ ! -L /dev/$container ]; then
+  if [ ! -L "/dev/$container" ]; then
     state="Disconnected!"
     echo "$container - DISCONNECTED"
   else
@@ -312,7 +312,7 @@ function start() {
       #echo "device_name: $device_name"
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
       #echo "udid: $udid"
-      if [ -L /dev/device-${device_name}-${udid} ]; then
+      if [ -L "/dev/device-${device_name}-${udid}" ]; then
         create_containers ${device_name} ${udid}
         start_containers ${device_name} ${udid}
       fi
