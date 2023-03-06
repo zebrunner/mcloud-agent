@@ -362,11 +362,6 @@ function status() {
 
 }
 
-function version() {
-  echo "MCloud docker: ${DEVICE_IMAGE}"
-  echo "      version: ${DEVICE_VERSION}"
-}
-
 echo_warning() {
     echo "
       WARNING! $1"
@@ -387,7 +382,6 @@ function echo_help() {
           stop [udid]    Stop and keep devices containers or exact device by udid
           restart [udid] Restart all devices containers or exact device by udid
           down [udid]    Stop and remove devices containers
-          version        Version of MCloud device image"
       echo_telegram
       exit 0
 }
