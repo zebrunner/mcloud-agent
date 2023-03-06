@@ -9,7 +9,7 @@ if [ ! -z $ACTION ]; then
 else
     ACTION=$1
 fi
-echo ACTION: $ACTION
+#echo ACTION: $ACTION
 
 # useful export command to detect existing env vars per each device/vendor
 #export
@@ -430,7 +430,9 @@ case "$ACTION" in
         version
         ;;
     *)
-        echo "Unknown option detected: $1"
+        if [ ! -z $1 ]; then
+          echo "Unknown option detected: $1"
+        fi
         echo_help
         exit 1
         ;;
