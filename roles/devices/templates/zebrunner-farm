@@ -9,7 +9,7 @@ if [ ! -z $ACTION ]; then
 else
     ACTION=$1
 fi
-echo ACTION: $ACTION
+#echo ACTION: $ACTION
 
 # useful export command to detect existing env vars per each device/vendor
 #export
@@ -194,7 +194,7 @@ function stop() {
       #echo "device_name: $device_name"
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
       #echo "udid: $udid"
-      if [ -L /dev/device-${device_name}-${udid} ]; then
+      if [ -L "/dev/device-${device_name}-${udid}" ]; then
         stop_containers ${device_name} ${udid}
       fi
     done < ${devices}
@@ -271,7 +271,7 @@ function verify_containers() {
 
   local container=device-$device-$udid
   local state=
-  if [ ! -L /dev/$container ]; then
+  if [ ! -L "/dev/$container" ]; then
     state="Disconnected!"
     echo "$container - DISCONNECTED"
   else
@@ -312,7 +312,7 @@ function start() {
       #echo "device_name: $device_name"
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
       #echo "udid: $udid"
-      if [ -L /dev/device-${device_name}-${udid} ]; then
+      if [ -L "/dev/device-${device_name}-${udid}" ]; then
         create_containers ${device_name} ${udid}
         start_containers ${device_name} ${udid}
       fi
@@ -362,11 +362,6 @@ function status() {
 
 }
 
-function version() {
-  echo "MCloud docker: ${DEVICE_IMAGE}"
-  echo "      version: ${DEVICE_VERSION}"
-}
-
 echo_warning() {
     echo "
       WARNING! $1"
@@ -386,8 +381,7 @@ function echo_help() {
           start [udid]   Start devices containers or exact device by udid
           stop [udid]    Stop and keep devices containers or exact device by udid
           restart [udid] Restart all devices containers or exact device by udid
-          down [udid]    Stop and remove devices containers
-          version        Version of MCloud device image"
+          down [udid]    Stop and remove devices containers"
       echo_telegram
       exit 0
 }
@@ -436,7 +430,9 @@ case "$ACTION" in
         version
         ;;
     *)
-        echo "Unknown option detected: $1"
+        if [ ! -z $1 ]; then
+          echo "Unknown option detected: $1"
+        fi
         echo_help
         exit 1
         ;;

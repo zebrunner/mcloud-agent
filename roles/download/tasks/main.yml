@@ -8,19 +8,3 @@
 
 - name: Create infra network if absent
   shell: docker network inspect "{{ STF_DOCKER_NETWORK }}" >/dev/null 2>&1 || docker network create "{{ STF_DOCKER_NETWORK }}"
-
-  # using wgetn -N is much more faster i comparison with get_url
-- name: Download DeveloperDiskImage.dmg from  public zebrunner-ce S3 storage
-  shell: wget -N --no-verbose --directory-prefix=./DeveloperDiskImages/{{ item }} "https://zebrunner-ce.s3.amazonaws.com/mcloud/DeveloperDiskImages/{{ item }}/DeveloperDiskImage.dmg"
-  with_items: "{{ DEVELOPER_IMAGES }}"
-  args:
-    warn: false
-
-- name: Download DeveloperDiskImage.dmg.signature from public zebrunner-ce S3 storage
-  shell: wget -N  --no-verbose --directory-prefix=./DeveloperDiskImages/{{ item }} "https://zebrunner-ce.s3.amazonaws.com/mcloud/DeveloperDiskImages/{{ item }}/DeveloperDiskImage.dmg.signature"
-  with_items: "{{ DEVELOPER_IMAGES }}"
-  args:
-    warn: false
-
-- name: Generate docker volume and place downloaded DeveloperDiskImages
-  shell: docker run --rm -v $(pwd)/DeveloperDiskImages:/var/tmp/DeveloperDiskImages -v mcloud-storage-volume:/opt/zebrunner "ubuntu:16.04" bash -c "rm -rf /opt/zebrunner/DeveloperDiskImages && cp -R /var/tmp/DeveloperDiskImages /opt/zebrunner"

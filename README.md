@@ -11,7 +11,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 |                         	| Requirements                                                     	|
 |:-----------------------:	|------------------------------------------------------------------	|
-| <b>Operating System</b> 	| Ubuntu 16.04, 18.04, 20.04, 21.04 <br>Linux CentOS 7+<br>Amazon Linux2|
+| <b>Operating System</b> 	| Ubuntu 16.04, 18.04, 20.04, 21.04, 22.04 <br>Linux CentOS 7+<br>Amazon Linux2|
 | <b>       CPU      </b> 	| 8+ Cores                                                         	|
 | <b>      Memory    </b> 	| 32 Gb RAM                                                        	|
 | <b>    Free space  </b> 	| SSD 128Gb+ of free space                                         	|
@@ -22,7 +22,17 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * Install usbmuxd service to be able to connect iOS devices
 
 ## Initial setup
-* Run `./zebrunner.sh setup` script.
+* Clone mcloud-agent repository and execute setup procedure
+  ```
+  git clone https://github.com/zebrunner/mcloud-agent.git
+  cd mcloud-agent
+  ./zebrunner.sh setup
+  ```
+* [Optional] To enable opencv support append `-opencv4.16.0` postfix to the `APPIUM_VERSION` in the ./defaults/main.yml:
+  ```
+  APPIUM_VERSION: 1.4.11-opencv4.16.0
+  ```
+  > Full list of supported appium+opencv images can be found here: https://gallery.ecr.aws/zebrunner/appium
 * Update `roles/devices/vars/main.yml` file according to the obligatory/optional comments inside.
   > Register all whitelisted Android and iOS devices with their udids!
 * Run ansible-playbook script to download the required components and set up udev rules:
