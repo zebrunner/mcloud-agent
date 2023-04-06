@@ -1,6 +1,6 @@
 ---
 DEVICE_IMAGE: public.ecr.aws/zebrunner/mcloud-device
-DEVICE_VERSION: 2.4.4
+DEVICE_VERSION: 2.4.5
 
 APPIUM_IMAGE: public.ecr.aws/zebrunner/appium
 APPIUM_VERSION: 1.4.11
