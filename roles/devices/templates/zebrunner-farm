@@ -116,7 +116,8 @@ function create_containers () {
         -e AWS_ACCESS_KEY_ID={{ S3_ACCESS_KEY_ID }} \
         -e AWS_SECRET_ACCESS_KEY={{ S3_SECRET }} \
         -e AWS_DEFAULT_REGION={{ S3_REGION }} \
-        public.ecr.aws/zebrunner/uploader:3.1 || echo 'already created'
+        {{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }} || echo 'already created'
+
 
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
 	--link device-${device_name}-${udid}-appium:appium \
@@ -178,7 +179,7 @@ function create_containers () {
 	-e AWS_ACCESS_KEY_ID={{ S3_ACCESS_KEY_ID }} \
 	-e AWS_SECRET_ACCESS_KEY={{ S3_SECRET }} \
 	-e AWS_DEFAULT_REGION={{ S3_REGION }} \
-        public.ecr.aws/zebrunner/uploader:3.1 || echo 'already created'
+        {{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }} || echo 'already created'
 
     #TODO: invetsigate if we need linking with appium container for iOS
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
