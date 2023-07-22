@@ -147,7 +147,6 @@ function create_containers () {
 	-v mcloud-storage-volume:/opt/zebrunner \
 	-v device-${device_name}-${udid}:/tmp/log \
         --device=/dev/device-${device_name}-${udid}:${usb_bus} \
-        -v "{{ WDA_IPA_PATH }}:/opt/WebDriverAgent.ipa" \
 	-e WDA_BUNDLEID={{ WDA_BUNDLEID }} \
 	-e TASK_LOG=/tmp/log/appium.log \
 	-e APPIUM_CLI="--session-override" \

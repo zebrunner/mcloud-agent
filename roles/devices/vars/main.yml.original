@@ -34,8 +34,6 @@ S3_REGION: us-east-1
 # [OPTIONAL] iOS organization p12 file with supervised devices
 P12FILE: 
 P12PASSWORD: 
-# Path to prebuild WebDriverAgent.ipa
-WDA_IPA_PATH: /opt/WebDriverAgent.ipa
 
 # Override to use custom WDA bundle id: https://github.com/zebrunner/mcloud-agent#prepare-webdriveragentipa-file
 WDA_BUNDLEID: com.facebook.WebDriverAgentRunner.xctrunner

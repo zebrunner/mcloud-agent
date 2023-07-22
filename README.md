@@ -20,6 +20,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * Install docker ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-20-04), [Amazon Linux 2](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/docker-basics.html), [Redhat/Cent OS](https://www.cyberciti.biz/faq/install-use-setup-docker-on-rhel7-centos7-linux/)).
 * Install 2.9.6+ ansible ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-20-04)).
 * Install usbmuxd service to be able to connect iOS devices
+* Install WebDriverAgent to each iOS device
 
 ## Initial setup
 * Clone mcloud-agent repository and execute setup procedure
@@ -50,6 +51,13 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
  * Devices management script is deployed to /usr/local/bin/zebrunner-farm.
  * Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules.
  * Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
+ * usbuxd service is stopped and masked (disabled). To verify execute `sudo systemctl status usbmuxd`
+   ```
+   ● usbmuxd.service
+   Loaded: masked (/dev/null; bad)
+   Active: inactive (dead)
+   ```
+
    
 ## Usage
 
@@ -59,17 +67,6 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * For the 1st connection, trust the device by picking "always trust..." on the device.
 
 ### iOS devices
-
-#### Mask usbmuxd service
-
-```
-sudo systemctl mask usbmuxd
-sudo systemctl status usbmuxd
-->
-● usbmuxd.service
-   Loaded: masked (/dev/null; bad)
-   Active: inactive (dead)
-```
 
 #### [Optional] Supervise device 
 
@@ -121,7 +118,7 @@ For non-supervised iOS devices, just click "Trust" (supervision setting can be s
 * Settings -> Safari -> Advanced -> Web Inspector.
 * Enable Siri.
 
-#### Prepare WebDriverAgent.ipa file
+#### Build and install WebDriverAgent.ipa onto the device
 
 You need an Apple Developer account to sign in and build **WebDriverAgent**.
 
@@ -137,7 +134,7 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
 7. Finally, zip up the project as an *.ipa file:
  **zip -r WebDriverAgent.ipa ./Payload**
    > Make sure to specify relative `./Payload` to archive only Payload folder content 
-8. Get the WebDriverAgent.ipa file, put it onto the corrent host and share via WDA_IPA_PATH variable in the roles/devices/vars/main.yml file.
+8. Install WebDriverAgent.ipa file onto the device
 
 
 ### SmartTestFarm
