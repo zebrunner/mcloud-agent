@@ -29,5 +29,5 @@
   when: p12.stat.exists
 
 - name: Mask usbmuxd service
-  command: systemctl stop usbmuxd && systemctl mask usbmuxd && systemctl status usbmuxd
+  command: systemctl mask usbmuxd && systemctl stop usbmuxd && systemctl status usbmuxd
   ignore_errors: true
