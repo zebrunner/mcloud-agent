@@ -70,6 +70,14 @@ function create_containers () {
     usb_bus=`readlink -f /dev/device-${device_name}-${udid}`
     #echo "usb_bus: ${usb_bus}"
 
+    local TENANT={{ S3_TENANT }}
+    S3_KEY_PATTERN=s3://{{ S3_BUCKET }}/{{ S3_TENANT }}/artifacts/test-sessions
+    if [ -z $TENANT ]; then
+      # use-case with embedded minio storage
+      S3_KEY_PATTERN=s3://{{ S3_BUCKET }}/artifacts/test-sessions
+    fi
+
+
   if [ $platform_name == "android" ]; then
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
         --restart on-failure \
@@ -77,6 +85,8 @@ function create_containers () {
         -v mcloud-key-volume:/root/.android \
 	-v appium-storage-volume:/opt/appium-storage \
         -v mcloud-storage-volume:/opt/zebrunner \
+        -v device-${device_name}-${udid}:/tmp/log \
+	-e TASK_LOG=/tmp/log/appium.log \
 	-e PLATFORM_NAME=$platform_name \
 	-e DEVICE_UDID=$udid \
         -e RETAIN_TASK=true \
@@ -95,9 +105,19 @@ function create_containers () {
 	-e APPIUM_PORT=$appium_port \
 	-p $appium_port:$appium_port \
         -e RELAXED_SECURITY=true \
-        -e S3_ENDPOINT={{ S3_ENDPOINT }} -e BUCKET={{ S3_BUCKET }} -e TENANT={{ S3_TENANT }} -e AWS_ACCESS_KEY_ID={{ S3_ACCESS_KEY_ID }} -e AWS_SECRET_ACCESS_KEY={{ S3_SECRET }} -e AWS_DEFAULT_REGION={{ S3_REGION }} \
 	-e MCLOUD=true \
         {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }} || echo 'already created'
+
+    docker run -d --name device-${device_name}-${udid}-uploader --net=${net} \
+        --restart on-failure \
+        -v device-${device_name}-${udid}:/tmp/log \
+        -e ENDPOINT_URL={{ S3_ENDPOINT }} \
+        -e S3_KEY_PATTERN=${S3_KEY_PATTERN} \
+        -e AWS_ACCESS_KEY_ID={{ S3_ACCESS_KEY_ID }} \
+        -e AWS_SECRET_ACCESS_KEY={{ S3_SECRET }} \
+        -e AWS_DEFAULT_REGION={{ S3_REGION }} \
+        {{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }} || echo 'already created'
+
 
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
 	--link device-${device_name}-${udid}-appium:appium \
@@ -125,9 +145,10 @@ function create_containers () {
         --restart on-failure \
 	-v appium-storage-volume:/opt/appium-storage \
 	-v mcloud-storage-volume:/opt/zebrunner \
+	-v device-${device_name}-${udid}:/tmp/log \
         --device=/dev/device-${device_name}-${udid}:${usb_bus} \
-        -v "{{ WDA_IPA_PATH }}:/opt/WebDriverAgent.ipa" \
 	-e WDA_BUNDLEID={{ WDA_BUNDLEID }} \
+	-e TASK_LOG=/tmp/log/appium.log \
 	-e APPIUM_CLI="--session-override" \
         -e P12PASSWORD="{{ P12PASSWORD }}" \
         -e PLATFORM_NAME=$platform_name \
@@ -146,9 +167,18 @@ function create_containers () {
         -e APPIUM_PORT=$appium_port \
         -p $appium_port:$appium_port \
         -e RELAXED_SECURITY=true \
-        -e S3_ENDPOINT={{ S3_ENDPOINT }} -e BUCKET={{ S3_BUCKET }} -e TENANT={{ S3_TENANT }} -e AWS_ACCESS_KEY_ID={{ S3_ACCESS_KEY_ID }} -e AWS_SECRET_ACCESS_KEY={{ S3_SECRET }} -e AWS_DEFAULT_REGION={{ S3_REGION }} \
 	-e MCLOUD=true \
         {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}
+
+    docker run -d --name device-${device_name}-${udid}-uploader --net=${net} \
+        --restart on-failure \
+        -v device-${device_name}-${udid}:/tmp/log \
+        -e ENDPOINT_URL={{ S3_ENDPOINT }} \
+	-e S3_KEY_PATTERN=${S3_KEY_PATTERN} \
+	-e AWS_ACCESS_KEY_ID={{ S3_ACCESS_KEY_ID }} \
+	-e AWS_SECRET_ACCESS_KEY={{ S3_SECRET }} \
+	-e AWS_DEFAULT_REGION={{ S3_REGION }} \
+        {{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }} || echo 'already created'
 
     #TODO: invetsigate if we need linking with appium container for iOS
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
@@ -258,6 +288,16 @@ function remove_containers() {
   docker ps -a | grep appium | grep $container > /dev/null
   if [ $? -eq 0 ]; then
     docker rm -f $container-appium
+  fi
+
+  docker ps -a | grep uploader | grep $container > /dev/null
+  if [ $? -eq 0 ]; then
+    docker rm -f $container-uploader
+  fi
+
+  docker volume ls | grep $container > /dev/null
+  if [ $? -eq 0 ]; then
+   docker volume rm device-${device_name}-${udid}
   fi
 
 }

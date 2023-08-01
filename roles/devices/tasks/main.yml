@@ -1,5 +1,5 @@
 ---
 
-- name: Configurate udev
+- name: Configurate device
   include: udev.yml
   tags: registerDevices
