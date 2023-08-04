@@ -63,50 +63,6 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 ### iOS devices
 
-#### [Optional] Supervise device 
-
-You need a supervised iOS device to be able to accept "Trust" alert messages automatically while reconnecting.
-
-For non-supervised iOS devices, just click "Trust" (supervision setting can be skipped).
-
- ##### Erase all the content and exit from iCloud ID on the iOS device
-
-- Go to -> Settings -> General -> Transfer or Reset iPhone.
-- Tap Erase All Content and Settings.
-- When iPhone restarts with all the content and settings erased, you'll see the option to set up an iPhone as new.
-  
- #### Create an organization
-  
-1. Downloand Apple Configurator 2 from Apple Store.
-2. Open Apple Configurator 2.
-3. Pick Apple Configurator -> Preferences -> Organizations -> Create new Organizations
-   -> Fill in all the fields.
-   
- ####  Export Supervision Identity p12 file
-
-1. Pick Apple Configurator -> Preferences -> Organizations -> Select Organisation -> Export Supervision identity -> Click Save.
-2. Enter the password -> Click Save.
-3. Open p12 file -> Enter the password -> Open Apple Configurator certificate -> Сheck all the boxes "Always Trust".
-4. Put p12 file to mcloud-agent and share via P12FILE and P12PASSWORD variables in roles/devices/vars/main.yml file.
-5. Run ansible script:
- - ansible-playbook -vvv -i hosts devices.yml --tag registerDevices
-> Supervised devices should be trusted automatically after a physical reconnection.   
-   
- #### Connect the device
- > Prepare all iOS devices one by one!
-1. Connect the device to Mac OS (Trust manually).
-2. Click on the connected iOS device and press Prepare.
-3. Obligatory actions to provision:
-- Apply manual configuration,
-- Supervise devices,
-- Allow devices to pair with a computer.
-4. Click Next.
-5. Select "Do not enroll in MDM Enroll" in MDM Server, click Next.
-6. Select your organization.
-7. Select "Show all steps" on Configure iOS Setup Assistant.
-8. Click Prepare.
-9. Set up the iPhone as new.
-
 #### Automation steps
 
 * Enable Settings -> Developer -> Enable UI Automation.
@@ -129,7 +85,8 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
 7. Finally, zip up the project as an *.ipa file:
  **zip -r WebDriverAgent.ipa ./Payload**
    > Make sure to specify relative `./Payload` to archive only Payload folder content 
-8. Install WebDriverAgent.ipa file onto the device
+8. Share built ipa via WDA_FILE variable in roles/devices/vars/main.yml file.
+   > to override WDA_FILE artifacts per each device use `wda_file` and `wda_bundleid` iOS device properties
 
 
 ### SmartTestFarm

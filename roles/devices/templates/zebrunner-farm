@@ -63,7 +63,6 @@ function create_containers () {
     local appium_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 8`
     #echo "appium_port: $appium_port"
 
-
     local net={{ STF_DOCKER_NETWORK }}
 
     docker network inspect ${net} >/dev/null 2>&1 || docker network create ${net}
@@ -77,8 +76,8 @@ function create_containers () {
       S3_KEY_PATTERN=s3://{{ S3_BUCKET }}/artifacts/test-sessions
     fi
 
-
   if [ $platform_name == "android" ]; then
+    #TODO: parametrized relaxed security, make false by default!
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
         --restart on-failure \
 	--device=/dev/device-${device_name}-${udid}:/dev/bus/usb/003/011 \
@@ -105,7 +104,6 @@ function create_containers () {
 	-e APPIUM_PORT=$appium_port \
 	-p $appium_port:$appium_port \
         -e RELAXED_SECURITY=true \
-	-e MCLOUD=true \
         {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }} || echo 'already created'
 
     docker run -d --name device-${device_name}-${udid}-uploader --net=${net} \
@@ -139,6 +137,30 @@ function create_containers () {
         -e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \
 	{{ DEVICE_IMAGE }}:{{DEVICE_VERSION }} || echo 'already created'
   elif [ $platform_name == "ios" ]; then
+
+    #TODO: comment echoing wda related detailes before release
+    local wdaIpaPath={{ WDA_FILE }}
+    local deviceWdaIpaPath=`cat ${devices} | grep "$udid" | cut -d '|' -f 10`
+    echo "deviceWdaIpaPath: $deviceWdaIpaPath"
+    if [ ! -z $deviceWdaIpaPath ] && [ ! "$deviceWdaIpaPath" == "/dev/null" ]; then
+      wdaIpaPath=$deviceWdaIpaPath
+    fi
+    if [ -z $wdaIpaPath ]; then
+      # unable to use empty value for docker volume share!
+      wdaIpaPath="/dev/null"
+    fi
+
+    local wdaBundleId={{ WDA_BUNDLEID }}
+    local deviceWdaBundleId=`cat ${devices} | grep "$udid" | cut -d '|' -f 11`
+    echo "deviceWdaBundleId: $deviceWdaBundleId"
+    if [ ! -z $deviceWdaBundleId ]; then
+      wdaBundleId=$deviceWdaBundleId
+    fi
+    if [ -z $wdaBundleId ]; then
+      # provide default value if empty
+      wdaBundleId="com.facebook.WebDriverAgentRunner.xctrunner"
+    fi
+
     # TODO: run our appium container tuned for iOS. Combine later into the single run command
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
@@ -146,11 +168,13 @@ function create_containers () {
 	-v appium-storage-volume:/opt/appium-storage \
 	-v mcloud-storage-volume:/opt/zebrunner \
 	-v device-${device_name}-${udid}:/tmp/log \
+        -v device-${device_name}-${udid}-lockdown:/var/lib/lockdown \
         --device=/dev/device-${device_name}-${udid}:${usb_bus} \
-	-e WDA_BUNDLEID={{ WDA_BUNDLEID }} \
 	-e TASK_LOG=/tmp/log/appium.log \
 	-e APPIUM_CLI="--session-override" \
-        -e P12PASSWORD="{{ P12PASSWORD }}" \
+        -e WDA_BUNDLEID=$wdaBundleId \
+	-e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
+	-v ${wdaIpaPath}:/tmp/zebrunner/WebDriverAgent.ipa \
         -e PLATFORM_NAME=$platform_name \
         -e DEVICE_UDID=$udid \
         -e RETAIN_TASK=true \
@@ -167,7 +191,6 @@ function create_containers () {
         -e APPIUM_PORT=$appium_port \
         -p $appium_port:$appium_port \
         -e RELAXED_SECURITY=true \
-	-e MCLOUD=true \
         {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}
 
     docker run -d --name device-${device_name}-${udid}-uploader --net=${net} \
