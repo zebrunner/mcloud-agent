@@ -21,13 +21,15 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * Install 2.9.6+ ansible ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-20-04)).
 * Install usbmuxd service to be able to connect iOS devices
 
-## Initial setup
+## Clone and setup
 * Clone mcloud-agent repository and execute setup procedure
   ```
   git clone https://github.com/zebrunner/mcloud-agent.git
   cd mcloud-agent
   ./zebrunner.sh setup
   ```
+
+## Run ansible playbook
 * [Optional] To enable opencv support append `-opencv4.16.0` postfix to the `APPIUM_VERSION` in the ./defaults/main.yml:
   ```
   APPIUM_VERSION: 1.4.11-opencv4.16.0
@@ -68,7 +70,8 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * Settings -> Safari -> Advanced -> Web Inspector.
 * Enable Siri.
 
-#### Build and install WebDriverAgent.ipa onto the device
+
+#### Build WebDriverAgent.ipa
 
 You need an Apple Developer account to sign in and build **WebDriverAgent**.
 
@@ -85,7 +88,7 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
  **zip -r WebDriverAgent.ipa ./Payload**
    > Make sure to specify relative `./Payload` to archive only Payload folder content 
 8. Share built ipa via WDA_FILE variable in roles/devices/vars/main.yml file.
-   > to override WDA_FILE artifacts per each device use `wda_file` and `wda_bundleid` iOS device properties
+   > to override WDA_FILE artifacts per each device use `wda_file` and `wda_bundleid` iOS device properties and re-execute ansible playbook.
 
 
 ### SmartTestFarm
@@ -114,6 +117,8 @@ Follow the below algorithm to identify any configuration issues with MCloud agen
   docker logs -f device-<Name>-<udid>-appium
   // STF provider container:
   docker logs -f device-<Name>-<udid>
+  // artifacts uploader container:
+  docker logs -f device-<Name>-<udid>-uploader
   ```
 
 ## Documentation and free support
