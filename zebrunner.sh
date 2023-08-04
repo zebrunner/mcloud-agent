@@ -5,7 +5,8 @@
 
   setup() {
     cp roles/devices/vars/main.yml.original roles/devices/vars/main.yml
-    echo "Follow https://github.com/zebrunner/mcloud-android#readme to setup MCloud agent as of now!"
+    #TODO: switch to master branch after oficial release and merge
+    echo "Follow https://github.com/zebrunner/mcloud-agent/tree/develop#run-ansible-playbook to deploy MCloud agent services!"
   }
 
   shutdown() {
