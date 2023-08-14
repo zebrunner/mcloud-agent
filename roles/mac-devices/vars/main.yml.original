@@ -47,14 +47,6 @@ WDA_BUNDLEID:
 
 #TODO: convert adb_port to connect_port to support iOS as well
 devices:
-  - id: R28M1384YQY
-    os: android
-    name: Samsung_Galaxy_S10
-    appium_port: 7421
-    adb_port: 7422
-    proxy_port: 7423
-    min_port: 7424
-    max_port: 7430
   - id: d6afc6b3a65584ca0813eb8957c6479b9b6ebb11
     os: ios
     name: iPhone_8_Plus
