@@ -40,8 +40,6 @@
       cp roles/mac-devices/templates/ZebrunnerDevicesListener.plist $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist
       replace $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist "working_dir_value" "${BASEDIR}"
       replace $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist "user_value" "$USER"
-
-      launchctl load $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist
     fi
 
     #TODO: switch to master branch after oficial release and merge

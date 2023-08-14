@@ -230,6 +230,8 @@ function stop() {
 
     stop_containers ${device_name} ${udid}
   else
+    launchctl unload $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist > /dev/null 2>&1
+
     # as no device filter provided continue with stopping all device containers
     while read -r line
     do
@@ -270,6 +272,8 @@ function down() {
 
     remove_containers ${device_name} ${udid}
   else
+    launchctl unload $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist > /dev/null 2>&1
+
     while read -r line
     do
       local device_name=`echo ${line} | grep "$filter_device" | cut -d '|' -f 1`
@@ -370,6 +374,8 @@ function start() {
     create_containers ${device_name} ${udid}
     start_containers ${device_name} ${udid}
   else
+    launchctl load $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist > /dev/null 2>&1
+
     while read -r line
     do
       local device_name=`echo ${line} | grep "$filter_device" | cut -d '|' -f 1`
