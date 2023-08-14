@@ -1,0 +1,20 @@
+---
+
+- name: Check if roles/devices/vars/main.yml file is generated
+  stat: path=roles/devices/vars/main.yml
+  register: main_yml
+
+- name: Verify Setup
+  fail:
+    msg: "You have to setup services in advance using: ./zebrunner.sh setup"
+  when: not main_yml.stat.exists
+
+- name: copy script to launch container with appium for device
+  template: src=zebrunner-farm dest=/usr/local/bin/ mode=755
+
+- name: copy devices details
+  template: src=mcloud-devices.txt dest=/usr/local/bin/
+
+#- name: Mask usbmuxd service
+#  command: systemctl mask usbmuxd && systemctl stop usbmuxd && systemctl status usbmuxd
+#  ignore_errors: true

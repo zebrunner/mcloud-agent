@@ -1,0 +1,70 @@
+---
+STF_DOCKER_NETWORK: infra
+
+# [OBLIGATORY] Set host address, port and protocol of the server where STF services are deployed
+PUBLIC_IP: demo.zebrunner.farm
+PUBLIC_IP_PORT: 443
+PUBLIC_IP_PROTOCOL: https
+
+# [OPTIONAL] Set tcp url to rethinkdb and stf-triproxy-dev.
+# IMPORTANT! make sure to use valid hostname and port if STF services are located on different host.
+STF_RETHINKDB: tcp://demo.zebrunner.farm:28015
+STF_PROVIDER_CONNECT_SUB: tcp://demo.zebrunner.farm:7250
+STF_PROVIDER_CONNECT_PUSH: tcp://demo.zebrunner.farm:7270
+
+# [OPTIONAL] Set host address and port of mcloud-grid container: https://github.com/zebrunner/mcloud/blob/8442bceec096f886c02bf84a39816f10c694ad9e/docker-compose.yml#L17
+# IMPORTANT! make sure to use valid hostname and port if it is located on different host.
+SELENIUM_HUB_HOST: demo.zebrunner.farm
+SELENIUM_HUB_PORT: 4446
+
+# [OBLIGATORY] Set host address of current STF provider server. It should be resolvable and accessible from the PUBLIC_IP!
+STF_PROVIDER_HOST: 192.168.88.156
+
+# [OPTIONAL] provider/location name for devices. Use short city name like NYC
+STF_PROVIDER_NAME: mcloud-ios2
+
+# Shared socat listening host:port
+#USBMUXD_SOCKET_ADDRESS: appium:22
+USBMUXD_SOCKET_ADDRESS: 192.168.88.156:2222
+
+# [OPTIONAL] S3 compatible storage for video recordings. Use embedded minio storage from Community Edition by default
+S3_BUCKET: zebrunner
+S3_TENANT: 
+S3_ENDPOINT: http://minio:9000
+S3_ACCESS_KEY_ID: zebrunner
+S3_SECRET: J33dNyeTDj
+S3_REGION: us-east-1
+
+
+# Path to prebuild WebDriverAgent.ipa
+WDA_FILE: /Users/idmcloud/tools/WebDriverAgent.ipa
+# Override to use custom WDA bundle id: https://github.com/zebrunner/mcloud-agent#prepare-webdriveragentipa-file
+WDA_BUNDLEID:
+
+# [OBLIGATORY] Declare valid devices metadata
+# - id: device udid which is shown by `adb devices`
+#   name: devce name as it will be registered in STF (avoid special symbols and spaces!)
+#   appium_port: unique port value for sharing appium services from the container to outside selenium hub
+#   adb_port: unique port value for sharing adb server from the device appium container to outside
+#   proxy_port: unique port value to configure emebedded proxy (they can be used in integration with Carina traffic sniffering fucntionality: https://zebrunner.github.io/carina/advanced/proxy/)
+#   min_port and max_port: unique range of 7 ports per device for system STF purposes. These ports on STF_PROVIDER_HOST should be accessible from client's browser otherwise gray screen, no remote adb connect etc.
+
+#TODO: convert adb_port to connect_port to support iOS as well
+devices:
+  - id: d6afc6b3a65584ca0813eb8957c6479b9b6ebb11
+    os: ios
+    name: iPhone_8_Plus
+    appium_port: 7431
+    adb_port: 7432
+    proxy_port: 7433
+    min_port: 7434
+    max_port: 7440
+  - id: bd03d002eae5d3087074198596cec3a0faf72a7d
+    os: ios
+    wda_file: /Users/idmcloud/tools/WebDriverAgent_tvos_560.ipa
+    name: Apple_TV
+    appium_port: 7441
+    adb_port: 7442
+    proxy_port: 7443
+    min_port: 7444
+    max_port: 7450

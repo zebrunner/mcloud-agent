@@ -1,0 +1,9 @@
+---
+
+- hosts: devices_servers
+  become: true
+  vars_files:
+    - defaults/main.yml
+  roles:
+    - mac-devices
+    - download

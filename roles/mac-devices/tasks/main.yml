@@ -1,0 +1,5 @@
+---
+
+- name: Configurate device
+  include: usbmuxd.yml
+  tags: registerDevices

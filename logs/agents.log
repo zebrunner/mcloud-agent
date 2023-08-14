@@ -1,0 +1,56 @@
+REPLY: {"MessageType":"Attached","DeviceID":7,"Properties":{"ConnectionSpeed":480000000,"ConnectionType":"USB","DeviceID":7,"LocationID":336592896,"ProductID":4776,"SerialNumber":"d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"}}
+device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11
+Appium: "healthy"; STF: "unhealthy";
+
+device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11
+device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-appium
+device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-uploader
+device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11
+iPhone_8_Plus creating...
+deviceWdaIpaPath: /dev/null
+deviceWdaBundleId: com.facebook.WebDriverAgentRunner.xctrunner
+8d05660cf4eaf80702143b00729c7f1ca2ca103ff2390c483bcc4979ae93fd1f
+9afeb541f3daec846645cc2ff0ce6e7077ba01d65d52a1f642a930554dbd5727
+9be3b8518125e73fc56804f26f9bb043277067ea13edfde5baa63fbac418d4e3
+
+device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11 starting...
+device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11
+device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-appium
+REPLY: {"MessageType":"Attached","DeviceID":6,"Properties":{"ConnectionSpeed":480000000,"ConnectionType":"USB","DeviceID":6,"LocationID":338690048,"ProductID":4775,"SerialNumber":"bd03d002eae5d3087074198596cec3a0faf72a7d"}}
+device-Apple_TV-bd03d002eae5d3087074198596cec3a0faf72a7d
+Appium: "healthy"; STF: "healthy";
+
+do nothing as state is valid (healthy or starting) for Apple_TV (bd03d002eae5d3087074198596cec3a0faf72a7d)
+REPLY: {"MessageType":"Attached","DeviceID":6,"Properties":{"ConnectionSpeed":480000000,"ConnectionType":"USB","DeviceID":6,"LocationID":338690048,"ProductID":4775,"SerialNumber":"bd03d002eae5d3087074198596cec3a0faf72a7d"}}
+device-Apple_TV-bd03d002eae5d3087074198596cec3a0faf72a7d
+Appium: "healthy"; STF: "healthy";
+
+do nothing as state is valid (healthy or starting) for Apple_TV (bd03d002eae5d3087074198596cec3a0faf72a7d)
+REPLY: {"MessageType":"Attached","DeviceID":8,"Properties":{"ConnectionSpeed":480000000,"ConnectionType":"USB","DeviceID":8,"LocationID":336592896,"ProductID":4776,"SerialNumber":"d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"}}
+device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11
+Appium: "healthy"; STF: "unhealthy";
+
+device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11
+device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-appium
+device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-uploader
+device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11
+iPhone_8_Plus creating...
+deviceWdaIpaPath: /dev/null
+deviceWdaBundleId: com.facebook.WebDriverAgentRunner.xctrunner
+7441e7dc5853d90d6288ef04e3ea7e27e75b9e015a570832c77ddf4c523e7b1e
+8acdd08c4842339bc3827f38a2d268ebef527cce084945c28cc5660d633d4b85
+fa7d073083e1f4be43678630edc97b43faec90002fcec8f3ba2362ec32863ec4
+
+device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11 starting...
+device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11
+device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-appium
+REPLY: {"MessageType":"Attached","DeviceID":6,"Properties":{"ConnectionSpeed":480000000,"ConnectionType":"USB","DeviceID":6,"LocationID":338690048,"ProductID":4775,"SerialNumber":"bd03d002eae5d3087074198596cec3a0faf72a7d"}}
+device-Apple_TV-bd03d002eae5d3087074198596cec3a0faf72a7d
+Appium: "healthy"; STF: "healthy";
+
+do nothing as state is valid (healthy or starting) for Apple_TV (bd03d002eae5d3087074198596cec3a0faf72a7d)
+REPLY: {"MessageType":"Attached","DeviceID":8,"Properties":{"ConnectionSpeed":480000000,"ConnectionType":"USB","DeviceID":8,"LocationID":336592896,"ProductID":4776,"SerialNumber":"d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"}}
+device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11
+Appium: "healthy"; STF: "healthy";
+
+do nothing as state is valid (healthy or starting) for iPhone_8_Plus (d6afc6b3a65584ca0813eb8957c6479b9b6ebb11)
