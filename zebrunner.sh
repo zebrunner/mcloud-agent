@@ -42,6 +42,15 @@
       replace $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist "user_value" "$USER"
     fi
 
+    if [ -d $HOME/Library/LaunchAgents ] && [ ! -f $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist ]; then
+      # register socat listener for usbmuxd service
+      cp roles/mac-devices/templates/ZebrunnerUsbmuxd.plist $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist
+      replace $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist "working_dir_value" "${BASEDIR}"
+      replace $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist "user_value" "$USER"
+
+      launchctl load $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist
+    fi
+
     #TODO: switch to master branch after oficial release and merge
     echo "Follow https://github.com/zebrunner/mcloud-agent/tree/develop#run-ansible-playbook to deploy MCloud agent services!"
   }
@@ -62,6 +71,11 @@
     if [ -f $HOME/Library/LaunchAgents/ZebrunnerDevicesManager.plist ]; then
       launchctl unload $HOME/Library/LaunchAgents/ZebrunnerDevicesManager.plist
       rm -f $HOME/Library/LaunchAgents/ZebrunnerDevicesManager.plist
+    fi
+
+    if [ -f $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist ]; then
+      launchctl unload $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist
+      rm -f $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist
     fi
 
     down
