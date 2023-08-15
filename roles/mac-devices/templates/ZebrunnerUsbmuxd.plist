@@ -9,7 +9,7 @@
 			<string>/bin:/usr/bin:/usr/local/bin:/usr/sbin:/sbin</string>
 		</dict>
 		<key>Label</key>
-		<string>com.zebrunner.usbmuzd</string>
+		<string>com.zebrunner.usbmuxd</string>
 		<key>ProgramArguments</key>
 		<array>
 			<string>/usr/local/bin/socat</string>
