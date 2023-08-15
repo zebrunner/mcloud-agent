@@ -1,5 +1,5 @@
 ---
 
-- name: Configurate device
+- name: Configure device on Linux
   include: udev.yml
   tags: registerDevices
