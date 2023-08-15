@@ -338,14 +338,14 @@ function verify_containers() {
     state="Disconnected!"
     echo "$container - DISCONNECTED"
   else
-    local stfState="REMOVED"
+    local stfState="STOPPED"
     #verify if device containers already exist and do nothing then
     docker ps -a | grep -v appium | grep $container > /dev/null
     if [ $? -eq 0 ]; then
       stfState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container`
     fi
 
-    local appiumState="REMOVED"
+    local appiumState="STOPPED"
     docker ps -a | grep appium | grep $container > /dev/null
     if [ $? -eq 0 ]; then
       appiumState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container-appium`
