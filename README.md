@@ -54,7 +54,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
  * Devices management script is deployed to /usr/local/bin/zebrunner-farm.
  * Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules.
  * Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
- * Usbuxd service is stopped and masked (disabled).
+ * Usbmuxd service is stopped and masked (disabled).
 
 ### Mac OS
 * update `roles/mac-devices/vars/main.yml` file according to the obligatory/optional comments inside.
