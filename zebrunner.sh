@@ -3,9 +3,56 @@
 ## shellcheck disable=SC1091
 #source patch/utility.sh
 
+  replace() {
+    #TODO: https://github.com/zebrunner/zebrunner/issues/328 organize debug logging for setup/replace
+    file=$1
+    #echo "file: $file"
+    content=$(<$file) # read the file's content into
+    #echo "content: $content"
+
+    old=$2
+    #echo "old: $old"
+
+    new=$3
+    #echo "new: $new"
+    content=${content//"$old"/$new}
+
+    #echo "content: $content"
+
+    printf '%s' "$content" >$file    # write new content to disk
+  }
+
   setup() {
+    if [ -f roles/devices/vars/main.yml ]; then
+      echo "roles/devices/vars/main.yml already exists, making a backup roles/devices/vars/main.yml.bak"
+      cp roles/devices/vars/main.yml roles/devices/vars/main.yml.bak
+    fi
     cp roles/devices/vars/main.yml.original roles/devices/vars/main.yml
-    echo "Follow https://github.com/zebrunner/mcloud-android#readme to setup MCloud agent as of now!"
+
+    if [ -f roles/mac-devices/vars/main.yml ]; then
+      echo "roles/mac-devices/vars/main.yml already exists, making a backup roles/mac-devices/vars/main.yml.bak"
+      cp roles/mac-devices/vars/main.yml roles/mac-devices/vars/main.yml.bak
+    fi
+    cp roles/mac-devices/vars/main.yml.original roles/mac-devices/vars/main.yml
+
+    if [ -d $HOME/Library/LaunchAgents ] && [ ! -f $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist ]; then
+      # register devices manager to manage attach/reboot actions
+      cp roles/mac-devices/templates/ZebrunnerDevicesListener.plist $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist
+      replace $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist "working_dir_value" "${BASEDIR}"
+      replace $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist "user_value" "$USER"
+    fi
+
+    if [ -d $HOME/Library/LaunchAgents ] && [ ! -f $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist ]; then
+      # register socat listener for usbmuxd service
+      cp roles/mac-devices/templates/ZebrunnerUsbmuxd.plist $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist
+      replace $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist "working_dir_value" "${BASEDIR}"
+      replace $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist "user_value" "$USER"
+
+      launchctl load $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist
+    fi
+
+    #TODO: switch to master branch after oficial release and merge
+    echo "Follow https://github.com/zebrunner/mcloud-agent/tree/develop#run-ansible-playbook to deploy MCloud agent services!"
   }
 
   shutdown() {
@@ -21,6 +68,16 @@
       exit
     fi
 
+    if [ -f $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist ]; then
+      launchctl unload $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist
+      rm -f $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist
+    fi
+
+    if [ -f $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist ]; then
+      launchctl unload $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist
+      rm -f $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist
+    fi
+
     down
 
     sudo rm -f /usr/local/bin/zebrunner-farm
@@ -28,6 +85,7 @@
     sudo rm -f /etc/udev/rules.d/90_mcloud.rules
     # restore original main.yml
     rm -f roles/devices/vars/main.yml
+    rm -f roles/mac-devices/vars/main.yml
 
     docker volume rm appium-storage-volume
     docker volume rm mcloud-storage-volume
@@ -72,8 +130,9 @@
     cp /usr/local/bin/mcloud-devices.txt backup/
     cp /etc/udev/rules.d/90_mcloud.rules backup/
     cp roles/devices/vars/main.yml roles/devices/vars/main.yml.bak
+    cp roles/mac-devices/vars/main.yml roles/mac-devices/vars/main.yml.bak
 
-    if [ -f backup/zebrunner-farm ] && [ -f backup/mcloud-devices.txt ] && [ -f backup/90_mcloud.rules ] && [ -f roles/devices/vars/main.yml.bak ]; then
+    if [ -f backup/zebrunner-farm ] && [ -f backup/mcloud-devices.txt ] && [ -f backup/90_mcloud.rules ] && [ -f roles/devices/vars/main.yml.bak ] && [ -f roles/mac-devices/vars/main.yml.bak ]; then
       echo "MCloud backup succeed."
     else
       echo_warning "MCloud backup failed!"
@@ -91,11 +150,12 @@
     sudo cp backup/mcloud-devices.txt /usr/local/bin/mcloud-devices.txt
     sudo cp backup/90_mcloud.rules /etc/udev/rules.d/90_mcloud.rules
     cp roles/devices/vars/main.yml.bak roles/devices/vars/main.yml
+    cp roles/mac-devices/vars/main.yml.bak roles/mac-devices/vars/main.yml
 
     # reload udevadm rules
     sudo udevadm control --reload-rules
 
-    if [ -f /usr/local/bin/zebrunner-farm ] && [ -f /usr/local/bin/mcloud-devices.txt ] && [ -f /etc/udev/rules.d/90_mcloud.rules ] && [ -f roles/devices/vars/main.yml ]; then
+    if [ -f /usr/local/bin/zebrunner-farm ] && [ -f /usr/local/bin/mcloud-devices.txt ] && [ -f /etc/udev/rules.d/90_mcloud.rules ] && [ -f roles/devices/vars/main.yml ] && [ -f roles/mac-devices/vars/main.yml ]; then
       echo "MCloud restore succeed."
     else
       echo_warning "MCloud restore failed!"

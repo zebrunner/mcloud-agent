@@ -11,7 +11,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 |                         	| Requirements                                                     	|
 |:-----------------------:	|------------------------------------------------------------------	|
-| <b>Operating System</b> 	| Ubuntu 16.04, 18.04, 20.04, 21.04, 22.04 <br>Linux CentOS 7+<br>Amazon Linux2|
+| <b>Operating System</b> 	| Ubuntu 16.04, 18.04, 20.04, 21.04, 22.04 <br>Linux CentOS 7+<br>Amazon Linux2<br> MAC OS (Ventura)|
 | <b>       CPU      </b> 	| 8+ Cores                                                         	|
 | <b>      Memory    </b> 	| 32 Gb RAM                                                        	|
 | <b>    Free space  </b> 	| SSD 128Gb+ of free space                                         	|
@@ -19,21 +19,25 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 ## Software prerequisites
 * Install docker ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-20-04), [Amazon Linux 2](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/docker-basics.html), [Redhat/Cent OS](https://www.cyberciti.biz/faq/install-use-setup-docker-on-rhel7-centos7-linux/)).
 * Install 2.9.6+ ansible ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-20-04)).
-* Install usbmuxd service to be able to connect iOS devices
+* Linux: install usbmuxd service to be able to connect iOS devices
 
-## Initial setup
+## Clone and setup
 * Clone mcloud-agent repository and execute setup procedure
   ```
   git clone https://github.com/zebrunner/mcloud-agent.git
   cd mcloud-agent
   ./zebrunner.sh setup
   ```
-* [Optional] To enable opencv support append `-opencv4.16.0` postfix to the `APPIUM_VERSION` in the ./defaults/main.yml:
+
+## Run ansible playbook
+* [Optional] To enable opencv support append `-opencv5.6.0` postfix to the `APPIUM_VERSION` in the ./defaults/main.yml:
   ```
-  APPIUM_VERSION: 1.4.11-opencv4.16.0
+  APPIUM_VERSION: 2.0-opencv5.6.0
   ```
   > Full list of supported appium+opencv images can be found here: https://gallery.ecr.aws/zebrunner/appium
-* Update `roles/devices/vars/main.yml` file according to the obligatory/optional comments inside.
+
+### Linux OS
+* update `roles/devices/vars/main.yml` file according to the obligatory/optional comments inside.
   > Register all whitelisted Android and iOS devices with their udids!
 * Run ansible-playbook script to download the required components and set up udev rules:
   ```
@@ -50,6 +54,29 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
  * Devices management script is deployed to /usr/local/bin/zebrunner-farm.
  * Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules.
  * Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
+ * Usbmuxd service is stopped and masked (disabled).
+
+### Mac OS
+* update `roles/mac-devices/vars/main.yml` file according to the obligatory/optional comments inside.
+  > Register all whitelisted iOS devices (phones, tablets or TVes) with their udids!
+  > Important! Only iOS devices supported on MacOS!
+* Run ansible-playbook script to download the required components and set up udev rules:
+  ```
+  ansible-playbook -vvv -i hosts mac-devices.yml
+  ```
+  > To reregister the devices list only, you can use the following command:
+  ```
+  ansible-playbook -vvv -i hosts mac-devices.yml --tag registerDevices
+  ```
+  > To provide extra arguments including sudo permissions, you can use the below command:
+  ```
+  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD" mac-devices.yml
+  ```
+ * Devices management script is deployed to /usr/local/bin/zebrunner-farm.
+ * Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
+ * Deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist to share usbmuxd into the device containers
+ * Deployed $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist to load and manage iOS devices connect/disconnect automatically
+
    
 ## Usage
 
@@ -60,68 +87,14 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 ### iOS devices
 
-#### Mask usbmuxd service
-
-```
-sudo systemctl mask usbmuxd
-sudo systemctl status usbmuxd
-->
-● usbmuxd.service
-   Loaded: masked (/dev/null; bad)
-   Active: inactive (dead)
-```
-
-#### [Optional] Supervise device 
-
-You need a supervised iOS device to be able to accept "Trust" alert messages automatically while reconnecting.
-
-For non-supervised iOS devices, just click "Trust" (supervision setting can be skipped).
-
- ##### Erase all the content and exit from iCloud ID on the iOS device
-
-- Go to -> Settings -> General -> Transfer or Reset iPhone.
-- Tap Erase All Content and Settings.
-- When iPhone restarts with all the content and settings erased, you'll see the option to set up an iPhone as new.
-  
- #### Create an organization
-  
-1. Downloand Apple Configurator 2 from Apple Store.
-2. Open Apple Configurator 2.
-3. Pick Apple Configurator -> Preferences -> Organizations -> Create new Organizations
-   -> Fill in all the fields.
-   
- ####  Export Supervision Identity p12 file
-
-1. Pick Apple Configurator -> Preferences -> Organizations -> Select Organisation -> Export Supervision identity -> Click Save.
-2. Enter the password -> Click Save.
-3. Open p12 file -> Enter the password -> Open Apple Configurator certificate -> Сheck all the boxes "Always Trust".
-4. Put p12 file to mcloud-agent and share via P12FILE and P12PASSWORD variables in roles/devices/vars/main.yml file.
-5. Run ansible script:
- - ansible-playbook -vvv -i hosts devices.yml --tag registerDevices
-> Supervised devices should be trusted automatically after a physical reconnection.   
-   
- #### Connect the device
- > Prepare all iOS devices one by one!
-1. Connect the device to Mac OS (Trust manually).
-2. Click on the connected iOS device and press Prepare.
-3. Obligatory actions to provision:
-- Apply manual configuration,
-- Supervise devices,
-- Allow devices to pair with a computer.
-4. Click Next.
-5. Select "Do not enroll in MDM Enroll" in MDM Server, click Next.
-6. Select your organization.
-7. Select "Show all steps" on Configure iOS Setup Assistant.
-8. Click Prepare.
-9. Set up the iPhone as new.
-
 #### Automation steps
 
 * Enable Settings -> Developer -> Enable UI Automation.
 * Settings -> Safari -> Advanced -> Web Inspector.
 * Enable Siri.
 
-#### Prepare WebDriverAgent.ipa file
+
+#### Build WebDriverAgent.ipa
 
 You need an Apple Developer account to sign in and build **WebDriverAgent**.
 
@@ -137,7 +110,8 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
 7. Finally, zip up the project as an *.ipa file:
  **zip -r WebDriverAgent.ipa ./Payload**
    > Make sure to specify relative `./Payload` to archive only Payload folder content 
-8. Get the WebDriverAgent.ipa file, put it onto the corrent host and share via WDA_IPA_PATH variable in the roles/devices/vars/main.yml file.
+8. Share built ipa via WDA_FILE variable in roles/devices/vars/main.yml file.
+   > to override WDA_FILE artifacts per each device use `wda_file` and `wda_bundleid` iOS device properties and re-execute ansible playbook.
 
 
 ### SmartTestFarm
@@ -166,6 +140,8 @@ Follow the below algorithm to identify any configuration issues with MCloud agen
   docker logs -f device-<Name>-<udid>-appium
   // STF provider container:
   docker logs -f device-<Name>-<udid>
+  // artifacts uploader container:
+  docker logs -f device-<Name>-<udid>-uploader
   ```
 
 ## Documentation and free support

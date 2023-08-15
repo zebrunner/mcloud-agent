@@ -12,16 +12,19 @@ STF_RETHINKDB: tcp://rethinkdb:28015
 STF_PROVIDER_CONNECT_SUB: tcp://stf-triproxy-dev:7250
 STF_PROVIDER_CONNECT_PUSH: tcp://stf-triproxy-dev:7270
 
+STF_PROVIDER_CONNECT_APP_DEALER: tcp://stf-triproxy-app:7160
+STF_PROVIDER_CONNECT_DEV_DEALER: tcp://stf-triproxy-dev:7260
+
 # [OPTIONAL] Set host address and port of mcloud-grid container: https://github.com/zebrunner/mcloud/blob/8442bceec096f886c02bf84a39816f10c694ad9e/docker-compose.yml#L17
 # IMPORTANT! make sure to use valid hostname and port if it is located on different host.
 SELENIUM_HUB_HOST: mcloud-grid
 SELENIUM_HUB_PORT: 4444
 
 # [OBLIGATORY] Set host address of current STF provider server. It should be resolvable and accessible from the PUBLIC_IP!
-STF_PROVIDER_HOST: linux-agent.zebrunner.farm
+STF_PROVIDER_HOST: macos-agent.zebrunner.farm
 
 # [OPTIONAL] provider/location name for devices. Use short city name like NYC
-STF_PROVIDER_NAME: mcloud-linux
+STF_PROVIDER_NAME: mcloud-macos
 
 # [OPTIONAL] S3 compatible storage for video recordings.
 S3_BUCKET:
@@ -46,23 +49,15 @@ WDA_FILE:
 WDA_BUNDLEID:
 
 # [OBLIGATORY] Declare valid devices metadata
-# - id: device udid which is shown by `adb devices`
+# - id: device udid which is shown by `ios list`
 #   name: devce name as it will be registered in STF (avoid special symbols and spaces!)
 #   appium_port: unique port value for sharing appium services from the container to outside selenium hub
-#   adb_port: unique port value for sharing adb server from the device appium container to outside
+#   adb_port: unique connect port value (old adb_port name is used from Android implementation)
 #   proxy_port: unique port value to configure emebedded proxy (they can be used in integration with Carina traffic sniffering fucntionality: https://zebrunner.github.io/carina/advanced/proxy/)
 #   min_port and max_port: unique range of 7 ports per device for system STF purposes. These ports on STF_PROVIDER_HOST should be accessible from client's browser otherwise gray screen, no remote adb connect etc.
 
 #TODO: convert adb_port to connect_port to support iOS as well
 devices:
-  - id: R28M1384YQY
-    os: android
-    name: Samsung_Galaxy_S10
-    appium_port: 7421
-    adb_port: 7422
-    proxy_port: 7423
-    min_port: 7424
-    max_port: 7430
   - id: d6afc6b3a65584ca0813eb8957c6479b9b6ebb11
     os: ios
     name: iPhone_8_Plus
