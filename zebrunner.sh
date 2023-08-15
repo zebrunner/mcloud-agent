@@ -68,9 +68,9 @@
       exit
     fi
 
-    if [ -f $HOME/Library/LaunchAgents/ZebrunnerDevicesManager.plist ]; then
-      launchctl unload $HOME/Library/LaunchAgents/ZebrunnerDevicesManager.plist
-      rm -f $HOME/Library/LaunchAgents/ZebrunnerDevicesManager.plist
+    if [ -f $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist ]; then
+      launchctl unload $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist
+      rm -f $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist
     fi
 
     if [ -f $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist ]; then
