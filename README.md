@@ -11,7 +11,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 |                         	| Requirements                                                     	|
 |:-----------------------:	|------------------------------------------------------------------	|
-| <b>Operating System</b> 	| Ubuntu 16.04, 18.04, 20.04, 21.04, 22.04 <br>Linux CentOS 7+<br>Amazon Linux2|
+| <b>Operating System</b> 	| Ubuntu 16.04, 18.04, 20.04, 21.04, 22.04 <br>Linux CentOS 7+<br>Amazon Linux2<br> MAC OS (Ventura)|
 | <b>       CPU      </b> 	| 8+ Cores                                                         	|
 | <b>      Memory    </b> 	| 32 Gb RAM                                                        	|
 | <b>    Free space  </b> 	| SSD 128Gb+ of free space                                         	|
@@ -19,7 +19,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 ## Software prerequisites
 * Install docker ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-20-04), [Amazon Linux 2](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/docker-basics.html), [Redhat/Cent OS](https://www.cyberciti.biz/faq/install-use-setup-docker-on-rhel7-centos7-linux/)).
 * Install 2.9.6+ ansible ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-20-04)).
-* Install usbmuxd service to be able to connect iOS devices
+* Linux: install usbmuxd service to be able to connect iOS devices
 
 ## Clone and setup
 * Clone mcloud-agent repository and execute setup procedure
@@ -30,12 +30,14 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
   ```
 
 ## Run ansible playbook
-* [Optional] To enable opencv support append `-opencv4.16.0` postfix to the `APPIUM_VERSION` in the ./defaults/main.yml:
+* [Optional] To enable opencv support append `-opencv5.6.0` postfix to the `APPIUM_VERSION` in the ./defaults/main.yml:
   ```
-  APPIUM_VERSION: 1.4.11-opencv4.16.0
+  APPIUM_VERSION: 2.0-opencv5.6.0
   ```
   > Full list of supported appium+opencv images can be found here: https://gallery.ecr.aws/zebrunner/appium
-* Update `roles/devices/vars/main.yml` file according to the obligatory/optional comments inside.
+
+### Linux OS
+* update `roles/devices/vars/main.yml` file according to the obligatory/optional comments inside.
   > Register all whitelisted Android and iOS devices with their udids!
 * Run ansible-playbook script to download the required components and set up udev rules:
   ```
@@ -53,6 +55,27 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
  * Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules.
  * Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
  * Usbuxd service is stopped and masked (disabled).
+
+### Mac OS
+* update `roles/mac-devices/vars/main.yml` file according to the obligatory/optional comments inside.
+  > Register all whitelisted iOS devices (phones, tablets or TVes) with their udids!
+  > Important! Only iOS devices supported on MacOS!
+* Run ansible-playbook script to download the required components and set up udev rules:
+  ```
+  ansible-playbook -vvv -i hosts mac-devices.yml
+  ```
+  > To reregister the devices list only, you can use the following command:
+  ```
+  ansible-playbook -vvv -i hosts mac-devices.yml --tag registerDevices
+  ```
+  > To provide extra arguments including sudo permissions, you can use the below command:
+  ```
+  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD" mac-devices.yml
+  ```
+ * Devices management script is deployed to /usr/local/bin/zebrunner-farm.
+ * Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
+ * Deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist to share usbmuxd into the device containers
+ * Deployed $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist to load and manage iOS devices connect/disconnect automatically
 
    
 ## Usage
