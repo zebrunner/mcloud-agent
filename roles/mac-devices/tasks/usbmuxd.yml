@@ -1,7 +1,7 @@
 ---
 
-- name: Check if roles/devices/vars/main.yml file is generated
-  stat: path=roles/devices/vars/main.yml
+- name: Check if roles/mac-devices/vars/main.yml file is generated
+  stat: path=roles/mac-devices/vars/main.yml
   register: main_yml
 
 - name: Verify Setup
