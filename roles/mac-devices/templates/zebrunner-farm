@@ -20,7 +20,7 @@ on-usb-update() {
   do
       #process $REPLY
       #The new line content is in the variable $REPLY
-      #echo REPLY: $REPLY
+      echo REPLY: $REPLY
 
       # message on device connect
       # {"MessageType":"Attached","DeviceID":27,"Properties":{"ConnectionSpeed":480000000,"ConnectionType":"USB","DeviceID":27,"LocationID":336592896,"ProductID":4776,"SerialNumber":"b09fa26acc4c3f777e9b8b49e3348b7243f862b5"}}
@@ -36,11 +36,15 @@ on-usb-update() {
         echo REPLY: $REPLY
         # parse udid and start services
         udid=`echo $REPLY | jq -r ".Properties.SerialNumber"`
-        #echo udid: $udid
+        echo udid: $udid
 
         local devices=/usr/local/bin/mcloud-devices.txt
         local device_name=`cat ${devices} | grep "$udid" | cut -d '|' -f 1`
-        #echo "device_name: $device_name"
+        echo "device_name: $device_name"
+        if [ -z $device_name ]; then
+          echo "$udid device is not whitelisted in main.yml!"
+          break
+        fi
  
         verify_containers ${device_name} $udid
         if [ $? -eq 0 ]; then
@@ -48,6 +52,7 @@ on-usb-update() {
           return 0
         fi
 
+        echo "zebrunner-farm restart $udid..."
         zebrunner-farm restart $udid
       fi
 
@@ -121,9 +126,10 @@ function create_containers () {
       S3_KEY_PATTERN=s3://{{ S3_BUCKET }}/artifacts/test-sessions
     fi
 
-  if [ $platform_name == "android" ]; then
+  echo platform_name: $platform_name
+  if [ "$platform_name" == "android" ]; then
     echo "Unsuported yet on MacOS!"
-  elif [ $platform_name == "ios" ]; then
+  elif [ "$platform_name" == "ios" ]; then
 
     #TODO: comment echoing wda related detailes before release
     local wdaIpaPath={{ WDA_FILE }}
@@ -148,9 +154,6 @@ function create_containers () {
       wdaBundleId="com.facebook.WebDriverAgentRunner.xctrunner"
     fi
 
-#        -v device-${device_name}-${udid}-lockdown:/var/lib/lockdown \
-
-    # TODO: run our appium container tuned for iOS. Combine later into the single run command
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
 	-v /private/var/db/lockdown:/var/lib/lockdown \
@@ -194,7 +197,7 @@ function create_containers () {
 	-e AWS_DEFAULT_REGION={{ S3_REGION }} \
         {{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }} || echo 'already created'
 
-    #TODO: invetsigate if we need linking with appium container for iOS
+    # Linking with apppium required to share usbmuxd via socat
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
 	 -e USBMUXD_SOCKET_ADDRESS={{ USBMUXD_SOCKET_ADDRESS }} \
         --restart on-failure \
@@ -329,14 +332,14 @@ function verify_containers() {
   local container=device-$device-$udid
   local state=
 
-  local stfState="REMOVED"
+  local stfState="STOPPED"
   #verify if device containers already exist and do nothing then
   docker ps -a | grep -v appium | grep -v uploader | grep $container > /dev/null
   if [ $? -eq 0 ]; then
     stfState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container`
   fi
 
-  local appiumState="REMOVED"
+  local appiumState="STOPPED"
   docker ps -a | grep appium | grep $container > /dev/null
   if [ $? -eq 0 ]; then
     appiumState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container-appium`
