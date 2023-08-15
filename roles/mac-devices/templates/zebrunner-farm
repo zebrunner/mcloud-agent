@@ -126,10 +126,8 @@ function create_containers () {
       S3_KEY_PATTERN=s3://{{ S3_BUCKET }}/artifacts/test-sessions
     fi
 
-  echo platform_name: $platform_name
-  if [ "$platform_name" == "android" ]; then
-    echo "Unsuported yet on MacOS!"
-  elif [ "$platform_name" == "ios" ]; then
+  #echo platform_name: $platform_name
+  if [ "$platform_name" == "ios" ]; then
 
     local wdaIpaPath={{ WDA_FILE }}
     local deviceWdaIpaPath=`cat ${devices} | grep "$udid" | cut -d '|' -f 10`
@@ -218,7 +216,7 @@ function create_containers () {
         -e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \
 	{{ DEVICE_IMAGE }}:{{DEVICE_VERSION }} || echo 'already created'
   else
-    echo "ERROR! platform_name is not valid: ${platform_name}"
+    echo "ERROR! Unsupported platform: ${platform_name}"
   fi
 }
 

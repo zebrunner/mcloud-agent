@@ -161,7 +161,6 @@ function create_containers () {
       wdaBundleId="com.facebook.WebDriverAgentRunner.xctrunner"
     fi
 
-    # TODO: run our appium container tuned for iOS. Combine later into the single run command
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
         --restart on-failure \
@@ -203,7 +202,7 @@ function create_containers () {
 	-e AWS_DEFAULT_REGION={{ S3_REGION }} \
         {{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }} || echo 'already created'
 
-    #TODO: invetsigate if we need linking with appium container for iOS
+    # Linking with apppium required to share usbmuxd via socat
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
         --restart on-failure \
         --link device-${device_name}-${udid}-appium:appium \
@@ -224,7 +223,7 @@ function create_containers () {
         -e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \
 	{{ DEVICE_IMAGE }}:{{DEVICE_VERSION }} || echo 'already created'
   else
-    echo "ERROR! platform_name is not valid: ${platform_name}"
+    echo "ERROR! Unsupported platform: ${platform_name}"
   fi
 }
 
