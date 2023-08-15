@@ -259,10 +259,10 @@ function stop_containers() {
   local container=device-$device-$udid
   echo
   echo "$container stopping..."
-  docker logs $container > /tmp/$container.log 2>&1
-  docker stop $container
-  docker logs $container-appium > /tmp/$container-appium.log 2>&1
+  # appium should be stopped first to disconnect in STF asap
   docker stop $container-appium
+  docker stop $container
+  docker stop $container-uploader
 }
 
 function down() {
@@ -299,15 +299,16 @@ function remove_containers() {
 
   local container=device-$device-$udid
   #echo "$container removing..."
-  #verify if device containers already exist and do nothing then
+  # remove container(s) only if exists
+  docker ps -a | grep appium | grep $container > /dev/null
+  if [ $? -eq 0 ]; then
+    # remove appium first to disconnect device in stf asap
+    docker rm -f $container-appium
+  fi
+
   docker ps -a | grep -v appium | grep $container > /dev/null
   if [ $? -eq 0 ]; then
     docker rm -f $container
-  fi
-
-  docker ps -a | grep appium | grep $container > /dev/null
-  if [ $? -eq 0 ]; then
-    docker rm -f $container-appium
   fi
 
   docker ps -a | grep uploader | grep $container > /dev/null
@@ -332,14 +333,14 @@ function verify_containers() {
   local container=device-$device-$udid
   local state=
 
-  local stfState="STOPPED"
+  local stfState="UNKNOWN"
   #verify if device containers already exist and do nothing then
   docker ps -a | grep -v appium | grep -v uploader | grep $container > /dev/null
   if [ $? -eq 0 ]; then
     stfState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container`
   fi
 
-  local appiumState="STOPPED"
+  local appiumState="UNKNOWN"
   docker ps -a | grep appium | grep $container > /dev/null
   if [ $? -eq 0 ]; then
     appiumState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container-appium`
@@ -379,8 +380,6 @@ function start() {
     create_containers ${device_name} ${udid}
     start_containers ${device_name} ${udid}
   else
-    launchctl load $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist > /dev/null 2>&1
-
     while read -r line
     do
       local device_name=`echo ${line} | grep "$filter_device" | cut -d '|' -f 1`
@@ -390,6 +389,9 @@ function start() {
       create_containers ${device_name} ${udid}
       start_containers ${device_name} ${udid}
     done < ${devices}
+
+   # do listener load only after creating last container otherwise listener starts in parallel
+   launchctl load $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist > /dev/null 2>&1
   fi
 }
 
@@ -406,6 +408,7 @@ function start_containers() {
   echo "$container starting..."
   docker start $container
   docker start $container-appium
+  docker start $container-uploader
 }
 
 function status() {
