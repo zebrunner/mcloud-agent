@@ -24,16 +24,16 @@
 
   setup() {
     if [ -f roles/devices/vars/main.yml ]; then
-      echo "Skip roles/devices/vars/main.yml override as file already present!"
-    else
-      cp roles/devices/vars/main.yml.original roles/devices/vars/main.yml
+      echo "roles/devices/vars/main.yml already exists, making a backup roles/devices/vars/main.yml.bak"
+      cp roles/devices/vars/main.yml roles/devices/vars/main.yml.bak
     fi
+    cp roles/devices/vars/main.yml.original roles/devices/vars/main.yml
 
     if [ -f roles/mac-devices/vars/main.yml ]; then
-      echo "Skip roles/mac-devices/vars/main.yml override as file already present!"
-    else
-      cp roles/mac-devices/vars/main.yml.original roles/mac-devices/vars/main.yml
+      echo "roles/mac-devices/vars/main.yml already exists, making a backup roles/mac-devices/vars/main.yml.bak"
+      cp roles/mac-devices/vars/main.yml roles/mac-devices/vars/main.yml.bak
     fi
+    cp roles/mac-devices/vars/main.yml.original roles/mac-devices/vars/main.yml
 
     if [ -d $HOME/Library/LaunchAgents ] && [ ! -f $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist ]; then
       # register devices manager to manage attach/reboot actions
