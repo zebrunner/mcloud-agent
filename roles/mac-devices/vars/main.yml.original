@@ -24,7 +24,7 @@ SELENIUM_HUB_PORT: 4444
 STF_PROVIDER_HOST: demo.zebrunner.farm
 
 # [OPTIONAL] provider/location name for devices. Use short city name like NYC
-STF_PROVIDER_NAME: mcloud-android
+STF_PROVIDER_NAME: mcloud-macos
 
 # [OPTIONAL] S3 compatible storage for video recordings.
 S3_BUCKET:
