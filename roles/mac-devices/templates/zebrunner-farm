@@ -131,10 +131,9 @@ function create_containers () {
     echo "Unsuported yet on MacOS!"
   elif [ "$platform_name" == "ios" ]; then
 
-    #TODO: comment echoing wda related detailes before release
     local wdaIpaPath={{ WDA_FILE }}
     local deviceWdaIpaPath=`cat ${devices} | grep "$udid" | cut -d '|' -f 10`
-    echo "deviceWdaIpaPath: $deviceWdaIpaPath"
+    #echo "deviceWdaIpaPath: $deviceWdaIpaPath"
     if [ ! -z $deviceWdaIpaPath ] && [ ! "$deviceWdaIpaPath" == "/dev/null" ]; then
       wdaIpaPath=$deviceWdaIpaPath
     fi
@@ -145,7 +144,7 @@ function create_containers () {
 
     local wdaBundleId={{ WDA_BUNDLEID }}
     local deviceWdaBundleId=`cat ${devices} | grep "$udid" | cut -d '|' -f 11`
-    echo "deviceWdaBundleId: $deviceWdaBundleId"
+    #echo "deviceWdaBundleId: $deviceWdaBundleId"
     if [ ! -z $deviceWdaBundleId ]; then
       wdaBundleId=$deviceWdaBundleId
     fi
