@@ -1,5 +1,5 @@
 ---
 
-- name: Configurate device
+- name: Configure device on MacOS
   include: usbmuxd.yml
   tags: registerDevices
