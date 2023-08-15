@@ -14,7 +14,3 @@
 
 - name: copy devices details
   template: src=mcloud-devices.txt dest=/usr/local/bin/
-
-#- name: Mask usbmuxd service
-#  command: systemctl mask usbmuxd && systemctl stop usbmuxd && systemctl status usbmuxd
-#  ignore_errors: true
