@@ -23,6 +23,9 @@ SELENIUM_HUB_PORT: 4444
 # [OBLIGATORY] Set host address of current STF provider server. It should be resolvable and accessible from the PUBLIC_IP!
 STF_PROVIDER_HOST: macos-agent.zebrunner.farm
 
+# [OBLIGATORY] Set host address of current STF provider server and 2222 port as default. We start socat listener and share usbmuxd into the containers
+USBMUXD_SOCKET_ADDRESS: macos-agent.zebrunner.farm:2222
+
 # [OPTIONAL] provider/location name for devices. Use short city name like NYC
 STF_PROVIDER_NAME: mcloud-macos
 
