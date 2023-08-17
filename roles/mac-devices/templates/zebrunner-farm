@@ -175,10 +175,6 @@ function create_containers () {
         -e DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
         -e ADB_PORT=$device_adb_port \
         -e PROXY_PORT=$proxy_port \
-        -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
-	-e STF_PROVIDER_CONNECT_APP_DEALER={{ STF_PROVIDER_CONNECT_APP_DEALER }} \
-	-e STF_PROVIDER_CONNECT_DEV_DEALER={{ STF_PROVIDER_CONNECT_DEV_DEALER }} \
-        -e STF_PROVIDER_MAX_PORT=$stf_max_port \
         -e APPIUM_PORT=$appium_port \
         -p $appium_port:$appium_port \
         -e RELAXED_SECURITY=true \
@@ -206,13 +202,16 @@ function create_containers () {
         -e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
         -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
         -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}" \
-        -e STF_PROVIDER_MIN_PORT=$stf_min_port -e STF_PROVIDER_MAX_PORT=$stf_max_port \
+        -e STF_PROVIDER_MIN_PORT=$stf_min_port \
+	-e STF_PROVIDER_MAX_PORT=$stf_max_port \
         -p $stf_min_port-$stf_max_port:$stf_min_port-$stf_max_port \
         -e STF_PROVIDER_PUBLIC_IP={{ PUBLIC_IP }} \
         -e PUBLIC_IP_PORT={{ PUBLIC_IP_PORT }} \
         -e PUBLIC_IP_PROTOCOL={{ PUBLIC_IP_PROTOCOL }} \
         -e STF_PROVIDER_CONNECT_SUB={{ STF_PROVIDER_CONNECT_SUB }} \
         -e STF_PROVIDER_CONNECT_PUSH={{ STF_PROVIDER_CONNECT_PUSH }} \
+        -e STF_PROVIDER_CONNECT_APP_DEALER={{ STF_PROVIDER_CONNECT_APP_DEALER }} \
+        -e STF_PROVIDER_CONNECT_DEV_DEALER={{ STF_PROVIDER_CONNECT_DEV_DEALER }} \
         -e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \
 	{{ DEVICE_IMAGE }}:{{DEVICE_VERSION }} || echo 'already created'
   else
