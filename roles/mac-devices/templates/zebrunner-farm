@@ -169,6 +169,7 @@ function create_containers () {
         -e RETAIN_TASK=true \
         -e CONNECT_TO_GRID=true \
         -e CUSTOM_NODE_CONFIG=true \
+	-e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
         -e APPIUM_HOST=${device_name}-appium \
         -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
 	-e DEFAULT_CAPABILITIES=true \
