@@ -153,7 +153,6 @@ function create_containers () {
 
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
-	-v /private/var/db/lockdown:/var/lib/lockdown \
 	-e USBMUXD_SOCKET_ADDRESS={{ USBMUXD_SOCKET_ADDRESS }} \
         --restart on-failure \
 	-v appium-storage-volume:/opt/appium-storage \
