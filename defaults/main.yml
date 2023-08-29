@@ -3,7 +3,7 @@ DEVICE_IMAGE: public.ecr.aws/zebrunner/mcloud-device
 DEVICE_VERSION: 2.5.2
 
 APPIUM_IMAGE: public.ecr.aws/zebrunner/appium
-APPIUM_VERSION: 2.0.2
+APPIUM_VERSION: 2.0.3
 
 UPLOADER_IMAGE: public.ecr.aws/zebrunner/uploader
 UPLOADER_VERSION: 3.1
