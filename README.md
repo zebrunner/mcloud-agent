@@ -55,6 +55,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
  * Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules.
  * Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
  * Usbmuxd service is stopped and masked (disabled).
+ * [Optional] Register`@reboot /usr/local/bin/zebrunner-farm restart` via crontab to forcibly restart containers on reboot
 
 ### Mac OS
 * update `roles/mac-devices/vars/main.yml` file according to the obligatory/optional comments inside.
