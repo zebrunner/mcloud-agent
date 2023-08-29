@@ -119,11 +119,16 @@ function create_containers () {
 
     docker network inspect ${net} >/dev/null 2>&1 || docker network create ${net}
 
+    local S3_KEY_PATTERN=
     local TENANT={{ S3_TENANT }}
-    S3_KEY_PATTERN=s3://{{ S3_BUCKET }}/{{ S3_TENANT }}/artifacts/test-sessions
-    if [ -z $TENANT ]; then
+    local BUCKET={{ S3_BUCKET }}
+    if [ -z $TENANT ] && [ ! -z $BUCKET ] ; then
       # use-case with embedded minio storage
-      S3_KEY_PATTERN=s3://{{ S3_BUCKET }}/artifacts/test-sessions
+      S3_KEY_PATTERN=s3://$BUCKET/artifacts/test-sessions
+    fi
+
+    if [ ! -z $TENANT ] && [ ! -z $BUCKET ] ; then
+      S3_KEY_PATTERN=s3://$BUCKET/$TENANT/artifacts/test-sessions
     fi
 
   #echo platform_name: $platform_name
