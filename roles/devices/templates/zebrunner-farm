@@ -94,8 +94,6 @@ function create_containers () {
 	-e PLATFORM_NAME=$platform_name \
 	-e DEVICE_UDID=$udid \
         -e RETAIN_TASK=true \
-	-e REMOTE_ADB=false \
-	-e EXIT_ON_ADB_FAILURE=1 \
 	-e CONNECT_TO_GRID=true \
 	-e CUSTOM_NODE_CONFIG=true \
 	-e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
