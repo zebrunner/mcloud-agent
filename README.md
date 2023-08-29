@@ -11,7 +11,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 |                         	| Requirements                                                     	|
 |:-----------------------:	|------------------------------------------------------------------	|
-| <b>Operating System</b> 	| Ubuntu 16.04, 18.04, 20.04, 21.04, 22.04 <br>Linux CentOS 7+<br>Amazon Linux2<br> MAC OS (Ventura)|
+| <b>Operating System</b> 	| Ubuntu 16.04, 18.04, 20.04, 21.04, 22.04 <br>Linux CentOS 7+<br>Amazon Linux2<br> MacOS (Ventura)|
 | <b>       CPU      </b> 	| 8+ Cores                                                         	|
 | <b>      Memory    </b> 	| 32 Gb RAM                                                        	|
 | <b>    Free space  </b> 	| SSD 128Gb+ of free space                                         	|
@@ -20,6 +20,9 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * Install docker ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-20-04), [Amazon Linux 2](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/docker-basics.html), [Redhat/Cent OS](https://www.cyberciti.biz/faq/install-use-setup-docker-on-rhel7-centos7-linux/)).
 * Install 2.9.6+ ansible ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-20-04)).
 * Linux: install usbmuxd service to be able to connect iOS devices
+* MacOS: install and authorize [go-ios](https://github.com/danielpaulus/go-ios) utility 1.0.115+
+* MacOS: install socat utility to share usbmuxd websocket into the device containers `brew install socat`
+* MacOS: install jq utility `brew install jq`
 
 ## Clone and setup
 * Clone mcloud-agent repository and execute setup procedure
@@ -55,6 +58,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
  * Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules.
  * Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
  * Usbmuxd service is stopped and masked (disabled).
+ * [Optional] Register`@reboot /usr/local/bin/zebrunner-farm restart` via crontab to forcibly restart containers on reboot
 
 ### Mac OS
 * update `roles/mac-devices/vars/main.yml` file according to the obligatory/optional comments inside.

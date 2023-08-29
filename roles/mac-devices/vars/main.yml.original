@@ -53,10 +53,10 @@ WDA_BUNDLEID:
 
 # [OBLIGATORY] Declare valid devices metadata
 # - id: device udid which is shown by `ios list`
-#   name: devce name as it will be registered in STF (avoid special symbols and spaces!)
+#   name: device name as it will be registered in STF (avoid special symbols and spaces!)
 #   appium_port: unique port value for sharing appium services from the container to outside selenium hub
 #   adb_port: unique connect port value (old adb_port name is used from Android implementation)
-#   proxy_port: unique port value to configure emebedded proxy (they can be used in integration with Carina traffic sniffering fucntionality: https://zebrunner.github.io/carina/advanced/proxy/)
+#   proxy_port: unique port value to configure embedded proxy (they can be used in integration with Carina traffic sniffering functionality: https://zebrunner.github.io/carina/advanced/proxy/)
 #   min_port and max_port: unique range of 7 ports per device for system STF purposes. These ports on STF_PROVIDER_HOST should be accessible from client's browser otherwise gray screen, no remote adb connect etc.
 
 #TODO: convert adb_port to connect_port to support iOS as well
