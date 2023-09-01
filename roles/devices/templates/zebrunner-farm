@@ -108,7 +108,6 @@ function create_containers () {
         -v device-${device_name}-${udid}:/tmp/log \
 	-e TASK_LOG=/tmp/log/appium.log \
 	-e PLATFORM_NAME=$platform_name \
-	-e DEVICE_UDID=$udid \
 	-e ANDROID_DEVICE=$ANDROID_DEVICE \
         -e RETAIN_TASK=true \
 	-e CONNECT_TO_GRID=true \
@@ -117,7 +116,7 @@ function create_containers () {
 	-e APPIUM_HOST=${device_name}-appium \
         -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
         -e DEFAULT_CAPABILITIES=true \
-	-e DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
+	-e DEVICE_NAME="${device_name}" -e DEVICE_UDID="$STF_DEVICE_UDID" \
 	-e ADB_PORT=$device_adb_port \
 	-e PROXY_PORT=$proxy_port \
 	-e APPIUM_PORT=$appium_port \
@@ -194,7 +193,6 @@ function create_containers () {
 	-e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
 	-v ${wdaIpaPath}:/tmp/zebrunner/WebDriverAgent.ipa \
         -e PLATFORM_NAME=$platform_name \
-        -e DEVICE_UDID=$udid \
         -e RETAIN_TASK=true \
         -e CONNECT_TO_GRID=true \
         -e CUSTOM_NODE_CONFIG=true \
