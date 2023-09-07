@@ -96,8 +96,8 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * Enable Settings -> Developer -> Enable UI Automation.
 * Settings -> Safari -> Advanced -> Web Inspector.
 * Enable Siri.
-* Disable screen lock:
-  > Phone and Tablet: Settings->Lock screen->Turn display off when inactive->select Never
+* Disable screen lock:<br>
+  > Phone and Tablet: Settings->Lock screen->Turn display off when inactive->select Never<br>
   > Apple TV: Settings->General->Sleep after->Select never
 
 #### Build WebDriverAgent.ipa
