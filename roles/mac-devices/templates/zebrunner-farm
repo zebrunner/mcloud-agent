@@ -161,7 +161,7 @@ function create_containers () {
     fi
 
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
-    docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
+    docker run -itd --name device-${device_name}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
 	-e USBMUXD_SOCKET_ADDRESS={{ USBMUXD_SOCKET_ADDRESS }} \
         --restart on-failure \
 	-v appium-storage-volume:/opt/appium-storage \
@@ -189,7 +189,7 @@ function create_containers () {
         -e RELAXED_SECURITY=true \
         {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}
 
-    docker run -d --name device-${device_name}-${udid}-uploader --net=${net} \
+    docker run -d --name device-${device_name}-${udid}-uploader --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
         --restart on-failure \
         -v device-${device_name}-${udid}:/tmp/log \
         -e ENDPOINT_URL={{ S3_ENDPOINT }} \
@@ -200,7 +200,7 @@ function create_containers () {
         {{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }} || echo 'already created'
 
     # Linking with apppium required to share usbmuxd via socat
-    docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
+    docker run -d --name device-${device_name}-${udid} --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
         -e USBMUXD_SOCKET_ADDRESS={{ USBMUXD_SOCKET_ADDRESS }} \
         --restart on-failure \
         --link device-${device_name}-${udid}-appium:appium \
