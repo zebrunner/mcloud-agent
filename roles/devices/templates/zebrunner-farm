@@ -100,7 +100,7 @@ function create_containers () {
 
   if [ $platform_name == "android" ]; then
     #TODO: parametrized relaxed security, make false by default!
-    docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
+    docker run -itd --name device-${device_name}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
         --restart on-failure $DEVICE_ARG \
         -v mcloud-key-volume:/root/.android \
 	-v appium-storage-volume:/opt/appium-storage \
@@ -124,7 +124,7 @@ function create_containers () {
         -e RELAXED_SECURITY=true \
         {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }} || echo 'already created'
 
-    docker run -d --name device-${device_name}-${udid}-uploader --net=${net} \
+    docker run -d --name device-${device_name}-${udid}-uploader --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
         --restart on-failure \
         -v device-${device_name}-${udid}:/tmp/log \
         -e ENDPOINT_URL={{ S3_ENDPOINT }} \
@@ -135,7 +135,7 @@ function create_containers () {
         {{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }} || echo 'already created'
 
 
-    docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
+    docker run -d --name device-${device_name}-${udid} --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
 	--link device-${device_name}-${udid}-appium:appium \
 	-e STF_PROVIDER_ADB_HOST=appium \
 	--health-start-period 60s \
@@ -180,7 +180,7 @@ function create_containers () {
     fi
 
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
-    docker run -itd --name device-${device_name}-${udid}-appium --network ${net} \
+    docker run -itd --name device-${device_name}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
         --restart on-failure \
 	-v appium-storage-volume:/opt/appium-storage \
 	-v mcloud-storage-volume:/opt/zebrunner \
@@ -208,7 +208,7 @@ function create_containers () {
         -e RELAXED_SECURITY=true \
         {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}
 
-    docker run -d --name device-${device_name}-${udid}-uploader --net=${net} \
+    docker run -d --name device-${device_name}-${udid}-uploader --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
         --restart on-failure \
         -v device-${device_name}-${udid}:/tmp/log \
         -e ENDPOINT_URL={{ S3_ENDPOINT }} \
@@ -219,7 +219,7 @@ function create_containers () {
         {{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }} || echo 'already created'
 
     # Linking with apppium required to share usbmuxd via socat
-    docker run -d --name device-${device_name}-${udid} --log-opt max-size=50m -m 1g --net=${net} \
+    docker run -d --name device-${device_name}-${udid} --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
 	--restart on-failure \
 	--link device-${device_name}-${udid}-appium:appium \
 	-v mcloud-storage-volume:/opt/zebrunner \
