@@ -140,7 +140,6 @@ function create_containers () {
 
     local wdaIpaPath={{ WDA_FILE }}
     local deviceWdaIpaPath=`cat ${devices} | grep "$udid" | cut -d '|' -f 10`
-    #echo "deviceWdaIpaPath: $deviceWdaIpaPath"
     if [ ! -z $deviceWdaIpaPath ] && [ ! "$deviceWdaIpaPath" == "/dev/null" ]; then
       wdaIpaPath=$deviceWdaIpaPath
     fi
@@ -148,10 +147,10 @@ function create_containers () {
       # unable to use empty value for docker volume share!
       wdaIpaPath="/dev/null"
     fi
+    echo "wdaIpaPath: $wdaIpaPath"
 
     local wdaBundleId={{ WDA_BUNDLEID }}
     local deviceWdaBundleId=`cat ${devices} | grep "$udid" | cut -d '|' -f 11`
-    #echo "deviceWdaBundleId: $deviceWdaBundleId"
     if [ ! -z $deviceWdaBundleId ]; then
       wdaBundleId=$deviceWdaBundleId
     fi
@@ -159,6 +158,7 @@ function create_containers () {
       # provide default value if empty
       wdaBundleId="com.facebook.WebDriverAgentRunner.xctrunner"
     fi
+    echo "wdaBundleId: $wdaBundleId"
 
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     docker run -itd --name device-${device_name}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
