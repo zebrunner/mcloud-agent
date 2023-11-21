@@ -112,7 +112,6 @@ function create_containers () {
 	-e CONNECT_TO_GRID=true \
 	-e CUSTOM_NODE_CONFIG=true \
 	-e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
-	-e APPIUM_HOST=${device_name}-appium \
         -e APPIUM_APP_SIZE_DISABLE={{ APPIUM_APP_SIZE_DISABLE }} \
         -e APPIUM_APP_FETCH_RETRIES={{ APPIUM_APP_FETCH_RETRIES }} \
         -e APPIUM_MAX_LOCK_FILE_LIFETIME={{ APPIUM_MAX_LOCK_FILE_LIFETIME }} \
@@ -199,7 +198,6 @@ function create_containers () {
         -e CONNECT_TO_GRID=true \
         -e CUSTOM_NODE_CONFIG=true \
 	-e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
-        -e APPIUM_HOST=${device_name}-appium \
         -e APPIUM_APP_SIZE_DISABLE={{ APPIUM_APP_SIZE_DISABLE }} \
         -e APPIUM_APP_FETCH_RETRIES={{ APPIUM_APP_FETCH_RETRIES }} \
         -e APPIUM_MAX_LOCK_FILE_LIFETIME={{ APPIUM_MAX_LOCK_FILE_LIFETIME }} \
