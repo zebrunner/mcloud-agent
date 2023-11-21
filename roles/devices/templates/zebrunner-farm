@@ -261,7 +261,7 @@ function stop() {
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
 
-    stop_containers ${device_name} ${udid}
+    stop_containers ${device_name} ${udid} &
   else
     # as no device filter provided continue with stopping all device containers
     while read -r line
@@ -273,7 +273,7 @@ function stop() {
       local wireless=`echo ${line} | grep "$filter_device" | cut -d '|' -f 9`
 
       if [ -L "/dev/device-${device_name}-${udid}" ] || [ "$wireless" == "True" ]; then
-        stop_containers ${device_name} ${udid}
+        stop_containers ${device_name} ${udid} &
       fi
     done < ${devices}
   fi
@@ -305,7 +305,7 @@ function down() {
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
 
-    remove_containers ${device_name} ${udid}
+    remove_containers ${device_name} ${udid} &
   else
     while read -r line
     do
@@ -313,7 +313,7 @@ function down() {
       #echo "device_name: $device_name"
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
       #echo "udid: $udid"
-      remove_containers ${device_name} ${udid}
+      remove_containers ${device_name} ${udid} &
     done < ${devices}
   fi
 }

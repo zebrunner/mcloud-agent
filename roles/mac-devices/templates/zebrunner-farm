@@ -240,7 +240,7 @@ function stop() {
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
 
-    stop_containers ${device_name} ${udid}
+    stop_containers ${device_name} ${udid} &
   else
     launchctl unload $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist > /dev/null 2>&1
 
@@ -251,7 +251,7 @@ function stop() {
       #echo "device_name: $device_name"
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
       #echo "udid: $udid"
-      stop_containers ${device_name} ${udid}
+      stop_containers ${device_name} ${udid} &
     done < ${devices}
   fi
 }
@@ -282,7 +282,7 @@ function down() {
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
 
-    remove_containers ${device_name} ${udid}
+    remove_containers ${device_name} ${udid} &
   else
     launchctl unload $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist > /dev/null 2>&1
 
@@ -292,7 +292,7 @@ function down() {
       #echo "device_name: $device_name"
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
       #echo "udid: $udid"
-      remove_containers ${device_name} ${udid}
+      remove_containers ${device_name} ${udid} &
     done < ${devices}
   fi
 }
