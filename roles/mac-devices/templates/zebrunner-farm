@@ -253,6 +253,7 @@ function stop() {
       #echo "udid: $udid"
       stop_containers ${device_name} ${udid} &
     done < ${devices}
+    echo "Press <enter> to proceed..."
   fi
 }
 
@@ -294,6 +295,7 @@ function down() {
       #echo "udid: $udid"
       remove_containers ${device_name} ${udid} &
     done < ${devices}
+    echo "Press <enter> to proceed..."
   fi
 }
 
