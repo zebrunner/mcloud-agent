@@ -114,6 +114,10 @@ function create_containers () {
 	-e CUSTOM_NODE_CONFIG=true \
 	-e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
 	-e APPIUM_HOST=${device_name}-appium \
+        -e APPIUM_APP_SIZE_DISABLE=false \
+        -e APPIUM_APP_FETCH_RETRIES=2 \
+        -e APPIUM_MAX_LOCK_FILE_LIFETIME=180 \
+        -e APPIUM_APP_WAITING_TIMEOUT=90 \
         -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
         -e DEFAULT_CAPABILITIES=true \
 	-e DEVICE_NAME="${device_name}" -e DEVICE_UDID="$STF_DEVICE_UDID" \
@@ -198,6 +202,10 @@ function create_containers () {
         -e CUSTOM_NODE_CONFIG=true \
 	-e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
         -e APPIUM_HOST=${device_name}-appium \
+        -e APPIUM_APP_SIZE_DISABLE=false \
+        -e APPIUM_APP_FETCH_RETRIES=2 \
+        -e APPIUM_MAX_LOCK_FILE_LIFETIME=180 \
+        -e APPIUM_APP_WAITING_TIMEOUT=90 \
         -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
 	-e DEFAULT_CAPABILITIES=true \
         -e DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
