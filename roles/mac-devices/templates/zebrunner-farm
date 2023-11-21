@@ -165,7 +165,6 @@ function create_containers () {
 	-e USBMUXD_SOCKET_ADDRESS={{ USBMUXD_SOCKET_ADDRESS }} \
         --restart on-failure \
 	-v appium-storage-volume:/opt/appium-storage \
-	-v mcloud-storage-volume:/opt/zebrunner \
 	-v device-${device_name}-${udid}:/tmp/log \
 	-e TASK_LOG=/tmp/log/appium.log \
 	-e APPIUM_CLI="--session-override" \
@@ -208,7 +207,6 @@ function create_containers () {
         -e USBMUXD_SOCKET_ADDRESS={{ USBMUXD_SOCKET_ADDRESS }} \
         --restart on-failure \
         --link device-${device_name}-${udid}-appium:appium \
-        -v mcloud-storage-volume:/opt/zebrunner \
 	-e WDA_HOST=appium \
 	-e WDA_WAIT_TIMEOUT=180 \
         -e PLATFORM_NAME=$platform_name \

@@ -104,7 +104,6 @@ function create_containers () {
         --restart on-failure $DEVICE_ARG \
         -v mcloud-key-volume:/root/.android \
 	-v appium-storage-volume:/opt/appium-storage \
-        -v mcloud-storage-volume:/opt/zebrunner \
         -v device-${device_name}-${udid}:/tmp/log \
 	-e TASK_LOG=/tmp/log/appium.log \
 	-e PLATFORM_NAME=$platform_name \
@@ -187,7 +186,6 @@ function create_containers () {
     docker run -itd --name device-${device_name}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
         --restart on-failure \
 	-v appium-storage-volume:/opt/appium-storage \
-	-v mcloud-storage-volume:/opt/zebrunner \
 	-v device-${device_name}-${udid}:/tmp/log \
         -v device-${device_name}-${udid}-lockdown:/var/lib/lockdown \
         --device=/dev/device-${device_name}-${udid}:${usb_bus} \
@@ -230,7 +228,6 @@ function create_containers () {
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
 	--restart on-failure \
 	--link device-${device_name}-${udid}-appium:appium \
-	-v mcloud-storage-volume:/opt/zebrunner \
 	-e WDA_HOST=appium \
 	-e WDA_WAIT_TIMEOUT=180 \
 	-e PLATFORM_NAME=$platform_name \
