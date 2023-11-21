@@ -261,6 +261,11 @@ function stop() {
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
 
+    if [ -z $device_name ] || [ -z $udid ]; then
+      echo_warning "Unable to find device by \"$filter_device\"!"
+      return 0
+    fi
+
     stop_containers ${device_name} ${udid}
   else
     # as no device filter provided continue with stopping all device containers
@@ -305,6 +310,11 @@ function down() {
     #echo removing containers for $filter_device...
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
+
+    if [ -z $device_name ] || [ -z $udid ]; then
+      echo_warning "Unable to find device by \"$filter_device\"!"
+      return 0
+    fi
 
     remove_containers ${device_name} ${udid}
   else
@@ -395,6 +405,11 @@ function start() {
   if [ ! -z $filter_device ] && [ "$filter_device" != "ios" ] && [ "$filter_device" != "android" ]; then
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
+
+    if [ -z $device_name ] || [ -z $udid ]; then
+      echo_warning "Unable to find device by \"$filter_device\"!"
+      return 0
+    fi
 
     create_containers ${device_name} ${udid}
     start_containers ${device_name} ${udid}
