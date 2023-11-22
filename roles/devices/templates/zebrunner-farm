@@ -276,10 +276,9 @@ function stop() {
       local wireless=`echo ${line} | grep "$filter_device" | cut -d '|' -f 9`
 
       if [ -L "/dev/device-${device_name}-${udid}" ] || [ "$wireless" == "True" ]; then
-        stop_containers ${device_name} ${udid} &
+        stop_containers ${device_name} ${udid}
       fi
     done < ${devices}
-    echo "Press <enter> to proceed..."
   fi
 }
 
@@ -322,9 +321,8 @@ function down() {
       #echo "device_name: $device_name"
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
       #echo "udid: $udid"
-      remove_containers ${device_name} ${udid} &
+      remove_containers ${device_name} ${udid}
     done < ${devices}
-    echo "Press <enter> to proceed..."
   fi
 }
 
