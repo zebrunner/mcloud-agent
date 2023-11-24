@@ -1,5 +1,15 @@
 ---
 
+- name: Get OS name
+  shell: uname
+  register: os
+
+- name: Check OS compatibility
+  ansible.builtin.assert:
+    that:
+      - os.stdout is search("Linux")
+    fail_msg: "OS version is not compatible"
+
 - name: Check if roles/devices/vars/main.yml file is generated
   stat: path=roles/devices/vars/main.yml
   register: main_yml
