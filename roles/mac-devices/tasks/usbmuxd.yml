@@ -8,7 +8,7 @@
   ansible.builtin.assert:
     that:
       - os.stdout is search("Darwin")
-    fail_msg: "OS version is not compatible"
+    fail_msg: "OS version is not compatible!"
 
 - name: Check if roles/mac-devices/vars/main.yml file is generated
   stat: path=roles/mac-devices/vars/main.yml
@@ -16,7 +16,7 @@
 
 - name: Verify Setup
   fail:
-    msg: "You have to setup services in advance using: ./zebrunner.sh setup"
+    msg: "You have to setup services in advance using: ./zebrunner.sh setup!"
   when: not main_yml.stat.exists
 
 - name: copy script to launch container with appium for device
