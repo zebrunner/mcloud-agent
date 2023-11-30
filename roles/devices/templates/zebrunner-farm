@@ -2,7 +2,7 @@
 
 if [ ! -z $ACTION ]; then
   # triggered by udev rule where device serial (udid) is a must to proceed!
-  if [ -z $ID_SERIAL_SHORT ]; then
+  if [ -z $2 ]; then
     echo "do nothing as device id/udid missed."
     exit 0
   fi
@@ -507,14 +507,14 @@ case "$ACTION" in
     add)
         # #122 on start obligatory re-created any existing exited containers
         # add action means physical connect via usb and as result we have to remove any existing container for device!
-        down ${ID_SERIAL_SHORT}
-        start ${ID_SERIAL_SHORT}
+        down $2
+        start $2
         ;;
     bind)
         echo "do nothing"
         ;;
     remove)
-        down ${ID_SERIAL_SHORT}
+        down $2
         ;;
     start)
         start $2
