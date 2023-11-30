@@ -75,7 +75,7 @@ function create_containers () {
     # for the physically connected devices via usb
     local ANDROID_DEVICE=
     local STF_DEVICE_UDID=${udid}
-    local DEVICE_ARG=--device=/dev/device-${device_name}-${udid}:/dev/bus/usb/003/011
+    local DEVICE_ARG=--device=/dev/device-${device_name}-${udid}:${usb_bus}
 
     if [ "$wireless" = "True" ]; then
       # provide ANDROID_DEVICE with 5555 port to trigger remote adb connect on appium startup
@@ -102,6 +102,7 @@ function create_containers () {
     #TODO: parametrized relaxed security, make false by default!
     docker run -itd --name device-${device_name}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
         --restart on-failure $DEVICE_ARG \
+	-e DEVICE_BUS=$usb_bus \
         -v mcloud-key-volume:/root/.android \
 	-v appium-storage-volume:/opt/appium-storage \
         -v device-${device_name}-${udid}:/tmp/log \
@@ -183,11 +184,11 @@ function create_containers () {
 
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     docker run -itd --name device-${device_name}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
-        --restart on-failure \
+        --restart on-failure $DEVICE_ARG \
+        -e DEVICE_BUS=$usb_bus \
 	-v appium-storage-volume:/opt/appium-storage \
 	-v device-${device_name}-${udid}:/tmp/log \
         -v device-${device_name}-${udid}-lockdown:/var/lib/lockdown \
-        --device=/dev/device-${device_name}-${udid}:${usb_bus} \
 	-e TASK_LOG=/tmp/log/appium.log \
 	-e APPIUM_CLI="--session-override" \
         -e WDA_BUNDLEID=$wdaBundleId \
