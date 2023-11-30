@@ -2,7 +2,7 @@
 
 if [ ! -z $ACTION ]; then
   # triggered by udev rule where device serial (udid) is a must to proceed!
-  if [ -z $ID_SERIAL_SHORT ]; then
+  if [ -z $2 ]; then
     echo "do nothing as device id/udid missed."
     exit 0
   fi
@@ -104,7 +104,6 @@ function create_containers () {
         --restart on-failure $DEVICE_ARG \
         -v mcloud-key-volume:/root/.android \
 	-v appium-storage-volume:/opt/appium-storage \
-        -v mcloud-storage-volume:/opt/zebrunner \
         -v device-${device_name}-${udid}:/tmp/log \
 	-e TASK_LOG=/tmp/log/appium.log \
 	-e PLATFORM_NAME=$platform_name \
@@ -113,7 +112,10 @@ function create_containers () {
 	-e CONNECT_TO_GRID=true \
 	-e CUSTOM_NODE_CONFIG=true \
 	-e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
-	-e APPIUM_HOST=${device_name}-appium \
+        -e APPIUM_APP_SIZE_DISABLE={{ APPIUM_APP_SIZE_DISABLE }} \
+        -e APPIUM_APP_FETCH_RETRIES={{ APPIUM_APP_FETCH_RETRIES }} \
+        -e APPIUM_MAX_LOCK_FILE_LIFETIME={{ APPIUM_MAX_LOCK_FILE_LIFETIME }} \
+        -e APPIUM_APP_WAITING_TIMEOUT={{ APPIUM_APP_WAITING_TIMEOUT }} \
         -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
         -e DEFAULT_CAPABILITIES=true \
 	-e DEVICE_NAME="${device_name}" -e DEVICE_UDID="$STF_DEVICE_UDID" \
@@ -159,7 +161,6 @@ function create_containers () {
     #TODO: comment echoing wda related detailes before release
     local wdaIpaPath={{ WDA_FILE }}
     local deviceWdaIpaPath=`cat ${devices} | grep "$udid" | cut -d '|' -f 10`
-    echo "deviceWdaIpaPath: $deviceWdaIpaPath"
     if [ ! -z $deviceWdaIpaPath ] && [ ! "$deviceWdaIpaPath" == "/dev/null" ]; then
       wdaIpaPath=$deviceWdaIpaPath
     fi
@@ -167,10 +168,10 @@ function create_containers () {
       # unable to use empty value for docker volume share!
       wdaIpaPath="/dev/null"
     fi
+    echo "wdaIpaPath: $wdaIpaPath"
 
     local wdaBundleId={{ WDA_BUNDLEID }}
     local deviceWdaBundleId=`cat ${devices} | grep "$udid" | cut -d '|' -f 11`
-    echo "deviceWdaBundleId: $deviceWdaBundleId"
     if [ ! -z $deviceWdaBundleId ]; then
       wdaBundleId=$deviceWdaBundleId
     fi
@@ -178,12 +179,12 @@ function create_containers () {
       # provide default value if empty
       wdaBundleId="com.facebook.WebDriverAgentRunner.xctrunner"
     fi
+    echo "wdaBundleId: $wdaBundleId"
 
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     docker run -itd --name device-${device_name}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
         --restart on-failure \
 	-v appium-storage-volume:/opt/appium-storage \
-	-v mcloud-storage-volume:/opt/zebrunner \
 	-v device-${device_name}-${udid}:/tmp/log \
         -v device-${device_name}-${udid}-lockdown:/var/lib/lockdown \
         --device=/dev/device-${device_name}-${udid}:${usb_bus} \
@@ -197,7 +198,10 @@ function create_containers () {
         -e CONNECT_TO_GRID=true \
         -e CUSTOM_NODE_CONFIG=true \
 	-e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
-        -e APPIUM_HOST=${device_name}-appium \
+        -e APPIUM_APP_SIZE_DISABLE={{ APPIUM_APP_SIZE_DISABLE }} \
+        -e APPIUM_APP_FETCH_RETRIES={{ APPIUM_APP_FETCH_RETRIES }} \
+        -e APPIUM_MAX_LOCK_FILE_LIFETIME={{ APPIUM_MAX_LOCK_FILE_LIFETIME }} \
+        -e APPIUM_APP_WAITING_TIMEOUT={{ APPIUM_APP_WAITING_TIMEOUT }} \
         -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
 	-e DEFAULT_CAPABILITIES=true \
         -e DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
@@ -222,7 +226,6 @@ function create_containers () {
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
 	--restart on-failure \
 	--link device-${device_name}-${udid}-appium:appium \
-	-v mcloud-storage-volume:/opt/zebrunner \
 	-e WDA_HOST=appium \
 	-e WDA_WAIT_TIMEOUT=180 \
 	-e PLATFORM_NAME=$platform_name \
@@ -255,6 +258,11 @@ function stop() {
     echo stopping containers for $filter_device...
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
+
+    if [ -z $device_name ] || [ -z $udid ]; then
+      echo_warning "Unable to find device by \"$filter_device\"!"
+      return 0
+    fi
 
     stop_containers ${device_name} ${udid}
   else
@@ -299,6 +307,11 @@ function down() {
     #echo removing containers for $filter_device...
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
+
+    if [ -z $device_name ] || [ -z $udid ]; then
+      echo_warning "Unable to find device by \"$filter_device\"!"
+      return 0
+    fi
 
     remove_containers ${device_name} ${udid}
   else
@@ -388,6 +401,11 @@ function start() {
   if [ ! -z $filter_device ] && [ "$filter_device" != "ios" ] && [ "$filter_device" != "android" ]; then
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
+
+    if [ -z $device_name ] || [ -z $udid ]; then
+      echo_warning "Unable to find device by \"$filter_device\"!"
+      return 0
+    fi
 
     create_containers ${device_name} ${udid}
     start_containers ${device_name} ${udid}
@@ -489,14 +507,14 @@ case "$ACTION" in
     add)
         # #122 on start obligatory re-created any existing exited containers
         # add action means physical connect via usb and as result we have to remove any existing container for device!
-        down ${ID_SERIAL_SHORT}
-        start ${ID_SERIAL_SHORT}
+        down $2
+        start $2
         ;;
     bind)
         echo "do nothing"
         ;;
     remove)
-        down ${ID_SERIAL_SHORT}
+        down $2
         ;;
     start)
         start $2

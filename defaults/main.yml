@@ -1,9 +1,18 @@
 ---
 DEVICE_IMAGE: public.ecr.aws/zebrunner/mcloud-device
-DEVICE_VERSION: 2.6
+DEVICE_VERSION: 2.6.1
 
 APPIUM_IMAGE: public.ecr.aws/zebrunner/appium
-APPIUM_VERSION: 2.0.7
+APPIUM_VERSION: 2.0.9
 
 UPLOADER_IMAGE: public.ecr.aws/zebrunner/uploader
 UPLOADER_VERSION: 3.4
+
+# Put true to disable app size check using local appium storage
+APPIUM_APP_SIZE_DISABLE: false
+
+# Optomized app verifications for AppCenter and AWS S3 storages
+APPIUM_APP_FETCH_RETRIES: 2
+APPIUM_MAX_LOCK_FILE_LIFETIME: 180
+APPIUM_APP_WAITING_TIMEOUT: 90
+
