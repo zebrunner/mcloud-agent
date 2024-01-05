@@ -6,3 +6,5 @@ logs/*.log
 roles/devices/vars/main.yml
 roles/mac-devices/vars/main.yml
 DeveloperDiskImages
+
+.idea/

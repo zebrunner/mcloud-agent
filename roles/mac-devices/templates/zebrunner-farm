@@ -119,6 +119,9 @@ function create_containers () {
     local appium_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 8`
     #echo "appium_port: $appium_port"
 
+    local server_proxy_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 12`
+        #echo "server_proxy_port: $server_proxy_port"
+
     local net={{ STF_DOCKER_NETWORK }}
 
     docker network inspect ${net} >/dev/null 2>&1 || docker network create ${net}
@@ -160,6 +163,13 @@ function create_containers () {
     fi
     echo "wdaBundleId: $wdaBundleId"
 
+    if [ "$server_proxy_port" != "0" ] && [ "$proxy_port" != "0" ]; then
+      docker run -itd --name device-${device_name}-${udid}-mitm -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
+      --restart on-failure \
+      --publish $server_proxy_port:8060 -p $proxy_port:8080 \
+      {{ MITM_IMAGE }}:{{ MITM_VERSION }} || echo 'already created'
+    fi
+
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     docker run -itd --name device-${device_name}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
 	-e USBMUXD_SOCKET_ADDRESS={{ USBMUXD_SOCKET_ADDRESS }} \
@@ -186,6 +196,7 @@ function create_containers () {
         -e DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
         -e ADB_PORT=$device_adb_port \
         -e PROXY_PORT=$proxy_port \
+        -e SERVER_PROXY_PORT=$server_proxy_port \
         -e APPIUM_PORT=$appium_port \
         -p $appium_port:$appium_port \
         -e RELAXED_SECURITY=true \
@@ -271,6 +282,7 @@ function stop_containers() {
   echo
   echo "$container stopping..."
   # appium should be stopped first to disconnect in STF asap
+  docker stop $container-mitm
   docker stop $container-appium
   docker stop $container
   docker stop $container-uploader
@@ -331,6 +343,11 @@ function remove_containers() {
   if [ $? -eq 0 ]; then
     docker rm -f $container-uploader
   fi
+
+   docker ps -a | grep mitm | grep $container > /dev/null
+    if [ $? -eq 0 ]; then
+      docker rm -f $container-mitm
+    fi
 
   docker volume ls | grep $container > /dev/null
   if [ $? -eq 0 ]; then
@@ -430,6 +447,7 @@ function start_containers() {
   docker start $container
   docker start $container-appium
   docker start $container-uploader
+  docker start $container-mitm
 }
 
 function status() {
