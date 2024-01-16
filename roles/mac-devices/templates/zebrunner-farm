@@ -122,6 +122,22 @@ function create_containers () {
     local server_proxy_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 12`
         #echo "server_proxy_port: $server_proxy_port"
 
+    local certMitmPath={{ CA_CERT_MITM_PATH }}
+    local deviceCertMitmPath=`cat ${devices} | grep "$udid" | cut -d '|' -f 13`
+    if [ ! -z $deviceCertMitmPath ] && [ ! "$deviceCertMitmPath" == "/dev/null" ]; then
+      certMitmPath=deviceCertMitmPath
+    fi
+    if [ -z $certMitmPath ]; then
+    # unable to use empty value for docker volume share!
+      certMitmPath="/dev/null"
+    fi
+    #echo "certMitmPath: $certMitmPath"
+
+    local proxyPermamentArgs="--set block_global=false"
+    if [ "$certMitmPath" != "/dev/null" ]; then
+          proxyPermamentArgs="--set block_global=false --set confdir=/tmp/zebrunner/mitmproxy"
+    fi
+
     local net={{ STF_DOCKER_NETWORK }}
 
     docker network inspect ${net} >/dev/null 2>&1 || docker network create ${net}
@@ -166,6 +182,8 @@ function create_containers () {
     if [ "$server_proxy_port" != "0" ] && [ "$proxy_port" != "0" ]; then
       docker run -itd --name device-${device_name}-${udid}-mitm -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
       --restart on-failure \
+      -v ${certMitmPath}:/tmp/zebrunner/mitmproxy \
+      -e PROXY_PERMANENT_ARGS="$proxyPermamentArgs"  \
       --publish $server_proxy_port:8060 -p $proxy_port:8080 \
       {{ MITM_IMAGE }}:{{ MITM_VERSION }} || echo 'already created'
     fi
