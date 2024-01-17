@@ -49,8 +49,8 @@ WDA_FILE:
 # Override to use custom WDA bundle id: https://github.com/zebrunner/mcloud-agent#prepare-webdriveragentipa-file
 WDA_BUNDLEID:
 
-# Path to the CA mitmproxy certificate
-CA_CERT_MITM_PATH:
+# Path to the folder with CA Authority mitmproxy certificates
+CA_CERTS_PROXY_PATH:
 
 # [OBLIGATORY] Declare valid devices metadata
 # - id: device udid which is shown by `adb devices`
