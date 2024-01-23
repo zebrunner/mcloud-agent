@@ -71,7 +71,7 @@ function create_containers () {
 
     # without 'block_global=false' mitmproxy does not want to accept requests from devices
     # --set confdir allows to provide custom folder with CA Authority certificates
-    local proxy_permament_arguments="--set block_global=false --set confdir=/tmp/zebrunner/mitmproxy"
+    local proxy_permament_arguments="--set block_global=false --set confdir=/opt/mitmproxy"
 
     local net={{ STF_DOCKER_NETWORK }}
 
@@ -110,7 +110,7 @@ function create_containers () {
       if [ "$server_proxy_port" != "0" ] && [ "$proxy_port" != "0" ]; then
         docker run -itd --name device-${device_name}-${udid}-mitm -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
           --restart on-failure \
-          -v mcloud-mitm-volume:/tmp/zebrunner/mitmproxy \
+          -v mcloud-mitm-volume:/opt/mitmproxy \
           -e PROXY_PERMANENT_ARGS="$proxy_permament_arguments"  \
           --publish ${server_proxy_port}:8060 -p ${proxy_port}:8080 \
           {{ MITM_IMAGE }}:{{ MITM_VERSION }} || echo 'already created'
@@ -203,7 +203,7 @@ function create_containers () {
     if [ "$server_proxy_port" != "0" ] && [ "$proxy_port" != "0" ]; then
             docker run -itd --name device-${device_name}-${udid}-mitm -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
               --restart on-failure \
-              -v mcloud-mitm-volume:/tmp/zebrunner/mitmproxy \
+              -v mcloud-mitm-volume:/opt/mitmproxy \
               -e PROXY_PERMANENT_ARGS="$proxy_permament_arguments"  \
               --publish ${server_proxy_port}:8060 -p ${proxy_port}:8080 \
               {{ MITM_IMAGE }}:{{ MITM_VERSION }} || echo 'already created'
