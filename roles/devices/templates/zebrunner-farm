@@ -69,22 +69,9 @@ function create_containers () {
     local server_proxy_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 12`
     #echo "server_proxy_port: $server_proxy_port"
 
-    local certificates_proxy_path={{ CA_CERTS_PROXY_PATH }}
-    local device_certificates_proxy_path=`cat ${devices} | grep "$udid" | cut -d '|' -f 13`
-    if [ ! -z $device_certificates_proxy_path ] && [ ! "$device_certificates_proxy_path" == "/dev/null" ]; then
-      certificates_proxy_path=device_certificates_proxy_path
-    fi
-    if [ -z $certificates_proxy_path ]; then
-      # unable to use empty value for docker volume share!
-      certificates_proxy_path="/dev/null"
-    fi
-
     # without 'block_global=false' mitmproxy does not want to accept requests from devices
-    local proxy_permament_arguments="--set block_global=false"
-    if [ "$certificates_proxy_path" != "/dev/null" ]; then
-          # --set confdir allows to provide custom folder with CA Authority certificates
-          proxy_permament_arguments="--set block_global=false --set confdir=/tmp/zebrunner/mitmproxy"
-    fi
+    # --set confdir allows to provide custom folder with CA Authority certificates
+    local proxy_permament_arguments="--set block_global=false --set confdir=/tmp/zebrunner/mitmproxy"
 
     local net={{ STF_DOCKER_NETWORK }}
 
@@ -123,7 +110,7 @@ function create_containers () {
       if [ "$server_proxy_port" != "0" ] && [ "$proxy_port" != "0" ]; then
         docker run -itd --name device-${device_name}-${udid}-mitm -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
           --restart on-failure \
-          -v ${certificates_proxy_path}:/tmp/zebrunner/mitmproxy \
+          -v mcloud-mitm-volume:/tmp/zebrunner/mitmproxy \
           -e PROXY_PERMANENT_ARGS="$proxy_permament_arguments"  \
           --publish ${server_proxy_port}:8060 -p ${proxy_port}:8080 \
           {{ MITM_IMAGE }}:{{ MITM_VERSION }} || echo 'already created'
@@ -216,7 +203,7 @@ function create_containers () {
     if [ "$server_proxy_port" != "0" ] && [ "$proxy_port" != "0" ]; then
             docker run -itd --name device-${device_name}-${udid}-mitm -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
               --restart on-failure \
-              -v ${certificates_proxy_path}:/tmp/zebrunner/mitmproxy \
+              -v mcloud-mitm-volume:/tmp/zebrunner/mitmproxy \
               -e PROXY_PERMANENT_ARGS="$proxy_permament_arguments"  \
               --publish ${server_proxy_port}:8060 -p ${proxy_port}:8080 \
               {{ MITM_IMAGE }}:{{ MITM_VERSION }} || echo 'already created'
