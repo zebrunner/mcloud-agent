@@ -119,6 +119,9 @@ function create_containers () {
     local appium_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 8`
     #echo "appium_port: $appium_port"
 
+    local server_proxy_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 12`
+    #echo "server_proxy_port: $server_proxy_port"
+
     # without 'block_global=false' mitmproxy does not want to accept requests from devices
     # --set confdir allows to provide custom folder with CA Authority certificates
     local proxy_permament_arguments="--set block_global=false --set confdir=/opt/mitmproxy"
