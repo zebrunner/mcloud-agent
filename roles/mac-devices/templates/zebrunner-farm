@@ -172,7 +172,7 @@ function create_containers () {
           --restart on-failure \
           -v mcloud-mitm-volume:/opt/mitmproxy \
           -e PROXY_PERMANENT_ARGS="$proxy_permament_arguments"  \
-          --publish ${server_proxy_port}:8060 -p ${proxy_port}:8080 \
+          -p ${server_proxy_port}:8060 -p ${proxy_port}:8080 \
           {{ MITM_IMAGE }}:{{ MITM_VERSION }} || echo 'already created'
     fi
 
