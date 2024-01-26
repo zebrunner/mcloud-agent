@@ -9,5 +9,8 @@
 - name: Pull an Zebrunner Uploader image
   shell: docker pull "{{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }}"
 
+- name: Pull an Zebrunner Mitm image
+  shell: docker pull "{{ MITM_IMAGE }}:{{ MITM_VERSION }}"
+
 - name: Create infra network if absent
   shell: docker network inspect "{{ STF_DOCKER_NETWORK }}" >/dev/null 2>&1 || docker network create "{{ STF_DOCKER_NETWORK }}"

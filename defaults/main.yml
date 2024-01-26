@@ -8,6 +8,9 @@ APPIUM_VERSION: 2.0.10
 UPLOADER_IMAGE: public.ecr.aws/zebrunner/uploader
 UPLOADER_VERSION: 3.4
 
+MITM_IMAGE: public.ecr.aws/zebrunner/mitmproxy
+MITM_VERSION: 2.0-beta2
+
 # Put true to disable app size check using local appium storage
 APPIUM_APP_SIZE_DISABLE: false
 
