@@ -65,7 +65,7 @@ devices:
     appium_port: 7421
     adb_port: 7422
     proxy_port: 7423
-    server_proxy_port:7424
+    server_proxy_port: 7424
     min_port: 7425
     max_port: 7430
   - id: d6afc6b3a65584ca0813eb8957c6479b9b6ebb11
@@ -74,6 +74,6 @@ devices:
     appium_port: 7431
     adb_port: 7432
     proxy_port: 7433
-    server_proxy_port:7434
+    server_proxy_port: 7434
     min_port: 7435
     max_port: 7440
