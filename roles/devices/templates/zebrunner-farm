@@ -69,9 +69,6 @@ function create_containers () {
     local server_proxy_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 12`
     #echo "server_proxy_port: $server_proxy_port"
 
-    local device_type=`cat ${devices} | grep "$udid" | cut -d '|' -f 13`
-    #echo "device_type: $device_type"
-
     # without 'block_global=false' mitmproxy does not want to accept requests from devices
     # --set confdir allows to provide custom folder with CA Authority certificates
     local proxy_permament_arguments="--set block_global=false --set confdir=/opt/mitmproxy"
@@ -142,7 +139,6 @@ function create_containers () {
         -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
         -e DEFAULT_CAPABILITIES=true \
 	-e DEVICE_NAME="${device_name}" -e DEVICE_UDID="$STF_DEVICE_UDID" \
-	-e DEVICE_TYPE="${device_type}" \
 	-e ADB_PORT=$device_adb_port \
 	-e PROXY_PORT=$proxy_port \
 	-e SERVER_PROXY_PORT=$server_proxy_port \
@@ -240,7 +236,6 @@ function create_containers () {
         -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
 	-e DEFAULT_CAPABILITIES=true \
         -e DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
-        -e DEVICE_TYPE="${device_type}" \
         -e ADB_PORT=$device_adb_port \
         -e PROXY_PORT=$proxy_port \
         -e SERVER_PROXY_PORT=$server_proxy_port \

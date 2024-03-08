@@ -1,4 +1,4 @@
 {% for device in devices %}
 {{ device.name }}|{{ device.os }}|{{ device.id }}|{{ device.adb_port }}|{{ device.min_port }}|{{ device.max_port }}|{{ device.proxy_port | default('0') }}|{{ device.appium_port }}|{{  device.wireless | default('false') }}|{{ device.wda_file |
-default('/dev/null')}}|{{ device.wda_bundleid | default('com.facebook.WebDriverAgentRunner.xctrunner')}}|{{  device.server_proxy_port | default('0') }}|{{ device.type | default('Phone')}}
+default('/dev/null')}}|{{ device.wda_bundleid | default('com.facebook.WebDriverAgentRunner.xctrunner')}}|{{  device.server_proxy_port | default('0') }}
 {% endfor %}
