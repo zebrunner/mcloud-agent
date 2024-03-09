@@ -256,7 +256,7 @@ function create_containers () {
 	--restart on-failure \
 	--link device-${device_name}-${udid}-appium:appium \
 	-e WDA_HOST=appium \
-	-e WDA_WAIT_TIMEOUT=180 \
+	-e WDA_WAIT_TIMEOUT=60 \
 	-e PLATFORM_NAME=$platform_name \
 	-e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
 	-e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
