@@ -142,7 +142,8 @@ function create_containers () {
 	-e ADB_PORT=$device_adb_port \
 	-e PROXY_PORT=$proxy_port \
 	-e SERVER_PROXY_PORT=$server_proxy_port \
-	-p $appium_port:7777 \
+	-e APPIUM_PORT=$appium_port \
+	-p $appium_port:$appium_port \
         -e RELAXED_SECURITY=true \
         {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }} || echo 'already created'
 
@@ -239,7 +240,8 @@ function create_containers () {
         -e ADB_PORT=$device_adb_port \
         -e PROXY_PORT=$proxy_port \
         -e SERVER_PROXY_PORT=$server_proxy_port \
-        -p $appium_port:7777 \
+        -e APPIUM_PORT=$appium_port \
+        -p $appium_port:$appium_port \
         -e RELAXED_SECURITY=true \
         {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}
 
