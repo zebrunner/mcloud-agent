@@ -124,7 +124,7 @@ function create_containers () {
         -e PLATFORM_NAME=$platform_name \
         -e ANDROID_DEVICE=$ANDROID_DEVICE \
         -e DEVICE_UDID="$STF_DEVICE_UDID" \
-        public.ecr.aws/zebrunner/device-container:1.0-beta1 || echo 'already created'
+        {{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }} || echo 'already created'
 
 #        -e ANDROID_ADB_SERVER_ADDRESS=connector \
 #        -e ANDROID_ADB_SERVER_PORT=5037 \
@@ -193,30 +193,8 @@ function create_containers () {
 	-e STF_PROVIDER_CONNECT_PUSH={{ STF_PROVIDER_CONNECT_PUSH }} \
 	-e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \
 	{{ DEVICE_IMAGE }}:{{DEVICE_VERSION }} || echo 'already created'
+
   elif [ $platform_name == "ios" ]; then
-
-    #TODO: comment echoing wda related detailes before release
-    local wdaIpaPath={{ WDA_FILE }}
-    local deviceWdaIpaPath=`cat ${devices} | grep "$udid" | cut -d '|' -f 10`
-    if [ ! -z $deviceWdaIpaPath ] && [ ! "$deviceWdaIpaPath" == "/dev/null" ]; then
-      wdaIpaPath=$deviceWdaIpaPath
-    fi
-    if [ -z $wdaIpaPath ]; then
-      # unable to use empty value for docker volume share!
-      wdaIpaPath="/dev/null"
-    fi
-    echo "wdaIpaPath: $wdaIpaPath"
-
-    local wdaBundleId={{ WDA_BUNDLEID }}
-    local deviceWdaBundleId=`cat ${devices} | grep "$udid" | cut -d '|' -f 11`
-    if [ ! -z $deviceWdaBundleId ]; then
-      wdaBundleId=$deviceWdaBundleId
-    fi
-    if [ -z $wdaBundleId ]; then
-      # provide default value if empty
-      wdaBundleId="com.facebook.WebDriverAgentRunner.xctrunner"
-    fi
-    echo "wdaBundleId: $wdaBundleId"
 
     if [ "$server_proxy_port" != "0" ] && [ "$proxy_port" != "0" ]; then
             docker run -itd --name device-${device_name}-${udid}-mitm -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
@@ -227,10 +205,19 @@ function create_containers () {
               {{ MITM_IMAGE }}:{{ MITM_VERSION }} || echo 'already created'
     fi
 
+    docker run -itd --name device-${device_name}-${udid}-connector --net=${net} \
+        --restart on-failure $DEVICE_ARG \
+        -e DEVICE_BUS=$usb_bus \
+        -v device-${device_name}-${udid}-lockdown:/var/lib/lockdown \
+        -v device-${device_name}-${udid}:/tmp/log \
+        -e DEVICE_UDID="$STF_DEVICE_UDID" \
+        {{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }} || echo 'already created'
+
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     docker run -itd --name device-${device_name}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
         --restart on-failure $DEVICE_ARG \
         -e DEVICE_BUS=$usb_bus \
+        -e WDA_HOST=connector \
 	-v appium-storage-volume:/opt/appium-storage \
 	-v device-${device_name}-${udid}:/tmp/log \
         -v device-${device_name}-${udid}-lockdown:/var/lib/lockdown \
@@ -272,8 +259,8 @@ function create_containers () {
     # Linking with apppium required to share usbmuxd via socat
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
 	--restart on-failure \
-	--link device-${device_name}-${udid}-appium:appium \
-	-e WDA_HOST=appium \
+	--link device-${device_name}-${udid}-connector:connector \
+	-e WDA_HOST=connector \
 	-e WDA_WAIT_TIMEOUT=60 \
 	-e PLATFORM_NAME=$platform_name \
 	-e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
@@ -505,8 +492,10 @@ function start_containers() {
   echo
   echo "$container starting..."
   docker start $container
+  docker start $container-mitm
   docker start $container-appium
   docker start $container-uploader
+  docker start $container-connector
 }
 
 function status() {

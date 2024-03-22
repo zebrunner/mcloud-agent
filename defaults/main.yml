@@ -11,6 +11,12 @@ UPLOADER_VERSION: 3.4
 MITM_IMAGE: public.ecr.aws/zebrunner/mitmproxy
 MITM_VERSION: 2.0
 
+IOS_CONNECTOR_IMAGE: public.ecr.aws/zebrunner/mcloud-ios-connector
+IOS_CONNECTOR_VERSION: 1.0
+
+ANDROID_CONNECTOR_IMAGE: public.ecr.aws/zebrunner/mcloud-android-connector
+ANDROID_CONNECTOR_VERSION: 1.0
+
 # Put true to disable app size check using local appium storage
 APPIUM_APP_SIZE_DISABLE: false
 
