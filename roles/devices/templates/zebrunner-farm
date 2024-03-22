@@ -224,8 +224,6 @@ function create_containers () {
 	-e TASK_LOG=/tmp/log/appium.log \
 	-e APPIUM_CLI="--session-override" \
         -e WDA_BUNDLEID=$wdaBundleId \
-	-e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
-	-v ${wdaIpaPath}:/tmp/zebrunner/WebDriverAgent.ipa \
         -e PLATFORM_NAME=$platform_name \
         -e RETAIN_TASK=true \
         -e CONNECT_TO_GRID=true \
