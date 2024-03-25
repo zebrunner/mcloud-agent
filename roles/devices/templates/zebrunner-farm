@@ -196,6 +196,29 @@ function create_containers () {
 
   elif [ $platform_name == "ios" ]; then
 
+   #TODO: comment echoing wda related detailes before release
+    local wdaIpaPath={{ WDA_FILE }}
+    local deviceWdaIpaPath=`cat ${devices} | grep "$udid" | cut -d '|' -f 10`
+    if [ ! -z $deviceWdaIpaPath ] && [ ! "$deviceWdaIpaPath" == "/dev/null" ]; then
+      wdaIpaPath=$deviceWdaIpaPath
+    fi
+    if [ -z $wdaIpaPath ]; then
+      # unable to use empty value for docker volume share!
+      wdaIpaPath="/dev/null"
+    fi
+    echo "wdaIpaPath: $wdaIpaPath"
+
+    local wdaBundleId={{ WDA_BUNDLEID }}
+    local deviceWdaBundleId=`cat ${devices} | grep "$udid" | cut -d '|' -f 11`
+    if [ ! -z $deviceWdaBundleId ]; then
+      wdaBundleId=$deviceWdaBundleId
+    fi
+    if [ -z $wdaBundleId ]; then
+      # provide default value if empty
+      wdaBundleId="com.facebook.WebDriverAgentRunner.xctrunner"
+    fi
+    echo "wdaBundleId: $wdaBundleId"
+
     if [ "$server_proxy_port" != "0" ] && [ "$proxy_port" != "0" ]; then
             docker run -itd --name device-${device_name}-${udid}-mitm -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
               --restart on-failure \
