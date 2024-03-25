@@ -216,14 +216,11 @@ function create_containers () {
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     docker run -itd --name device-${device_name}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
         --restart on-failure $DEVICE_ARG \
-        -e DEVICE_BUS=$usb_bus \
         -e WDA_HOST=connector \
 	-v appium-storage-volume:/opt/appium-storage \
 	-v device-${device_name}-${udid}:/tmp/log \
-        -v device-${device_name}-${udid}-lockdown:/var/lib/lockdown \
 	-e TASK_LOG=/tmp/log/appium.log \
 	-e APPIUM_CLI="--session-override" \
-        -e WDA_BUNDLEID=$wdaBundleId \
         -e PLATFORM_NAME=$platform_name \
         -e RETAIN_TASK=true \
         -e CONNECT_TO_GRID=true \
@@ -233,9 +230,11 @@ function create_containers () {
         -e APPIUM_APP_FETCH_RETRIES={{ APPIUM_APP_FETCH_RETRIES }} \
         -e APPIUM_MAX_LOCK_FILE_LIFETIME={{ APPIUM_MAX_LOCK_FILE_LIFETIME }} \
         -e APPIUM_APP_WAITING_TIMEOUT={{ APPIUM_APP_WAITING_TIMEOUT }} \
-        -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
+        -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} \
+        -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
 	-e DEFAULT_CAPABILITIES=true \
-        -e DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
+        -e DEVICE_NAME="${device_name}" \
+        -e DEVICE_UDID="${udid}" \
         -e ADB_PORT=$device_adb_port \
         -e PROXY_PORT=$proxy_port \
         -e SERVER_PROXY_PORT=$server_proxy_port \
