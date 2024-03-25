@@ -260,7 +260,8 @@ function create_containers () {
 	-e WDA_HOST=connector \
 	-e WDA_WAIT_TIMEOUT=60 \
 	-e PLATFORM_NAME=$platform_name \
-	-e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
+	-e STF_PROVIDER_DEVICE_NAME="${device_name}" \
+	-e DEVICE_UDID="${udid}" \
 	-e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
 	-e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}" \
 	-e STF_PROVIDER_MIN_PORT=$stf_min_port \
