@@ -116,11 +116,26 @@ function create_containers () {
           {{ MITM_IMAGE }}:{{ MITM_VERSION }} || echo 'already created'
       fi
 
+    docker run -itd --name device-${device_name}-${udid}-connector --net=${net} \
+        --restart on-failure $DEVICE_ARG \
+        -e DEVICE_BUS=$usb_bus \
+        -v mcloud-key-volume:/root/.android \
+        -v device-${device_name}-${udid}:/tmp/log \
+        -e PLATFORM_NAME=$platform_name \
+        -e ANDROID_DEVICE=$ANDROID_DEVICE \
+        -e DEVICE_UDID="$STF_DEVICE_UDID" \
+        {{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }} || echo 'already created'
+
+#        Adb config env vars
+#        -e ADB_SERVER_SOCKET=tcp:connector:5037 \
+#        or
+#        -e ANDROID_ADB_SERVER_ADDRESS=connector \
+#        -e ANDROID_ADB_SERVER_PORT=5037 \
+
     #TODO: parametrized relaxed security, make false by default!
     docker run -itd --name device-${device_name}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
-        --restart on-failure $DEVICE_ARG \
-	-e DEVICE_BUS=$usb_bus \
-        -v mcloud-key-volume:/root/.android \
+        --restart on-failure \
+        --link device-${device_name}-${udid}-connector:connector \
 	-v appium-storage-volume:/opt/appium-storage \
         -v device-${device_name}-${udid}:/tmp/log \
 	-e TASK_LOG=/tmp/log/appium.log \
@@ -134,15 +149,19 @@ function create_containers () {
         -e APPIUM_APP_FETCH_RETRIES={{ APPIUM_APP_FETCH_RETRIES }} \
         -e APPIUM_MAX_LOCK_FILE_LIFETIME={{ APPIUM_MAX_LOCK_FILE_LIFETIME }} \
         -e APPIUM_APP_WAITING_TIMEOUT={{ APPIUM_APP_WAITING_TIMEOUT }} \
-        -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
+        -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} \
+        -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
         -e DEFAULT_CAPABILITIES=true \
-	-e DEVICE_NAME="${device_name}" -e DEVICE_UDID="$STF_DEVICE_UDID" \
+	-e DEVICE_NAME="${device_name}" \
+	-e DEVICE_UDID="$STF_DEVICE_UDID" \
 	-e ADB_PORT=$device_adb_port \
 	-e PROXY_PORT=$proxy_port \
 	-e SERVER_PROXY_PORT=$server_proxy_port \
 	-e APPIUM_PORT=$appium_port \
 	-p $appium_port:$appium_port \
         -e RELAXED_SECURITY=true \
+        -e ADB_SERVER_SOCKET=tcp:connector:5037 \
+        -e REMOTE_ADB_HOST=connector \
         {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }} || echo 'already created'
 
     docker run -d --name device-${device_name}-${udid}-uploader --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
@@ -157,12 +176,14 @@ function create_containers () {
 
 
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
-	--link device-${device_name}-${udid}-appium:appium \
-	-e STF_PROVIDER_ADB_HOST=appium \
+        --link device-${device_name}-${udid}-connector:connector \
+	-e STF_PROVIDER_ADB_HOST=connector \
+	-e STF_PROVIDER_ADB_PORT=5037 \
 	--health-start-period 60s \
 	--restart on-failure \
 	-e PLATFORM_NAME=$platform_name \
-	-e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="$STF_DEVICE_UDID" \
+	-e STF_PROVIDER_DEVICE_NAME="${device_name}" \
+	-e DEVICE_UDID="$STF_DEVICE_UDID" \
 	-e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
 	-e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}" \
 	-e STF_PROVIDER_MIN_PORT=$stf_min_port \
@@ -175,9 +196,10 @@ function create_containers () {
 	-e STF_PROVIDER_CONNECT_PUSH={{ STF_PROVIDER_CONNECT_PUSH }} \
 	-e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \
 	{{ DEVICE_IMAGE }}:{{DEVICE_VERSION }} || echo 'already created'
+
   elif [ $platform_name == "ios" ]; then
 
-    #TODO: comment echoing wda related detailes before release
+   #TODO: comment echoing wda related detailes before release
     local wdaIpaPath={{ WDA_FILE }}
     local deviceWdaIpaPath=`cat ${devices} | grep "$udid" | cut -d '|' -f 10`
     if [ ! -z $deviceWdaIpaPath ] && [ ! "$deviceWdaIpaPath" == "/dev/null" ]; then
@@ -209,18 +231,26 @@ function create_containers () {
               {{ MITM_IMAGE }}:{{ MITM_VERSION }} || echo 'already created'
     fi
 
+    docker run -itd --name device-${device_name}-${udid}-connector --net=${net} \
+        --restart on-failure $DEVICE_ARG \
+        -e DEVICE_BUS=$usb_bus \
+        -e WDA_BUNDLEID=$wdaBundleId \
+	      -e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
+	      -v ${wdaIpaPath}:/tmp/zebrunner/WebDriverAgent.ipa \
+        -v device-${device_name}-${udid}-lockdown:/var/lib/lockdown \
+        -v device-${device_name}-${udid}:/tmp/log \
+        -e DEVICE_UDID="$STF_DEVICE_UDID" \
+        {{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }} || echo 'already created'
+
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     docker run -itd --name device-${device_name}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
         --restart on-failure $DEVICE_ARG \
-        -e DEVICE_BUS=$usb_bus \
+        --link device-${device_name}-${udid}-connector:connector \
+        -e WDA_HOST=connector \
 	-v appium-storage-volume:/opt/appium-storage \
 	-v device-${device_name}-${udid}:/tmp/log \
-        -v device-${device_name}-${udid}-lockdown:/var/lib/lockdown \
 	-e TASK_LOG=/tmp/log/appium.log \
 	-e APPIUM_CLI="--session-override" \
-        -e WDA_BUNDLEID=$wdaBundleId \
-	-e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
-	-v ${wdaIpaPath}:/tmp/zebrunner/WebDriverAgent.ipa \
         -e PLATFORM_NAME=$platform_name \
         -e RETAIN_TASK=true \
         -e CONNECT_TO_GRID=true \
@@ -230,9 +260,11 @@ function create_containers () {
         -e APPIUM_APP_FETCH_RETRIES={{ APPIUM_APP_FETCH_RETRIES }} \
         -e APPIUM_MAX_LOCK_FILE_LIFETIME={{ APPIUM_MAX_LOCK_FILE_LIFETIME }} \
         -e APPIUM_APP_WAITING_TIMEOUT={{ APPIUM_APP_WAITING_TIMEOUT }} \
-        -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
+        -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} \
+        -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
 	-e DEFAULT_CAPABILITIES=true \
-        -e DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
+        -e DEVICE_NAME="${device_name}" \
+        -e DEVICE_UDID="${udid}" \
         -e ADB_PORT=$device_adb_port \
         -e PROXY_PORT=$proxy_port \
         -e SERVER_PROXY_PORT=$server_proxy_port \
@@ -254,11 +286,12 @@ function create_containers () {
     # Linking with apppium required to share usbmuxd via socat
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
 	--restart on-failure \
-	--link device-${device_name}-${udid}-appium:appium \
-	-e WDA_HOST=appium \
+	--link device-${device_name}-${udid}-connector:connector \
+	-e WDA_HOST=connector \
 	-e WDA_WAIT_TIMEOUT=60 \
 	-e PLATFORM_NAME=$platform_name \
-	-e STF_PROVIDER_DEVICE_NAME="${device_name}" -e DEVICE_UDID="${udid}" \
+	-e STF_PROVIDER_DEVICE_NAME="${device_name}" \
+	-e DEVICE_UDID="${udid}" \
 	-e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
 	-e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}" \
 	-e STF_PROVIDER_MIN_PORT=$stf_min_port \
@@ -321,11 +354,13 @@ function stop_containers() {
   local container=device-$device-$udid
   echo
   echo "$container stopping..."
+  #TODO: retest below assumption
   # appium should be stopped first to disconnect in STF asap
+  docker stop $container
   docker stop $container-mitm
   docker stop $container-appium
-  docker stop $container
   docker stop $container-uploader
+  docker stop $container-connector
 }
 
 function down() {
@@ -366,15 +401,20 @@ function remove_containers() {
   local container=device-$device-$udid
   #echo "$container removing..."
   # remove container(s) only if exists
+  docker ps -a | grep -v appium | grep $container > /dev/null
+  if [ $? -eq 0 ]; then
+    docker rm -f $container
+  fi
+
+  docker ps -a | grep mitm | grep $container > /dev/null
+  if [ $? -eq 0 ]; then
+    docker rm -f $container-mitm
+  fi
+
   docker ps -a | grep appium | grep $container > /dev/null
   if [ $? -eq 0 ]; then
     # remove appium first to disconnect device in stf asap
     docker rm -f $container-appium
-  fi
-
-  docker ps -a | grep -v appium | grep $container > /dev/null
-  if [ $? -eq 0 ]; then
-    docker rm -f $container
   fi
 
   docker ps -a | grep uploader | grep $container > /dev/null
@@ -382,10 +422,11 @@ function remove_containers() {
     docker rm -f $container-uploader
   fi
 
-    docker ps -a | grep mitm | grep $container > /dev/null
-    if [ $? -eq 0 ]; then
-      docker rm -f $container-mitm
-    fi
+  docker ps -a | grep connector | grep $container > /dev/null
+  if [ $? -eq 0 ]; then
+    docker rm -f $container-connector
+  fi
+
 
   docker volume ls | grep $container > /dev/null
   if [ $? -eq 0 ]; then
@@ -421,8 +462,15 @@ function verify_containers() {
     if [ $? -eq 0 ]; then
       appiumState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container-appium`
     fi
+
+    local connectorState="UNKNOWN"
+    docker ps -a | grep connector | grep $container > /dev/null
+    if [ $? -eq 0 ]; then
+      connectorState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container-connector`
+    fi
+
     echo $container
-    echo "Appium: $appiumState; STF: $stfState"
+    echo "Connector: $connectorState; Appium: $appiumState; STF: $stfState"
   fi
   echo
 }
@@ -472,8 +520,10 @@ function start_containers() {
   echo
   echo "$container starting..."
   docker start $container
+  docker start $container-mitm
   docker start $container-appium
   docker start $container-uploader
+  docker start $container-connector
 }
 
 function status() {
