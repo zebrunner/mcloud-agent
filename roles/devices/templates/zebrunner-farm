@@ -126,6 +126,9 @@ function create_containers () {
         -e DEVICE_UDID="$STF_DEVICE_UDID" \
         {{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }} || echo 'already created'
 
+#        Adb config env vars
+#        -e ADB_SERVER_SOCKET=tcp:connector:5037 \
+#        or
 #        -e ANDROID_ADB_SERVER_ADDRESS=connector \
 #        -e ANDROID_ADB_SERVER_PORT=5037 \
 
