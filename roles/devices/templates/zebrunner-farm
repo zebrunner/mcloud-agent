@@ -185,6 +185,8 @@ function create_containers () {
         -e RELAXED_SECURITY=true \
         -e ADB_SERVER_SOCKET=tcp:connector:5037 \
         -e REMOTE_ADB_HOST=connector \
+	-e STF_API_URL={{ STF_API_URL }} \
+	-e STF_AUTH_TOKEN={{ STF_AUTH_TOKEN }} \
         {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }} || echo 'already created'
 
     docker run -d --name device-${device_name}-${udid}-uploader --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
