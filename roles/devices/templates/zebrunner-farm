@@ -271,6 +271,7 @@ function create_containers () {
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     docker run -itd --name device-${device_name}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
         --restart on-failure $DEVICE_ARG \
+        --link device-${device_name}-${udid}:device \
         --link device-${device_name}-${udid}-connector:connector \
         -e WDA_HOST=connector \
         -v appium-storage-volume:/opt/appium-storage \
