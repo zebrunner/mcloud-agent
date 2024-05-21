@@ -189,7 +189,7 @@ function create_containers () {
       -v ${wdaIpaPath}:/tmp/zebrunner/WebDriverAgent.ipa \
       -v device-${device_name}-${udid}-lockdown:/var/lib/lockdown \
       -v device-${device_name}-${udid}:/tmp/log \
-      -e DEVICE_UDID="$STF_DEVICE_UDID" \
+      -e DEVICE_UDID=$udid \
       {{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }} || echo 'already created'
 
     # Linking with apppium required to share usbmuxd via socat
