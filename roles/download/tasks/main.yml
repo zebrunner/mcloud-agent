@@ -12,5 +12,11 @@
 - name: Pull an Zebrunner Mitm image
   shell: docker pull "{{ MITM_IMAGE }}:{{ MITM_VERSION }}"
 
+- name: Pull an Zebrunner Connector image
+  shell: docker pull "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}"
+
+- name: Pull an Zebrunner Connector image
+  shell: docker pull "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}"
+
 - name: Create infra network if absent
   shell: docker network inspect "{{ STF_DOCKER_NETWORK }}" >/dev/null 2>&1 || docker network create "{{ STF_DOCKER_NETWORK }}"

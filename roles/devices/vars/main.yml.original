@@ -27,6 +27,10 @@ STF_PROVIDER_HOST: linux-agent.zebrunner.farm
 # [OPTIONAL] provider/location name for devices. Use short city name like NYC
 STF_PROVIDER_NAME: mcloud-linux
 
+# [OPTIONAL] STF integration settings to move devices into Unhealthy state
+STF_API_URL:
+STF_AUTH_TOKEN:
+
 # [OPTIONAL] S3 compatible storage for video recordings.
 S3_BUCKET:
 S3_TENANT:
