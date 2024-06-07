@@ -58,7 +58,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
  * Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
  * Usbmuxd service is stopped and masked (disabled).
  * [Optional] Register`@reboot /usr/local/bin/zebrunner-farm restart` via crontab to forcibly restart containers on reboot
- * [Optional] Increased `fs.inotify.max_user_instances` to workaround [#328]
+ * [Optional] Increased `fs.inotify.max_user_instances` to workaround [#328](https://github.com/zebrunner/mcloud-agent/issues/328)
    > `sudo sysctl fs.inotify.max_user_instances=2048`
 
 ### Mac OS
