@@ -502,7 +502,6 @@ function verify_containers() {
   echo
 }
 
-
 function start() {
   local filter_device=$1
   local devices=/usr/local/bin/mcloud-devices.txt
