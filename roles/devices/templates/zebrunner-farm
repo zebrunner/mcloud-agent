@@ -447,9 +447,10 @@ function measure_uptime() {
     uptime="Not running"
   else
     currentTime=$(date +%s)
-    uptime=$(date -d @$(( currentTime - startedAt )) +'%H:%M:%S')
+    startedAtEpoch=$(date -d "$startedAt" +%s)
+    uptime=$(date -d @$(( currentTime - startedAtEpoch )) +'%H:%M:%S')
   fi
-  return "$uptime"
+  echo "$uptime"
 }
 
 function verify_containers() {
@@ -467,6 +468,7 @@ function verify_containers() {
     state="Disconnected!"
     echo "$container - DISCONNECTED"
   else
+    echo "$container"
     local stfState="UNKNOWN"
     #verify if device containers already exist and do nothing then
     docker ps -a | grep -v appium | grep $container > /dev/null
@@ -499,7 +501,7 @@ function verify_containers() {
 | STF,$stfState,$stfUptime,$stfRestarts" | column -t -s ',' -o ' | ' -L
 
   fi
-  echo
+  echo "-------------"
 }
 
 function start() {
