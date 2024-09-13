@@ -173,7 +173,7 @@ function create_containers () {
 
     if [ "$server_proxy_port" != "0" ] && [ "$proxy_port" != "0" ]; then
       docker run -itd --name device-${device_name}-${udid}-mitm -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
-        --restart on-failure:50 \
+        --restart on-failure:{{ RESTARTS_LIMIT }} \
         -v mcloud-mitm-volume:/opt/mitmproxy \
         -e PROXY_PERMANENT_ARGS="$proxy_permament_arguments"  \
         -p ${server_proxy_port}:8060 -p ${proxy_port}:8080 \
@@ -181,7 +181,7 @@ function create_containers () {
     fi
 
     docker run -itd --name device-${device_name}-${udid}-connector --net=${net} \
-      --restart on-failure:50 $DEVICE_ARG \
+      --restart on-failure:{{ RESTARTS_LIMIT }} $DEVICE_ARG \
       -e USBMUXD_SOCKET_ADDRESS={{ USBMUXD_SOCKET_ADDRESS }} \
       -e DEVICE_BUS=$usb_bus \
       -e WDA_BUNDLEID=$wdaBundleId \
@@ -194,7 +194,7 @@ function create_containers () {
 
     # Linking with apppium required to share usbmuxd via socat
     docker run -d --name device-${device_name}-${udid} --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
-      --restart on-failure:50 \
+      --restart on-failure:{{ RESTARTS_LIMIT }} \
       --link device-${device_name}-${udid}-connector:connector \
       -e WDA_HOST=connector \
       -e WDA_WAIT_TIMEOUT=60 \
@@ -218,7 +218,7 @@ function create_containers () {
 
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     docker run -itd --name device-${device_name}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
-      --restart on-failure:50 $DEVICE_ARG \
+      --restart on-failure:{{ RESTARTS_LIMIT }} $DEVICE_ARG \
       --link device-${device_name}-${udid}:device \
       --link device-${device_name}-${udid}-connector:connector \
       -e WDA_HOST=connector \
@@ -249,7 +249,7 @@ function create_containers () {
       {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }} || echo 'already created'
 
     docker run -d --name device-${device_name}-${udid}-uploader --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
-      --restart on-failure:50 \
+      --restart on-failure:{{ RESTARTS_LIMIT }} \
       -v device-${device_name}-${udid}:/tmp/log \
       -e ENDPOINT_URL={{ S3_ENDPOINT }} \
       -e S3_KEY_PATTERN=${S3_KEY_PATTERN} \
