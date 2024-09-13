@@ -440,8 +440,8 @@ function remove_containers() {
 }
 
 function measure_uptime() {
-  startedAt="$(docker inspect --format='{{ '{{' }}.State.StartedAt{{ '}}' }}'' $1)"
-  finishedAt="$(docker inspect --format=''{{ '{{' }}.State.FinishedAt{{ '}}' }}' $1)"
+  startedAt="$(docker inspect --format='{{ '{{' }}.State.StartedAt{{ '}}' }}' $1)"
+  finishedAt="$(docker inspect --format='{{ '{{' }}.State.FinishedAt{{ '}}' }}' $1)"
   startedAtEpoch="$(date -d "$startedAt" +%s)"
   finishedAtEpoch="$(date -d "$finishedAt" +%s)"
 
