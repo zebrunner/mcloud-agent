@@ -440,8 +440,8 @@ function remove_containers() {
 }
 
 function measure_uptime() {
-  startedAt="$(docker inspect --format='{{ .State.StartedAt }}' $1)"
-  finishedAt="$(docker inspect --format='{{ .State.FinishedAt }}' $1)"
+  startedAt="$(docker inspect --format='{{ '{{' }}.State.StartedAt{{ '}}' }}'' $1)"
+  finishedAt="$(docker inspect --format=''{{ '{{' }}.State.FinishedAt{{ '}}' }}' $1)"
   startedAtEpoch="$(date -d "$startedAt" +%s)"
   finishedAtEpoch="$(date -d "$finishedAt" +%s)"
 
@@ -455,7 +455,7 @@ function measure_uptime() {
 }
 
 function detect_state() {
-  state="$(docker inspect --format='{{ .State.Health.Status }}' $1 2>/dev/null)"
+  state="$(docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' $1 2>/dev/null)"
   if [ $? -eq 0 ]; then
     echo "$state"
   else
@@ -482,21 +482,21 @@ function verify_containers() {
     if [ $? -eq 0 ]; then
       stfState="$(detect_state $container)"
       stfUptime="$(measure_uptime $container)"
-      stfRestarts="$(docker inspect --format='{{ .RestartCount }}' $container)"
+      stfRestarts="$(docker inspect --format='{{ '{{' }}.RestartCount{{ '}}' }}' $container)"
     fi
 
     docker ps -a | grep appium | grep $container > /dev/null
     if [ $? -eq 0 ]; then
       appiumState="$(detect_state $container-appium)"
       appiumUptime="$(measure_uptime $container-appium)"
-      appiumRestarts="$(docker inspect --format='{{ .RestartCount }}' $container-appium)"
+      appiumRestarts="$(docker inspect --format='{{ '{{' }}.RestartCount{{ '}}' }}' $container-appium)"
     fi
 
     docker ps -a | grep connector | grep $container > /dev/null
     if [ $? -eq 0 ]; then
       connectorState="$(detect_state $container-connector)"
       connectorUptime="$(measure_uptime $container-connector)"
-      connectorRestarts="$(docker inspect --format='{{ .RestartCount }}' $container-connector)"
+      connectorRestarts="$(docker inspect --format='{{ '{{' }}.RestartCount{{ '}}' }}' $container-connector)"
     fi
 
     echo -e ",Container,State,Uptime,Restarts,
