@@ -442,13 +442,14 @@ function remove_containers() {
 function measure_uptime() {
   startedAt="$(docker inspect --format='{{ .State.StartedAt }}' $1)"
   finishedAt="$(docker inspect --format='{{ .State.FinishedAt }}' $1)"
+  startedAtEpoch="$(date -d "$startedAt" +%s)"
+  finishedAtEpoch="$(date -d "$finishedAt" +%s)"
 
-  if [ "$finishedAt" != "0001-01-01T00:00:00Z" ]; then
-    uptime="Not running"
+  if [ "$startedAtEpoch" -lt "$finishedAtEpoch" ]; then
+    uptime="no uptime"
   else
     currentTime=$(date +%s)
-    startedAtEpoch=$(date -d "$startedAt" +%s)
-    uptime=$(date -d @$(( currentTime - startedAtEpoch )) +'%H:%M:%S')
+    uptime=$(TZ=UTC date -d @"$(( currentTime - startedAtEpoch ))" +'%H:%M:%S')
   fi
   echo "$uptime"
 }
