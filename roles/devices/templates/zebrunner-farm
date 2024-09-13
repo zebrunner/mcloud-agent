@@ -458,7 +458,7 @@ function detect_state() {
   if [ $? -eq 0 ]; then
     echo "$state"
   else
-    echo "Unknown"
+    echo "unknown"
   fi
 }
 
@@ -472,12 +472,10 @@ function verify_containers() {
   local wireless=`cat ${devices} | grep "$udid" | cut -d '|' -f 9`
 
   local container=device-$device-$udid
-  local state=
   if [ ! -L "/dev/$container" ] && [ "$wireless" != "True" ]; then
-    state="Disconnected!"
-    echo "$container - DISCONNECTED"
+    echo -e "$container\n\nDISCONNECTED\n"
   else
-    echo "$container"
+    echo -e "$container\n"
     #verify if device containers already exist and do nothing then
     docker ps -a | grep -v appium | grep $container > /dev/null
     if [ $? -eq 0 ]; then
@@ -503,13 +501,13 @@ function verify_containers() {
     fi
 
     echo -e ",Container,State,Uptime,Restarts,
-,-----,-----,-----,-----,
+,---------,---------,---------,---------,
 ,Connector,$connectorState,$connectorUptime,$connectorRestarts,
 ,Appium,$appiumState,$appiumUptime,$appiumRestarts,
 ,STF,$stfState,$stfUptime,$stfRestarts," | column -t -s ',' -o ' | ' -L
 
   fi
-  echo "==============================="
+  echo -e "==============================================================\n"
 }
 
 function start() {
