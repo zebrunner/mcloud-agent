@@ -234,6 +234,8 @@ function create_containers () {
     fi
 
     docker run -itd --name device-${device_name}-${udid}-connector --net=${net} \
+        --cap-add=NET_ADMIN \
+        --device=/dev/net/tun \
         --restart on-failure $DEVICE_ARG \
         -e DEVICE_BUS=$usb_bus \
         -e WDA_BUNDLEID=$wdaBundleId \
