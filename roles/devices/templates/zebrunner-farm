@@ -463,6 +463,15 @@ function detect_state() {
   fi
 }
 
+function detect_status() {
+  state="$(docker inspect --format='{{ '{{' }}.State.Status{{ '}}' }}' $1 2>/dev/null)"
+  if [ $? -eq 0 ]; then
+    echo "$state"
+  else
+    echo "unknown"
+  fi
+}
+
 function verify_containers() {
   local device=$1
   #echo "device: $device"
@@ -481,6 +490,7 @@ function verify_containers() {
     docker ps -a | grep -v appium | grep $container > /dev/null
     if [ $? -eq 0 ]; then
       stfState="$(detect_state $container)"
+      stfStatus="$(detect_status $container)"
       stfUptime="$(measure_uptime $container)"
       stfRestarts="$(docker inspect --format='{{ '{{' }}.RestartCount{{ '}}' }}' $container)"
     fi
@@ -488,6 +498,7 @@ function verify_containers() {
     docker ps -a | grep appium | grep $container > /dev/null
     if [ $? -eq 0 ]; then
       appiumState="$(detect_state $container-appium)"
+      appiumStatus="$(detect_status $container-appium)"
       appiumUptime="$(measure_uptime $container-appium)"
       appiumRestarts="$(docker inspect --format='{{ '{{' }}.RestartCount{{ '}}' }}' $container-appium)"
     fi
@@ -495,15 +506,16 @@ function verify_containers() {
     docker ps -a | grep connector | grep $container > /dev/null
     if [ $? -eq 0 ]; then
       connectorState="$(detect_state $container-connector)"
+      connectorStatus="$(detect_status $container-connector)"
       connectorUptime="$(measure_uptime $container-connector)"
       connectorRestarts="$(docker inspect --format='{{ '{{' }}.RestartCount{{ '}}' }}' $container-connector)"
     fi
 
-    echo -e ",Container,State,Uptime,Restarts,
-,---------,---------,---------,---------,
-,Connector,$connectorState,$connectorUptime,$connectorRestarts,
-,Appium,$appiumState,$appiumUptime,$appiumRestarts,
-,STF,$stfState,$stfUptime,$stfRestarts," | column -t -s ',' -o ' | ' -L
+    echo -e ",Container,State,Status,Uptime,Restarts,
+,---------,---------,---------,---------,---------,
+,Connector,$connectorState,$stfStatus,$connectorUptime,$connectorRestarts,
+,Appium,$appiumState,$appiumStatus,$appiumUptime,$appiumRestarts,
+,STF,$stfState,$connectorStatus,$stfUptime,$stfRestarts," | column -t -s ',' -o ' | ' -L
 
   fi
   echo -e "==============================================================\n"
