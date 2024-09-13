@@ -480,8 +480,6 @@ function verify_containers() {
     #verify if device containers already exist and do nothing then
     docker ps -a | grep -v appium | grep $container > /dev/null
     if [ $? -eq 0 ]; then
-      # TODO fix error 'template parsing error: template: :1:9: executing "" at <.State.Health.Status>: map has no entry for key "Health"' for some connector containers
-      # TODO make sure Uptime calculating correctly
       stfState="$(detect_state $container)"
       stfUptime="$(measure_uptime $container)"
       stfRestarts="$(docker inspect --format='{{ .RestartCount }}' $container)"
