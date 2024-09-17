@@ -270,6 +270,7 @@ function create_containers () {
 
   else
     echo "ERROR! Unsupported platform: ${platform_name}"
+    return 1
   fi
 }
 
