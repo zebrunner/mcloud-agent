@@ -415,7 +415,7 @@ function remove_containers() {
 
   local udid=$2
   #echo "udid: $udid"
-  echo
+
   local container=device-$device-$udid
   #echo "$container removing..."
   # remove container(s) only if exists
