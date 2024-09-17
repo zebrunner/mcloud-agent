@@ -71,6 +71,7 @@ listen() {
 
 
 function create_containers () {
+    echo -e "\n\tCreate $udid containers:"
     local device=$1
     #echo "device: $device"
 
@@ -78,6 +79,15 @@ function create_containers () {
     #echo "udid: $udid"
 
     local container=device-$device-$udid
+
+    cleanUdid=$( echo "$udid" | tr -d '-' )
+    connectedDevices=$( ioreg -p IOUSB -w0 -l 2>/dev/null )
+    if echo "$connectedDevices" | grep -q "$cleanUdid" ; then
+      echo "Device with udid: $cleanUdid was SUCCESSFULLY detected as connected."
+    else
+      echo "Device with udid: $cleanUdid was NOT detected as connected. The containers will not be created."
+      return 1
+    fi
 
     #verify if device containers already exist and do nothing then
     docker ps -a | grep -v appium | grep $container > /dev/null
@@ -260,6 +270,7 @@ function create_containers () {
 
   else
     echo "ERROR! Unsupported platform: ${platform_name}"
+    return 1
   fi
 }
 
@@ -295,6 +306,7 @@ function stop() {
 }
 
 function stop_containers() {
+  echo -e "\n\tStop $udid containers:"
   local device=$1
   #echo "device: $device"
 
@@ -302,7 +314,6 @@ function stop_containers() {
   #echo "udid: $udid"
 
   local container=device-$device-$udid
-  echo
   echo "$container stopping..."
   # connector should be stopped first to disconnect in STF asap
   docker stop $container-connector
@@ -343,6 +354,7 @@ function down() {
 }
 
 function remove_containers() {
+  echo -e "\n\tRemove $udid containers:"
   local device=$1
   #echo "device: $device"
 
@@ -386,6 +398,7 @@ function remove_containers() {
 }
 
 function verify_containers() {
+  echo -e "\n\tVerify $udid containers:"
   local device=$1
   #echo "device: $device"
 
@@ -455,8 +468,7 @@ function start() {
       return 0
     fi
 
-    create_containers ${device_name} ${udid}
-    start_containers ${device_name} ${udid}
+    create_containers ${device_name} ${udid} && start_containers ${device_name} ${udid}
   else
     while read -r line
     do
@@ -464,8 +476,7 @@ function start() {
       #echo "device_name: $device_name"
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
       #echo "udid: $udid"
-      create_containers ${device_name} ${udid}
-      start_containers ${device_name} ${udid}
+      create_containers ${device_name} ${udid} && start_containers ${device_name} ${udid}
     done < ${devices}
 
    # do listener load only after creating last container otherwise listener starts in parallel
@@ -474,6 +485,7 @@ function start() {
 }
 
 function start_containers() {
+  echo -e "\n\tStart $udid containers:"
   local device=$1
   #echo "device: $device"
 
@@ -482,7 +494,6 @@ function start_containers() {
 
   local container=device-$device-$udid
 
-  echo
   echo "$container starting..."
   docker start $container-connector
   docker start $container

@@ -15,6 +15,7 @@ fi
 #export
 
 function create_containers () {
+    echo -e "\n\tCreate $udid containers:"
     local device=$1
     #echo "device: $device"
 
@@ -91,6 +92,15 @@ function create_containers () {
       STF_DEVICE_UDID=$udid:5555
       # reset device arg as no symlink generated for the wireless device
       DEVICE_ARG=
+    else
+      cleanUdid=$( echo "$udid" | tr -d '-' )
+      connectedDevices=$( lsusb -v 2>/dev/null )
+      if echo "$connectedDevices" | grep -q "$cleanUdid" ; then
+        echo "Device with udid: $cleanUdid was SUCCESSFULLY detected as connected."
+      else
+        echo "Device with udid: $cleanUdid was NOT detected as connected. The containers will not be created."
+        return 1
+      fi
     fi
 
     local S3_KEY_PATTERN=
@@ -314,6 +324,7 @@ function create_containers () {
 
   else
     echo "ERROR! Unsupported platform: ${platform_name}"
+    return 1
   fi
 }
 
@@ -351,6 +362,7 @@ function stop() {
 }
 
 function stop_containers() {
+  echo -e "\n\tStop $udid containers:"
   local device=$1
   #echo "device: $device"
 
@@ -358,7 +370,6 @@ function stop_containers() {
   #echo "udid: $udid"
 
   local container=device-$device-$udid
-  echo
   echo "$container stopping..."
   #TODO: retest below assumption
   # appium should be stopped first to disconnect in STF asap
@@ -398,6 +409,7 @@ function down() {
 }
 
 function remove_containers() {
+  echo -e "\n\tRemove $udid containers:"
   local device=$1
   #echo "device: $device"
 
@@ -475,6 +487,7 @@ function detect_status() {
 }
 
 function verify_containers() {
+  echo -e "\n\tVerify $udid containers:"
   local device=$1
   #echo "device: $device"
 
@@ -537,8 +550,7 @@ function start() {
       return 0
     fi
 
-    create_containers ${device_name} ${udid}
-    start_containers ${device_name} ${udid}
+    create_containers ${device_name} ${udid} && start_containers ${device_name} ${udid}
   else
     while read -r line
     do
@@ -548,14 +560,14 @@ function start() {
       #echo "udid: $udid"
       local wireless=`echo ${line} | grep "$filter_device" | cut -d '|' -f 9`
       if [ -L "/dev/device-${device_name}-${udid}" ] || [ "$wireless" == "True" ]; then
-        create_containers ${device_name} ${udid}
-        start_containers ${device_name} ${udid}
+        create_containers ${device_name} ${udid} && start_containers ${device_name} ${udid}
       fi
     done < ${devices}
   fi
 }
 
 function start_containers() {
+  echo -e "\n\tStart $udid containers:"
   local device=$1
   #echo "device: $device"
 
@@ -564,7 +576,6 @@ function start_containers() {
 
   local container=device-$device-$udid
 
-  echo
   echo "$container starting..."
   docker start $container
   docker start $container-mitm
