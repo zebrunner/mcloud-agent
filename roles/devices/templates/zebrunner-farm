@@ -33,7 +33,11 @@ function create_containers () {
     local isAppiumExists=$?
     #echo isAppiumExists: $isAppiumExists
 
-    if [ $isDeviceExists -eq 0 ] && [ $isAppiumExists -eq 0 ]; then
+    docker ps -a | grep connector | grep $container > /dev/null
+    local isConnectorExists=$?
+    #echo isConnectorExists: $isConnectorExists
+
+    if [ $isDeviceExists -eq 0 ] && [ $isAppiumExists -eq 0 ] && [ $isConnectorExists -eq 0 ]; then
       echo "WARN! do nothing as containers already exists!"
       return 0
     fi

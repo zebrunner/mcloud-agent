@@ -397,6 +397,39 @@ function remove_containers() {
 
 }
 
+function measure_uptime() {
+  startedAt="$(docker inspect --format='{{ '{{' }}.State.StartedAt{{ '}}' }}' $1)"
+  finishedAt="$(docker inspect --format='{{ '{{' }}.State.FinishedAt{{ '}}' }}' $1)"
+  startedAtEpoch="$(date -d "$startedAt" +%s)"
+  finishedAtEpoch="$(date -d "$finishedAt" +%s)"
+
+  if [ "$startedAtEpoch" -lt "$finishedAtEpoch" ]; then
+    uptime="no uptime"
+  else
+    currentTime=$(date +%s)
+    uptime=$(TZ=UTC date -d @"$(( currentTime - startedAtEpoch ))" +'%H:%M:%S')
+  fi
+  echo "$uptime"
+}
+
+function detect_state() {
+  state="$(docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' $1 2>/dev/null)"
+  if [ $? -eq 0 ]; then
+    echo "$state"
+  else
+    echo "unknown"
+  fi
+}
+
+function detect_status() {
+  state="$(docker inspect --format='{{ '{{' }}.State.Status{{ '}}' }}' $1 2>/dev/null)"
+  if [ $? -eq 0 ]; then
+    echo "$state"
+  else
+    echo "unknown"
+  fi
+}
+
 function verify_containers() {
   echo -e "\n\tVerify $udid containers:"
   local device=$1
@@ -411,25 +444,37 @@ function verify_containers() {
   #verify if device containers already exist and do nothing then
   docker ps -a | grep -v appium | grep -v uploader | grep $container > /dev/null
   if [ $? -eq 0 ]; then
-    stfState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container`
+    stfState="$(detect_state $container)"
+    stfStatus="$(detect_status $container)"
+    stfUptime="$(measure_uptime $container)"
+    stfRestarts="$(docker inspect --format='{{ '{{' }}.RestartCount{{ '}}' }}' $container)"
   fi
 
   local appiumState="UNKNOWN"
   docker ps -a | grep appium | grep $container > /dev/null
   if [ $? -eq 0 ]; then
-    appiumState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container-appium`
+    appiumState="$(detect_state $container-appium)"
+    appiumStatus="$(detect_status $container-appium)"
+    appiumUptime="$(measure_uptime $container-appium)"
+    appiumRestarts="$(docker inspect --format='{{ '{{' }}.RestartCount{{ '}}' }}' $container-appium)"
   fi
 
   local connectorState="UNKNOWN"
   docker ps -a | grep connector | grep $container > /dev/null
   if [ $? -eq 0 ]; then
-    connectorState=`docker inspect --format='{{ '{{' }}json .State.Health.Status{{ '}}' }}' $container-connector`
+    connectorState="$(detect_state $container-connector)"
+    connectorStatus="$(detect_status $container-connector)"
+    connectorUptime="$(measure_uptime $container-connector)"
+    connectorRestarts="$(docker inspect --format='{{ '{{' }}.RestartCount{{ '}}' }}' $container-connector)"
   fi
 
-  echo $container
-  echo "Appium: $appiumState; STF: $stfState; Connector: $connectorState"
-  echo
+  echo -e ",Container,State,Status,Uptime,Restarts,
+,---------,---------,---------,---------,---------,
+,Connector,$connectorState,$stfStatus,$connectorUptime,$connectorRestarts,
+,Appium,$appiumState,$appiumStatus,$appiumUptime,$appiumRestarts,
+,STF,$stfState,$connectorStatus,$stfUptime,$stfRestarts," | column -t -s ',' -o ' | ' -L
 
+  echo -e "==============================================================\n"
 
   #echo stfState: $stfState
   if [[ "$stfState" != "\"healthy\"" ]] && [[ "$stfState" != "\"starting\"" ]]; then
