@@ -12,7 +12,7 @@ MITM_IMAGE: public.ecr.aws/zebrunner/mitmproxy
 MITM_VERSION: 2.0
 
 IOS_CONNECTOR_IMAGE: public.ecr.aws/zebrunner/mcloud-ios-connector
-IOS_CONNECTOR_VERSION: 1.0
+IOS_CONNECTOR_VERSION: 1.1
 
 ANDROID_CONNECTOR_IMAGE: public.ecr.aws/zebrunner/mcloud-android-connector
 ANDROID_CONNECTOR_VERSION: 1.1
