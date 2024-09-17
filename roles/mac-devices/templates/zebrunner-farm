@@ -79,6 +79,15 @@ function create_containers () {
 
     local container=device-$device-$udid
 
+    cleanUdid=$( echo "$udid" | tr -d '-' )
+    connectedDevices=$( ioreg -p IOUSB -w0 -l 2>/dev/null )
+    if echo "$connectedDevices" | grep -q "$cleanUdid" ; then
+      echo "Device with udid: $cleanUdid was SUCCESSFULLY detected as connected."
+    else
+      echo "Device with udid: $cleanUdid was NOT detected as connected. The containers will not be created."
+      return 1
+    fi
+
     #verify if device containers already exist and do nothing then
     docker ps -a | grep -v appium | grep $container > /dev/null
     local isDeviceExists=$?

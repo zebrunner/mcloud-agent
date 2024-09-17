@@ -91,6 +91,15 @@ function create_containers () {
       STF_DEVICE_UDID=$udid:5555
       # reset device arg as no symlink generated for the wireless device
       DEVICE_ARG=
+    else
+      cleanUdid=$( echo "$udid" | tr -d '-' )
+      connectedDevices=$( lsusb -v 2>/dev/null )
+      if echo "$connectedDevices" | grep -q "$cleanUdid" ; then
+        echo "Device with udid: $cleanUdid was SUCCESSFULLY detected as connected."
+      else
+        echo "Device with udid: $cleanUdid was NOT detected as connected. The containers will not be created."
+        return 1
+      fi
     fi
 
     local S3_KEY_PATTERN=
