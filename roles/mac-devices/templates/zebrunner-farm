@@ -468,11 +468,11 @@ function verify_containers() {
     connectorRestarts="$(docker inspect --format='{{ '{{' }}.RestartCount{{ '}}' }}' $container-connector)"
   fi
 
-  echo -e ",Container,State,Status,Uptime,Restarts,
-,---------,---------,---------,---------,---------,
-,Connector,$connectorState,$stfStatus,$connectorUptime,$connectorRestarts,
-,Appium,$appiumState,$appiumStatus,$appiumUptime,$appiumRestarts,
-,STF,$stfState,$connectorStatus,$stfUptime,$stfRestarts," | column -t -s ',' -o ' | ' -L
+  echo -e ",| Container,| State,| Status,| Uptime,| Restarts,|
+,| ---------,| ---------,| ---------,| ---------,| ---------,|
+,| Connector,| $connectorState,| $stfStatus,| $connectorUptime,| $connectorRestarts,|
+,| Appium,| $appiumState,| $appiumStatus,| $appiumUptime,| $appiumRestarts,|
+,| STF,| $stfState,| $connectorStatus,| $stfUptime,| $stfRestarts,|" | column -t -s ','
 
   echo -e "==============================================================\n"
 
