@@ -464,8 +464,7 @@ function start() {
       return 0
     fi
 
-    create_containers ${device_name} ${udid}
-    start_containers ${device_name} ${udid}
+    create_containers ${device_name} ${udid} && start_containers ${device_name} ${udid}
   else
     while read -r line
     do
@@ -473,8 +472,7 @@ function start() {
       #echo "device_name: $device_name"
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
       #echo "udid: $udid"
-      create_containers ${device_name} ${udid}
-      start_containers ${device_name} ${udid}
+      create_containers ${device_name} ${udid} && start_containers ${device_name} ${udid}
     done < ${devices}
 
    # do listener load only after creating last container otherwise listener starts in parallel
