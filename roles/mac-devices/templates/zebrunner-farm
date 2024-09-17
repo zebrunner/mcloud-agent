@@ -494,7 +494,6 @@ function start_containers() {
 
   local container=device-$device-$udid
 
-  echo
   echo "$container starting..."
   docker start $container-connector
   docker start $container
