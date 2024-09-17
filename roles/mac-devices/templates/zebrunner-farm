@@ -71,7 +71,7 @@ listen() {
 
 
 function create_containers () {
-    echo -e "/n==========================================="
+    echo -e "\n Create $device-$udid containers:"
     local device=$1
     #echo "device: $device"
 
@@ -305,6 +305,7 @@ function stop() {
 }
 
 function stop_containers() {
+  echo -e "\n Stop $device-$udid containers:"
   local device=$1
   #echo "device: $device"
 
@@ -353,6 +354,7 @@ function down() {
 }
 
 function remove_containers() {
+  echo -e "\n Remove $device-$udid containers:"
   local device=$1
   #echo "device: $device"
 
@@ -396,6 +398,7 @@ function remove_containers() {
 }
 
 function verify_containers() {
+  echo -e "\n Verify $device-$udid containers:"
   local device=$1
   #echo "device: $device"
 
@@ -482,6 +485,7 @@ function start() {
 }
 
 function start_containers() {
+  echo -e "\n Start $device-$udid containers:"
   local device=$1
   #echo "device: $device"
 
