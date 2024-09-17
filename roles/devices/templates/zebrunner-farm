@@ -15,6 +15,7 @@ fi
 #export
 
 function create_containers () {
+    echo -e "\n\tCreate $udid containers:"
     local device=$1
     #echo "device: $device"
 
@@ -360,6 +361,7 @@ function stop() {
 }
 
 function stop_containers() {
+  echo -e "\n\tStop $udid containers:"
   local device=$1
   #echo "device: $device"
 
@@ -367,7 +369,6 @@ function stop_containers() {
   #echo "udid: $udid"
 
   local container=device-$device-$udid
-  echo
   echo "$container stopping..."
   #TODO: retest below assumption
   # appium should be stopped first to disconnect in STF asap
@@ -407,12 +408,13 @@ function down() {
 }
 
 function remove_containers() {
+  echo -e "\n\tRemove $udid containers:"
   local device=$1
   #echo "device: $device"
 
   local udid=$2
   #echo "udid: $udid"
-
+  echo
   local container=device-$device-$udid
   #echo "$container removing..."
   # remove container(s) only if exists
@@ -484,6 +486,7 @@ function detect_status() {
 }
 
 function verify_containers() {
+  echo -e "\n\tVerify $udid containers:"
   local device=$1
   #echo "device: $device"
 
@@ -546,8 +549,7 @@ function start() {
       return 0
     fi
 
-    create_containers ${device_name} ${udid}
-    start_containers ${device_name} ${udid}
+    create_containers ${device_name} ${udid} && start_containers ${device_name} ${udid}
   else
     while read -r line
     do
@@ -557,14 +559,14 @@ function start() {
       #echo "udid: $udid"
       local wireless=`echo ${line} | grep "$filter_device" | cut -d '|' -f 9`
       if [ -L "/dev/device-${device_name}-${udid}" ] || [ "$wireless" == "True" ]; then
-        create_containers ${device_name} ${udid}
-        start_containers ${device_name} ${udid}
+        create_containers ${device_name} ${udid} && start_containers ${device_name} ${udid}
       fi
     done < ${devices}
   fi
 }
 
 function start_containers() {
+  echo -e "\n\tStart $udid containers:"
   local device=$1
   #echo "device: $device"
 
@@ -573,7 +575,6 @@ function start_containers() {
 
   local container=device-$device-$udid
 
-  echo
   echo "$container starting..."
   docker start $container
   docker start $container-mitm

@@ -313,7 +313,6 @@ function stop_containers() {
   #echo "udid: $udid"
 
   local container=device-$device-$udid
-  echo
   echo "$container stopping..."
   # connector should be stopped first to disconnect in STF asap
   docker stop $container-connector
