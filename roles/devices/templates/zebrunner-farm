@@ -561,9 +561,9 @@ function verify_containers() {
 
     echo -e ",Container,State,Status,Uptime,Restarts,
 ,---------,---------,---------,---------,---------,
-,Connector,$connectorState,$stfStatus,$connectorUptime,$connectorRestarts,
+,Connector,$connectorState,$connectorStatus,$connectorUptime,$connectorRestarts,
 ,Appium,$appiumState,$appiumStatus,$appiumUptime,$appiumRestarts,
-,STF,$stfState,$connectorStatus,$stfUptime,$stfRestarts," | column -t -s ',' -o ' | ' -L
+,STF,$stfState,$stfStatus,$stfUptime,$stfRestarts," | column -t -s ',' -o ' | ' -L
 
   fi
   echo -e "==============================================================\n"
