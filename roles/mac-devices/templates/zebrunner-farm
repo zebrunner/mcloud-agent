@@ -402,10 +402,14 @@ function measure_uptime() {
   finishedAt="$(docker inspect --format='{{ '{{' }}.State.FinishedAt{{ '}}' }}' "$1" | cut -d '.' -f 1)"
 
   startedAtEpoch="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$startedAt" "+%s")"
-  finishedAtEpoch="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$finishedAt" "+%s")"
+  if [ "$finishedAt" = "0001-01-01T00:00:00Z" ]; then
+    finishedAtEpoch=0
+  else
+    finishedAtEpoch="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$finishedAt" "+%s")"
+  fi
 
   if [ "$startedAtEpoch" -lt "$finishedAtEpoch" ]; then
-    uptime="no uptime"
+    uptime="UNKNOWN"
   else
     currentTime=$(TZ=UTC date "+%s")
     uptime="$(TZ=UTC date -r "$(( currentTime - startedAtEpoch ))" "+%H:%M:%S")"
@@ -418,7 +422,7 @@ function detect_state() {
   if [ $? -eq 0 ]; then
     echo "$state"
   else
-    echo "unknown"
+    echo "UNKNOWN"
   fi
 }
 
@@ -427,7 +431,7 @@ function detect_status() {
   if [ $? -eq 0 ]; then
     echo "$state"
   else
-    echo "unknown"
+    echo "UNKNOWN"
   fi
 }
 
