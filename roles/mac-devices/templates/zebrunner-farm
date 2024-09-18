@@ -439,22 +439,12 @@ function verify_containers() {
   local udid=$2
   #echo "udid: $udid"
 
-  local stfState=''
-  local stfStatus=''
-  local stfUptime=''
-  local stfRestarts=''
-  local appiumState=''
-  local appiumStatus=''
-  local appiumUptime=''
-  local appiumRestarts=''
-  local connectorState=''
-  local connectorStatus=''
-  local connectorUptime=''
-  local connectorRestarts=''
-
   local container=device-$device-$udid
 
   local stfState="UNKNOWN"
+  local stfStatus="UNKNOWN"
+  local stfUptime="UNKNOWN"
+  local stfRestarts="UNKNOWN"
   #verify if device containers already exist and do nothing then
   docker ps -a | grep -v appium | grep -v uploader | grep $container > /dev/null
   if [ $? -eq 0 ]; then
@@ -465,6 +455,9 @@ function verify_containers() {
   fi
 
   local appiumState="UNKNOWN"
+  local appiumStatus="UNKNOWN"
+  local appiumUptime="UNKNOWN"
+  local appiumRestarts="UNKNOWN"
   docker ps -a | grep appium | grep $container > /dev/null
   if [ $? -eq 0 ]; then
     appiumState="$(detect_state $container-appium)"
@@ -474,6 +467,9 @@ function verify_containers() {
   fi
 
   local connectorState="UNKNOWN"
+  local connectorStatus="UNKNOWN"
+  local connectorUptime="UNKNOWN"
+  local connectorRestarts="UNKNOWN"
   docker ps -a | grep connector | grep $container > /dev/null
   if [ $? -eq 0 ]; then
     connectorState="$(detect_state $container-connector)"
