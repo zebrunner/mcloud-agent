@@ -495,10 +495,8 @@ function verify_containers() {
     return 1
   fi
 
-
   return 0
 }
-
 
 function start() {
   local filter_device=$1
