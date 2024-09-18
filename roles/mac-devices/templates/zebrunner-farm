@@ -438,10 +438,19 @@ function verify_containers() {
 
   local udid=$2
   #echo "udid: $udid"
-  local stfState
-  local stfStatus
-  local stfUptime
-  local stfRestarts
+
+  local stfState=''
+  local stfStatus=''
+  local stfUptime=''
+  local stfRestarts=''
+  local appiumState=''
+  local appiumStatus=''
+  local appiumUptime=''
+  local appiumRestarts=''
+  local connectorState=''
+  local connectorStatus=''
+  local connectorUptime=''
+  local connectorRestarts=''
 
   local container=device-$device-$udid
 
