@@ -406,9 +406,9 @@ function remove_containers() {
   fi
 
   echo -n "Volume: "
-  docker volume ls | grep $container > /dev/null
+  docker volume ls | grep "$container$" > /dev/null
   if [ $? -eq 0 ]; then
-    docker volume rm device-${device_name}-${udid}
+    docker volume rm "$container"
   else
     echo "volume not found"
   fi
