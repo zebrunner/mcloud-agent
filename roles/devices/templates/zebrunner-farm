@@ -458,22 +458,22 @@ function remove_containers() {
 }
 
 function measure_uptime() {
-  startedAt="$(docker inspect --format='{{ '{{' }}.State.StartedAt{{ '}}' }}' $1)"
-  finishedAt="$(docker inspect --format='{{ '{{' }}.State.FinishedAt{{ '}}' }}' $1)"
-  startedAtEpoch="$(date -d "$startedAt" +%s)"
-  finishedAtEpoch="$(date -d "$finishedAt" +%s)"
+  startedAt="$(docker inspect --format='{{ '{{' }}.State.StartedAt{{ '}}' }}' "$1")"
+  finishedAt="$(docker inspect --format='{{ '{{' }}.State.FinishedAt{{ '}}' }}' "$1")"
+  startedAtEpoch="$(date -d "$startedAt" "+%s")"
+  finishedAtEpoch="$(date -d "$finishedAt" "+%s")"
 
   if [ "$startedAtEpoch" -lt "$finishedAtEpoch" ]; then
     uptime="no uptime"
   else
-    currentTime=$(date +%s)
-    uptime=$(TZ=UTC date -d @"$(( currentTime - startedAtEpoch ))" +'%H:%M:%S')
+    currentTime=$(date "+%s")
+    uptime="$(TZ=UTC date -d @"$(( currentTime - startedAtEpoch ))" "+%H:%M:%S")"
   fi
   echo "$uptime"
 }
 
 function detect_state() {
-  state="$(docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' $1 2>/dev/null)"
+  state="$(docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' "$1" 2>/dev/null)"
   if [ $? -eq 0 ]; then
     echo "$state"
   else
@@ -482,7 +482,7 @@ function detect_state() {
 }
 
 function detect_status() {
-  state="$(docker inspect --format='{{ '{{' }}.State.Status{{ '}}' }}' $1 2>/dev/null)"
+  state="$(docker inspect --format='{{ '{{' }}.State.Status{{ '}}' }}' "$1" 2>/dev/null)"
   if [ $? -eq 0 ]; then
     echo "$state"
   else

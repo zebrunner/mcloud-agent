@@ -398,35 +398,40 @@ function remove_containers() {
 }
 
 function measure_uptime() {
-  startedAt="$(docker inspect --format='{{ '{{' }}.State.StartedAt{{ '}}' }}' $1)"
-  finishedAt="$(docker inspect --format='{{ '{{' }}.State.FinishedAt{{ '}}' }}' $1)"
-  startedAtEpoch="$(date -d "$startedAt" +%s)"
-  finishedAtEpoch="$(date -d "$finishedAt" +%s)"
+  startedAt="$(docker inspect --format='{{ '{{' }}.State.StartedAt{{ '}}' }}' "$1" | cut -d '.' -f 1)"
+  finishedAt="$(docker inspect --format='{{ '{{' }}.State.FinishedAt{{ '}}' }}' "$1" | cut -d '.' -f 1)"
+
+  startedAtEpoch="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$startedAt" "+%s")"
+  if [ "$finishedAt" = "0001-01-01T00:00:00Z" ]; then
+    finishedAtEpoch=0
+  else
+    finishedAtEpoch="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$finishedAt" "+%s")"
+  fi
 
   if [ "$startedAtEpoch" -lt "$finishedAtEpoch" ]; then
-    uptime="no uptime"
+    uptime="UNKNOWN"
   else
-    currentTime=$(date +%s)
-    uptime=$(TZ=UTC date -d @"$(( currentTime - startedAtEpoch ))" +'%H:%M:%S')
+    currentTime=$(TZ=UTC date "+%s")
+    uptime="$(TZ=UTC date -r "$(( currentTime - startedAtEpoch ))" "+%H:%M:%S")"
   fi
   echo "$uptime"
 }
 
 function detect_state() {
-  state="$(docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' $1 2>/dev/null)"
+  state="$(docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' "$1" 2>/dev/null)"
   if [ $? -eq 0 ]; then
     echo "$state"
   else
-    echo "unknown"
+    echo "UNKNOWN"
   fi
 }
 
 function detect_status() {
-  state="$(docker inspect --format='{{ '{{' }}.State.Status{{ '}}' }}' $1 2>/dev/null)"
+  state="$(docker inspect --format='{{ '{{' }}.State.Status{{ '}}' }}' "$1" 2>/dev/null)"
   if [ $? -eq 0 ]; then
     echo "$state"
   else
-    echo "unknown"
+    echo "UNKNOWN"
   fi
 }
 
@@ -441,6 +446,9 @@ function verify_containers() {
   local container=device-$device-$udid
 
   local stfState="UNKNOWN"
+  local stfStatus="UNKNOWN"
+  local stfUptime="UNKNOWN"
+  local stfRestarts="UNKNOWN"
   #verify if device containers already exist and do nothing then
   docker ps -a | grep -v appium | grep -v uploader | grep $container > /dev/null
   if [ $? -eq 0 ]; then
@@ -451,6 +459,9 @@ function verify_containers() {
   fi
 
   local appiumState="UNKNOWN"
+  local appiumStatus="UNKNOWN"
+  local appiumUptime="UNKNOWN"
+  local appiumRestarts="UNKNOWN"
   docker ps -a | grep appium | grep $container > /dev/null
   if [ $? -eq 0 ]; then
     appiumState="$(detect_state $container-appium)"
@@ -460,6 +471,9 @@ function verify_containers() {
   fi
 
   local connectorState="UNKNOWN"
+  local connectorStatus="UNKNOWN"
+  local connectorUptime="UNKNOWN"
+  local connectorRestarts="UNKNOWN"
   docker ps -a | grep connector | grep $container > /dev/null
   if [ $? -eq 0 ]; then
     connectorState="$(detect_state $container-connector)"
@@ -494,10 +508,8 @@ function verify_containers() {
     return 1
   fi
 
-
   return 0
 }
-
 
 function start() {
   local filter_device=$1
