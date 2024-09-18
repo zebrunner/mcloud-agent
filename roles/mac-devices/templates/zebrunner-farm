@@ -354,7 +354,7 @@ function down() {
 }
 
 function remove_containers() {
-  echo -e "\n\tRemove $udid containers:"
+  echo -e "\n\tRemove '$udid' data:"
   local device=$1
   #echo "device: $device"
 
@@ -364,37 +364,54 @@ function remove_containers() {
   local container=device-$device-$udid
   #echo "$container removing..."
   # remove container(s) only if exists
+  echo -n "Connector: "
   docker ps -a | grep connector | grep $container > /dev/null
   if [ $? -eq 0 ]; then
     # remove connector first to disconnect device in stf asap
     docker rm -f $container-connector
+  else
+    echo "container not found"
   fi
 
+  echo -n "Appium: "
   docker ps -a | grep appium | grep $container > /dev/null
   if [ $? -eq 0 ]; then
     docker rm -f $container-appium
+  else
+    echo "container not found"
   fi
 
+  echo -n "STF: "
   docker ps -a | grep -v appium | grep $container > /dev/null
   if [ $? -eq 0 ]; then
     docker rm -f $container
+  else
+    echo "container not found"
   fi
 
+  echo -n "Uploader: "
   docker ps -a | grep uploader | grep $container > /dev/null
   if [ $? -eq 0 ]; then
     docker rm -f $container-uploader
+  else
+    echo "container not found"
   fi
 
-   docker ps -a | grep mitm | grep $container > /dev/null
-    if [ $? -eq 0 ]; then
-      docker rm -f $container-mitm
-    fi
+  echo -n "MITM: "
+  docker ps -a | grep mitm | grep $container > /dev/null
+  if [ $? -eq 0 ]; then
+    docker rm -f $container-mitm
+  else
+    echo "container not found"
+  fi
 
+  echo -n "Volume: "
   docker volume ls | grep $container > /dev/null
   if [ $? -eq 0 ]; then
-   docker volume rm device-${device_name}-${udid}
+    docker volume rm device-${device_name}-${udid}
+  else
+    echo "volume not found"
   fi
-
 }
 
 function measure_uptime() {
