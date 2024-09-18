@@ -408,11 +408,10 @@ function remove_containers() {
   echo -n "Volume: "
   docker volume ls | grep $container > /dev/null
   if [ $? -eq 0 ]; then
-   docker volume rm device-${device_name}-${udid}
+    docker volume rm device-${device_name}-${udid}
   else
     echo "volume not found"
   fi
-
 }
 
 function measure_uptime() {

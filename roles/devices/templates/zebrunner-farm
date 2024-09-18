@@ -471,7 +471,6 @@ function remove_containers() {
   else
     echo "volume not found"
   fi
-
 }
 
 function measure_uptime() {
