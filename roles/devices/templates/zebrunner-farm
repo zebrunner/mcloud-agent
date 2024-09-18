@@ -464,7 +464,7 @@ function measure_uptime() {
   finishedAtEpoch="$(date -d "$finishedAt" "+%s")"
 
   if [ "$startedAtEpoch" -lt "$finishedAtEpoch" ]; then
-    uptime="no uptime"
+    uptime="UNKNOWN"
   else
     currentTime=$(date "+%s")
     uptime="$(TZ=UTC date -d @"$(( currentTime - startedAtEpoch ))" "+%H:%M:%S")"
@@ -477,7 +477,7 @@ function detect_state() {
   if [ $? -eq 0 ]; then
     echo "$state"
   else
-    echo "unknown"
+    echo "UNKNOWN"
   fi
 }
 
@@ -486,7 +486,7 @@ function detect_status() {
   if [ $? -eq 0 ]; then
     echo "$state"
   else
-    echo "unknown"
+    echo "UNKNOWN"
   fi
 }
 
@@ -505,6 +505,11 @@ function verify_containers() {
     echo -e "$container\n\nDISCONNECTED\n"
   else
     echo -e "$container\n"
+
+    local stfState="UNKNOWN"
+    local stfStatus="UNKNOWN"
+    local stfUptime="UNKNOWN"
+    local stfRestarts="UNKNOWN"
     #verify if device containers already exist and do nothing then
     docker ps -a | grep -v appium | grep $container > /dev/null
     if [ $? -eq 0 ]; then
@@ -514,6 +519,10 @@ function verify_containers() {
       stfRestarts="$(docker inspect --format='{{ '{{' }}.RestartCount{{ '}}' }}' $container)"
     fi
 
+    local appiumState="UNKNOWN"
+    local appiumStatus="UNKNOWN"
+    local appiumUptime="UNKNOWN"
+    local appiumRestarts="UNKNOWN"
     docker ps -a | grep appium | grep $container > /dev/null
     if [ $? -eq 0 ]; then
       appiumState="$(detect_state $container-appium)"
@@ -522,6 +531,10 @@ function verify_containers() {
       appiumRestarts="$(docker inspect --format='{{ '{{' }}.RestartCount{{ '}}' }}' $container-appium)"
     fi
 
+    local connectorState="UNKNOWN"
+    local connectorStatus="UNKNOWN"
+    local connectorUptime="UNKNOWN"
+    local connectorRestarts="UNKNOWN"
     docker ps -a | grep connector | grep $container > /dev/null
     if [ $? -eq 0 ]; then
       connectorState="$(detect_state $container-connector)"
