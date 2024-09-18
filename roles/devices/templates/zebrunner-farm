@@ -466,7 +466,7 @@ function measure_uptime() {
   if [ "$startedAtEpoch" -lt "$finishedAtEpoch" ]; then
     uptime="no uptime"
   else
-    currentTime=$(date +%s)
+    currentTime=$(date "+%s")
     uptime="$(TZ=UTC date -d @"$(( currentTime - startedAtEpoch ))" "+%H:%M:%S")"
   fi
   echo "$uptime"
