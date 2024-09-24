@@ -193,6 +193,7 @@ function create_containers () {
     docker run -itd --name device-${device_name}-${udid}-connector --net=${net} \
       --restart on-failure:{{ RESTARTS_LIMIT }} $DEVICE_ARG \
       -e USBMUXD_SOCKET_ADDRESS={{ USBMUXD_SOCKET_ADDRESS }} \
+      -e HOST_OS=DARWIN \
       -e DEVICE_BUS=$usb_bus \
       -e WDA_BUNDLEID=$wdaBundleId \
       -e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \

@@ -251,6 +251,7 @@ function create_containers () {
         --restart on-failure:{{ RESTARTS_LIMIT }} $DEVICE_ARG \
         --cap-add=NET_ADMIN \
         --device=/dev/net/tun \
+        -e HOST_OS=LINUX \
         -e DEVICE_BUS=$usb_bus \
         -e WDA_BUNDLEID=$wdaBundleId \
 	      -e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
