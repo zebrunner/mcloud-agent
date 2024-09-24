@@ -132,7 +132,6 @@ function create_containers () {
 
     docker run -itd --name device-${device_name}-${udid}-connector --net=${net} \
         --restart on-failure:{{ RESTARTS_LIMIT }} $DEVICE_ARG \
-        -e HOST_OS=LINUX \
         -e DEVICE_BUS=$usb_bus \
         -v mcloud-key-volume:/root/.android \
         -v device-${device_name}-${udid}:/tmp/log \
