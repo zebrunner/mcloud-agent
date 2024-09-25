@@ -16,8 +16,8 @@ fi
 
 function create_containers () {
     echo -e "\n\tCreating '$udid' containers:\n"
-    local device=$1
-    #echo "device: $device"
+    local device_name=$1
+    #echo "device_name: $device_name"
 
     local udid=$2
     #echo "udid: $udid"
@@ -25,8 +25,6 @@ function create_containers () {
     local device_name_underscored=$3
 
     local container=device-$device_name_underscored-$udid
-
-    #TODO: seems docker containers verification should be moved below device vars detection
 
     #verify if device containers already exist and do nothing then
     docker ps -a | grep -v appium | grep $container > /dev/null
@@ -48,15 +46,9 @@ function create_containers () {
 
     echo "$device creating..."
     local devices=/usr/local/bin/mcloud-devices.txt
-    local device_name=`cat ${devices} | grep "$udid" | cut -d '|' -f 1`
-    #echo "device_name: $device_name"
-    local device_name_underscored=${device_name// /_}
 
     local platform_name=`cat ${devices} | grep "$udid" | cut -d '|' -f 2`
     #echo "platform_name: $platform_name"
-
-    local udid=`cat ${devices} | grep "$udid" | cut -d '|' -f 3`
-    #echo "udid: $udid"
 
     local device_adb_port=`cat ${devices} | grep "$udid" | cut -d '|' -f 4`
     #echo "device_adb_port: $device_adb_port"
