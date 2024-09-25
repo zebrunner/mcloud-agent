@@ -15,7 +15,7 @@ fi
 #export
 
 function create_containers () {
-    echo -e "\n\tCreating '$udid' containers:"
+    echo -e "\n\tCreating '$udid' containers:\n"
     local device=$1
     #echo "device: $device"
 
@@ -414,7 +414,7 @@ function down() {
 }
 
 function remove_containers() {
-  echo -e "\n\tRemoving '$udid' data:"
+  echo -e "\n\tRemoving '$udid' data:\n"
   local device=$1
   #echo "device: $device"
 
@@ -472,6 +472,8 @@ function remove_containers() {
   else
     echo "volume not found"
   fi
+
+  echo -e "-----------------------------------------------------------------\n"
 }
 
 function measure_uptime() {
@@ -584,9 +586,8 @@ function start() {
       return 0
     fi
 
-    echo "---------------------------"
     create_containers ${device_name} ${udid} && start_containers ${device_name} ${udid}
-    echo -e "---------------------------\n"
+    echo -e "-----------------------------------------------------------------\n"
   else
     while read -r line
     do
@@ -596,16 +597,15 @@ function start() {
       #echo "udid: $udid"
       local wireless=`echo ${line} | grep "$filter_device" | cut -d '|' -f 9`
       if [ -L "/dev/device-${device_name}-${udid}" ] || [ "$wireless" == "True" ]; then
-        echo "---------------------------"
         create_containers ${device_name} ${udid} && start_containers ${device_name} ${udid}
-        echo -e "---------------------------\n"
+        echo -e "-----------------------------------------------------------------\n"
       fi
     done < ${devices}
   fi
 }
 
 function start_containers() {
-  echo -e "\n\tStarting '$udid' containers:"
+  echo -e "\n\tStarting '$udid' containers:\n"
   local device=$1
   #echo "device: $device"
 
