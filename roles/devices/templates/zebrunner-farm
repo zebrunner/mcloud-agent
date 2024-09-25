@@ -473,7 +473,7 @@ function remove_containers() {
     echo "volume not found"
   fi
 
-  echo -e "-----------------------------------------------------------------\n"
+  echo -e "\n-----------------------------------------------------------------"
 }
 
 function measure_uptime() {
@@ -587,7 +587,7 @@ function start() {
     fi
 
     create_containers ${device_name} ${udid} && start_containers ${device_name} ${udid}
-    echo -e "-----------------------------------------------------------------\n"
+    echo -e "\n-----------------------------------------------------------------"
   else
     while read -r line
     do
@@ -598,7 +598,7 @@ function start() {
       local wireless=`echo ${line} | grep "$filter_device" | cut -d '|' -f 9`
       if [ -L "/dev/device-${device_name}-${udid}" ] || [ "$wireless" == "True" ]; then
         create_containers ${device_name} ${udid} && start_containers ${device_name} ${udid}
-        echo -e "-----------------------------------------------------------------\n"
+        echo -e "\n-----------------------------------------------------------------"
       fi
     done < ${devices}
   fi

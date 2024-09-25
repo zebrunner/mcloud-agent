@@ -414,7 +414,7 @@ function remove_containers() {
     echo "volume not found"
   fi
 
-  echo -e "-----------------------------------------------------------------\n"
+  echo -e "\n-----------------------------------------------------------------"
 }
 
 function measure_uptime() {
@@ -546,7 +546,7 @@ function start() {
     fi
 
     create_containers ${device_name} ${udid} && start_containers ${device_name} ${udid}
-    echo -e "-----------------------------------------------------------------\n"
+    echo -e "\n-----------------------------------------------------------------"
   else
     while read -r line
     do
@@ -555,7 +555,7 @@ function start() {
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
       #echo "udid: $udid"
       create_containers ${device_name} ${udid} && start_containers ${device_name} ${udid}
-      echo -e "-----------------------------------------------------------------\n"
+      echo -e "\n-----------------------------------------------------------------"
     done < ${devices}
 
    # do listener load only after creating last container otherwise listener starts in parallel
