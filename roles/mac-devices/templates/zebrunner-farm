@@ -578,11 +578,11 @@ function start_containers() {
 
   local container=device-$device-$udid
 
-  echo -n "$(docker start $container-connector)" && echo "  OK" || echo "  NOT OK"
-  echo -n "$(docker start $container)" && echo "            OK" || echo "            NOT OK"
-  echo -n "$(docker start $container-appium)" && echo "     OK" || echo "     NOT OK"
-  echo -n "$(docker start $container-uploader)" && echo "   OK" || echo "   NOT OK"
-  echo -n "$(docker start $container-mitm)" && echo "       OK" || echo "       NOT OK"
+  docker start $container-connector
+  docker start $container
+  docker start $container-appium
+  docker start $container-uploader
+  docker start $container-mitm
 }
 
 function status() {
