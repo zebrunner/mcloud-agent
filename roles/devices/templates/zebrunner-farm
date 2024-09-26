@@ -15,7 +15,6 @@ fi
 #export
 
 function create_containers () {
-    echo -e "\n\tCreating '$udid' containers:\n"
     local device_name=$1
     #echo "device_name: $device_name"
 
@@ -44,7 +43,6 @@ function create_containers () {
       return 0
     fi
 
-    echo "$device creating..."
     local devices=/usr/local/bin/mcloud-devices.txt
 
     local platform_name=`cat ${devices} | grep "$udid" | cut -d '|' -f 2`
@@ -97,12 +95,14 @@ function create_containers () {
       cleanUdid=$( echo "$udid" | tr -d '-' )
       connectedDevices=$( lsusb -v 2>/dev/null )
       if echo "$connectedDevices" | grep -q "$cleanUdid" ; then
-        echo "Device with udid: $cleanUdid was SUCCESSFULLY detected as connected."
+        echo -e "\nDevice with udid: $cleanUdid was SUCCESSFULLY detected as connected."
       else
-        echo "Device with udid: $cleanUdid was NOT detected as connected. The containers will not be created."
+        echo -e "\nDevice with udid: $cleanUdid was NOT detected as connected. The containers will not be created."
         return 1
       fi
     fi
+
+    echo -e "\n\tCreating '$udid' containers:\n"
 
     local S3_KEY_PATTERN=
     local TENANT={{ S3_TENANT }}
@@ -119,6 +119,7 @@ function create_containers () {
   if [ $platform_name == "android" ]; then
 
       if [ "$server_proxy_port" != "0" ] && [ "$proxy_port" != "0" ]; then
+        echo -n "device-${device_name_underscored}-${udid}-mitm:       "
         docker run -itd --name device-${device_name_underscored}-${udid}-mitm -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
           --restart on-failure:{{ RESTARTS_LIMIT }} \
           -v mcloud-mitm-volume:/opt/mitmproxy \
@@ -127,6 +128,7 @@ function create_containers () {
           {{ MITM_IMAGE }}:{{ MITM_VERSION }} || echo 'already created'
       fi
 
+    echo -n "device-${device_name_underscored}-${udid}-connector:  "
     docker run -itd --name device-${device_name_underscored}-${udid}-connector --net=${net} \
         --restart on-failure:{{ RESTARTS_LIMIT }} $DEVICE_ARG \
         -e DEVICE_BUS=$usb_bus \
@@ -137,6 +139,7 @@ function create_containers () {
         -e DEVICE_UDID="$STF_DEVICE_UDID" \
         {{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }} || echo 'already created'
 
+    echo -n "device-${device_name_underscored}-${udid}:            "
     docker run -d --name device-${device_name_underscored}-${udid} --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
         --link device-${device_name_underscored}-${udid}-connector:connector \
 	-e STF_PROVIDER_ADB_HOST=connector \
@@ -166,6 +169,7 @@ function create_containers () {
 #        -e ANDROID_ADB_SERVER_PORT=5037 \
 
     #TODO: parametrized relaxed security, make false by default!
+    echo -n "device-${device_name_underscored}-${udid}-appium:     "
     docker run -itd --name device-${device_name_underscored}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
         --restart on-failure:{{ RESTARTS_LIMIT }} \
         --link device-${device_name_underscored}-${udid}:device \
@@ -200,6 +204,7 @@ function create_containers () {
 	-e STF_AUTH_TOKEN={{ STF_AUTH_TOKEN }} \
         {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }} || echo 'already created'
 
+    echo -n "device-${device_name_underscored}-${udid}-uploader:   "
     docker run -d --name device-${device_name_underscored}-${udid}-uploader --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
         --restart on-failure:{{ RESTARTS_LIMIT }} \
         -v device-${device_name_underscored}-${udid}:/tmp/log \
@@ -233,9 +238,10 @@ function create_containers () {
       # provide default value if empty
       wdaBundleId="com.facebook.WebDriverAgentRunner.xctrunner"
     fi
-    echo "wdaBundleId: $wdaBundleId"
+    echo -e "wdaBundleId: $wdaBundleId\n"
 
     if [ "$server_proxy_port" != "0" ] && [ "$proxy_port" != "0" ]; then
+      echo -n "device-${device_name_underscored}-${udid}-mitm:       "
             docker run -itd --name device-${device_name_underscored}-${udid}-mitm -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
               --restart on-failure:{{ RESTARTS_LIMIT }} \
               -v mcloud-mitm-volume:/opt/mitmproxy \
@@ -244,6 +250,7 @@ function create_containers () {
               {{ MITM_IMAGE }}:{{ MITM_VERSION }} || echo 'already created'
     fi
 
+    echo -n "device-${device_name_underscored}-${udid}-connector:  "
     docker run -itd --name device-${device_name_underscored}-${udid}-connector --net=${net} \
         --restart on-failure:{{ RESTARTS_LIMIT }} $DEVICE_ARG \
         --cap-add=NET_ADMIN \
@@ -259,6 +266,7 @@ function create_containers () {
         {{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }} || echo 'already created'
 
     # Linking with apppium required to share usbmuxd via socat
+    echo -n "device-${device_name_underscored}-${udid}:            "
     docker run -d --name device-${device_name_underscored}-${udid} --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
 	--restart on-failure:{{ RESTARTS_LIMIT }} \
 	--link device-${device_name_underscored}-${udid}-connector:connector \
@@ -283,6 +291,7 @@ function create_containers () {
 	{{ DEVICE_IMAGE }}:{{DEVICE_VERSION }} || echo 'already created'
 
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
+    echo -n "device-${device_name_underscored}-${udid}-appium:     "
     docker run -itd --name device-${device_name_underscored}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
         --restart on-failure:{{ RESTARTS_LIMIT }} $DEVICE_ARG \
         --link device-${device_name_underscored}-${udid}:device \
@@ -314,6 +323,7 @@ function create_containers () {
         -e RELAXED_SECURITY=true \
         {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}
 
+    echo -n "device-${device_name_underscored}-${udid}-uploader:   "
     docker run -d --name device-${device_name_underscored}-${udid}-uploader --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
         --restart on-failure:{{ RESTARTS_LIMIT }} \
         -v device-${device_name_underscored}-${udid}:/tmp/log \
@@ -623,7 +633,6 @@ function start_containers() {
 
   local container=device-$device_name_underscored-$udid
 
-  echo "$container starting..."
   docker start $container
   docker start $container-mitm
   docker start $container-appium
