@@ -634,7 +634,7 @@ function start_containers() {
   local container=device-$device_name_underscored-$udid
 
   docker start $container
-  docker start $container-mitm
+  docker ps -a | grep -q "$container-mitm" && docker start $container-mitm
   docker start $container-appium
   docker start $container-uploader
   docker start $container-connector
