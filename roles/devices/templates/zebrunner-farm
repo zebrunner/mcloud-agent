@@ -95,9 +95,9 @@ function create_containers () {
       cleanUdid=$( echo "$udid" | tr -d '-' )
       connectedDevices=$( lsusb -v 2>/dev/null )
       if echo "$connectedDevices" | grep -q "$cleanUdid" ; then
-        echo -e "\nDevice with udid: $cleanUdid was SUCCESSFULLY detected as connected."
+        echo -e "\nDevice with udid: '$cleanUdid' was SUCCESSFULLY detected as connected."
       else
-        echo -e "\nDevice with udid: $cleanUdid was NOT detected as connected. The containers will not be created."
+        echo -e "\nDevice with udid: '$cleanUdid' was NOT detected as connected. The containers will not be created."
         return 1
       fi
     fi
@@ -478,7 +478,7 @@ function remove_containers() {
     echo "container not found"
   fi
 
-  echo -ne "\nVolume:     "
+  echo -ne "--\nVolume:     "
   docker volume ls | grep "$container$" > /dev/null
   if [ $? -eq 0 ]; then
     docker volume rm "$container"
@@ -633,11 +633,11 @@ function start_containers() {
 
   local container=device-$device_name_underscored-$udid
 
-  docker start $container
-  docker start $container-mitm
-  docker start $container-appium
-  docker start $container-uploader
-  docker start $container-connector
+  docker start $container 2>/dev/null && echo "            OK" || echo "            NOT OK"
+  docker start $container-mitm 2>/dev/null && echo "       OK" || echo "       NOT OK"
+  docker start $container-appium 2>/dev/null && echo "     OK" || echo "     NOT OK"
+  docker start $container-uploader 2>/dev/null && echo "   OK" || echo "   NOT OK"
+  docker start $container-connector 2>/dev/null && echo "  OK" || echo "  NOT OK"
 }
 
 function status() {
