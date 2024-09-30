@@ -600,7 +600,7 @@ function start() {
       return 0
     fi
 
-    create_containers "${device_name}" ${udid} ${device_name_underscored} && start_containers "${device_name}" ${udid} ${device_name_underscored}
+    create_containers "${device_name}" "${udid}" "${device_name_underscored}" && start_containers "${device_name}" "${udid}" "${device_name_underscored}"
     echo -e "\n-----------------------------------------------------------------"
   else
     while read -r line
@@ -613,7 +613,7 @@ function start() {
       #echo "udid: $udid"
       local wireless=`echo ${line} | grep "$filter_device" | cut -d '|' -f 9`
       if [ -L "/dev/device-${device_name}-${udid}" ] || [ "$wireless" == "True" ]; then
-        create_containers "${device_name}" ${udid} ${device_name_underscored} && start_containers ${device_name} ${udid} ${device_name_underscored}
+        create_containers "${device_name}" "${udid}" "${device_name_underscored}" && start_containers "${device_name}" "${udid}" "${device_name_underscored}"
         echo -e "\n-----------------------------------------------------------------"
       fi
     done < ${devices}
@@ -651,7 +651,7 @@ function status() {
     local device_name_underscored=${device_name// /_}
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
     #echo "udid: $udid"
-    verify_containers ${device_name_underscored} ${udid}
+    verify_containers "${device_name_underscored}" "${udid}"
   else
     while read -r line
     do
@@ -663,7 +663,7 @@ function status() {
         continue
       fi
       #echo "udid: $udid"
-      verify_containers ${device_name_underscored} ${udid}
+      verify_containers "${device_name_underscored}" "${udid}"
     done < ${devices}
   fi
 

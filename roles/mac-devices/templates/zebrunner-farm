@@ -50,7 +50,7 @@ on-usb-update() {
           break
         fi
 
-        verify_containers ${device_name} $udid
+        verify_containers "${device_name}" "$udid"
         if [ $? -eq 0 ]; then
           echo "do nothing as state is valid (healthy or starting) for $device_name ($udid)"
           return 0
@@ -555,7 +555,7 @@ function start() {
       return 0
     fi
 
-    create_containers ${device_name} ${udid} && start_containers ${device_name} ${udid}
+    create_containers "${device_name}" "${udid}" && start_containers "${device_name}" "${udid}"
     echo -e "\n-----------------------------------------------------------------"
   else
     while read -r line
@@ -564,7 +564,7 @@ function start() {
       #echo "device_name: $device_name"
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
       #echo "udid: $udid"
-      create_containers ${device_name} ${udid} && start_containers ${device_name} ${udid}
+      create_containers "${device_name}" "${udid}" && start_containers "${device_name}" "${udid}"
       echo -e "\n-----------------------------------------------------------------"
     done < ${devices}
 
@@ -600,7 +600,7 @@ function status() {
     #echo "device_name: $device_name"
     local udid=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 3`
     #echo "udid: $udid"
-    verify_containers ${device_name} ${udid}
+    verify_containers "${device_name}" "${udid}"
   else
     while read -r line
     do
@@ -611,7 +611,7 @@ function status() {
         continue
       fi
       #echo "udid: $udid"
-      verify_containers ${device_name} ${udid}
+      verify_containers "${device_name}" "${udid}"
     done < ${devices}
   fi
 
