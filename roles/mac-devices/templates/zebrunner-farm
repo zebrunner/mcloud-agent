@@ -467,9 +467,10 @@ function verify_containers() {
 
   local udid=$2
   #echo "udid: $udid"
+  cleanUdid=$( echo "$udid" | tr -d '-' )
 
   local container=device-$device-$udid
-  if ! ioreg -p IOUSB -w0 -l | grep -q "$udid"; then
+  if ! ioreg -p IOUSB -w0 -l | grep -q "$cleanUdid"; then
     echo -e "$container\n\nDISCONNECTED\n"
   else
     echo -e "$container\n"
