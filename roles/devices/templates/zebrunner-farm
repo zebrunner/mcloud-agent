@@ -16,7 +16,8 @@ fi
 
 function is_device_in_use() {
   local udid=$1
-  echo "Checking if device with udid is busy '$udid'"
+
+  echo -e "\n\tChecking if device with udid is busy '$udid'\n"
 
   local stf_url="{{ STF_API_URL }}/devices/$udid"
   local stf_token="{{ STF_AUTH_TOKEN }}"
@@ -43,7 +44,8 @@ function is_device_in_use() {
     echo "Response status from STF host is '200 OK'."
   else
     echo "Bad response status from STF host:"
-    echo "$response"
+    echo "$response" | grep "HTTP"
+    echo "$response" | grep "^{.*}$"
     return 2
   fi
 
@@ -445,6 +447,8 @@ function stop_containers() {
 function down() {
   local filter_device=$1
   local devices=/usr/local/bin/mcloud-devices.txt
+
+  echo -e "\n\tRemoving '$filter_device' devices:\n"
 
   # if $device is empty do rm for all connected devices otherwise rm only filtered
   if [[ -n "$filter_device" ]] && [[ ! "ios android free used" =~ "$filter_device" ]]; then
