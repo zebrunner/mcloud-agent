@@ -14,6 +14,53 @@ fi
 # useful export command to detect existing env vars per each device/vendor
 #export
 
+function is_device_in_use() {
+  local udid=$1
+  echo "Checking if device with udid is busy '$udid'"
+
+  local stf_url="{{ STF_API_URL }}/devices/$udid"
+  local stf_token="{{ STF_AUTH_TOKEN }}"
+
+  if [ -z "$udid" ]; then
+    echo "No device udid (serial number) provided. Check your input values."
+    return 2
+  fi
+
+  if [ -z "$stf_token" ]; then
+    echo "No STF_AUTH_TOKEN provided. Check vars/main.yml file."
+    return 2
+  fi
+
+  if [ -z "$stf_url" ]; then
+    echo "No STF_API_URL provided. Trying to use default URL construction:"
+    stf_url="{{ PUBLIC_IP_PROTOCOL }}://{{ PUBLIC_IP }}:{{ PUBLIC_IP_PORT }}/api/v1/devices/$udid"
+    echo "$stf_url"
+  fi
+
+  local response="$( curl -is "$stf_url" --header "Authorization: Bearer $stf_token" )"
+
+  if ( echo "$response" | grep -q "200 OK"); then
+    echo "Response status from STF host is '200 OK'."
+  else
+    echo "Bad response status from STF host:"
+    echo "$response"
+    return 2
+  fi
+
+  local is_using="$( echo "$response" | sed -n 's/.*"using":\([^,}]*\).*/\1/p' )"
+
+  if [ "$is_using" = "true" ]; then
+    echo "Device is is using now."
+    return 0
+  elif [ "$is_using" = "false" ]; then
+    echo "Device is free now."
+    return 1
+  else
+    echo "Unknown device state: '$is_using'"
+    return 2
+  fi
+}
+
 function create_containers () {
     local device_name=$1
     #echo "device_name: $device_name"
@@ -400,7 +447,7 @@ function down() {
   local devices=/usr/local/bin/mcloud-devices.txt
 
   # if $device is empty do rm for all connected devices otherwise rm only filtered
-  if [ ! -z $filter_device ] && [ "$filter_device" != "ios" ] && [ "$filter_device" != "android" ]; then
+  if [[ -n "$filter_device" ]] && [[ ! "ios android free used" =~ "$filter_device" ]]; then
     #echo removing containers for $filter_device...
     local device_name=`cat ${devices} | grep "$filter_device" | cut -d '|' -f 1`
     local device_name_underscored=${device_name// /_}
@@ -413,6 +460,11 @@ function down() {
 
     remove_containers ${device_name_underscored} ${udid}
   else
+    if [[ "free used" =~ "$filter_device" ]]; then
+      local status="$filter_device"
+      local filter_device=""
+    fi
+
     while read -r line
     do
       local device_name=`echo ${line} | grep "$filter_device" | cut -d '|' -f 1`
@@ -421,7 +473,15 @@ function down() {
 
       local udid=`echo ${line} | grep "$filter_device" | cut -d '|' -f 3`
       #echo "udid: $udid"
-      remove_containers ${device_name_underscored} ${udid}
+      if [[ -z "$status" ]]; then
+        remove_containers "${device_name_underscored}" "${udid}"
+      else
+        local in_use="$(is_device_in_use "${udid}")"
+        if [[ "$status" = "free" && "$in_use" = "1" ]] ||
+           [[ "$status" = "used" && "$in_use" = "0" ]]; then
+          remove_containers "${device_name_underscored}" "${udid}"
+        fi
+      fi
     done < ${devices}
   fi
 }
@@ -684,11 +744,11 @@ function echo_help() {
     echo "
       Usage: zebrunner-farm [option]
       Arguments:
-          status         Status of MCloud Agent and each whitelisted device
-          start [udid]   Start devices containers or exact device by udid
-          stop [udid]    Stop and keep devices containers or exact device by udid
-          restart [udid] Restart all devices containers or exact device by udid
-          down [udid]    Stop and remove devices containers"
+          status                      Status of MCloud Agent and each whitelisted device
+          start [udid]                Start devices containers or exact device by udid
+          stop [udid,free,used]       Stop and keep devices containers or exact device by udid
+          restart [udid,free,used]    Restart all devices containers or exact device by udid
+          down [udid,free,used]       Stop and remove devices containers"
       echo_telegram
       exit 0
 }
