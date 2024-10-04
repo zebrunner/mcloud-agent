@@ -476,7 +476,8 @@ function down() {
       if [[ -z "$status" ]]; then
         remove_containers "${device_name_underscored}" "${udid}"
       else
-        local in_use="$(is_device_in_use "${udid}")"
+        is_device_in_use "${udid}"
+        local in_use="$?"
         if [[ "$status" = "free" && "$in_use" = "1" ]] ||
            [[ "$status" = "used" && "$in_use" = "0" ]]; then
           remove_containers "${device_name_underscored}" "${udid}"
