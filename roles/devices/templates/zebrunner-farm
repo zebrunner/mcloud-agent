@@ -55,7 +55,7 @@ function is_device_in_use() {
     echo "Device is is using now."
     return 0
   elif [ "$is_using" = "false" ]; then
-    echo "Device is free now."
+    echo "Device is free."
     return 1
   else
     echo "Unknown device state: '$is_using'"
