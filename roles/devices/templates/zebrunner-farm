@@ -698,7 +698,7 @@ function ansible() {
   else
     arg="$@"
   fi
-  sudo -n ansible-playbook -vvv -i hosts $arg
+  ansible-playbook -vvv -i hosts $arg
 }
 
 #CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | grep -v appium | cut -d '-' -f 2-` )
