@@ -698,7 +698,7 @@ function setup() {
   else
     arg="$1"
   fi
-  sudo -n ansible-playbook -vvv -i hosts "$arg" || echo "You need sudo access."
+  sudo -n ansible-playbook -vvv -i hosts "$arg"
 }
 
 #CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | grep -v appium | cut -d '-' -f 2-` )
