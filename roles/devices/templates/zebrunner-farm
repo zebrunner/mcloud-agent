@@ -680,12 +680,12 @@ function echo_help() {
   echo "
       Usage: zebrunner-farm [option]
       Arguments:
-          status             Status of MCloud Agent and each whitelisted device
-          start [udid]       Start devices containers or exact device by udid
-          stop [udid]        Stop and keep devices containers or exact device by udid
-          restart [udid]     Restart all devices containers or exact device by udid
-          down [udid]        Stop and remove devices containers
-          setup ['devices']  Run ansible-playbook script with custom or predefined args"
+          status               Status of MCloud Agent and each whitelisted device
+          start [udid]         Start devices containers or exact device by udid
+          stop [udid]          Stop and keep devices containers or exact device by udid
+          restart [udid]       Restart all devices containers or exact device by udid
+          down [udid]          Stop and remove devices containers
+          ansible ['devices']  Run ansible-playbook script with custom or predefined args"
   echo_telegram
   exit 0
 }
