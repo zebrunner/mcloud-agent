@@ -698,7 +698,7 @@ function setup() {
   else
     arg="$1"
   fi
-  echo "arg"
+  echo "arg: $arg"
   sudo -n ansible-playbook -vvv -i hosts "$arg"
 }
 
