@@ -696,7 +696,7 @@ function setup() {
   elif [[ "$1" == "devices" ]]; then
     arg="devices.yml --tag registerDevices"
   else
-    arg="$1"
+    arg="$@"
   fi
   echo "arg: $arg"
   sudo -n ansible-playbook -vvv -i hosts $arg
@@ -738,7 +738,7 @@ down)
   down $2
   ;;
 setup)
-  setup $2
+  setup "${@:2}"
   ;;
 shutdown)
   shutdown
