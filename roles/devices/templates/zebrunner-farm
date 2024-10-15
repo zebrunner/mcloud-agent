@@ -690,7 +690,7 @@ function echo_help() {
   exit 0
 }
 
-function setup() {
+function ansible() {
   if [[ "$1" == "" ]]; then
     arg="devices.yml"
   elif [[ "$1" == "devices" ]]; then
@@ -736,8 +736,8 @@ restart)
 down)
   down $2
   ;;
-setup)
-  setup "${@:2}"
+ansible)
+  ansible "${@:2}"
   ;;
 shutdown)
   shutdown
