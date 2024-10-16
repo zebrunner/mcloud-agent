@@ -241,6 +241,7 @@ ansible() {
 
   # Run ansible with arguments
   echo "ansible-playbook -vvv -i hosts $arg"
+  echo "*******************************************************************"
   ansible-playbook -vvv -i hosts $arg
 }
 
