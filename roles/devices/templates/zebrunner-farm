@@ -696,7 +696,7 @@ function ansible() {
   elif [[ "$1" == "devices" ]]; then
     arg="devices.yml --tag registerDevices"
   else
-    arg="$@"
+    arg="$@ devices.yml"
   fi
 
   echo "ansible-playbook -vvv -i hosts $arg"

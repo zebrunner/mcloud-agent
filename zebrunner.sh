@@ -236,7 +236,7 @@ ansible() {
   elif [[ "$1" == "devices" ]]; then
     arg="$file --tag registerDevices"
   else
-    arg="$@"
+    arg="$@ $file"
   fi
 
   # Run ansible with arguments

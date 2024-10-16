@@ -645,11 +645,11 @@ function echo_help() {
 
 function ansible() {
   if [[ "$1" == "" ]]; then
-    arg="devices.yml"
+    arg="mac-devices.yml"
   elif [[ "$1" == "devices" ]]; then
-    arg="devices.yml --tag registerDevices"
+    arg="mac-devices.yml --tag registerDevices"
   else
-    arg="$@"
+    arg="$@ mac-devices.yml"
   fi
 
   echo "ansible-playbook -vvv -i hosts $arg"
