@@ -643,6 +643,7 @@ function echo_help() {
   exit 0
 }
 
+# IMPORTANT! In case of any changes please copy them in ./zebrunner.sh !
 function ansible() {
   if [[ "$1" == "" ]]; then
     arg="mac-devices.yml"

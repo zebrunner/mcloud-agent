@@ -219,6 +219,7 @@ version() {
   echo "public.ecr.aws/zebrunner/appium:${appium_version}"
 }
 
+# IMPORTANT! In case of any changes please copy them in zebrunner-farm !
 ansible() {
   # Check if the operating system is Linux or macOS
   if [[ "$(uname)" == "Linux" ]]; then
