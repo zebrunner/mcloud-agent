@@ -2,6 +2,6 @@
 {% for device in devices %}
 {%   if device.id not in added_ids: %}
 {%     set added_ids = added_ids.append(device.id) %}
-{{     device.name }}|{{ device.os }}|{{ device.id }}|{{ device.adb_port }}|{{ device.min_port }}|{{ device.max_port }}|{{ device.proxy_port | default('0') }}|{{ device.appium_port }>
+{{     device.name }}|{{ device.os }}|{{ device.id }}|{{ device.adb_port }}|{{ device.min_port }}|{{ device.max_port }}|{{ device.proxy_port | default('0') }}|{{ device.appium_port }}|{{  device.wireless | default('false') }}|{{ device.wda_file | default('/dev/null')}}|{{ device.wda_bundleid | default('com.facebook.WebDriverAgentRunner.xctrunner')}}|{{ device.server_proxy_port | default('0')}}
 {%   endif %}
 {% endfor %}
