@@ -1,7 +1,7 @@
 Zebrunner Device Farm (Android and iOS agent)
 ==================
 
-Feel free to support the development with a [**donation**](https://www.paypal.com/donate?hosted_button_id=JLQ4U468TWQPS) for the next improvements.
+Feel free to support the development with a [**donation**](https://www.paypal.com/donate/?hosted_button_id=MNHYYCYHAKUVA) for the next improvements.
 
 <p align="center">
   <a href="https://zebrunner.com/"><img alt="Zebrunner" src="https://github.com/zebrunner/zebrunner/raw/master/docs/img/zebrunner_intro.png"></a>
@@ -19,10 +19,10 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 ## Software prerequisites
 * Install docker ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-20-04), [Amazon Linux 2](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/docker-basics.html), [Redhat/Cent OS](https://www.cyberciti.biz/faq/install-use-setup-docker-on-rhel7-centos7-linux/)).
 * Install 2.9.6+ ansible ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-20-04)).
-* Linux: install usbmuxd service to be able to connect iOS devices
-* MacOS: install and authorize [go-ios](https://github.com/danielpaulus/go-ios) utility 1.0.115+
-* MacOS: install socat utility to share usbmuxd websocket into the device containers `brew install socat`
-* MacOS: install jq utility `brew install jq`
+* MacOS: install and authorize [go-ios](https://github.com/danielpaulus/go-ios) utility 1.0.121+
+* MacOS: install socat utility to share usbmuxd websocket into the device containers
+  > valid path to socat binary should be `/usr/local/bin/socat`
+* MacOS: install jq utility
 
 ## Clone and setup
 * Clone mcloud-agent repository and execute setup procedure
@@ -43,38 +43,40 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * update `roles/devices/vars/main.yml` file according to the obligatory/optional comments inside.
   > Register all whitelisted Android and iOS devices with their udids!
 * Run ansible-playbook script to download the required components and set up udev rules:
-  ```
-  ansible-playbook -vvv -i hosts devices.yml
+  ```bash
+  ./zebrunner.sh ansible
   ```
   > To reregister the devices list only, you can use the following command:
-  ```
-  ansible-playbook -vvv -i hosts devices.yml --tag registerDevices
+  ```bash
+  ./zebrunner.sh ansible devices
   ```
   > To provide extra arguments including sudo permissions, you can use the below command:
-  ```
-  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD" devices.yml
+  ```bash
+  ./zebrunner.sh ansible --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD"
   ```
  * Devices management script is deployed to /usr/local/bin/zebrunner-farm.
  * Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules.
  * Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
  * Usbmuxd service is stopped and masked (disabled).
  * [Optional] Register`@reboot /usr/local/bin/zebrunner-farm restart` via crontab to forcibly restart containers on reboot
+ * [Optional] Increased `fs.inotify.max_user_instances` to workaround [#328](https://github.com/zebrunner/mcloud-agent/issues/328)
+   > `sudo sysctl fs.inotify.max_user_instances=2048`
 
 ### Mac OS
 * update `roles/mac-devices/vars/main.yml` file according to the obligatory/optional comments inside.
   > Register all whitelisted iOS devices (phones, tablets or TVes) with their udids!
   > Important! Only iOS devices supported on MacOS!
 * Run ansible-playbook script to download the required components and set up udev rules:
-  ```
-  ansible-playbook -vvv -i hosts mac-devices.yml
+  ```bash
+  ./zebrunner.sh ansible
   ```
   > To reregister the devices list only, you can use the following command:
-  ```
-  ansible-playbook -vvv -i hosts mac-devices.yml --tag registerDevices
+  ```bash
+  ./zebrunner.sh ansible devices
   ```
   > To provide extra arguments including sudo permissions, you can use the below command:
-  ```
-  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD" mac-devices.yml
+  ```bash
+  ./zebrunner.sh ansible --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD"
   ```
  * Devices management script is deployed to /usr/local/bin/zebrunner-farm.
  * Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
@@ -149,6 +151,22 @@ Follow the below algorithm to identify any configuration issues with MCloud agen
   docker logs -f device-<Name>-<udid>
   // artifacts uploader container:
   docker logs -f device-<Name>-<udid>-uploader
+  ```
+* If you have any problems running ansible:
+  * Make sure you have sudo access and try to run ansible with sudo permissions.
+  * Try to rub ansible commands manually (`<devices_file>` name is `mac-devices` on macOS  or `devices` on Linux servers)
+ 
+  > To download the required components and set up udev rules:
+  ```
+  ansible-playbook -vvv -i hosts <devices_file>.yml
+  ```
+  > To reregister the devices list only, you can use the following command:
+  ```
+  ansible-playbook -vvv -i hosts <devices_file>.yml --tag registerDevices
+  ```
+  > To provide extra arguments including sudo permissions, you can use the below command:
+  ```
+  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD" <devices_file>.yml
   ```
 
 ## Documentation and free support
