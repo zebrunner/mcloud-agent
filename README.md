@@ -152,7 +152,7 @@ Follow the below algorithm to identify any configuration issues with MCloud agen
   // artifacts uploader container:
   docker logs -f device-<Name>-<udid>-uploader
   ```
-* If you have any problems with running ansible:
+* If you have any problems running ansible:
   * Make sure you have sudo access and try to run ansible with sudo permissions.
   * Try to rub ansible commands manually (`<devices_file>` name usually are `mac-devices` or `devices`)
  
