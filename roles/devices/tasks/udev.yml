@@ -19,6 +19,19 @@
     msg: "You have to setup services in advance using: ./zebrunner.sh setup!"
   when: not main_yml.stat.exists
 
+- name: Read devices and check for duplicates
+  include_vars:
+    file: roles/devices/vars/main.yml
+  register: devices
+  failed_when: devices.result.find(item=item) is not -1  # Check for duplicates
+  loop: "{{ devices.result }}"
+  vars:
+    duplicates: "{{ lookup('dict', devices.result, key='id') }}"  # Build dict for lookup
+
+  fail:
+    msg: "Found duplicate device: {{ item.id }}"  # Throw error with message
+  when: duplicates[item.id] is defined
+
 - name: copy script to launch container with appium for device
   template: src=zebrunner-farm dest=/usr/local/bin/ mode=755
 
