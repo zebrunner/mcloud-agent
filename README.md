@@ -43,16 +43,16 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * update `roles/devices/vars/main.yml` file according to the obligatory/optional comments inside.
   > Register all whitelisted Android and iOS devices with their udids!
 * Run ansible-playbook script to download the required components and set up udev rules:
-  ```
-  ansible-playbook -vvv -i hosts devices.yml
+  ```bash
+  ./zebrunner.sh ansible
   ```
   > To reregister the devices list only, you can use the following command:
-  ```
-  ansible-playbook -vvv -i hosts devices.yml --tag registerDevices
+  ```bash
+  ./zebrunner.sh ansible devices
   ```
   > To provide extra arguments including sudo permissions, you can use the below command:
-  ```
-  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD" devices.yml
+  ```bash
+  ./zebrunner.sh ansible --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD"
   ```
  * Devices management script is deployed to /usr/local/bin/zebrunner-farm.
  * Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules.
@@ -67,16 +67,16 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
   > Register all whitelisted iOS devices (phones, tablets or TVes) with their udids!
   > Important! Only iOS devices supported on MacOS!
 * Run ansible-playbook script to download the required components and set up udev rules:
-  ```
-  ansible-playbook -vvv -i hosts mac-devices.yml
+  ```bash
+  ./zebrunner.sh ansible
   ```
   > To reregister the devices list only, you can use the following command:
-  ```
-  ansible-playbook -vvv -i hosts mac-devices.yml --tag registerDevices
+  ```bash
+  ./zebrunner.sh ansible devices
   ```
   > To provide extra arguments including sudo permissions, you can use the below command:
-  ```
-  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD" mac-devices.yml
+  ```bash
+  ./zebrunner.sh ansible --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD"
   ```
  * Devices management script is deployed to /usr/local/bin/zebrunner-farm.
  * Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
@@ -151,6 +151,22 @@ Follow the below algorithm to identify any configuration issues with MCloud agen
   docker logs -f device-<Name>-<udid>
   // artifacts uploader container:
   docker logs -f device-<Name>-<udid>-uploader
+  ```
+* If you have any problems with running ansible:
+  * Make sure you have sudo access and try to run ansible with sudo permissions.
+  * Try to rub ansible commands manually (`<devices_file>` name usually are `mac-devices` or `devices`)
+ 
+  > To download the required components and set up udev rules:
+  ```
+  ansible-playbook -vvv -i hosts <devices_file>.yml
+  ```
+  > To reregister the devices list only, you can use the following command:
+  ```
+  ansible-playbook -vvv -i hosts <devices_file>.yml --tag registerDevices
+  ```
+  > To provide extra arguments including sudo permissions, you can use the below command:
+  ```
+  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD" <devices_file>.yml
   ```
 
 ## Documentation and free support
