@@ -651,6 +651,8 @@ function ansible() {
   else
     arg="$@"
   fi
+
+  echo "ansible-playbook -vvv -i hosts $arg"
   ansible-playbook -vvv -i hosts $arg
 }
 

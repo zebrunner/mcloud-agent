@@ -240,6 +240,7 @@ ansible() {
   fi
 
   # Run ansible with arguments
+  echo "ansible-playbook -vvv -i hosts $arg"
   ansible-playbook -vvv -i hosts $arg
 }
 
