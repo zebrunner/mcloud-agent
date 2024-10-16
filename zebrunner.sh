@@ -217,7 +217,33 @@ version() {
   echo "zebrunner/mcloud-device:${device_version}"
   appium_version=$(cat defaults/main.yml | grep APPIUM_VERSION | cut -d ":" -f 2)
   echo "public.ecr.aws/zebrunner/appium:${appium_version}"
+}
 
+# IMPORTANT! In case of any changes please copy them in zebrunner-farm !
+ansible() {
+  # Check if the operating system is Linux or macOS
+  if [[ "$(uname)" == "Linux" ]]; then
+    file="devices.yml"
+  elif [[ "$(uname)" == "Darwin" ]]; then
+    file="mac-devices.yml"
+  else
+    echo "This script is not running on a Linux or macOS system. Run ansible manually."
+    exit 1
+  fi
+
+  # Make a list of arguments
+  if [[ "$1" == "" ]]; then
+    arg="$file"
+  elif [[ "$1" == "devices" ]]; then
+    arg="$file --tag registerDevices"
+  else
+    arg="$@ $file"
+  fi
+
+  # Run ansible with arguments
+  echo "ansible-playbook -vvv -i hosts $arg"
+  echo "*******************************************************************"
+  ansible-playbook -vvv -i hosts $arg
 }
 
 echo_warning() {
@@ -235,15 +261,16 @@ echo_help() {
   echo "
       Usage: ./zebrunner.sh [option]
       Arguments:
-         status [udid]  Status of MCloud Agent whitelisted devices or exact device by udid
-         start [udid]   Start devices containers or exact device by udid
-         stop [udid]    Stop and keep devices containers or exact device by udid
-         restart [udid] Restart all devices containers or exact device by udid
-         down [udid]    Stop and remove devices containers
-      	 shutdown       Stop and remove devices containers, clear volumes
-      	 backup         Backup MCloud agent setup
-      	 restore        Restore MCloud agent setup
-      	 version        Version of MCloud"
+         status [udid]        Status of MCloud Agent whitelisted devices or exact device by udid
+         start [udid]         Start devices containers or exact device by udid
+         stop [udid]          Stop and keep devices containers or exact device by udid
+         restart [udid]       Restart all devices containers or exact device by udid
+         down [udid]          Stop and remove devices containers
+         ansible ['devices']  Run ansible-playbook script with custom or predefined args
+      	 shutdown             Stop and remove devices containers, clear volumes
+      	 backup               Backup MCloud agent setup
+      	 restore              Restore MCloud agent setup
+      	 version              Version of MCloud"
   echo_telegram
   exit 0
 }
@@ -270,6 +297,9 @@ restart)
   ;;
 down)
   down $2
+  ;;
+ansible)
+  ansible "${@:2}"
   ;;
 shutdown)
   shutdown

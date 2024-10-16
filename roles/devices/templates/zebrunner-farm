@@ -680,13 +680,29 @@ function echo_help() {
   echo "
       Usage: zebrunner-farm [option]
       Arguments:
-          status         Status of MCloud Agent and each whitelisted device
-          start [udid]   Start devices containers or exact device by udid
-          stop [udid]    Stop and keep devices containers or exact device by udid
-          restart [udid] Restart all devices containers or exact device by udid
-          down [udid]    Stop and remove devices containers"
+          status               Status of MCloud Agent and each whitelisted device
+          start [udid]         Start devices containers or exact device by udid
+          stop [udid]          Stop and keep devices containers or exact device by udid
+          restart [udid]       Restart all devices containers or exact device by udid
+          down [udid]          Stop and remove devices containers
+          ansible ['devices']  Run ansible-playbook script with custom or predefined args"
   echo_telegram
   exit 0
+}
+
+# IMPORTANT! In case of any changes please copy them in ./zebrunner.sh !
+function ansible() {
+  if [[ "$1" == "" ]]; then
+    arg="devices.yml"
+  elif [[ "$1" == "devices" ]]; then
+    arg="devices.yml --tag registerDevices"
+  else
+    arg="$@ devices.yml"
+  fi
+
+  echo "ansible-playbook -vvv -i hosts $arg"
+  echo "*******************************************************************"
+  ansible-playbook -vvv -i hosts $arg
 }
 
 #CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | grep -v appium | cut -d '-' -f 2-` )
@@ -723,6 +739,9 @@ restart)
   ;;
 down)
   down $2
+  ;;
+ansible)
+  ansible "${@:2}"
   ;;
 shutdown)
   shutdown
