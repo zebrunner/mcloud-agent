@@ -52,7 +52,7 @@ setup() {
   fi
 
   #TODO: switch to master branch after oficial release and merge
-  echo "Follow https://github.com/zebrunner/mcloud-agent/tree/develop#run-ansible-playbook to deploy MCloud agent services!"
+  echo "Follow https://github.com/zebrunner/mcloud-agent/tree/master#run-ansible-playbook to deploy MCloud agent services!"
 }
 
 shutdown() {
