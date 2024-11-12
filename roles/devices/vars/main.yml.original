@@ -1,4 +1,7 @@
 ---
+# [OBLIGATORY] Set project name without spaces and special characters
+PROJECT_NAME: project_name
+
 STF_DOCKER_NETWORK: infra
 
 # [OBLIGATORY] Set host address, port and protocol of the server where STF services are deployed

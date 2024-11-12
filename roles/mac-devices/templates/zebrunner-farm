@@ -134,7 +134,7 @@ function create_containers() {
   # --set confdir allows to provide custom folder with CA Authority certificates
   local proxy_permament_arguments="--set block_global=false --set confdir=/opt/mitmproxy"
 
-  local net={{ STF_DOCKER_NETWORK }}
+  local net="{{ STF_DOCKER_NETWORK }}_{{ PROJECT_NAME }}"
 
   docker network inspect ${net} > /dev/null 2>&1 || docker network create ${net}
 

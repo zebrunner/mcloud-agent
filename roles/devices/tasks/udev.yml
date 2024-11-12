@@ -20,13 +20,13 @@
   when: not main_yml.stat.exists
 
 - name: copy script to launch container with appium for device
-  template: src=zebrunner-farm dest=/usr/local/bin/ mode=755
+  template: src=zebrunner-farm dest=/usr/local/bin/{{ PROJECT_NAME }}-zebrunner-farm mode=755
 
 - name: copy rules to launch script on connected device
-  template: src=90_mcloud.rules dest=/etc/udev/rules.d/
+  template: src=90_mcloud.rules dest=/etc/udev/rules.d/90_{{ PROJECT_NAME }}_mcloud.rules
 
 - name: copy devices details
-  template: src=mcloud-devices.txt dest=/usr/local/bin/
+  template: src=mcloud-devices.txt dest=/usr/local/bin/{{ PROJECT_NAME }}-mcloud-devices.txt
 
 - name: restart udev
   command: udevadm control --reload
