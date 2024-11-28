@@ -68,6 +68,7 @@ devices:
   - id: d6afc6b3a65584ca0813eb8957c6479b9b6ebb11
     os: ios
     name: iPhone_8_Plus
+    location: location_1
     appium_port: 7431
     adb_port: 7432
     proxy_port: 7433

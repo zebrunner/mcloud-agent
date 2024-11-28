@@ -48,26 +48,30 @@ function create_containers() {
   local platform_name=$(cat ${devices} | grep "$udid" | cut -d '|' -f 2)
   #echo "platform_name: $platform_name"
 
-  local device_adb_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 4)
+  local location=$(cat ${devices} | grep "$udid" | cut -d '|' -f 4)
+  #echo "location: $location"
+
+  local appium_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 5)
+  #echo "appium_port: $appium_port"
+
+  local device_adb_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 6)
   #echo "device_adb_port: $device_adb_port"
-
-  local stf_min_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 5)
-  #echo "stf_min_port: $stf_min_port"
-
-  local stf_max_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 6)
-  #echo "stf_max_port: $stf_max_port"
 
   local proxy_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 7)
   #echo "proxy_port: $proxy_port"
 
-  local appium_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 8)
-  #echo "appium_port: $appium_port"
+  local server_proxy_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 8)
+  #echo "server_proxy_port: $server_proxy_port"
 
-  local wireless=$(cat ${devices} | grep "$udid" | cut -d '|' -f 9)
+  local stf_min_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 9)
+  #echo "stf_min_port: $stf_min_port"
+
+  local stf_max_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 10)
+  #echo "stf_max_port: $stf_max_port"
+
+  local wireless=$(cat ${devices} | grep "$udid" | cut -d '|' -f 11)
   #echo "wireless: $wireless"
 
-  local server_proxy_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 12)
-  #echo "server_proxy_port: $server_proxy_port"
 
   # without 'block_global=false' mitmproxy does not want to accept requests from devices
   # --set confdir allows to provide custom folder with CA Authority certificates
@@ -150,7 +154,7 @@ function create_containers() {
       -e STF_PROVIDER_DEVICE_NAME="${device_name}" \
       -e DEVICE_UDID="$STF_DEVICE_UDID" \
       -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
-      -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}" \
+      -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}_${location}" \
       -e STF_PROVIDER_MIN_PORT=$stf_min_port \
       -e STF_PROVIDER_MAX_PORT=$stf_max_port \
       -p $stf_min_port-$stf_max_port:$stf_min_port-$stf_max_port \
@@ -219,7 +223,7 @@ function create_containers() {
 
     #TODO: comment echoing wda related detailes before release
     local wdaIpaPath={{ WDA_FILE }}
-    local deviceWdaIpaPath=$(cat ${devices} | grep "$udid" | cut -d '|' -f 10)
+    local deviceWdaIpaPath=$(cat ${devices} | grep "$udid" | cut -d '|' -f 12)
     if [ ! -z $deviceWdaIpaPath ] && [ ! "$deviceWdaIpaPath" == "/dev/null" ]; then
       wdaIpaPath=$deviceWdaIpaPath
     fi
@@ -230,7 +234,7 @@ function create_containers() {
     echo "wdaIpaPath: $wdaIpaPath"
 
     local wdaBundleId={{ WDA_BUNDLEID }}
-    local deviceWdaBundleId=$(cat ${devices} | grep "$udid" | cut -d '|' -f 11)
+    local deviceWdaBundleId=$(cat ${devices} | grep "$udid" | cut -d '|' -f 13)
     if [ ! -z $deviceWdaBundleId ]; then
       wdaBundleId=$deviceWdaBundleId
     fi
@@ -277,7 +281,7 @@ function create_containers() {
       -e STF_PROVIDER_DEVICE_NAME="${device_name}" \
       -e DEVICE_UDID="${udid}" \
       -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
-      -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}" \
+      -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}_${location}" \
       -e STF_PROVIDER_MIN_PORT=$stf_min_port \
       -e STF_PROVIDER_MAX_PORT=$stf_max_port \
       -p $stf_min_port-$stf_max_port:$stf_min_port-$stf_max_port \
@@ -348,9 +352,9 @@ function stop() {
   # if $device is empty do stop for all connected devices otherwise stop only filtered
   if [ ! -z $filter_device ] && [ "$filter_device" != "ios" ] && [ "$filter_device" != "android" ]; then
     echo stopping containers for $filter_device...
-    local device_name=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 1)
+    local device_name=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 3)
     local device_name_underscored=${device_name// /_}
-    local udid=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 3)
+    local udid=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 1)
 
     if [ -z "$device_name" ] || [ -z $udid ]; then
       echo_warning "Unable to find device by \"$filter_device\"!"
@@ -361,13 +365,13 @@ function stop() {
   else
     # as no device filter provided continue with stopping all device containers
     while read -r line; do
-      local device_name=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 1)
+      local device_name=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 3)
       #echo "device_name: $device_name"
       local device_name_underscored=${device_name// /_}
 
-      local udid=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 3)
+      local udid=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 1)
       #echo "udid: $udid"
-      local wireless=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 9)
+      local wireless=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 11)
 
       if [ -L "/dev/device-${device_name}-${udid}" ] || [ "$wireless" == "True" ]; then
         stop_containers ${device_name_underscored} ${udid}
@@ -402,9 +406,9 @@ function down() {
   # if $device is empty do rm for all connected devices otherwise rm only filtered
   if [ ! -z $filter_device ] && [ "$filter_device" != "ios" ] && [ "$filter_device" != "android" ]; then
     #echo removing containers for $filter_device...
-    local device_name=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 1)
+    local device_name=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 3)
     local device_name_underscored=${device_name// /_}
-    local udid=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 3)
+    local udid=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 1)
 
     if [ -z "$device_name" ] || [ -z $udid ]; then
       echo_warning "Unable to find device by \"$filter_device\"!"
@@ -414,11 +418,11 @@ function down() {
     remove_containers ${device_name_underscored} ${udid}
   else
     while read -r line; do
-      local device_name=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 1)
+      local device_name=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 3)
       #echo "device_name: $device_name"
       local device_name_underscored=${device_name// /_}
 
-      local udid=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 3)
+      local udid=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 1)
       #echo "udid: $udid"
       remove_containers ${device_name_underscored} ${udid}
     done < ${devices}
@@ -529,7 +533,7 @@ function verify_containers() {
   local udid=$2
   #echo "udid: $udid"
 
-  local wireless=$(cat ${devices} | grep "$udid" | cut -d '|' -f 9)
+  local wireless=$(cat ${devices} | grep "$udid" | cut -d '|' -f 11)
 
   local container=device-$device-$udid
   if [ ! -L "/dev/$container" ] && [ "$wireless" != "True" ]; then
@@ -590,9 +594,9 @@ function start() {
 
   # if $device is empty do start for all connected devices otherwise start only filtered
   if [ ! -z $filter_device ] && [ "$filter_device" != "ios" ] && [ "$filter_device" != "android" ]; then
-    local device_name=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 1)
+    local device_name=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 3)
     local device_name_underscored=${device_name// /_}
-    local udid=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 3)
+    local udid=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 1)
 
     if [ -z "$device_name" ] || [ -z $udid ]; then
       echo_warning "Unable to find device by \"$filter_device\"!"
@@ -603,13 +607,13 @@ function start() {
     echo -e "\n-----------------------------------------------------------------"
   else
     while read -r line; do
-      local device_name=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 1)
+      local device_name=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 3)
       #echo "device_name: $device_name"
       local device_name_underscored=${device_name// /_}
 
-      local udid=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 3)
+      local udid=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 1)
       #echo "udid: $udid"
-      local wireless=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 9)
+      local wireless=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 11)
       if [ -L "/dev/device-${device_name}-${udid}" ] || [ "$wireless" == "True" ]; then
         create_containers "${device_name}" "${udid}" "${device_name_underscored}" && start_containers "${device_name}" "${udid}" "${device_name_underscored}"
         echo -e "\n-----------------------------------------------------------------"
@@ -643,18 +647,18 @@ function status() {
 
   # if $device is empty do start for all connected devices otherwise start only filtered
   if [ ! -z $filter_device ] && [ "$filter_device" != "ios" ] && [ "$filter_device" != "android" ]; then
-    local device_name=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 1)
+    local device_name=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 3)
     #echo "device_name: $device_name"
     local device_name_underscored=${device_name// /_}
-    local udid=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 3)
+    local udid=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 1)
     #echo "udid: $udid"
     verify_containers "${device_name_underscored}" "${udid}"
   else
     while read -r line; do
-      local device_name=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 1)
+      local device_name=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 3)
       #echo "device_name: $device_name"
       local device_name_underscored=${device_name// /_}
-      local udid=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 3)
+      local udid=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 1)
       if [ -z $udid ]; then
         continue
       fi
