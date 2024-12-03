@@ -58,6 +58,7 @@ WDA_BUNDLEID:
 # [OBLIGATORY] Declare valid devices metadata
 # - id: device udid which is shown by `ios list`
 #   name: device name as it will be registered in STF (avoid special symbols and spaces!)
+#   location: clarified device location for ease of device management (an underscore will be added automatically before the value)
 #   appium_port: unique port value for sharing appium services from the container to outside selenium hub
 #   adb_port: unique connect port value (old adb_port name is used from Android implementation)
 #   proxy_port: unique port value to configure embedded proxy (they can be used in integration with Carina traffic sniffering functionality: https://zebrunner.github.io/carina/advanced/proxy/)
@@ -68,6 +69,7 @@ devices:
   - id: d6afc6b3a65584ca0813eb8957c6479b9b6ebb11
     os: ios
     name: iPhone_8_Plus
+    location: location_1
     appium_port: 7431
     adb_port: 7432
     proxy_port: 7433
