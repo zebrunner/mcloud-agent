@@ -107,19 +107,23 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 You need an Apple Developer account to sign in and build **WebDriverAgent**.
 
-1. Open **WebDriverAgent.xcodeproj** in Xcode.
-2. Ensure a team is selected before building the application. To do this, go to *Targets* and select each target (one at a time). There should be a field for assigning team certificates to the target.
-3. Remove your **WebDriverAgent** folder from *DerivedData* and run *Clean build folder* (just in case).
-4. Build the application by selecting the *WebDriverAgentRunner* target and build for *Generic iOS Device*. Run *Product -> Build for testing*. This will create a *Products/Debug-iphoneos* in the specified project directory.  
+1. Clone **WebDriverAgent** from source you prefer. We recommend our [forked repository](https://github.com/zebrunner/WebDriverAgent) with performance improvements.
+    ```bash
+   git clone https://github.com/zebrunner/WebDriverAgent.git
+   ```
+2. Open **WebDriverAgent.xcodeproj** in Xcode.
+3. Ensure a team is selected before building the application. To do this, go to *Targets* and select each target (one at a time). There should be a field for assigning team certificates to the target.
+4. Remove your **WebDriverAgent** folder from *DerivedData* and run *Clean build folder* (just in case).
+5. Build the application by selecting the *WebDriverAgentRunner* target and build for *Generic iOS Device*. Run *Product -> Build for testing*. This will create a *Products/Debug-iphoneos* in the specified project directory.  
  *Example*: **/Users/$USER/Library/Developer/Xcode/DerivedData/WebDriverAgent-dzxbpamuepiwamhdbyvyfkbecyer/Build/Products/Debug-iphoneos**
-5. Go to the "Products/Debug-iphoneos" directory and run:
+6. Go to the "Products/Debug-iphoneos" directory and run:
  **mkdir Payload**
-6. Copy the WebDriverAgentRunner-Runner.app to the Payload directory:
+7. Copy the WebDriverAgentRunner-Runner.app to the Payload directory:
  **cp -r WebDriverAgentRunner-Runner.app Payload**
-7. Finally, zip up the project as an *.ipa file:
+8. Finally, zip up the project as an *.ipa file:
  **zip -r WebDriverAgent.ipa ./Payload**
    > Make sure to specify relative `./Payload` to archive only Payload folder content 
-8. Share built ipa via WDA_FILE variable in roles/devices/vars/main.yml file.
+9. Share built ipa via WDA_FILE variable in roles/devices/vars/main.yml file.
    > to override WDA_FILE artifacts per each device use `wda_file` and `wda_bundleid` iOS device properties and re-execute ansible playbook.
 
 
