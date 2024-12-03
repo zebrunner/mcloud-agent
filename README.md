@@ -43,16 +43,16 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * update `roles/devices/vars/main.yml` file according to the obligatory/optional comments inside.
   > Register all whitelisted Android and iOS devices with their udids!
 * Run ansible-playbook script to download the required components and set up udev rules:
-  ```
-  ansible-playbook -vvv -i hosts devices.yml
+  ```bash
+  ./zebrunner.sh ansible
   ```
   > To reregister the devices list only, you can use the following command:
-  ```
-  ansible-playbook -vvv -i hosts devices.yml --tag registerDevices
+  ```bash
+  ./zebrunner.sh ansible devices
   ```
   > To provide extra arguments including sudo permissions, you can use the below command:
-  ```
-  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD" devices.yml
+  ```bash
+  ./zebrunner.sh ansible --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD"
   ```
  * Devices management script is deployed to /usr/local/bin/zebrunner-farm.
  * Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules.
@@ -67,16 +67,16 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
   > Register all whitelisted iOS devices (phones, tablets or TVes) with their udids!
   > Important! Only iOS devices supported on MacOS!
 * Run ansible-playbook script to download the required components and set up udev rules:
-  ```
-  ansible-playbook -vvv -i hosts mac-devices.yml
+  ```bash
+  ./zebrunner.sh ansible
   ```
   > To reregister the devices list only, you can use the following command:
-  ```
-  ansible-playbook -vvv -i hosts mac-devices.yml --tag registerDevices
+  ```bash
+  ./zebrunner.sh ansible devices
   ```
   > To provide extra arguments including sudo permissions, you can use the below command:
-  ```
-  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD" mac-devices.yml
+  ```bash
+  ./zebrunner.sh ansible --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD"
   ```
  * Devices management script is deployed to /usr/local/bin/zebrunner-farm.
  * Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
@@ -107,19 +107,23 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 You need an Apple Developer account to sign in and build **WebDriverAgent**.
 
-1. Open **WebDriverAgent.xcodeproj** in Xcode.
-2. Ensure a team is selected before building the application. To do this, go to *Targets* and select each target (one at a time). There should be a field for assigning team certificates to the target.
-3. Remove your **WebDriverAgent** folder from *DerivedData* and run *Clean build folder* (just in case).
-4. Build the application by selecting the *WebDriverAgentRunner* target and build for *Generic iOS Device*. Run *Product -> Build for testing*. This will create a *Products/Debug-iphoneos* in the specified project directory.  
+1. Clone **WebDriverAgent** from source you prefer. We recommend our [forked repository](https://github.com/zebrunner/WebDriverAgent) with performance improvements.
+    ```bash
+   git clone https://github.com/zebrunner/WebDriverAgent.git
+   ```
+2. Open **WebDriverAgent.xcodeproj** in Xcode.
+3. Ensure a team is selected before building the application. To do this, go to *Targets* and select each target (one at a time). There should be a field for assigning team certificates to the target.
+4. Remove your **WebDriverAgent** folder from *DerivedData* and run *Clean build folder* (just in case).
+5. Build the application by selecting the *WebDriverAgentRunner* target and build for *Generic iOS Device*. Run *Product -> Build for testing*. This will create a *Products/Debug-iphoneos* in the specified project directory.  
  *Example*: **/Users/$USER/Library/Developer/Xcode/DerivedData/WebDriverAgent-dzxbpamuepiwamhdbyvyfkbecyer/Build/Products/Debug-iphoneos**
-5. Go to the "Products/Debug-iphoneos" directory and run:
+6. Go to the "Products/Debug-iphoneos" directory and run:
  **mkdir Payload**
-6. Copy the WebDriverAgentRunner-Runner.app to the Payload directory:
+7. Copy the WebDriverAgentRunner-Runner.app to the Payload directory:
  **cp -r WebDriverAgentRunner-Runner.app Payload**
-7. Finally, zip up the project as an *.ipa file:
+8. Finally, zip up the project as an *.ipa file:
  **zip -r WebDriverAgent.ipa ./Payload**
    > Make sure to specify relative `./Payload` to archive only Payload folder content 
-8. Share built ipa via WDA_FILE variable in roles/devices/vars/main.yml file.
+9. Share built ipa via WDA_FILE variable in roles/devices/vars/main.yml file.
    > to override WDA_FILE artifacts per each device use `wda_file` and `wda_bundleid` iOS device properties and re-execute ansible playbook.
 
 
@@ -151,6 +155,22 @@ Follow the below algorithm to identify any configuration issues with MCloud agen
   docker logs -f device-<Name>-<udid>
   // artifacts uploader container:
   docker logs -f device-<Name>-<udid>-uploader
+  ```
+* If you have any problems running ansible:
+  * Make sure you have sudo access and try to run ansible with sudo permissions.
+  * Try to rub ansible commands manually (`<devices_file>` name is `mac-devices` on macOS  or `devices` on Linux servers)
+ 
+  > To download the required components and set up udev rules:
+  ```
+  ansible-playbook -vvv -i hosts <devices_file>.yml
+  ```
+  > To reregister the devices list only, you can use the following command:
+  ```
+  ansible-playbook -vvv -i hosts <devices_file>.yml --tag registerDevices
+  ```
+  > To provide extra arguments including sudo permissions, you can use the below command:
+  ```
+  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD" <devices_file>.yml
   ```
 
 ## Documentation and free support
