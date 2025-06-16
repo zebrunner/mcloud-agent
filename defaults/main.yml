@@ -8,9 +8,6 @@ APPIUM_VERSION: 2.1
 UPLOADER_IMAGE: public.ecr.aws/zebrunner/uploader
 UPLOADER_VERSION: 3.6
 
-MITM_IMAGE: public.ecr.aws/zebrunner/mitmproxy
-MITM_VERSION: 2.0
-
 IOS_CONNECTOR_IMAGE: public.ecr.aws/zebrunner/mcloud-ios-connector
 IOS_CONNECTOR_VERSION: 1.1.1
 
