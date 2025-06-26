@@ -177,7 +177,11 @@ function create_containers() {
     echo -e "wdaBundleId: $wdaBundleId\n"
 
     echo -n "device-${device_name_underscored}-${udid}-connector:  "
-    docker run -itd --name device-${device_name_underscored}-${udid}-connector --net=${net} \
+    docker run -itd --name device-${device_name_underscored}-${udid}-connector \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net=${net} \
       --restart on-failure:{{ RESTARTS_LIMIT }} $DEVICE_ARG \
       -e USBMUXD_SOCKET_ADDRESS={{ USBMUXD_SOCKET_ADDRESS }} \
       -e HOST_OS=DARWIN \
@@ -192,7 +196,11 @@ function create_containers() {
 
     # Linking with apppium required to share usbmuxd via socat
     echo -n "device-${device_name_underscored}-${udid}:            "
-    docker run -d --name device-${device_name_underscored}-${udid} --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
+    docker run -d --name device-${device_name_underscored}-${udid} \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net=${net} \
       --restart on-failure:{{ RESTARTS_LIMIT }} \
       --link device-${device_name_underscored}-${udid}-connector:connector \
       -e WDA_HOST=connector \
@@ -217,7 +225,12 @@ function create_containers() {
 
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     echo -n "device-${device_name_underscored}-${udid}-appium:     "
-    docker run -itd --name device-${device_name_underscored}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
+    docker run -itd --name device-${device_name_underscored}-${udid}-appium \
+      -m 1g \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net=${net} \
       --restart on-failure:{{ RESTARTS_LIMIT }} $DEVICE_ARG \
       --link device-${device_name_underscored}-${udid}:device \
       --link device-${device_name_underscored}-${udid}-connector:connector \
@@ -249,7 +262,11 @@ function create_containers() {
       {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }} || echo 'already created'
 
     echo -n "device-${device_name_underscored}-${udid}-uploader:   "
-    docker run -d --name device-${device_name_underscored}-${udid}-uploader --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
+    docker run -d --name device-${device_name_underscored}-${udid}-uploader \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net=${net} \
       --restart on-failure:{{ RESTARTS_LIMIT }} \
       -v device-${device_name_underscored}-${udid}:/tmp/log \
       -e ENDPOINT_URL={{ S3_ENDPOINT }} \

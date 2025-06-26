@@ -118,7 +118,11 @@ function create_containers() {
   if [ $platform_name == "android" ]; then
 
     echo -n "device-${device_name_underscored}-${udid}-connector:  "
-    docker run -itd --name device-${device_name_underscored}-${udid}-connector --net=${net} \
+    docker run -itd --name device-${device_name_underscored}-${udid}-connector \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net=${net} \
       --restart on-failure:{{ RESTARTS_LIMIT }} $DEVICE_ARG \
       -e DEVICE_BUS=$usb_bus \
       -v mcloud-key-volume:/root/.android \
@@ -129,7 +133,11 @@ function create_containers() {
       {{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }} || echo 'already created'
 
     echo -n "device-${device_name_underscored}-${udid}:            "
-    docker run -d --name device-${device_name_underscored}-${udid} --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
+    docker run -d --name device-${device_name_underscored}-${udid} \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net=${net} \
       --link device-${device_name_underscored}-${udid}-connector:connector \
       -e STF_PROVIDER_ADB_HOST=connector \
       -e STF_PROVIDER_ADB_PORT=5037 \
@@ -159,7 +167,12 @@ function create_containers() {
 
     #TODO: parametrized relaxed security, make false by default!
     echo -n "device-${device_name_underscored}-${udid}-appium:     "
-    docker run -itd --name device-${device_name_underscored}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
+    docker run -itd --name device-${device_name_underscored}-${udid}-appium \
+      -m 1g \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net=${net} \
       --restart on-failure:{{ RESTARTS_LIMIT }} \
       --link device-${device_name_underscored}-${udid}:device \
       --link device-${device_name_underscored}-${udid}-connector:connector \
@@ -194,7 +207,11 @@ function create_containers() {
       {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }} || echo 'already created'
 
     echo -n "device-${device_name_underscored}-${udid}-uploader:   "
-    docker run -d --name device-${device_name_underscored}-${udid}-uploader --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
+    docker run -d --name device-${device_name_underscored}-${udid}-uploader \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net=${net} \
       --restart on-failure:{{ RESTARTS_LIMIT }} \
       -v device-${device_name_underscored}-${udid}:/tmp/log \
       -e ENDPOINT_URL={{ S3_ENDPOINT }} \
@@ -230,7 +247,11 @@ function create_containers() {
     echo -e "wdaBundleId: $wdaBundleId\n"
 
     echo -n "device-${device_name_underscored}-${udid}-connector:  "
-    docker run -itd --name device-${device_name_underscored}-${udid}-connector --net=${net} \
+    docker run -itd --name device-${device_name_underscored}-${udid}-connector \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net=${net} \
       --sysctl net.ipv6.conf.all.disable_ipv6=0 \
       --restart on-failure:{{ RESTARTS_LIMIT }} $DEVICE_ARG \
       --cap-add=NET_ADMIN \
@@ -247,7 +268,11 @@ function create_containers() {
 
     # Linking with apppium required to share usbmuxd via socat
     echo -n "device-${device_name_underscored}-${udid}:            "
-    docker run -d --name device-${device_name_underscored}-${udid} --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
+    docker run -d --name device-${device_name_underscored}-${udid} \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net=${net} \
       --restart on-failure:{{ RESTARTS_LIMIT }} \
       --link device-${device_name_underscored}-${udid}-connector:connector \
       -e WDA_HOST=connector \
@@ -272,7 +297,12 @@ function create_containers() {
 
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     echo -n "device-${device_name_underscored}-${udid}-appium:     "
-    docker run -itd --name device-${device_name_underscored}-${udid}-appium -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
+    docker run -itd --name device-${device_name_underscored}-${udid}-appium \
+      -m 1g \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net=${net} \
       --restart on-failure:{{ RESTARTS_LIMIT }} $DEVICE_ARG \
       --link device-${device_name_underscored}-${udid}:device \
       --link device-${device_name_underscored}-${udid}-connector:connector \
@@ -304,7 +334,11 @@ function create_containers() {
       {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}
 
     echo -n "device-${device_name_underscored}-${udid}-uploader:   "
-    docker run -d --name device-${device_name_underscored}-${udid}-uploader --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
+    docker run -d --name device-${device_name_underscored}-${udid}-uploader \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net=${net} \
       --restart on-failure:{{ RESTARTS_LIMIT }} \
       -v device-${device_name_underscored}-${udid}:/tmp/log \
       -e ENDPOINT_URL={{ S3_ENDPOINT }} \
