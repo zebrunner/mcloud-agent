@@ -72,11 +72,6 @@ function create_containers() {
   local wireless=$(cat ${devices} | grep "$udid" | cut -d '|' -f 11)
   #echo "wireless: $wireless"
 
-
-  # without 'block_global=false' mitmproxy does not want to accept requests from devices
-  # --set confdir allows to provide custom folder with CA Authority certificates
-  local proxy_permament_arguments="--set block_global=false --set confdir=/opt/mitmproxy"
-
   local net={{ STF_DOCKER_NETWORK }}
 
   docker network inspect ${net} > /dev/null 2>&1 || docker network create ${net}
@@ -121,16 +116,6 @@ function create_containers() {
   fi
 
   if [ $platform_name == "android" ]; then
-
-    if [ "$server_proxy_port" != "0" ] && [ "$proxy_port" != "0" ]; then
-      echo -n "device-${device_name_underscored}-${udid}-mitm:       "
-      docker run -itd --name device-${device_name_underscored}-${udid}-mitm -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
-        --restart on-failure:{{ RESTARTS_LIMIT }} \
-        -v mcloud-mitm-volume:/opt/mitmproxy \
-        -e PROXY_PERMANENT_ARGS="$proxy_permament_arguments" \
-        -p ${server_proxy_port}:8060 -p ${proxy_port}:8080 \
-        {{ MITM_IMAGE }}:{{ MITM_VERSION }} || echo 'already created'
-    fi
 
     echo -n "device-${device_name_underscored}-${udid}-connector:  "
     docker run -itd --name device-${device_name_underscored}-${udid}-connector --net=${net} \
@@ -243,16 +228,6 @@ function create_containers() {
       wdaBundleId="com.facebook.WebDriverAgentRunner.xctrunner"
     fi
     echo -e "wdaBundleId: $wdaBundleId\n"
-
-    if [ "$server_proxy_port" != "0" ] && [ "$proxy_port" != "0" ]; then
-      echo -n "device-${device_name_underscored}-${udid}-mitm:       "
-      docker run -itd --name device-${device_name_underscored}-${udid}-mitm -m 1g --log-opt max-size=1024m --log-opt max-file=2 --net=${net} \
-        --restart on-failure:{{ RESTARTS_LIMIT }} \
-        -v mcloud-mitm-volume:/opt/mitmproxy \
-        -e PROXY_PERMANENT_ARGS="$proxy_permament_arguments" \
-        -p ${server_proxy_port}:8060 -p ${proxy_port}:8080 \
-        {{ MITM_IMAGE }}:{{ MITM_VERSION }} || echo 'already created'
-    fi
 
     echo -n "device-${device_name_underscored}-${udid}-connector:  "
     docker run -itd --name device-${device_name_underscored}-${udid}-connector --net=${net} \
@@ -393,7 +368,6 @@ function stop_containers() {
   #TODO: retest below assumption
   # appium should be stopped first to disconnect in STF asap
   docker stop $container
-  docker stop $container-mitm
   docker stop $container-appium
   docker stop $container-uploader
   docker stop $container-connector
@@ -444,14 +418,6 @@ function remove_containers() {
   docker ps -a | grep -v appium | grep $container > /dev/null
   if [ $? -eq 0 ]; then
     docker rm -f $container
-  else
-    echo "container not found"
-  fi
-
-  echo -n "MITM:       "
-  docker ps -a | grep mitm | grep $container > /dev/null
-  if [ $? -eq 0 ]; then
-    docker rm -f $container-mitm
   else
     echo "container not found"
   fi
@@ -635,7 +601,6 @@ function start_containers() {
   local container=device-$device_name_underscored-$udid
 
   docker start $container
-  docker ps -a | grep -q "$container-mitm" && docker start $container-mitm
   docker start $container-appium
   docker start $container-uploader
   docker start $container-connector
