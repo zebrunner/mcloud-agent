@@ -36,8 +36,6 @@
     systemctl mask usbmuxd
     systemctl stop usbmuxd
     systemctl status usbmuxd
-  args:
-    warn: false
   become: true
   ignore_errors: yes
 
