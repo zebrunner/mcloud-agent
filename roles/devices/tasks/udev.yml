@@ -16,8 +16,8 @@
 
 - name: Compute duplicate device IDs and names
   set_fact:
-    dup_ids: "{{ devices | map(attribute='id') | list | groupby('') | selectattr('1', 'length', '>', 1) | map('first') | list }}"
-    dup_names: "{{ devices | map(attribute='name') | list | groupby('') | selectattr('1', 'length', '>', 1) | map('first') | list }}"
+    dup_ids: "{{ devices | map(attribute='id') | list | select('in', devices | map(attribute='id') | list | difference(devices | map(attribute='id') | list | unique)) | list | unique }}"
+    dup_names: "{{ devices | map(attribute='name') | list | select('in', devices | map(attribute='name') | list | difference(devices | map(attribute='name') | list | unique)) | list | unique }}"
 
 - name: Check for duplicate device IDs or names
   assert:
