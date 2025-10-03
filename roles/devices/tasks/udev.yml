@@ -18,12 +18,16 @@
   set_fact:
     dup_ids: >-
       {{ devices | map(attribute='id') | list
-         | select("lambda x: (devices | map(attribute='id') | list).count(x) > 1")
-         | unique }}
+         | groupby('self')
+         | selectattr('1', 'gt', 1)
+         | map('first')
+         | list }}
     dup_names: >-
       {{ devices | map(attribute='name') | list
-         | select("lambda x: (devices | map(attribute='name') | list).count(x) > 1")
-         | unique }}
+         | groupby('self')
+         | selectattr('1', 'gt', 1)
+         | map('first')
+         | list }}
 
 - name: Check for duplicate device IDs or names
   assert:
@@ -32,6 +36,7 @@
       - dup_names | length == 0
     fail_msg: "Duplicate devices found! Duplicate IDs: {{ dup_ids }} Duplicate Names: {{ dup_names }}"
     success_msg: "All device IDs and names are unique."
+
 
 - name: Copy 'zebrunner-farm' script file
   ansible.builtin.template:
