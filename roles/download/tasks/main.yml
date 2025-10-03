@@ -55,8 +55,6 @@
           network_result.failed
         )
     success_msg: "{{ docker_env_report }}"
-    fail_msg:
-      - "One or more components failed to set up:"
-      - {{ docker_env_report }}
+    fail_msg: "{{ docker_env_report }}"
   ignore_errors: yes
 
