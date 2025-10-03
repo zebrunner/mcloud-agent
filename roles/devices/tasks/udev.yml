@@ -5,17 +5,14 @@
     that:
       - ansible_system == "Linux"
     fail_msg: "OS version is not compatible! This playbook supports Linux only."
+    success_msg: "OS is compatible: {{ ansible_system }}"
 
-- name: Check if 'roles/devices/vars/main.yml' file exists
-  stat:
-    path: roles/devices/vars/main.yml
-  register: main_yml
-
-- name: Verify setup prerequisites
-  ansible.builtin.assert:
+- name: Check main.yml exists
+  assert:
     that:
-      - main_yml.stat.exists
+      - lookup('file', 'roles/devices/vars/main.yml', errors='ignore') is not none
     fail_msg: "You have to setup services in advance using: ./zebrunner.sh setup!"
+    success_msg: "Setup is ready: 'roles/devices/vars/main.yml' exists."
 
 - name: Copy 'zebrunner-farm' script file
   ansible.builtin.template:
@@ -80,7 +77,7 @@
           {% if adb_exists.rc != 0 %}
           ADB is not installed.
           {% else %}
-          ADB server stopped successfully.
+          ADB stopped successfully.
           {% endif %}
         fail_msg: "Failed to stop ADB server!"
       ignore_errors: yes
