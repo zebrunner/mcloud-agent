@@ -31,17 +31,14 @@
 - name: restart udev
   command: udevadm control --reload
 
-- name: Mask usbmuxd service
-  shell: |
-    systemctl mask usbmuxd
-    systemctl stop usbmuxd
-    systemctl status usbmuxd
+- name: Ensure usbmuxd is masked and stopped
+  ansible.builtin.systemd:
+    name: usbmuxd
+    masked: yes
+    state: stopped
   become: true
   ignore_errors: yes
 
-- block:
-    - name: Stop adb
-      command: adb kill-server
-  rescue:
-    - debug:
-        msg: "ADB was not running or not installed on this host."
+- name: Stop adb
+  shell: "which adb && pgrep -f 'adb' && adb kill-server"
+  ignore_errors: yes
