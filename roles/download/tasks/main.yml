@@ -35,15 +35,16 @@
     - name: Show Docker environment status
       debug:
         msg:
-          - "-----------------------------"
-          - "Device image:            {{ '✔' if not device_result.failed else '✖' }}"
-          - "Appium image:            {{ '✔' if not appium_result.failed else '✖' }}"
-          - "Uploader image:          {{ '✔' if not uploader_result.failed else '✖' }}"
-          - "iOS Connector image:     {{ '✔' if not ios_result.failed else '✖' }}"
-          - "Android Connector image: {{ '✔' if not android_result.failed else '✖' }}"
-          - "-----------------------------"
-          - "Network creation:        {{ '✔' if not network_result.failed else '✖' }}"
-          - "-----------------------------"
+          - "--------------------------"
+          - "Device image:            {{ '[ OK ]' if not device_result.failed else '[FAIL]' }}"
+          - "Appium image:            {{ '[ OK ]' if not appium_result.failed else '[FAIL]' }}"
+          - "Uploader image:          {{ '[ OK ]' if not uploader_result.failed else '[FAIL]' }}"
+          - "iOS Connector image:     {{ '[ OK ]' if not ios_result.failed else '[FAIL]' }}"
+          - "Android Connector image: {{ '[ OK ]' if not android_result.failed else '[FAIL]' }}"
+          - "--------------------------"
+          - "Network creation:        {{ '[ OK ]' if not network_result.failed else '[FAIL]' }}"
+          - "--------------------------"
+        warn: true
     - name: Environment error
       fail:
         msg: "One or more components failed to set up. Please check the output above for details."
