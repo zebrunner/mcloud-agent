@@ -18,16 +18,10 @@
   set_fact:
     dup_ids: >-
       {{ devices | map(attribute='id') | list
-         | groupby('self')
-         | selectattr('1', 'gt', 1)
-         | map('first')
-         | list }}
+         | community.general.list_duplicates }}
     dup_names: >-
       {{ devices | map(attribute='name') | list
-         | groupby('self')
-         | selectattr('1', 'gt', 1)
-         | map('first')
-         | list }}
+         | community.general.list_duplicates }}
 
 - name: Check for duplicate device IDs or names
   assert:
