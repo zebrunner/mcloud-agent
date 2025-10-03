@@ -14,6 +14,21 @@
     fail_msg: "You have to setup services in advance using: ./zebrunner.sh setup!"
     success_msg: "Setup is ready: 'roles/devices/vars/main.yml' exists."
 
+- name: Check for duplicate device IDs or names
+  assert:
+    that:
+      - devices | map(attribute='id') | list | length ==
+        (devices | map(attribute='id') | list | unique | length)
+      - devices | map(attribute='name') | list | length ==
+        (devices | map(attribute='name') | list | unique | length)
+    fail_msg: >
+      Duplicate devices found!
+      {% set dup_ids = devices | map(attribute='id') | list | select('in', devices | map(attribute='id') | list | unique | difference(devices | map(attribute='id') | list)) | list %}
+      {% set dup_names = devices | map(attribute='name') | list | select('in', devices | map(attribute='name') | list | unique | difference(devices | map(attribute='name') | list)) | list %}
+      {% if dup_ids %} Duplicate IDs: {{ dup_ids }}{% endif %}
+      {% if dup_names %} Duplicate Names: {{ dup_names }}{% endif %}
+    success_msg: "All device IDs and names are unique."
+
 - name: Copy 'zebrunner-farm' script file
   ansible.builtin.template:
     src: zebrunner-farm
