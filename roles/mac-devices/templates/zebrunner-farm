@@ -640,8 +640,16 @@ function echo_help() {
   exit 0
 }
 
-# IMPORTANT! In case of any changes please copy them in ./zebrunner.sh !
+# IMPORTANT! In case of any changes please copy them in ./zebrunner.sh file!
 function ansible() {
+
+  if [ ! "$(sudo -n true 2>/dev/null)" ]; then
+    echo "You need to have sudo permissions"
+  fi
+
+  echo "> sudo -v    # Extends the sudo timeout for another 5 minutes by default"
+  sudo -v
+
   if [[ "$1" == "" ]]; then
     arg="mac-devices.yml"
   elif [[ "$1" == "devices" ]]; then

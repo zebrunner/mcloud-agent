@@ -218,8 +218,16 @@ version() {
   echo "public.ecr.aws/zebrunner/appium:${appium_version}"
 }
 
-# IMPORTANT! In case of any changes please copy them in zebrunner-farm !
+# IMPORTANT! In case of any changes please copy them in both zebrunner-farm files!
 ansible() {
+
+  if [ ! "$(sudo -n true 2>/dev/null)" ]; then
+    echo "You need to have sudo permissions"
+  fi
+
+  echo "> sudo -v    # Extends the sudo timeout"
+  sudo -v
+
   # Check if the operating system is Linux or macOS
   if [[ "$(uname)" == "Linux" ]]; then
     file="devices.yml"
