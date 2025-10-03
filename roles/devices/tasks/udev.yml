@@ -21,8 +21,10 @@
 
 - name: Compute duplicate device IDs and names
   set_fact:
-    dup_ids: "{{ all_ids | difference(all_ids | unique) }}"
-    dup_names: "{{ all_names | difference(all_names | unique) }}"
+    dup_ids: >-
+      {{ all_ids | select('count', all_ids) | select('count', all_ids | count) | list | unique }}
+    dup_names: >-
+      {{ all_names | select('count', all_names) | select('count', all_names | count) | list | unique }}
 
 - name: Check for duplicate device IDs or names
   assert:
