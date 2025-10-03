@@ -59,16 +59,16 @@
 
 - name: Stop ADB server
   block:
-    - name: Check if ADB is running
-      command: pgrep -f 'adb'
-      register: adb_running
+    - name: Check if ADB exists
+      command: which adb
+      register: adb_exists
       failed_when: false
       changed_when: false
 
     - name: Stop ADB server
       command: adb kill-server
-      register: adb_stop
-      failed_when: adb_running.rc == 0 and adb_stop.rc != 0
-      changed_when: adb_running.rc == 0 and adb_stop.rc == 0
-      when: adb_running.rc == 0
+      register: adb_kill
+      failed_when: adb_exists.rc == 0 and adb_kill.rc != 0
+      changed_when: false
+      when: adb_exists.rc == 0
       become: true
