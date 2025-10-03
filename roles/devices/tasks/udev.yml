@@ -72,6 +72,7 @@
       changed_when: false
       when: adb_exists.rc == 0
       become: true
+      ignore_errors: yes
 
     - name: ADB stop status
       assert:
