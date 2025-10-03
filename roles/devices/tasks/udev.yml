@@ -47,7 +47,7 @@
   command: udevadm control --reload
   register: udev_reload
   failed_when: udev_reload.rc != 0
-  changed_when: udev_reload.rc == 0
+  changed_when: false
 
 - name: Ensure usbmuxd is masked and stopped
   ansible.builtin.systemd:
