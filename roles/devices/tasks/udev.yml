@@ -18,10 +18,12 @@
   set_fact:
     dup_ids: >-
       {{ devices | map(attribute='id') | list
-         | community.general.list_duplicates }}
+         | select("in", devices | map(attribute='id') | list
+                     | unique | difference(devices | map(attribute='id') | list)) | list | unique }}
     dup_names: >-
       {{ devices | map(attribute='name') | list
-         | community.general.list_duplicates }}
+         | select("in", devices | map(attribute='name') | list
+                     | unique | difference(devices | map(attribute='name') | list)) | list | unique }}
 
 - name: Check for duplicate device IDs or names
   assert:
