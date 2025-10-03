@@ -14,29 +14,19 @@
     fail_msg: "You have to setup services in advance using: ./zebrunner.sh setup!"
     success_msg: "Setup is ready: 'roles/devices/vars/main.yml' exists."
 
-- name: Collect all device IDs and names
+- name: Collect and check device IDs and names
   set_fact:
-    all_ids: "{{ devices | map(attribute='id') | list }}"
-    all_names: "{{ devices | map(attribute='name') | list }}"
+    all_ids: "{{ devices | map('id') | list }}"
+    all_names: "{{ devices | map('name') | list }}"
+    dup_ids: "{{ all_ids | reject('unique') | list }}"
+    dup_names: "{{ all_names | reject('unique') | list }}"
 
-- name: Find duplicate device IDs
-  set_fact:
-    dup_ids: "{{ dup_ids | default([]) + [item] }}"
-  loop: "{{ all_ids | unique }}"
-  when: all_ids | select('equalto', item) | list | length > 1
-
-- name: Find duplicate device names
-  set_fact:
-    dup_names: "{{ dup_names | default([]) + [item] }}"
-  loop: "{{ all_names | unique }}"
-  when: all_names | select('equalto', item) | list | length > 1
-
-- name: Check for duplicate device IDs or names
+- name: Verify no duplicates
   assert:
     that:
       - dup_ids | length == 0
       - dup_names | length == 0
-    fail_msg: "Duplicate devices found! Duplicate IDs: {{ dup_ids }} Duplicate Names: {{ dup_names }}"
+    fail_msg: "Duplicates found! IDs: {{ dup_ids }} Names: {{ dup_names }}"
     success_msg: "All device IDs and names are unique."
 
 - name: Copy 'zebrunner-farm' script file
