@@ -30,9 +30,15 @@
   register: network_result
   ignore_errors: yes
 
-- name: Show error if any task failed
+- name: Preparing Docker environment error
   debug:
-    msg: "One or more tasks failed!"
+    msg:
+      - "Device image: {{ device_result.stdout }}"
+      - "Appium image: {{ appium_result.stdout }}"
+      - "Uploader image: {{ uploader_result.stdout }}"
+      - "iOS Connector image: {{ ios_result.stdout }}"
+      - "Android Connector image: {{ android_result.stdout }}"
+      - "Network creation: {{ network_result.stdout }}"
   when: >
     not device_result|success or
     not appium_result|success or
