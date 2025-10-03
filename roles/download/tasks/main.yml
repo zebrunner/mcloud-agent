@@ -40,9 +40,9 @@
       - "Android Connector image: {{ android_result.stdout }}"
       - "Network creation: {{ network_result.stdout }}"
   when: >
-    not device_result|success or
-    not appium_result|success or
-    not uploader_result|success or
-    not ios_result|success or
-    not android_result|success or
-    not network_result|success
+    device_result.failed or
+    appium_result.failed or
+    uploader_result.failed or
+    ios_result.failed or
+    android_result.failed or
+    network_result.failed
