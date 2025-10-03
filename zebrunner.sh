@@ -226,7 +226,10 @@ ansible() {
   fi
 
   echo "> sudo -v    # Extends the sudo timeout"
-  sudo -v
+  if ! sudo -v ; then
+    echo "You need to have sudo permissions"
+    exit 1
+  fi
 
   # Check if the operating system is Linux or macOS
   if [[ "$(uname)" == "Linux" ]]; then

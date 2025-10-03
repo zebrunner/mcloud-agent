@@ -648,7 +648,10 @@ function ansible() {
   fi
 
   echo "> sudo -v    # Extends the sudo timeout for another 5 minutes by default"
-  sudo -v
+  if ! sudo -v ; then
+    echo "You need to have sudo permissions"
+    exit 1
+  fi
 
   if [[ "$1" == "" ]]; then
     arg="mac-devices.yml"
