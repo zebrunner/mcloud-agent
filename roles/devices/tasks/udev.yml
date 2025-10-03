@@ -14,10 +14,13 @@
     fail_msg: "You have to setup services in advance using: ./zebrunner.sh setup!"
     success_msg: "Setup is ready: 'roles/devices/vars/main.yml' exists."
 
-- name: Compute duplicate device IDs and names
+- name: Collect all device IDs and names
   set_fact:
     all_ids: "{{ devices | map(attribute='id') | list }}"
     all_names: "{{ devices | map(attribute='name') | list }}"
+
+- name: Compute duplicate device IDs and names
+  set_fact:
     dup_ids: "{{ all_ids | difference(all_ids | unique) }}"
     dup_names: "{{ all_names | difference(all_names | unique) }}"
 
