@@ -705,9 +705,9 @@ function ansible() {
     arg="$@ devices.yml"
   fi
 
-  echo "ansible-playbook -vvv -i hosts $arg"
+  echo "ansible-playbook -i hosts $arg"
   echo "*******************************************************************"
-  ansible-playbook -vvv -i hosts $arg
+  ansible-playbook -i hosts $arg
 }
 
 #CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | grep -v appium | cut -d '-' -f 2-` )
