@@ -218,17 +218,36 @@ version() {
   echo "public.ecr.aws/zebrunner/appium:${appium_version}"
 }
 
-# IMPORTANT! In case of any changes please copy them in zebrunner-farm !
+# IMPORTANT! In case of any changes please copy them in both zebrunner-farm files!
 ansible() {
+
+  echo -e "\n*******************************************************************\n"
+
+  if ! sudo -n true 2>/dev/null ; then
+    echo "You need to have sudo permissions"
+  fi
+
+  echo "> sudo -v    # Extends the sudo timeout"
+  if ! sudo -v ; then
+    echo "You need to have sudo permissions"
+    exit 1
+  fi
+
+  echo -e "\n*******************************************************************\n"
+
   # Check if the operating system is Linux or macOS
   if [[ "$(uname)" == "Linux" ]]; then
+    echo "Operating system is Linux"
     file="devices.yml"
   elif [[ "$(uname)" == "Darwin" ]]; then
+    echo "Operating system is macOS"
     file="mac-devices.yml"
   else
     echo "This script is not running on a Linux or macOS system. Run ansible manually."
     exit 1
   fi
+
+  echo -e "\n*******************************************************************\n"
 
   # Make a list of arguments
   if [[ "$1" == "" ]]; then
@@ -241,7 +260,7 @@ ansible() {
 
   # Run ansible with arguments
   echo "ansible-playbook -i hosts $arg"
-  echo "*******************************************************************"
+  echo -e "\n*******************************************************************\n"
   ansible-playbook -i hosts $arg
 }
 

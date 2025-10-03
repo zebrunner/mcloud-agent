@@ -695,8 +695,23 @@ function echo_help() {
   exit 0
 }
 
-# IMPORTANT! In case of any changes please copy them in ./zebrunner.sh !
+# IMPORTANT! In case of any changes please copy them in ./zebrunner.sh file!
 function ansible() {
+
+  echo -e "\n*******************************************************************\n"
+
+  if ! sudo -n true 2>/dev/null ; then
+    echo "You need to have sudo permissions"
+  fi
+
+  echo "> sudo -v    # Extends the sudo timeout for another 15 minutes by default"
+  if ! sudo -v ; then
+    echo "You need to have sudo permissions"
+    exit 1
+  fi
+
+  echo -e "\n*******************************************************************\n"
+
   if [[ "$1" == "" ]]; then
     arg="devices.yml"
   elif [[ "$1" == "devices" ]]; then
@@ -706,7 +721,7 @@ function ansible() {
   fi
 
   echo "ansible-playbook -i hosts $arg"
-  echo "*******************************************************************"
+  echo -e "\n*******************************************************************\n"
   ansible-playbook -i hosts $arg
 }
 
