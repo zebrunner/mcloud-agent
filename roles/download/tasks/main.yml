@@ -30,29 +30,33 @@
   register: network_result
   ignore_errors: yes
 
+- name: Build environment status report
+  set_fact:
+    docker_env_report: |
+      --------------------------
+      Device image:            {{ '[ OK ]' if not device_result.failed else '[FAIL]' }}
+      Appium image:            {{ '[ OK ]' if not appium_result.failed else '[FAIL]' }}
+      Uploader image:          {{ '[ OK ]' if not uploader_result.failed else '[FAIL]' }}
+      iOS Connector image:     {{ '[ OK ]' if not ios_result.failed else '[FAIL]' }}
+      Android Connector image: {{ '[ OK ]' if not android_result.failed else '[FAIL]' }}
+      --------------------------
+      Network creation:        {{ '[ OK ]' if not network_result.failed else '[FAIL]' }}
+      --------------------------
+
 - name: Docker environment check
-  block:
-    - name: Show Docker environment status
-      debug:
-        msg:
-          - "--------------------------"
-          - "Device image:            {{ '[ OK ]' if not device_result.failed else '[FAIL]' }}"
-          - "Appium image:            {{ '[ OK ]' if not appium_result.failed else '[FAIL]' }}"
-          - "Uploader image:          {{ '[ OK ]' if not uploader_result.failed else '[FAIL]' }}"
-          - "iOS Connector image:     {{ '[ OK ]' if not ios_result.failed else '[FAIL]' }}"
-          - "Android Connector image: {{ '[ OK ]' if not android_result.failed else '[FAIL]' }}"
-          - "--------------------------"
-          - "Network creation:        {{ '[ OK ]' if not network_result.failed else '[FAIL]' }}"
-          - "--------------------------"
-        warn: true
-    - name: Environment error
-      fail:
-        msg: "One or more components failed to set up. Please check the output above for details."
-      when: >
-        device_result.failed or
-        appium_result.failed or
-        uploader_result.failed or
-        ios_result.failed or
-        android_result.failed or
-        network_result.failed
-      ignore_errors: yes
+  assert:
+    that:
+      - not (
+          device_result.failed or
+          appium_result.failed or
+          uploader_result.failed or
+          ios_result.failed or
+          android_result.failed or
+          network_result.failed
+        )
+    success_msg: "{{ docker_env_report }}"
+    fail_msg: |
+      One or more components failed to set up:
+      {{ docker_env_report }}
+  ignore_errors: yes
+
