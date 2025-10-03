@@ -52,6 +52,7 @@
   become: true
   ignore_errors: yes
 
+- name: ADB handling
   block:
     - name: ADB existence check
       command: which adb
