@@ -32,8 +32,14 @@
   command: udevadm control --reload
 
 - name: Mask usbmuxd service
-  command: systemctl mask usbmuxd && systemctl stop usbmuxd && systemctl status usbmuxd
-  ignore_errors: true
+  shell: |
+    systemctl mask usbmuxd
+    systemctl stop usbmuxd
+    systemctl status usbmuxd
+  args:
+    warn: false
+  become: true
+  ignore_errors: yes
 
 - block:
     - name: Stop adb
