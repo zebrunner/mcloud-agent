@@ -1,35 +1,53 @@
 ---
 
-- name: Get OS name
-  shell: uname
-  register: os
-
 - name: Check OS compatibility
   ansible.builtin.assert:
     that:
-      - os.stdout is search("Linux")
-    fail_msg: "OS version is not compatible!"
+      - ansible_system == "Linux"
+    fail_msg: "OS version is not compatible! This playbook supports Linux only."
+    success_msg: "OS is compatible: {{ ansible_system }}"
 
-- name: Check if roles/devices/vars/main.yml file is generated
-  stat: path=roles/devices/vars/main.yml
+- name: Check if roles/devices/vars/main.yml file exists
+  stat:
+    path: roles/devices/vars/main.yml
   register: main_yml
 
-- name: Verify Setup
-  fail:
-    msg: "You have to setup services in advance using: ./zebrunner.sh setup!"
-  when: not main_yml.stat.exists
+- name: Verify setup prerequisites
+  ansible.builtin.assert:
+    that:
+      - main_yml.stat.exists
+    fail_msg: "You have to setup services in advance using: ./zebrunner.sh setup!"
+    success_msg: "Setup file roles/devices/vars/main.yml exists."
 
-- name: copy script to launch container with appium for device
-  template: src=zebrunner-farm dest=/usr/local/bin/ mode=755
+- name: Copy script to launch container with Appium for device
+  ansible.builtin.template:
+    src: zebrunner-farm
+    dest: /usr/local/bin/zebrunner-farm
+    mode: '0755'
+    owner: root
+    group: root
 
-- name: copy rules to launch script on connected device
-  template: src=90_mcloud.rules dest=/etc/udev/rules.d/
+- name: Copy udev rules for device script
+  ansible.builtin.template:
+    src: 90_mcloud.rules
+    dest: /etc/udev/rules.d/90_mcloud.rules
+    mode: '0644'
+    owner: root
+    group: root
 
-- name: copy devices details
-  template: src=mcloud-devices.txt dest=/usr/local/bin/
+- name: Copy devices details file
+  ansible.builtin.template:
+    src: mcloud-devices.txt
+    dest: /usr/local/bin/mcloud-devices.txt
+    mode: '0644'
+    owner: root
+    group: root
 
-- name: restart udev
+- name: Reload udev rules
   command: udevadm control --reload
+  register: udev_reload
+  failed_when: udev_reload.rc != 0
+  changed_when: udev_reload.rc == 0
 
 - name: Ensure usbmuxd is masked and stopped
   ansible.builtin.systemd:
@@ -39,6 +57,18 @@
   become: true
   ignore_errors: yes
 
-- name: Stop adb
-  shell: "which adb && pgrep -f 'adb' && adb kill-server"
-  ignore_errors: yes
+- name: Stop ADB server
+  block:
+    - name: Check if ADB is running
+      command: pgrep -f 'adb'
+      register: adb_running
+      failed_when: false
+      changed_when: false
+
+    - name: Stop ADB server
+      command: adb kill-server
+      register: adb_stop
+      failed_when: adb_running.rc == 0 and adb_stop.rc != 0
+      changed_when: adb_running.rc == 0 and adb_stop.rc == 0
+      when: adb_running.rc == 0
+      become: true
