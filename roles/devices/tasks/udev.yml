@@ -1,7 +1,7 @@
 ---
 
 - name: Check OS compatibility
-  ansible.builtin.assert:
+  assert:
     that:
       - ansible_system == "Linux"
     fail_msg: "OS version is not compatible! This playbook supports Linux only."
@@ -40,7 +40,7 @@
     success_msg: "All device IDs and names are unique."
 
 - name: Copy 'zebrunner-farm' script file
-  ansible.builtin.template:
+  template:
     src: zebrunner-farm
     dest: /usr/local/bin/zebrunner-farm
     mode: '0755'
@@ -48,7 +48,7 @@
     group: root
 
 - name: Copy rules file
-  ansible.builtin.template:
+  template:
     src: 90_mcloud.rules
     dest: /etc/udev/rules.d/90_mcloud.rules
     mode: '0644'
@@ -56,7 +56,7 @@
     group: root
 
 - name: Copy devices details file
-  ansible.builtin.template:
+  template:
     src: mcloud-devices.txt
     dest: /usr/local/bin/mcloud-devices.txt
     mode: '0644'
@@ -70,7 +70,7 @@
   changed_when: false
 
 - name: Usbmuxd mask and stop
-  ansible.builtin.systemd:
+  systemd:
     name: usbmuxd
     masked: yes
     state: stopped
