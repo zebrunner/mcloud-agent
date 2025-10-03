@@ -19,12 +19,17 @@
     all_ids: "{{ devices | map(attribute='id') | list }}"
     all_names: "{{ devices | map(attribute='name') | list }}"
 
-- name: Compute duplicate device IDs and names
+- name: Find duplicate device IDs
   set_fact:
-    dup_ids: >-
-      {{ all_ids | select('count', all_ids) | select('count', all_ids | count) | list | unique }}
-    dup_names: >-
-      {{ all_names | select('count', all_names) | select('count', all_names | count) | list | unique }}
+    dup_ids: "{{ dup_ids | default([]) + [item] }}"
+  loop: "{{ all_ids | unique }}"
+  when: all_ids | select('equalto', item) | list | length > 1
+
+- name: Find duplicate device names
+  set_fact:
+    dup_names: "{{ dup_names | default([]) + [item] }}"
+  loop: "{{ all_names | unique }}"
+  when: all_names | select('equalto', item) | list | length > 1
 
 - name: Check for duplicate device IDs or names
   assert:
