@@ -221,7 +221,7 @@ version() {
 # IMPORTANT! In case of any changes please copy them in both zebrunner-farm files!
 ansible() {
 
-  if [ ! "$(sudo -n true 2>/dev/null)" ]; then
+  if ! sudo -n true 2>/dev/null ; then
     echo "You need to have sudo permissions"
   fi
 
