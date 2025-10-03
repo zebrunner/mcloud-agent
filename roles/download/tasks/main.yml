@@ -31,6 +31,7 @@
   ignore_errors: yes
 
 - name: Build environment status report
+  no_log: true
   set_fact:
     docker_env_report:
       - "--------------------------"
@@ -42,7 +43,6 @@
       - "--------------------------"
       - "Network creation:        {{ '[ OK ]' if not network_result.failed else '[FAIL]' }}"
       - "--------------------------"
-    no_log: true
 
 - name: Docker environment check
   assert:
