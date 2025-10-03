@@ -643,6 +643,8 @@ function echo_help() {
 # IMPORTANT! In case of any changes please copy them in ./zebrunner.sh file!
 function ansible() {
 
+  echo -e "\n*******************************************************************\n"
+
   if ! sudo -n true 2>/dev/null ; then
     echo "You need to have sudo permissions"
   fi
@@ -653,6 +655,8 @@ function ansible() {
     exit 1
   fi
 
+  echo -e "\n*******************************************************************\n"
+
   if [[ "$1" == "" ]]; then
     arg="mac-devices.yml"
   elif [[ "$1" == "devices" ]]; then
@@ -662,7 +666,7 @@ function ansible() {
   fi
 
   echo "ansible-playbook -vvv -i hosts $arg"
-  echo "*******************************************************************"
+  echo -e "\n*******************************************************************\n"
   ansible-playbook -vvv -i hosts $arg
 }
 
