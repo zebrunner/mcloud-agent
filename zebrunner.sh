@@ -259,9 +259,9 @@ ansible() {
   fi
 
   # Run ansible with arguments
-  echo "ansible-playbook -vvv -i hosts $arg"
+  echo "ansible-playbook -i hosts $arg"
   echo -e "\n*******************************************************************\n"
-  ansible-playbook -vvv -i hosts $arg
+  ansible-playbook -i hosts $arg
 }
 
 echo_warning() {

@@ -1,36 +1,110 @@
 ---
 
-- name: Get OS name
-  shell: uname
-  register: os
-
 - name: Check OS compatibility
-  ansible.builtin.assert:
+  assert:
     that:
-      - os.stdout is search("Linux")
-    fail_msg: "OS version is not compatible!"
+      - ansible_system == "Linux"
+    fail_msg: "OS version is not compatible! This playbook supports Linux only."
+    success_msg: "OS is compatible: {{ ansible_system }}"
 
-- name: Check if roles/devices/vars/main.yml file is generated
-  stat: path=roles/devices/vars/main.yml
-  register: main_yml
+- name: Check setup completion
+  assert:
+    that:
+      - lookup('file', 'roles/devices/vars/main.yml', errors='ignore') is not none
+    fail_msg: "You have to setup services in advance using: ./zebrunner.sh setup!"
+    success_msg: "Setup is ready: 'roles/devices/vars/main.yml' exists."
 
-- name: Verify Setup
-  fail:
-    msg: "You have to setup services in advance using: ./zebrunner.sh setup!"
-  when: not main_yml.stat.exists
+- name: Collect all device IDs and names
+  set_fact:
+    all_ids: "{{ devices | map(attribute='id') | list }}"
+    all_names: "{{ devices | map(attribute='name') | list }}"
+    dup_ids: []
+    dup_names: []
 
-- name: copy script to launch container with appium for device
-  template: src=zebrunner-farm dest=/usr/local/bin/ mode=755
+- name: Find duplicate device IDs
+  set_fact:
+    dup_ids: "{{ dup_ids + [item] }}"
+  loop: "{{ all_ids | unique }}"
+  when: all_ids | select('equalto', item) | list | length > 1
 
-- name: copy rules to launch script on connected device
-  template: src=90_mcloud.rules dest=/etc/udev/rules.d/
+- name: Find duplicate device names
+  set_fact:
+    dup_names: "{{ dup_names + [item] }}"
+  loop: "{{ all_names | unique }}"
+  when: all_names | select('equalto', item) | list | length > 1
 
-- name: copy devices details
-  template: src=mcloud-devices.txt dest=/usr/local/bin/
+- name: Check for duplicate device IDs or names
+  assert:
+    that:
+      - dup_ids | length == 0
+      - dup_names | length == 0
+    fail_msg: "Duplicate devices found! Duplicate IDs: {{ dup_ids }} Duplicate Names: {{ dup_names }}"
+    success_msg: "All device IDs and names are unique."
 
-- name: restart udev
+- name: Copy 'zebrunner-farm' script file
+  template:
+    src: zebrunner-farm
+    dest: /usr/local/bin/zebrunner-farm
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Copy rules file
+  template:
+    src: 90_mcloud.rules
+    dest: /etc/udev/rules.d/90_mcloud.rules
+    mode: '0644'
+    owner: root
+    group: root
+
+- name: Copy devices details file
+  template:
+    src: mcloud-devices.txt
+    dest: /usr/local/bin/mcloud-devices.txt
+    mode: '0644'
+    owner: root
+    group: root
+
+- name: Reload udev rules
   command: udevadm control --reload
+  register: udev_reload
+  failed_when: udev_reload.rc != 0
+  changed_when: false
 
-- name: Mask usbmuxd service
-  command: systemctl mask usbmuxd && systemctl stop usbmuxd && systemctl status usbmuxd
-  ignore_errors: true
+- name: Usbmuxd mask and stop
+  systemd:
+    name: usbmuxd
+    masked: yes
+    state: stopped
+  become: true
+  ignore_errors: yes
+
+- name: ADB handling
+  block:
+    - name: ADB existence check
+      command: which adb
+      register: adb_exists
+      failed_when: false
+      changed_when: false
+
+    - name: ADB kill server
+      command: adb kill-server
+      register: adb_kill
+      failed_when: adb_exists.rc == 0 and adb_kill.rc != 0
+      changed_when: false
+      when: adb_exists.rc == 0
+      become: true
+      ignore_errors: yes
+
+    - name: ADB stop status
+      assert:
+        that:
+          - adb_exists.rc != 0 or adb_kill.rc == 0
+        success_msg: |
+          {% if adb_exists.rc != 0 %}
+          ADB is not installed.
+          {% else %}
+          ADB stopped successfully.
+          {% endif %}
+        fail_msg: "Failed to stop ADB server!"
+      ignore_errors: yes
