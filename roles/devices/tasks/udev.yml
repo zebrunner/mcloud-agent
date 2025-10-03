@@ -5,7 +5,6 @@
     that:
       - ansible_system == "Linux"
     fail_msg: "OS version is not compatible! This playbook supports Linux only."
-    success_msg: "OS is compatible: {{ ansible_system }}"
 
 - name: Check if 'roles/devices/vars/main.yml' file exists
   stat:
@@ -17,7 +16,6 @@
     that:
       - main_yml.stat.exists
     fail_msg: "You have to setup services in advance using: ./zebrunner.sh setup!"
-    success_msg: "Setup file 'roles/devices/vars/main.yml' exists."
 
 - name: Copy script to launch container with Appium for device
   ansible.builtin.template:
