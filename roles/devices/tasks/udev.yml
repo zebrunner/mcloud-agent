@@ -18,16 +18,18 @@
   set_fact:
     all_ids: "{{ devices | map(attribute='id') | list }}"
     all_names: "{{ devices | map(attribute='name') | list }}"
+    dup_ids: []
+    dup_names: []
 
 - name: Find duplicate device IDs
   set_fact:
-    dup_ids: "{{ dup_ids | default([]) + [item] }}"
+    dup_ids: "{{ dup_ids + [item] }}"
   loop: "{{ all_ids | unique }}"
   when: all_ids | select('equalto', item) | list | length > 1
 
 - name: Find duplicate device names
   set_fact:
-    dup_names: "{{ dup_names | default([]) + [item] }}"
+    dup_names: "{{ dup_names + [item] }}"
   loop: "{{ all_names | unique }}"
   when: all_names | select('equalto', item) | list | length > 1
 
@@ -106,5 +108,3 @@
           {% endif %}
         fail_msg: "Failed to stop ADB server!"
       ignore_errors: yes
-
-
