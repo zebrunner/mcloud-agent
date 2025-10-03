@@ -85,3 +85,4 @@
           ADB server stopped successfully.
           {% endif %}
         fail_msg: "Failed to stop ADB server!"
+      ignore_errors: yes
