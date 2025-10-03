@@ -37,7 +37,6 @@
     fail_msg: "Duplicate devices found! Duplicate IDs: {{ dup_ids }} Duplicate Names: {{ dup_names }}"
     success_msg: "All device IDs and names are unique."
 
-
 - name: Copy 'zebrunner-farm' script file
   ansible.builtin.template:
     src: zebrunner-farm
