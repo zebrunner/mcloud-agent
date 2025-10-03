@@ -15,12 +15,12 @@
   register: uploader_result
   ignore_errors: yes
 
-- name: Pull an Zebrunner Connector image
+- name: Pull an Zebrunner iOS Connector image
   shell: docker pull "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}"
   register: ios_result
   ignore_errors: yes
 
-- name: Pull an Zebrunner Connector image
+- name: Pull an Zebrunner Android Connector image
   shell: docker pull "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}"
   register: android_result
   ignore_errors: yes
