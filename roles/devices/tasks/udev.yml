@@ -35,6 +35,9 @@
   command: systemctl mask usbmuxd && systemctl stop usbmuxd && systemctl status usbmuxd
   ignore_errors: true
 
-- name: Stop adb
-  command: adb kill-server
-  ignore_errors: true
+- block:
+    - name: Stop adb
+      command: adb kill-server
+  rescue:
+    - debug:
+        msg: "ADB was not running or not installed on this host."
