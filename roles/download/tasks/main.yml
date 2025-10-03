@@ -32,13 +32,15 @@
 
 - name: Preparing Docker environment error
   debug:
-    msg:
-      - "Device image: {{ device_result.stdout }}"
-      - "Appium image: {{ appium_result.stdout }}"
-      - "Uploader image: {{ uploader_result.stdout }}"
-      - "iOS Connector image: {{ ios_result.stdout }}"
-      - "Android Connector image: {{ android_result.stdout }}"
-      - "Network creation: {{ network_result.stdout }}"
+    msg: |
+      \u001b[31m
+      Device image: {{ '✔' if not device_result.failed else '✖' }}
+      Appium image: {{ '✔' if not appium_result.failed else '✖' }}
+      Uploader image: {{ '✔' if not uploader_result.failed else '✖' }}
+      iOS Connector image: {{ '✔' if not ios_result.failed else '✖' }}
+      Android Connector image: {{ '✔' if not android_result.failed else '✖' }}
+      Network creation: {{ '✔' if not network_result.failed else '✖' }}
+      \u001b[0m
   when: >
     device_result.failed or
     appium_result.failed or
