@@ -1,6 +1,6 @@
 ---
 
-- name: Pull an Zebrunner MCloud device image
+- name: Pull an Zebrunner MCloud-device image
   shell: docker pull "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}"
   register: device_result
   ignore_errors: yes
@@ -18,13 +18,13 @@
   ignore_errors: yes
   changed_when: false
 
-- name: Pull an Zebrunner iOS Connector image
+- name: Pull an Zebrunner iOS-Connector image
   shell: docker pull "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}"
   register: ios_result
   ignore_errors: yes
   changed_when: false
 
-- name: Pull an Zebrunner Android Connector image
+- name: Pull an Zebrunner Android-Connector image
   shell: docker pull "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}"
   register: android_result
   ignore_errors: yes

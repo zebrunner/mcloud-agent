@@ -17,7 +17,7 @@
       - main_yml.stat.exists
     fail_msg: "You have to setup services in advance using: ./zebrunner.sh setup!"
 
-- name: Copy script to launch container with Appium for device
+- name: Copy 'zebrunner-farm' script file
   ansible.builtin.template:
     src: zebrunner-farm
     dest: /usr/local/bin/zebrunner-farm
@@ -25,7 +25,7 @@
     owner: root
     group: root
 
-- name: Copy udev rules for device script
+- name: Copy rules file
   ansible.builtin.template:
     src: 90_mcloud.rules
     dest: /etc/udev/rules.d/90_mcloud.rules
@@ -63,7 +63,7 @@
       failed_when: false
       changed_when: false
 
-    - name: Stop ADB server
+    - name: ADB kill server
       command: adb kill-server
       register: adb_kill
       failed_when: adb_exists.rc == 0 and adb_kill.rc != 0
