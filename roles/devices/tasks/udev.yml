@@ -86,3 +86,16 @@
           {% endif %}
         fail_msg: "Failed to stop ADB server!"
       ignore_errors: yes
+
+- name: ADB stop status
+  assert:
+    that:
+      - adb_exists.rc != 0 or adb_kill.rc == 0
+    success_msg: |
+      {% if adb_exists.rc != 0 %}
+      ADB is not installed.
+      {% else %}
+      ADB server stopped successfully.
+      {% endif %}
+    fail_msg: "Failed to stop ADB server!"
+  ignore_errors: yes
