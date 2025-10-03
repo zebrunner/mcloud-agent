@@ -24,6 +24,7 @@
   shell: docker pull "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}"
   register: android_result
   ignore_errors: yes
+  changed_when: false
 
 - name: Create infra network if absent
   shell: docker network inspect "{{ STF_DOCKER_NETWORK }}" >/dev/null 2>&1 || docker network create "{{ STF_DOCKER_NETWORK }}"
