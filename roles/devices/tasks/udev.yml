@@ -7,7 +7,7 @@
     fail_msg: "OS version is not compatible! This playbook supports Linux only."
     success_msg: "OS is compatible: {{ ansible_system }}"
 
-- name: Check main.yml exists
+- name: Check setup completion
   assert:
     that:
       - lookup('file', 'roles/devices/vars/main.yml', errors='ignore') is not none
@@ -44,7 +44,7 @@
   failed_when: udev_reload.rc != 0
   changed_when: false
 
-- name: Ensure usbmuxd is masked and stopped
+- name: Usbmuxd mask and stop
   ansible.builtin.systemd:
     name: usbmuxd
     masked: yes
@@ -52,9 +52,8 @@
   become: true
   ignore_errors: yes
 
-- name: Stop ADB server
   block:
-    - name: Check if ADB exists
+    - name: ADB existence check
       command: which adb
       register: adb_exists
       failed_when: false
