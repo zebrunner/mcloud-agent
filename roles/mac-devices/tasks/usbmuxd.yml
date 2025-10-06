@@ -1,26 +1,100 @@
 ---
 
-- name: Get OS name
-  shell: uname
-  register: os
-
 - name: Check OS compatibility
-  ansible.builtin.assert:
+  assert:
     that:
-      - os.stdout is search("Darwin")
-    fail_msg: "OS version is not compatible!"
+      - ansible_system == "Darwin"
+    fail_msg: "OS version is not compatible! This playbook supports macOS (Darwin) only."
+    success_msg: "OS is compatible: {{ ansible_system }}"
 
-- name: Check if roles/mac-devices/vars/main.yml file is generated
-  stat: path=roles/mac-devices/vars/main.yml
-  register: main_yml
+- name: Check setup completion
+  assert:
+    that:
+      - lookup('file', 'roles/devices/vars/main.yml', errors='ignore') is not none
+    fail_msg: "You have to setup services in advance using: ./zebrunner.sh setup!"
+    success_msg: "Setup is ready: 'roles/devices/vars/main.yml' exists."
 
-- name: Verify Setup
-  fail:
-    msg: "You have to setup services in advance using: ./zebrunner.sh setup!"
-  when: not main_yml.stat.exists
+- name: Collect all device IDs and names
+  set_fact:
+    all_ids: "{{ devices | map(attribute='id') | list }}"
+    all_names: "{{ devices | map(attribute='name') | list }}"
+    dup_ids: []
+    dup_names: []
 
-- name: copy script to launch container with appium for device
-  template: src=zebrunner-farm dest=/usr/local/bin/ mode=755
+- name: Find duplicate device IDs
+  set_fact:
+    dup_ids: "{{ dup_ids + [item] }}"
+  loop: "{{ all_ids | unique }}"
+  when: all_ids | select('equalto', item) | list | length > 1
 
-- name: copy devices details
-  template: src=mcloud-devices.txt dest=/usr/local/bin/
+- name: Find duplicate device names
+  set_fact:
+    dup_names: "{{ dup_names + [item] }}"
+  loop: "{{ all_names | unique }}"
+  when: all_names | select('equalto', item) | list | length > 1
+
+- name: Check for duplicate device IDs or names
+  assert:
+    that:
+      - dup_ids | length == 0
+      - dup_names | length == 0
+    fail_msg: "Duplicate devices found! Duplicate IDs: {{ dup_ids }} Duplicate Names: {{ dup_names }}"
+    success_msg: "All device IDs and names are unique."
+
+- name: Copy 'zebrunner-farm' script file
+  template:
+    src: zebrunner-farm
+    dest: /usr/local/bin/zebrunner-farm
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Copy devices details file
+  template:
+    src: mcloud-devices.txt
+    dest: /usr/local/bin/mcloud-devices.txt
+    mode: '0644'
+    owner: root
+    group: root
+
+
+
+
+
+- name: Check if ZebrunnerDevicesListener agent is loaded
+  command: launchctl list com.zebrunner.mcloud
+  register: mcloud_agent_loaded
+  failed_when: false
+  changed_when: false
+
+- name: Unload ZebrunnerDevicesListener agent if loaded
+  command: launchctl unload -w "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
+  when: mcloud_agent_loaded.rc == 0
+  changed_when: false
+
+- name: Check if ZebrunnerUsbmuxd agent is loaded
+  command: launchctl list com.zebrunner.usbmuxd
+  register: usbmuxd_agent_loaded
+  failed_when: false
+  changed_when: false
+
+- name: Unload ZebrunnerUsbmuxd agent if loaded
+  command: launchctl unload -w "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
+  when: usbmuxd_agent_loaded.rc == 0
+  changed_when: false
+
+- name: Install ZebrunnerDevicesListener.plist into LaunchAgents
+  template:
+    src: roles/mac-devices/templates/ZebrunnerDevicesListener.plist
+    dest: "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
+    mode: '0644'
+
+- name: Install ZebrunnerUsbmuxd.plist into LaunchAgents
+  template:
+    src: roles/mac-devices/templates/ZebrunnerUsbmuxd.plist
+    dest: "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
+    mode: '0644'
+
+- name: Load ZebrunnerUsbmuxd agent via launchctl
+  command: launchctl load -w "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
+  changed_when: false
