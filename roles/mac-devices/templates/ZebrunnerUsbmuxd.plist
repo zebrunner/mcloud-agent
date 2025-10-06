@@ -1,25 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-	"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-	<dict>
-		<key>EnvironmentVariables</key>
-		<dict>
-			<key>PATH</key>
-			<string>/bin:/usr/bin:/usr/local/bin:/usr/sbin:/sbin</string>
-		</dict>
-		<key>Label</key>
-		<string>com.zebrunner.usbmuxd</string>
-		<key>ProgramArguments</key>
-		<array>
-			<string>/usr/local/bin/socat</string>
-			<string>TCP-LISTEN:2222,reuseaddr,fork</string>
-			<string>UNIX-CONNECT:/var/run/usbmuxd</string>
-        	</array>
-		<key>WorkingDirectory</key>
-		<string>working_dir_value</string>
-		<key>UserName</key>
-		<string>user_value</string>
   <dict>
 
     <key>EnvironmentVariables</key>
@@ -39,8 +21,10 @@
       </array>
 
     <key>WorkingDirectory</key>
+      <string>{{ lookup('env', 'MCLOUD_AGENT_DIR_NAME') }}</string>
 
     <key>UserName</key>
+      <string>{{ lookup('env', 'USER') }}</string>
 
     <key>KeepAlive</key>
       <true/>
