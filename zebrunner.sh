@@ -55,6 +55,34 @@ setup() {
       echo "Added $MCLOUD_AGENT_DIR_NAME=\"$MCLOUD_AGENT_DIR_VALUE\" to $file"
     fi
   done
+  # Apply the changes to the current shell session
+  case "$(basename "$SHELL")" in
+    bash)
+      if [ -f "$HOME/.bashrc" ]; then
+        echo "Reloading $HOME/.bashrc"
+        source "$HOME/.bashrc"
+      elif [ -f "$HOME/.bash_profile" ]; then
+        echo "Reloading ~/.bash_profile"
+        source "$HOME/.bash_profile"
+      fi
+      ;;
+    zsh)
+      if [ -f "$HOME/.zshrc" ]; then
+        echo "Reloading ~/.zshrc"
+        source "$HOME/.zshrc"
+      elif [ -f "$HOME/.zprofile" ]; then
+        echo "Reloading ~/.zprofile"
+        source "$HOME/.zprofile"
+      fi
+      ;;
+    *)
+      echo "Detected shell - $SHELL , reloading ~/.profile if exists"
+      if [ -f "$HOME/.profile" ]; then
+        echo "Reloading ~/.profile"
+        source "$HOME/.profile"
+      fi
+      ;;
+  esac
   ### Create roles/.../vars/main.yml according to OS
   os="$(uname)"
   echo "Detected OS: $os"
