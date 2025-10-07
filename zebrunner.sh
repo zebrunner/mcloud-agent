@@ -31,17 +31,17 @@ replace() {
 
 setup() {
   ### Install environment variable to shell profiles
-  echo "==== Setting up MCloud agent in $BASEDIR ===="
+  echo -e "\n==== Setting up MCloud agent in $BASEDIR ====\n"
   # Array to hold target files
   TARGET_FILES=()
   # Bash
   if command -v bash >/dev/null 2>&1; then
-    echo "Bash shell detected"
+    echo "Bash shell found in this system"
     TARGET_FILES+=("$HOME/.bashrc" "$HOME/.bash_profile")
   fi
   # Zsh
   if command -v zsh >/dev/null 2>&1; then
-    echo "Zsh shell detected"
+    echo "Zsh shell found in this system"
     TARGET_FILES+=("$HOME/.zshrc" "$HOME/.zprofile")
   fi
   # Other
@@ -63,23 +63,23 @@ setup() {
   # Apply the changes to the current shell session
   echo ""
   current_shell="$(basename "$SHELL")"
-  echo "Current shell detected: $current_shell"
+  echo "Current shell: $current_shell"
   case "$current_shell" in
     bash)
       if [ -f "$HOME/.bashrc" ]; then
-        echo "Reloading $HOME/.bashrc"
+        echo "Reloading $HOME/.bashrc to apply changes immediately"
         source "$HOME/.bashrc"
       elif [ -f "$HOME/.bash_profile" ]; then
-        echo "Reloading ~/.bash_profile"
+        echo "Reloading ~/.bash_profile to apply changes immediately"
         source "$HOME/.bash_profile"
       fi
       ;;
     zsh)
       if [ -f "$HOME/.zshrc" ]; then
-        echo "Reloading ~/.zshrc"
+        echo "Reloading ~/.zshrc to apply changes immediately"
         source "$HOME/.zshrc"
       elif [ -f "$HOME/.zprofile" ]; then
-        echo "Reloading ~/.zprofile"
+        echo "Reloading ~/.zprofile to apply changes immediately"
         source "$HOME/.zprofile"
       fi
       ;;
@@ -94,7 +94,7 @@ setup() {
   ### Create roles/.../vars/main.yml according to OS
   echo ""
   os="$(uname)"
-  echo "Detected OS: $os"
+  echo "Current OS: $os"
   echo ""
   echo "Setting up roles/.../vars/main.yml according to OS"
   if [[ "$os" == "Linux" ]]; then
@@ -121,8 +121,7 @@ setup() {
   echo ""
   #TODO: switch to master branch after official release and merge
   echo "Follow https://github.com/zebrunner/mcloud-agent/tree/master#run-ansible-playbook to deploy MCloud agent services!"
-  echo "==== Setting up MCloud agent in $BASEDIR finished successfully ===="
-  echo ""
+  echo -e "\n==== Setting up MCloud agent in $BASEDIR finished successfully ====\n"
 }
 
 shutdown() {
