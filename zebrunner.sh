@@ -67,42 +67,42 @@ setup() {
   case "$current_shell" in
     bash)
       if [ -f "$HOME/.bashrc" ]; then
-        echo "Reloading $HOME/.bashrc to apply changes immediately"
+        echo "Applying changes to $HOME/.bashrc"
         source "$HOME/.bashrc"
       elif [ -f "$HOME/.bash_profile" ]; then
-        echo "Reloading ~/.bash_profile to apply changes immediately"
+        echo "Applying changes to $HOME/.bash_profile"
         source "$HOME/.bash_profile"
       fi
       ;;
     zsh)
       if [ -f "$HOME/.zshrc" ]; then
-        echo "Reloading ~/.zshrc to apply changes immediately"
+        echo "Applying changes to $HOME/.zshrc"
         source "$HOME/.zshrc"
       elif [ -f "$HOME/.zprofile" ]; then
-        echo "Reloading ~/.zprofile to apply changes immediately"
+        echo "Applying changes to $HOME/.zprofile"
         source "$HOME/.zprofile"
       fi
       ;;
     *)
       echo "Detected shell - $SHELL , reloading ~/.profile if exists"
       if [ -f "$HOME/.profile" ]; then
-        echo "Reloading ~/.profile"
+        echo "Applying changes to $HOME/.profile"
         source "$HOME/.profile"
       fi
       ;;
   esac
+  echo ">>> Changes in other shells will be applied automatically the next time you start the shell <<<"
   ### Create roles/.../vars/main.yml according to OS
   echo ""
   os="$(uname)"
   echo "Current OS: $os"
-  echo ""
   echo "Setting up roles/.../vars/main.yml according to OS"
   if [[ "$os" == "Linux" ]]; then
     if [ -f roles/devices/vars/main.yml ]; then
       echo "roles/devices/vars/main.yml already exists, making a backup roles/devices/vars/main.yml.bak"
       cp roles/devices/vars/main.yml roles/devices/vars/main.yml.bak
     else
-      echo "Creating roles/devices/vars/main.yml"
+      echo "Creating 'roles/devices/vars/main.yml'"
       cp roles/devices/vars/main.yml.original roles/devices/vars/main.yml
     fi
   elif [[ "$os" == "Darwin" ]]; then
@@ -110,7 +110,7 @@ setup() {
       echo "roles/mac-devices/vars/main.yml already exists, making a backup roles/mac-devices/vars/main.yml.bak"
       cp roles/mac-devices/vars/main.yml roles/mac-devices/vars/main.yml.bak
     else
-      echo "Creating roles/mac-devices/vars/main.yml"
+      echo "Creating 'roles/mac-devices/vars/main.yml'"
      cp roles/mac-devices/vars/main.yml.original roles/mac-devices/vars/main.yml
     fi
   else
