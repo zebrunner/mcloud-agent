@@ -56,7 +56,7 @@ setup() {
       echo "Updating var '$MCLOUD_AGENT_DIR_NAME' in '$file'"
       sed -i.bak "s|^export $MCLOUD_AGENT_DIR_NAME=.*|export $MCLOUD_AGENT_DIR_NAME=$MCLOUD_AGENT_DIR_VALUE|" "$file" && rm -f "$file.bak"
     else
-      echo "Adding '$MCLOUD_AGENT_DIR_NAME=$MCLOUD_AGENT_DIR_VALUE' to $file"
+      echo "Adding '$MCLOUD_AGENT_DIR_NAME=$MCLOUD_AGENT_DIR_VALUE' to '$file'"
       echo "export $MCLOUD_AGENT_DIR_NAME=$MCLOUD_AGENT_DIR_VALUE" >> "$file"
     fi
   done
@@ -121,7 +121,7 @@ setup() {
   echo ""
   #TODO: switch to master branch after official release and merge
   echo "Follow https://github.com/zebrunner/mcloud-agent/tree/master#run-ansible-playbook to deploy MCloud agent services!"
-  echo -e "\n==== Setting up MCloud agent in $BASEDIR finished successfully ====\n"
+  echo -e "\n==== Setting up MCloud agent in '$BASEDIR' finished successfully ====\n"
 }
 
 shutdown() {
