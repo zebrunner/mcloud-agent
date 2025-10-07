@@ -31,33 +31,33 @@ replace() {
 
 setup() {
   ### Install environment variable to shell profiles
-  echo -e "\n==== Setting up MCloud agent in $BASEDIR ====\n"
+  echo -e "\n==== Setting up MCloud agent in '$BASEDIR' ====\n"
   # Array to hold target files
   TARGET_FILES=()
   # Bash
   if command -v bash >/dev/null 2>&1; then
-    echo "Bash shell found in this system"
+    echo "BASH shell found in this system"
     TARGET_FILES+=("$HOME/.bashrc" "$HOME/.bash_profile")
   fi
   # Zsh
   if command -v zsh >/dev/null 2>&1; then
-    echo "Zsh shell found in this system"
+    echo "ZSH shell found in this system"
     TARGET_FILES+=("$HOME/.zshrc" "$HOME/.zprofile")
   fi
   # Other
   if [ ${#TARGET_FILES[@]} -eq 0 ]; then
-    echo "Other (Except 'bash' or 'zsh') shell detected"
+    echo "Other (Except 'BASH' or 'ZSH') shell detected"
     TARGET_FILES+=("$HOME/.profile")
   fi
   # Loop through target files and add or update the environment variable
   echo ""
   for file in "${TARGET_FILES[@]}"; do
     if [ -f "$file" ] && grep -q "^export $MCLOUD_AGENT_DIR_NAME=" "$file"; then
-      echo "Updating var $MCLOUD_AGENT_DIR_NAME in $file"
+      echo "Updating var '$MCLOUD_AGENT_DIR_NAME' in '$file'"
       sed -i.bak "s|^export $MCLOUD_AGENT_DIR_NAME=.*|export $MCLOUD_AGENT_DIR_NAME=$MCLOUD_AGENT_DIR_VALUE|" "$file" && rm -f "$file.bak"
     else
-      echo "Adding $MCLOUD_AGENT_DIR_NAME=\"$MCLOUD_AGENT_DIR_VALUE\" to $file"
-      echo "export $MCLOUD_AGENT_DIR_NAME=\"$MCLOUD_AGENT_DIR_VALUE\"" >> "$file"
+      echo "Adding '$MCLOUD_AGENT_DIR_NAME=$MCLOUD_AGENT_DIR_VALUE' to $file"
+      echo "export $MCLOUD_AGENT_DIR_NAME=$MCLOUD_AGENT_DIR_VALUE" >> "$file"
     fi
   done
   # Apply the changes to the current shell session
@@ -67,26 +67,26 @@ setup() {
   case "$current_shell" in
     bash)
       if [ -f "$HOME/.bashrc" ]; then
-        echo "Applying changes to $HOME/.bashrc"
+        echo "Applying changes to '$HOME/.bashrc'"
         source "$HOME/.bashrc"
       elif [ -f "$HOME/.bash_profile" ]; then
-        echo "Applying changes to $HOME/.bash_profile"
+        echo "Applying changes to '$HOME/.bash_profile'"
         source "$HOME/.bash_profile"
       fi
       ;;
     zsh)
       if [ -f "$HOME/.zshrc" ]; then
-        echo "Applying changes to $HOME/.zshrc"
+        echo "Applying changes to '$HOME/.zshrc'"
         source "$HOME/.zshrc"
       elif [ -f "$HOME/.zprofile" ]; then
-        echo "Applying changes to $HOME/.zprofile"
+        echo "Applying changes to '$HOME/.zprofile'"
         source "$HOME/.zprofile"
       fi
       ;;
     *)
-      echo "Detected shell - $SHELL , reloading ~/.profile if exists"
+      echo "Detected shell '$SHELL', reloading ~/.profile if exists"
       if [ -f "$HOME/.profile" ]; then
-        echo "Applying changes to $HOME/.profile"
+        echo "Applying changes to '$HOME/.profile'"
         source "$HOME/.profile"
       fi
       ;;
@@ -96,10 +96,10 @@ setup() {
   echo ""
   os="$(uname)"
   echo "Current OS: $os"
-  echo "Setting up roles/.../vars/main.yml according to OS"
+  echo "Setting up 'roles/.../vars/main.yml' according to OS"
   if [[ "$os" == "Linux" ]]; then
     if [ -f roles/devices/vars/main.yml ]; then
-      echo "roles/devices/vars/main.yml already exists, making a backup roles/devices/vars/main.yml.bak"
+      echo "'roles/devices/vars/main.yml' already exists, making a backup 'roles/devices/vars/main.yml.bak'"
       cp roles/devices/vars/main.yml roles/devices/vars/main.yml.bak
     else
       echo "Creating 'roles/devices/vars/main.yml'"
@@ -107,7 +107,7 @@ setup() {
     fi
   elif [[ "$os" == "Darwin" ]]; then
     if [ -f roles/mac-devices/vars/main.yml ]; then
-      echo "roles/mac-devices/vars/main.yml already exists, making a backup roles/mac-devices/vars/main.yml.bak"
+      echo "'roles/mac-devices/vars/main.yml' already exists, making a backup 'roles/mac-devices/vars/main.yml.bak'"
       cp roles/mac-devices/vars/main.yml roles/mac-devices/vars/main.yml.bak
     else
       echo "Creating 'roles/mac-devices/vars/main.yml'"
