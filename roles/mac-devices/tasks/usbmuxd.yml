@@ -84,12 +84,16 @@
     src: roles/mac-devices/templates/ZebrunnerDevicesListener.plist
     dest: "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
     mode: '0644'
+    owner: "{{ lookup('env','USER') }}"
+    group: staff
 
 - name: Install ZebrunnerUsbmuxd.plist into LaunchAgents
   template:
     src: roles/mac-devices/templates/ZebrunnerUsbmuxd.plist
     dest: "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
     mode: '0644'
+    owner: "{{ lookup('env','USER') }}"
+    group: staff
 
 - name: Load ZebrunnerUsbmuxd agent via launchctl
   command: launchctl load -w "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
