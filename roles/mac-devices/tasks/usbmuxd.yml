@@ -14,6 +14,13 @@
     fail_msg: "You have to setup services in advance using: ./zebrunner.sh setup!"
     success_msg: "Setup is ready: 'roles/mac-devices/vars/main.yml' exists."
 
+- name: Check 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable
+  assert:
+    that:
+      - lookup('env','ZEBRUNNER_MCLOUD_AGENT_DIR') is not none
+    fail_msg: "You have to setup 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable in advance!"
+    success_msg: "'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable is defined."
+
 - name: Collect all device IDs and names
   set_fact:
     all_ids: "{{ devices | map(attribute='id') | list }}"
