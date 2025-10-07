@@ -48,6 +48,7 @@
     mode: '0755'
     owner: root
     group: wheel
+  changed_when: false
 
 - name: Copy devices details file
   template:
@@ -56,6 +57,7 @@
     mode: '0644'
     owner: root
     group: wheel
+  changed_when: false
 
 - name: Check if ZebrunnerDevicesListener agent is loaded
   command: launchctl list com.zebrunner.mcloud
@@ -83,21 +85,23 @@
   changed_when: false
   become: no
 
-- name: Install ZebrunnerDevicesListener.plist into LaunchAgents
+- name: Copy ZebrunnerDevicesListener.plist into LaunchAgents
   template:
     src: roles/mac-devices/templates/ZebrunnerDevicesListener.plist
     dest: "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
     mode: '0644'
     owner: "{{ lookup('env','USER') }}"
     group: staff
+  changed_when: false
 
-- name: Install ZebrunnerUsbmuxd.plist into LaunchAgents
+- name: Copy ZebrunnerUsbmuxd.plist into LaunchAgents
   template:
     src: roles/mac-devices/templates/ZebrunnerUsbmuxd.plist
     dest: "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
     mode: '0644'
     owner: "{{ lookup('env','USER') }}"
     group: staff
+  changed_when: false
 
 - name: Load ZebrunnerUsbmuxd agent via launchctl
   command: launchctl load -w {{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist
