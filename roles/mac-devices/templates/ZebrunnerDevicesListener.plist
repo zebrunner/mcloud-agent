@@ -20,7 +20,7 @@
       </array>
 
     <key>WorkingDirectory</key>
-      <string>{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') | mandatory }}</string>
+      <string>{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}</string>
 
     <key>UserName</key>
       <string>{{ lookup('env', 'USER') }}</string>
