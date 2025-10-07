@@ -122,6 +122,7 @@ setup() {
   #TODO: switch to master branch after official release and merge
   echo "Follow https://github.com/zebrunner/mcloud-agent/tree/master#run-ansible-playbook to deploy MCloud agent services!"
   echo "==== Setting up MCloud agent in $BASEDIR finished successfully ===="
+  echo ""
 }
 
 shutdown() {
