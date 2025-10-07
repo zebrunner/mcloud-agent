@@ -96,5 +96,6 @@
     group: staff
 
 - name: Load ZebrunnerUsbmuxd agent via launchctl
-  command: launchctl load -w "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
+  command: launchctl load -w {{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist
   changed_when: false
+  become: no
