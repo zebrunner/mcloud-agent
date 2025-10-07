@@ -141,7 +141,7 @@ shutdown() {
   TARGET_FILES+=("$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.zshrc" "$HOME/.zprofile" "$HOME/.profile")
   for file in "${TARGET_FILES[@]}"; do
     if [ -f "$file" ] && grep -q "export $MCLOUD_AGENT_DIR_NAME=" "$file"; then
-      sed -i.bak "|^export $MCLOUD_AGENT_DIR_NAME=.*|d" "$file" && rm -f "$file.bak"
+      sed -i.bak "/^export $MCLOUD_AGENT_DIR_NAME=.*/d" "$file" && rm -f "$file.bak"
       echo "Removed var $MCLOUD_AGENT_DIR_NAME in $file"
     fi
   done
