@@ -48,11 +48,11 @@ setup() {
   # Loop through target files and add or update the environment variable
   for file in "${TARGET_FILES[@]}"; do
     if [ -f "$file" ] && grep -q "^export $MCLOUD_AGENT_DIR_NAME=" "$file"; then
+      echo "Updating var $MCLOUD_AGENT_DIR_NAME in $file"
       sed -i.bak "s|^export $MCLOUD_AGENT_DIR_NAME=.*|export $MCLOUD_AGENT_DIR_NAME=$MCLOUD_AGENT_DIR_VALUE|" "$file" && rm -f "$file.bak"
-      echo "Updated var $MCLOUD_AGENT_DIR_NAME in $file"
     else
+      echo "Adding $MCLOUD_AGENT_DIR_NAME=\"$MCLOUD_AGENT_DIR_VALUE\" to $file"
       echo "export $MCLOUD_AGENT_DIR_NAME=\"$MCLOUD_AGENT_DIR_VALUE\"" >> "$file"
-      echo "Added $MCLOUD_AGENT_DIR_NAME=\"$MCLOUD_AGENT_DIR_VALUE\" to $file"
     fi
   done
   # Apply the changes to the current shell session
@@ -141,8 +141,8 @@ shutdown() {
   TARGET_FILES+=("$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.zshrc" "$HOME/.zprofile" "$HOME/.profile")
   for file in "${TARGET_FILES[@]}"; do
     if [ -f "$file" ] && grep -q "export $MCLOUD_AGENT_DIR_NAME=" "$file"; then
+      echo "Removing var $MCLOUD_AGENT_DIR_NAME from $file"
       sed -i.bak "/^export $MCLOUD_AGENT_DIR_NAME=.*/d" "$file" && rm -f "$file.bak"
-      echo "Removed var $MCLOUD_AGENT_DIR_NAME in $file"
     fi
   done
 
