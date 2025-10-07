@@ -47,7 +47,7 @@
     dest: /usr/local/bin/zebrunner-farm
     mode: '0755'
     owner: root
-    group: root
+    group: wheel
 
 - name: Copy devices details file
   template:
@@ -55,7 +55,7 @@
     dest: /usr/local/bin/mcloud-devices.txt
     mode: '0644'
     owner: root
-    group: root
+    group: wheel
 
 - name: Check if ZebrunnerDevicesListener agent is loaded
   command: launchctl list com.zebrunner.mcloud
