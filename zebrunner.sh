@@ -31,21 +31,26 @@ replace() {
 
 setup() {
   ### Install environment variable to shell profiles
+  echo "==== Setting up MCloud agent in $BASEDIR ===="
   # Array to hold target files
   TARGET_FILES=()
   # Bash
   if command -v bash >/dev/null 2>&1; then
+    echo "Bash shell detected"
     TARGET_FILES+=("$HOME/.bashrc" "$HOME/.bash_profile")
   fi
   # Zsh
   if command -v zsh >/dev/null 2>&1; then
+    echo "Zsh shell detected"
     TARGET_FILES+=("$HOME/.zshrc" "$HOME/.zprofile")
   fi
   # Other
   if [ ${#TARGET_FILES[@]} -eq 0 ]; then
+    echo "Other (Except 'bash' or 'zsh') shell detected"
     TARGET_FILES+=("$HOME/.profile")
   fi
   # Loop through target files and add or update the environment variable
+  echo ""
   for file in "${TARGET_FILES[@]}"; do
     if [ -f "$file" ] && grep -q "^export $MCLOUD_AGENT_DIR_NAME=" "$file"; then
       echo "Updating var $MCLOUD_AGENT_DIR_NAME in $file"
@@ -56,7 +61,10 @@ setup() {
     fi
   done
   # Apply the changes to the current shell session
-  case "$(basename "$SHELL")" in
+  echo ""
+  current_shell="$(basename "$SHELL")"
+  echo "Current shell detected: $current_shell"
+  case "$current_shell" in
     bash)
       if [ -f "$HOME/.bashrc" ]; then
         echo "Reloading $HOME/.bashrc"
@@ -84,8 +92,11 @@ setup() {
       ;;
   esac
   ### Create roles/.../vars/main.yml according to OS
+  echo ""
   os="$(uname)"
   echo "Detected OS: $os"
+  echo ""
+  echo "Setting up roles/.../vars/main.yml according to OS"
   if [[ "$os" == "Linux" ]]; then
     if [ -f roles/devices/vars/main.yml ]; then
       echo "roles/devices/vars/main.yml already exists, making a backup roles/devices/vars/main.yml.bak"
@@ -106,8 +117,9 @@ setup() {
     echo "Unknown OS. Supported OS are Linux and macOS."
     exit 1
   fi
-
-  #TODO: switch to master branch after oficial release and merge
+  ### Final message
+  echo ""
+  #TODO: switch to master branch after official release and merge
   echo "Follow https://github.com/zebrunner/mcloud-agent/tree/master#run-ansible-playbook to deploy MCloud agent services!"
 }
 
