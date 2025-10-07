@@ -10,9 +10,9 @@
 - name: Check setup completion
   assert:
     that:
-      - lookup('file', 'roles/devices/vars/main.yml', errors='ignore') is not none
+      - lookup('file', 'roles/mac-devices/vars/main.yml', errors='ignore') is not none
     fail_msg: "You have to setup services in advance using: ./zebrunner.sh setup!"
-    success_msg: "Setup is ready: 'roles/devices/vars/main.yml' exists."
+    success_msg: "Setup is ready: 'roles/mac-devices/vars/main.yml' exists."
 
 - name: Collect all device IDs and names
   set_fact:
@@ -56,10 +56,6 @@
     mode: '0644'
     owner: root
     group: root
-
-
-
-
 
 - name: Check if ZebrunnerDevicesListener agent is loaded
   command: launchctl list com.zebrunner.mcloud
