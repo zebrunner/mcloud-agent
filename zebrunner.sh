@@ -280,10 +280,10 @@ ansible() {
   # Check if the operating system is Linux or macOS
   if [[ "$(uname)" == "Linux" ]]; then
     echo "Operating system is Linux"
-    file="$MCLOUD_AGENT_DIR_NAME/devices.yml"
+    file="$ZEBRUNNER_MCLOUD_AGENT_DIR/devices.yml"
   elif [[ "$(uname)" == "Darwin" ]]; then
     echo "Operating system is macOS"
-    file="$MCLOUD_AGENT_DIR_NAME/mac-devices.yml"
+    file="$ZEBRUNNER_MCLOUD_AGENT_DIR/mac-devices.yml"
   else
     echo "This script is not running on a Linux or macOS system. Run ansible manually."
     exit 1
