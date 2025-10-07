@@ -62,22 +62,26 @@
   register: mcloud_agent_loaded
   failed_when: false
   changed_when: false
+  become: no
 
 - name: Unload ZebrunnerDevicesListener agent if loaded
   command: launchctl unload -w "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
   when: mcloud_agent_loaded.rc == 0
   changed_when: false
+  become: no
 
 - name: Check if ZebrunnerUsbmuxd agent is loaded
   command: launchctl list com.zebrunner.usbmuxd
   register: usbmuxd_agent_loaded
   failed_when: false
   changed_when: false
+  become: no
 
 - name: Unload ZebrunnerUsbmuxd agent if loaded
   command: launchctl unload -w "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
   when: usbmuxd_agent_loaded.rc == 0
   changed_when: false
+  become: no
 
 - name: Install ZebrunnerDevicesListener.plist into LaunchAgents
   template:
