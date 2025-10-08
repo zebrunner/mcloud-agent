@@ -1,4 +1,5 @@
 ---
+
 DEVICE_IMAGE: public.ecr.aws/zebrunner/mcloud-device
 DEVICE_VERSION: 3.0
 
