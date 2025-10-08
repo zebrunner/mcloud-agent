@@ -1,4 +1,5 @@
 ---
+
 STF_DOCKER_NETWORK: infra
 
 # [OBLIGATORY] Set host address, port and protocol of the server where STF services are deployed
