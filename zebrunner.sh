@@ -176,9 +176,9 @@ status() {
   echo ""
   echo "Docker compose version:           $(docker compose version 2>/dev/null || echo "'docker compose' not found")"
   echo ""
-  echo "Ansible-playbook info:                  $(ansible-playbook --version | head -n 1 2>/dev/null || echo "'ansible-playbook' not found")"
+  echo "Ansible-playbook info:            $(ansible-playbook --version | head -n 1 2>/dev/null || echo "'ansible-playbook' not found")"
   echo ""
-  echo "Zebrunner-farm script path:       '$(which zebrunner-farm 2>/dev/null || echo "'zebrunner-farm' not found")'"
+  echo "Zebrunner-farm script path:       $(which zebrunner-farm 2>/dev/null || failed "'zebrunner-farm' not found")"
   echo ""
   if [[ "$os" == "Darwin" ]]; then
     echo "Deployed launchctl Zebrunner files:"

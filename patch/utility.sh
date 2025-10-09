@@ -1,5 +1,10 @@
 #!/bin/bash
 
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
 export_settings() {
   export -p | grep "ZBR" > backup/settings.env
 }
@@ -70,4 +75,8 @@ confirm() {
     echo "Please answer y (yes) or n (no)."
     echo
   done
+}
+
+failed() {
+  echo -e "${RED}${1}${NC}"
 }
