@@ -119,6 +119,14 @@ setup() {
 ansible() {
   echo -e "\n==== Deploying MCloud Agent from '$ZEBRUNNER_MCLOUD_AGENT_DIR' ====\n"
 
+  ### Check if the environment variable is set
+  if [ -z "$ZEBRUNNER_MCLOUD_AGENT_DIR" ]; then
+    echo_warning "Environment variable '$MCLOUD_AGENT_DIR_NAME' is not set."
+    echo "Please run './zebrunner.sh setup' first."
+    echo "Or restart your terminal session if you have already run './zebrunner.sh setup'."
+    exit 1
+  fi
+
   ### Check sudo permissions
   if ! sudo -n true 2>/dev/null ; then
     echo "You need to have sudo permissions"
@@ -226,7 +234,7 @@ shutdown() {
   os="$(uname)"
   if [[ "$os" == "Darwin" ]]; then
     echo -e "\n*******************************************************************\n"
-    echo "Operating system is macOS"
+    echo "Operating system is $os"
     echo ""
 
     echo "Found Zebrunner launchctl files:"
@@ -238,7 +246,7 @@ shutdown() {
     echo ""
 
     if [ -f $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist ]; then
-      launchctl unload $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist || {
+      launchctl bootout user/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" || {
         echo "Failed to unload 'ZebrunnerDevicesListener.plist', it might be not loaded"
       }
       rm -vf $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist
@@ -259,7 +267,7 @@ shutdown() {
   TARGET_FILES+=("$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.zshrc" "$HOME/.zprofile" "$HOME/.profile")
   for file in "${TARGET_FILES[@]}"; do
     if [ -f "$file" ] && grep -q "export $MCLOUD_AGENT_DIR_NAME=" "$file"; then
-      echo "Removing from $file"
+      echo "$file"
       sed -i.bak "/^export $MCLOUD_AGENT_DIR_NAME=.*/d" "$file" && rm -f "$file.bak"
     fi
   done
