@@ -170,7 +170,7 @@ status() {
   echo ""
   echo "Current OS:                       $(if [ -n "$os" ]; then echo "$os"; else failed "OS not detected"; fi)"
   echo ""
-  echo "Current user:                     $(whoami)"
+  echo "Current user:                     $(whoami || failed username 'whoami' not detected)"
   echo ""
   echo "Docker version:                   $(docker --version 2>/dev/null || failed "'docker' not found")"
   echo ""
