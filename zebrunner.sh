@@ -168,40 +168,41 @@ status() {
   os="$(uname)"
   echo "Env var MCLOUD_AGENT_DIR_NAME:    $(printenv ZEBRUNNER_MCLOUD_AGENT_DIR)"
   echo ""
-  echo "Current OS:                       $os"
+  echo "Current OS:                       $([ -n "$os" ] && echo "$os" || echo "OS not detected")"
   echo ""
   echo "Current user:                     $(whoami)"
   echo ""
-  echo "Docker version:                   $(docker --version)"
+  echo "Docker version:                   $(docker --version 2>/dev/null || echo "'docker' not found")"
   echo ""
-  echo "Docker compose version:           $(docker compose version)"
+  echo "Docker compose version:           $(docker compose version 2>/dev/null || echo "'docker compose' not found")"
   echo ""
-  echo "Ansible version:                  $(ansible --version | head -n 1)"
+  echo "Ansible-playbook info:                  $(ansible-playbook --version | head -n 1 2>/dev/null || echo "'ansible-playbook' not found")"
   echo ""
-  echo "Zebrunner-farm script path:       '$(which zebrunner-farm)'"
+  echo "Zebrunner-farm script path:       '$(which zebrunner-farm 2>/dev/null || echo "'zebrunner-farm' not found")'"
   echo ""
   if [[ "$os" == "Darwin" ]]; then
     echo "Deployed launchctl Zebrunner files:"
     ls "$HOME/Library/LaunchAgents" | grep -i zebrunner || echo "No deployed Zebrunner plist files found"
+    echo ""
     echo "Loaded launchctl Zebrunner jobs:"
     launchctl list | grep -i zebrunner || echo "No loaded Zebrunner jobs found"
   fi
   echo ""
-  echo "mcloud-devices.txt path:          $(ls /usr/local/bin/mcloud-devices.txt)"
+  echo "mcloud-devices.txt path:          $(ls /usr/local/bin/mcloud-devices.txt 2>/dev/null || echo "File not found")"
   echo ""
   if [ "$os" == "Darwin" ]; then
-    echo "roles/../vars/main.yml:           $(ls $ZEBRUNNER_MCLOUD_AGENT_DIR/roles/mac-devices/vars/main.yml)"
+    echo "roles/../vars/main.yml:           $(ls $ZEBRUNNER_MCLOUD_AGENT_DIR/roles/mac-devices/vars/main.yml 2>/dev/null || echo "File not found")"
   else
-    echo "90_mcloud.rules:                  $(ls /etc/udev/rules.d/90_mcloud.rules)"
-    echo "roles/../vars/main.yml:           $(ls $ZEBRUNNER_MCLOUD_AGENT_DIR/roles/devices/vars/main.yml)"
+    echo "90_mcloud.rules:                  $(ls /etc/udev/rules.d/90_mcloud.rules 2>/dev/null || echo "File not found")"
+    echo "roles/../vars/main.yml:           $(ls $ZEBRUNNER_MCLOUD_AGENT_DIR/roles/devices/vars/main.yml 2>/dev/null || echo "File not found")"
   fi
   echo ""
-  echo "defaults/main.yml:                $(ls $ZEBRUNNER_MCLOUD_AGENT_DIR/defaults/main.yml)"
+  echo "defaults/main.yml:                $(ls $ZEBRUNNER_MCLOUD_AGENT_DIR/defaults/main.yml 2>/dev/null || echo "File not found")"
   echo ""
   if [ "$os" == "Darwin" ]; then
-    echo "MacOS ansible-playbook:           $(ls $ZEBRUNNER_MCLOUD_AGENT_DIR/mac-devices.yml)"
+    echo "MacOS ansible-playbook:           $(ls $ZEBRUNNER_MCLOUD_AGENT_DIR/mac-devices.yml 2>/dev/null || echo "File not found")"
   else
-    echo "Linux ansible-playbook:           $(ls $ZEBRUNNER_MCLOUD_AGENT_DIR/devices.yml)"
+    echo "Linux ansible-playbook:           $(ls $ZEBRUNNER_MCLOUD_AGENT_DIR/devices.yml 2>/dev/null || echo "File not found")"
   fi
 
   echo -e "\n===================================================================\n"
