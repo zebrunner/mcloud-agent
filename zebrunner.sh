@@ -168,7 +168,7 @@ status() {
   os="$(uname)"
   echo "Env var MCLOUD_AGENT_DIR_NAME:    $(printenv ZEBRUNNER_MCLOUD_AGENT_DIR)"
   echo ""
-  echo "Current OS:                       $([ -n "$os" ] && echo "$os" || failed "OS not detected")"
+  echo "Current OS:                       $(if [ -n "$os" ]; then echo "$os"; else failed "OS not detected"; fi)"
   echo ""
   echo "Current user:                     $(whoami)"
   echo ""
