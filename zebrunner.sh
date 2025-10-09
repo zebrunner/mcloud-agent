@@ -103,7 +103,6 @@ setup() {
       ;;
   esac
   echo -e "\033[0m"
-  echo ""
   echo ">>> Changes in other shells will be applied automatically <<<"
 
   ### Final message
