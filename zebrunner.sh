@@ -241,7 +241,7 @@ shutdown() {
 
   ### Remove environment variable from shell profiles
   echo -e "\n*******************************************************************\n"
-  echo "Removing var 'MCLOUD_AGENT_DIR_NAME' from shell profiles:"
+  echo "Removing var 'ZEBRUNNER_MCLOUD_AGENT_DIR' from shell profiles:"
   TARGET_FILES+=("$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.zshrc" "$HOME/.zprofile" "$HOME/.profile")
   for file in "${TARGET_FILES[@]}"; do
     if [ -f "$file" ] && grep -q "export $MCLOUD_AGENT_DIR_NAME=" "$file"; then
@@ -260,7 +260,7 @@ shutdown() {
   if command -v zebrunner-farm >/dev/null 2>&1; then
     zebrunner-farm down
   else
-    echo "Can't find 'zebrunner-farm' command"
+    echo "Can't find 'zebrunner-farm' file"
   fi
   echo ""
 
