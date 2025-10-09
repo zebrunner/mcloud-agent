@@ -166,28 +166,38 @@ status() {
   echo -e "\n==== Status of MCloud Agent components from '$ZEBRUNNER_MCLOUD_AGENT_DIR' ====\n"
 
   os="$(uname)"
-  echo "Env var MCLOUD_AGENT_DIR_NAME:    $ZEBRUNNER_MCLOUD_AGENT_DIR"
+  echo "Env var MCLOUD_AGENT_DIR_NAME:    $(printenv ZEBRUNNER_MCLOUD_AGENT_DIR)"
+  echo ""
   echo "Current OS:                       $os"
+  echo ""
+  echo "Current user:                     $(whoami)"
+  echo ""
+  echo "Docker version:                   $(docker --version)"
+  echo ""
+  echo "Docker compose version:           $(docker compose version)"
+  echo ""
+  echo "Ansible version:                  $(ansible --version | head -n 1)"
+  echo ""
   echo "Zebrunner-farm script path:       '$(which zebrunner-farm)'"
-
+  echo ""
   if [[ "$os" == "Darwin" ]]; then
     echo "Deployed launchctl Zebrunner files:"
     ls "$HOME/Library/LaunchAgents" | grep -i zebrunner || echo "No deployed Zebrunner plist files found"
     echo "Loaded launchctl Zebrunner jobs:"
     launchctl list | grep -i zebrunner || echo "No loaded Zebrunner jobs found"
   fi
-
+  echo ""
   echo "mcloud-devices.txt path:          $(ls /usr/local/bin/mcloud-devices.txt)"
-
+  echo ""
   if [ "$os" == "Darwin" ]; then
     echo "roles/../vars/main.yml:           $(ls $ZEBRUNNER_MCLOUD_AGENT_DIR/roles/mac-devices/vars/main.yml)"
   else
     echo "90_mcloud.rules:                  $(ls /etc/udev/rules.d/90_mcloud.rules)"
     echo "roles/../vars/main.yml:           $(ls $ZEBRUNNER_MCLOUD_AGENT_DIR/roles/devices/vars/main.yml)"
   fi
-
+  echo ""
   echo "defaults/main.yml:                $(ls $ZEBRUNNER_MCLOUD_AGENT_DIR/defaults/main.yml)"
-
+  echo ""
   if [ "$os" == "Darwin" ]; then
     echo "MacOS ansible-playbook:           $(ls $ZEBRUNNER_MCLOUD_AGENT_DIR/mac-devices.yml)"
   else
