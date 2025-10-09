@@ -47,38 +47,6 @@ setup() {
       echo "export $MCLOUD_AGENT_DIR_NAME=$MCLOUD_AGENT_DIR_VALUE" >> "$file"
     fi
   done
-  # Apply the changes to the current shell session
-  echo -e "\n*******************************************************************\n"
-  current_shell="$(basename "$SHELL")"
-  echo "Current shell: $current_shell"
-  case "$current_shell" in
-    bash)
-      if [ -f "$HOME/.bashrc" ]; then
-        echo "Sourcing environment from '$HOME/.bashrc'"
-        source "$HOME/.bashrc"
-      elif [ -f "$HOME/.bash_profile" ]; then
-        echo "Sourcing environment from '$HOME/.bash_profile'"
-        source "$HOME/.bash_profile"
-      fi
-      ;;
-    zsh)
-      if [ -f "$HOME/.zshrc" ]; then
-        echo "Sourcing environment from '$HOME/.zshrc'"
-        source "$HOME/.zshrc"
-      elif [ -f "$HOME/.zprofile" ]; then
-        echo "Sourcing environment from '$HOME/.zprofile'"
-        source "$HOME/.zprofile"
-      fi
-      ;;
-    *)
-      echo "Detected shell '$SHELL', reloading ~/.profile if exists"
-      if [ -f "$HOME/.profile" ]; then
-        echo "Sourcing environment from '$HOME/.profile'"
-        source "$HOME/.profile"
-      fi
-      ;;
-  esac
-  echo ">>> Changes in other detected shells will be applied automatically the next time you start the shell <<<"
 
   ### Create roles/.../vars/main.yml according to OS
   echo -e "\n*******************************************************************\n"
@@ -105,6 +73,34 @@ setup() {
     echo "Unknown OS. Supported OS are Linux and macOS."
     exit 1
   fi
+
+  ### Shell reload help message
+  echo -e "\n*******************************************************************\n"
+  current_shell="$(basename "$SHELL")"
+  echo "Current shell: $current_shell"
+  echo "To apply the changes, please restart your terminal session or run the appropriate command below:"
+  case "$current_shell" in
+    bash)
+      if [ -f "$HOME/.bashrc" ]; then
+        echo "'source ~/.bashrc'"
+      elif [ -f "$HOME/.bash_profile" ]; then
+        echo "source ~/.bash_profile"
+      fi
+      ;;
+    zsh)
+      if [ -f "$HOME/.zshrc" ]; then
+        echo "source ~/.zshrc"
+      elif [ -f "$HOME/.zprofile" ]; then
+        echo "source ~/.zprofile"
+      fi
+      ;;
+    *)
+      if [ -f "$HOME/.profile" ]; then
+        echo "source ~/.profile"
+      fi
+      ;;
+  esac
+  echo ">>> Changes in other shells will be applied automatically <<<"
 
   ### Final message
   echo -e "\n*******************************************************************\n"
@@ -285,7 +281,7 @@ shutdown() {
 
   ### Final message
   echo -e "\n*******************************************************************\n"
-  echo "Restart current terminal session or run 'source ~/.bashrc' or 'source ~/.zshrc' to apply changes"
+  echo ">>> Restart current terminal session to apply all changes <<<"
 
   echo -e "\n==== Shutting down MCloud Agent from '$ZEBRUNNER_MCLOUD_AGENT_DIR' finished ====\n"
 }
