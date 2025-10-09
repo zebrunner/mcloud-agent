@@ -16,7 +16,7 @@ MCLOUD_AGENT_DIR_VALUE="$BASEDIR"
 export $MCLOUD_AGENT_DIR_NAME="$MCLOUD_AGENT_DIR_VALUE"
 
 setup() {
-  echo -e "\n==== Setting up MCloud Agent in '$MCLOUD_AGENT_DIR_NAME' ====\n"
+  echo -e "\n==== Setting up MCloud Agent in '$ZEBRUNNER_MCLOUD_AGENT_DIR' ====\n"
 
   ### Install environment variable to shell profiles
   # Array to hold target files
@@ -111,11 +111,11 @@ setup() {
   #TODO: switch to master branch after official release and merge
   echo "Follow https://github.com/zebrunner/mcloud-agent/tree/master#run-ansible-playbook to deploy MCloud agent services!"
 
-  echo -e "\n==== Setting up MCloud Agent in '$MCLOUD_AGENT_DIR_NAME' finished successfully ====\n"
+  echo -e "\n==== Setting up MCloud Agent in '$ZEBRUNNER_MCLOUD_AGENT_DIR' finished successfully ====\n"
 }
 
 ansible() {
-  echo -e "\n==== Deploying MCloud Agent from '$MCLOUD_AGENT_DIR_NAME' ====\n"
+  echo -e "\n==== Deploying MCloud Agent from '$ZEBRUNNER_MCLOUD_AGENT_DIR' ====\n"
 
   ### Check sudo permissions
   if ! sudo -n true 2>/dev/null ; then
@@ -160,14 +160,14 @@ ansible() {
     exit 1
   }
 
-  echo -e "\n==== Deploying MCloud Agent from '$MCLOUD_AGENT_DIR_NAME' finished successfully ====\n"
+  echo -e "\n==== Deploying MCloud Agent from '$ZEBRUNNER_MCLOUD_AGENT_DIR' finished successfully ====\n"
 }
 
 status() {
-  echo -e "\n==== Status of MCloud Agent components from '$MCLOUD_AGENT_DIR_NAME' ====\n"
+  echo -e "\n==== Status of MCloud Agent components from '$ZEBRUNNER_MCLOUD_AGENT_DIR' ====\n"
 
   os="$(uname)"
-  echo "Env var MCLOUD_AGENT_DIR_NAME:    $MCLOUD_AGENT_DIR_NAME"
+  echo "Env var MCLOUD_AGENT_DIR_NAME:    $ZEBRUNNER_MCLOUD_AGENT_DIR"
   echo "Current OS:                       $os"
   echo "Zebrunner-farm script path:       '$(which zebrunner-farm)'"
 
@@ -181,28 +181,28 @@ status() {
   echo "mcloud-devices.txt path:          $(ls /usr/local/bin/mcloud-devices.txt)"
 
   if [ "$os" == "Darwin" ]; then
-    echo "roles/../vars/main.yml:           $(ls $MCLOUD_AGENT_DIR_NAME/roles/mac-devices/vars/main.yml)"
+    echo "roles/../vars/main.yml:           $(ls $ZEBRUNNER_MCLOUD_AGENT_DIR/roles/mac-devices/vars/main.yml)"
   else
     echo "90_mcloud.rules:                  $(ls /etc/udev/rules.d/90_mcloud.rules)"
-    echo "roles/../vars/main.yml:           $(ls $MCLOUD_AGENT_DIR_NAME/roles/devices/vars/main.yml)"
+    echo "roles/../vars/main.yml:           $(ls $ZEBRUNNER_MCLOUD_AGENT_DIR/roles/devices/vars/main.yml)"
   fi
 
-  echo "defaults/main.yml:                $(ls $MCLOUD_AGENT_DIR_NAME/defaults/main.yml)"
+  echo "defaults/main.yml:                $(ls $ZEBRUNNER_MCLOUD_AGENT_DIR/defaults/main.yml)"
 
   if [ "$os" == "Darwin" ]; then
-    echo "MacOS ansible-playbook:           $(ls $MCLOUD_AGENT_DIR_NAME/mac-devices.yml)"
+    echo "MacOS ansible-playbook:           $(ls $ZEBRUNNER_MCLOUD_AGENT_DIR/mac-devices.yml)"
   else
-    echo "Linux ansible-playbook:           $(ls $MCLOUD_AGENT_DIR_NAME/devices.yml)"
+    echo "Linux ansible-playbook:           $(ls $ZEBRUNNER_MCLOUD_AGENT_DIR/devices.yml)"
   fi
 
   echo -e "\n===================================================================\n"
 }
 
 shutdown() {
-  echo -e "\n==== Shutting down MCloud Agent from '$MCLOUD_AGENT_DIR_NAME' ====\n"
+  echo -e "\n==== Shutting down MCloud Agent from '$ZEBRUNNER_MCLOUD_AGENT_DIR' ====\n"
 
   ### Confirm shutdown
-  echo_warning "Shutdown will erase all settings and data for \"${BASEDIR}\"!"
+  echo_warning "Shutdown will erase all settings and data for '$ZEBRUNNER_MCLOUD_AGENT_DIR' !"
   confirm "" "      Do you want to continue?" "n" || {
     echo "Shutdown cancelled"
     exit 0
@@ -283,11 +283,11 @@ shutdown() {
     rm -vf roles/devices/vars/main.yml
   fi
 
-  echo -e "\n==== Shutting down MCloud Agent from '$MCLOUD_AGENT_DIR_NAME' finished ====\n"
+  echo -e "\n==== Shutting down MCloud Agent from '$ZEBRUNNER_MCLOUD_AGENT_DIR' finished ====\n"
 }
 
 version() {
-  echo -e "\n==== Zebrunner MCloud Agent components versions for '$MCLOUD_AGENT_DIR_NAME' ====\n"
+  echo -e "\n==== Zebrunner MCloud Agent components versions for '$ZEBRUNNER_MCLOUD_AGENT_DIR' ====\n"
   grep -i "version" defaults/main.yml | grep -v '^\s*#'
   echo -e "\n===================================================================\n"
 }
