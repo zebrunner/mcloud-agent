@@ -256,7 +256,7 @@ shutdown() {
     echo ""
 
     if [ -f $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist ]; then
-      launchctl unload $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist || {
+      launchctl bootout user/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" || {
           echo "Failed to unload 'ZebrunnerUsbmuxd.plist', it might be not loaded"
         }
       rm -vf $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist
