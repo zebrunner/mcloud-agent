@@ -78,25 +78,26 @@ setup() {
   echo -e "\n*******************************************************************\n"
   current_shell="$(basename "$SHELL")"
   echo "Current shell: $current_shell"
-  echo "To apply the changes, please restart your terminal session or run the appropriate command below:"
+  echo ""
+  echo ">>> To apply the changes, please restart your terminal session or run the appropriate command below:"
   case "$current_shell" in
     bash)
       if [ -f "$HOME/.bashrc" ]; then
-        echo "'source ~/.bashrc'"
+        echo -e ">\tsource ~/.bashrc"
       elif [ -f "$HOME/.bash_profile" ]; then
-        echo "source ~/.bash_profile"
+        echo ">\tsource ~/.bash_profile"
       fi
       ;;
     zsh)
       if [ -f "$HOME/.zshrc" ]; then
-        echo "source ~/.zshrc"
+        echo ">\tsource ~/.zshrc"
       elif [ -f "$HOME/.zprofile" ]; then
-        echo "source ~/.zprofile"
+        echo ">\tsource ~/.zprofile"
       fi
       ;;
     *)
       if [ -f "$HOME/.profile" ]; then
-        echo "source ~/.profile"
+        echo ">\tsource ~/.profile"
       fi
       ;;
   esac
