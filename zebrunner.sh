@@ -234,21 +234,21 @@ shutdown() {
   os="$(uname)"
   if [[ "$os" == "Darwin" ]]; then
     echo -e "\n*******************************************************************\n"
-    echo "Operating system is $os"
+    echo "* Operating system is $os"
     echo -e "\n*******************************************************************\n"
 
-    echo "Found Zebrunner launchctl files:"
+    echo "* Found Zebrunner launchctl files:"
     echo ""
     ls "$HOME/Library/LaunchAgents" | grep -i zebrunner || echo "No Zebrunner plist files found"
 
     echo -e "\n*******************************************************************\n"
 
-    echo "Found loaded Zebrunner plists:"
+    echo "* Found loaded Zebrunner plists:"
     echo ""
     launchctl list | grep -i zebrunner || echo "No loaded Zebrunner plists found"
     echo ""
 
-    echo "Unloading and removing ZebrunnerDevicesListener.plist launchctl file:"
+    echo "* Unloading and removing ZebrunnerDevicesListener.plist launchctl file:"
     if [ -f $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist ]; then
       launchctl bootout user/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" || {
         echo "Failed to unload 'ZebrunnerDevicesListener.plist', it might be not loaded"
@@ -260,7 +260,7 @@ shutdown() {
       echo ""
     fi
 
-    echo "Unloading and removing ZebrunnerUsbmuxd.plist launchctl file:"
+    echo "* Unloading and removing ZebrunnerUsbmuxd.plist launchctl file:"
     if [ -f $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist ]; then
       launchctl bootout user/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" || {
           echo "Failed to unload 'ZebrunnerUsbmuxd.plist', it might be not loaded"
@@ -273,7 +273,7 @@ shutdown() {
 
   ### Remove environment variable from shell profiles
   echo -e "\n*******************************************************************\n"
-  echo "Removing var 'ZEBRUNNER_MCLOUD_AGENT_DIR' from shell profiles:"
+  echo "* Removing var 'ZEBRUNNER_MCLOUD_AGENT_DIR' from shell profiles:"
   TARGET_FILES+=("$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.zshrc" "$HOME/.zprofile" "$HOME/.profile")
   for file in "${TARGET_FILES[@]}"; do
     if [ -f "$file" ] && grep -q "export $MCLOUD_AGENT_DIR_NAME=" "$file"; then
@@ -284,19 +284,19 @@ shutdown() {
 
   ### Stop and remove containers
   echo -e "\n*******************************************************************\n"
-  echo "Found MCloud Agent containers:"
+  echo "* Found MCloud Agent containers:"
   docker ps -a --filter "name=device-" --format "{{.Names}}"
   echo ""
 
-  echo "Stopping and removing MCloud Agent containers:"
+  echo "* Stopping and removing MCloud Agent containers:"
   if command -v zebrunner-farm >/dev/null 2>&1; then
     zebrunner-farm down
   else
-    echo "Can't find 'zebrunner-farm' executable file"
+    echo "* Can't find 'zebrunner-farm' executable file"
   fi
   echo ""
 
-  echo "Removing volume 'appium-storage-volume':"
+  echo "* Removing volume 'appium-storage-volume':"
   if docker volume ls | grep -q "appium-storage-volume"; then
     docker volume rm appium-storage-volume
   else
@@ -305,7 +305,7 @@ shutdown() {
 
   ### Remove files
   echo -e "\n*******************************************************************\n"
-  echo "Removing MCloud Agent files and volumes (sudo privileges required):"
+  echo "* Removing MCloud Agent files and volumes (sudo privileges required):"
   if [ "$os" == "Darwin" ]; then
     rm -vf roles/mac-devices/vars/main.yml
   else
