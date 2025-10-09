@@ -54,26 +54,26 @@ setup() {
   case "$current_shell" in
     bash)
       if [ -f "$HOME/.bashrc" ]; then
-        echo "Applying changes to '$HOME/.bashrc'"
+        echo "Sourcing environment from '$HOME/.bashrc'"
         source "$HOME/.bashrc"
       elif [ -f "$HOME/.bash_profile" ]; then
-        echo "Applying changes to '$HOME/.bash_profile'"
+        echo "Sourcing environment from '$HOME/.bash_profile'"
         source "$HOME/.bash_profile"
       fi
       ;;
     zsh)
       if [ -f "$HOME/.zshrc" ]; then
-        echo "Applying changes to '$HOME/.zshrc'"
+        echo "Sourcing environment from '$HOME/.zshrc'"
         source "$HOME/.zshrc"
       elif [ -f "$HOME/.zprofile" ]; then
-        echo "Applying changes to '$HOME/.zprofile'"
+        echo "Sourcing environment from '$HOME/.zprofile'"
         source "$HOME/.zprofile"
       fi
       ;;
     *)
       echo "Detected shell '$SHELL', reloading ~/.profile if exists"
       if [ -f "$HOME/.profile" ]; then
-        echo "Applying changes to '$HOME/.profile'"
+        echo "Sourcing environment from '$HOME/.profile'"
         source "$HOME/.profile"
       fi
       ;;
