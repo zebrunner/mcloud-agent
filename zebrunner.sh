@@ -194,6 +194,7 @@ status() {
     echo "roles/../vars/main.yml:           $(ls "$ZEBRUNNER_MCLOUD_AGENT_DIR/roles/mac-devices/vars/main.yml" 2>/dev/null || failed "File not found")"
   else
     echo "90_mcloud.rules:                  $(ls /etc/udev/rules.d/90_mcloud.rules 2>/dev/null || failed "File not found")"
+    echo ""
     echo "roles/../vars/main.yml:           $(ls "$ZEBRUNNER_MCLOUD_AGENT_DIR/roles/devices/vars/main.yml" 2>/dev/null || failed "File not found")"
   fi
   echo ""
