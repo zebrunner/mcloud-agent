@@ -238,28 +238,24 @@ shutdown() {
     echo -e "\n*******************************************************************\n"
 
     echo "* Found Zebrunner launchctl files:"
-    echo ""
     ls "$HOME/Library/LaunchAgents" | grep -i zebrunner || echo "No Zebrunner plist files found"
 
     echo -e "\n*******************************************************************\n"
-
     echo "* Found loaded Zebrunner plists:"
-    echo ""
     launchctl list | grep -i zebrunner || echo "No loaded Zebrunner plists found"
-    echo ""
 
+    echo -e "\n*******************************************************************\n"
     echo "* Unloading and removing ZebrunnerDevicesListener.plist launchctl file:"
     if [ -f $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist ]; then
       launchctl bootout user/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" || {
         echo "Failed to unload 'ZebrunnerDevicesListener.plist', it might be not loaded"
       }
       rm -vf $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist
-      echo ""
     else
       echo "ZebrunnerDevicesListener.plist file not found"
-      echo ""
     fi
 
+    echo -e "\n*******************************************************************\n"
     echo "* Unloading and removing ZebrunnerUsbmuxd.plist launchctl file:"
     if [ -f $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist ]; then
       launchctl bootout user/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" || {
@@ -286,16 +282,16 @@ shutdown() {
   echo -e "\n*******************************************************************\n"
   echo "* Found MCloud Agent containers:"
   docker ps -a --filter "name=device-" --format "{{.Names}}"
-  echo ""
 
+  echo -e "\n*******************************************************************\n"
   echo "* Stopping and removing MCloud Agent containers:"
   if command -v zebrunner-farm >/dev/null 2>&1; then
     zebrunner-farm down
   else
     echo "* Can't find 'zebrunner-farm' executable file"
   fi
-  echo ""
 
+  echo -e "\n*******************************************************************\n"
   echo "* Removing volume 'appium-storage-volume':"
   if docker volume ls | grep -q "appium-storage-volume"; then
     docker volume rm appium-storage-volume
