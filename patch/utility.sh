@@ -42,36 +42,29 @@ replace() {
 confirm() {
   local message=$1
   local question=$2
-  local isEnabled=$3
-
-  if [[ "$isEnabled" == "1" ]]; then
-    isEnabled="y"
-  fi
-  if [[ "$isEnabled" == "0" ]]; then
-    isEnabled="n"
-  fi
+  local default=$3
 
   while true; do
     if [[ ! -z $message ]]; then
       echo "$message"
     fi
 
-    read -r -p "$question y/n [$isEnabled]:" response
+    read -r -p "$question y/n [$default]:" response
     if [[ -z $response ]]; then
-      if [[ "$isEnabled" == "y" ]]; then
-        return 1
-      fi
-      if [[ "$isEnabled" == "n" ]]; then
+      if [[ "$default" == "y" ]]; then
         return 0
+      fi
+      if [[ "$default" == "n" ]]; then
+        return 1
       fi
     fi
 
     if [[ "$response" == "y" || "$response" == "Y" ]]; then
-      return 1
+      return 0
     fi
 
     if [[ "$response" == "n" || "$response" == "N" ]]; then
-      return 0
+      return 1
     fi
 
     echo "Please answer y (yes) or n (no)."

@@ -1,40 +1,24 @@
 #!/bin/bash
 
+# Load utility functions
+source patch/utility.sh
 # Load backup/restore functions
 source patch/backup.sh
 
 # Detect the root script directory
 BASEDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${BASEDIR}" || exit
+
 # Define Mcloud dir environment variable name and value
 MCLOUD_AGENT_DIR_NAME="ZEBRUNNER_MCLOUD_AGENT_DIR"
 MCLOUD_AGENT_DIR_VALUE="$BASEDIR"
-
-## shellcheck disable=SC1091
-#source patch/utility.sh
-
-replace() {
-  #TODO: https://github.com/zebrunner/zebrunner/issues/328 organize debug logging for setup/replace
-  file=$1
-  #echo "file: $file"
-  content=$(< $file) # read the file's content into
-  #echo "content: $content"
-
-  old=$2
-  #echo "old: $old"
-
-  new=$3
-  #echo "new: $new"
-  content=${content//"$old"/$new}
-
-  #echo "content: $content"
-
-  printf '%s' "$content" > $file # write new content to disk
-}
+# Apply the variable for the current session
+export $MCLOUD_AGENT_DIR_NAME="$MCLOUD_AGENT_DIR_VALUE"
 
 setup() {
+  echo -e "\n==== Setting up MCloud Agent in '$MCLOUD_AGENT_DIR_NAME' ====\n"
+
   ### Install environment variable to shell profiles
-  echo -e "\n==== Setting up MCloud agent in '$BASEDIR' ====\n"
   # Array to hold target files
   TARGET_FILES=()
   # Bash
@@ -53,7 +37,7 @@ setup() {
     TARGET_FILES+=("$HOME/.profile")
   fi
   # Loop through target files and add or update the environment variable
-  echo ""
+  echo -e "\n*******************************************************************\n"
   for file in "${TARGET_FILES[@]}"; do
     if [ -f "$file" ] && grep -q "^export $MCLOUD_AGENT_DIR_NAME=" "$file"; then
       echo "Updating var '$MCLOUD_AGENT_DIR_NAME' in '$file'"
@@ -64,7 +48,7 @@ setup() {
     fi
   done
   # Apply the changes to the current shell session
-  echo ""
+  echo -e "\n*******************************************************************\n"
   current_shell="$(basename "$SHELL")"
   echo "Current shell: $current_shell"
   case "$current_shell" in
@@ -94,9 +78,10 @@ setup() {
       fi
       ;;
   esac
-  echo ">>> Changes in other shells will be applied automatically the next time you start the shell <<<"
+  echo ">>> Changes in other detected shells will be applied automatically the next time you start the shell <<<"
+
   ### Create roles/.../vars/main.yml according to OS
-  echo ""
+  echo -e "\n*******************************************************************\n"
   os="$(uname)"
   echo "Current OS: $os"
   echo "Setting up 'roles/.../vars/main.yml' according to OS"
@@ -120,157 +105,31 @@ setup() {
     echo "Unknown OS. Supported OS are Linux and macOS."
     exit 1
   fi
+
   ### Final message
-  echo ""
+  echo -e "\n*******************************************************************\n"
   #TODO: switch to master branch after official release and merge
   echo "Follow https://github.com/zebrunner/mcloud-agent/tree/master#run-ansible-playbook to deploy MCloud agent services!"
-  echo -e "\n==== Setting up MCloud agent in '$BASEDIR' finished successfully ====\n"
+
+  echo -e "\n==== Setting up MCloud Agent in '$MCLOUD_AGENT_DIR_NAME' finished successfully ====\n"
 }
 
-shutdown() {
-  ### Check if services are setup
-  if [ ! -f /usr/local/bin/zebrunner-farm ]; then
-    echo_warning "You have to setup services in advance using: ./zebrunner.sh setup"
-    echo_telegram
-    exit 1
-  fi
-
-  ### Confirm shutdown
-  echo_warning "Shutdown will erase all settings and data for \"${BASEDIR}\"!"
-  confirm "" "      Do you want to continue?" "n"
-  if [[ $? -eq 0 ]]; then
-    exit
-  fi
-
-  ### Remove launch agents
-  if [ -f $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist ]; then
-    launchctl unload $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist
-    rm -f $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist
-  fi
-
-  if [ -f $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist ]; then
-    launchctl unload $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist
-    rm -f $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist
-  fi
-
-  ### Remove environment variable from shell profiles
-  TARGET_FILES+=("$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.zshrc" "$HOME/.zprofile" "$HOME/.profile")
-  for file in "${TARGET_FILES[@]}"; do
-    if [ -f "$file" ] && grep -q "export $MCLOUD_AGENT_DIR_NAME=" "$file"; then
-      echo "Removing var $MCLOUD_AGENT_DIR_NAME from $file"
-      sed -i.bak "/^export $MCLOUD_AGENT_DIR_NAME=.*/d" "$file" && rm -f "$file.bak"
-    fi
-  done
-
-  ### Stop and remove containers
-  down
-
-  ### Remove files and volumes
-  sudo rm -f /usr/local/bin/zebrunner-farm
-  sudo rm -f /usr/local/bin/mcloud-devices.txt
-  sudo rm -f /etc/udev/rules.d/90_mcloud.rules
-  # restore original main.yml
-  rm -f roles/devices/vars/main.yml
-  rm -f roles/mac-devices/vars/main.yml
-
-  docker volume rm appium-storage-volume
-}
-
-status() {
-  if [[ ! -f /usr/local/bin/zebrunner-farm ]]; then
-    echo_warning "MCloud agent is not configured yet! Use: ./zebrunner.sh setup"
-    echo_telegram
-    exit 1
-  fi
-
-  /usr/local/bin/zebrunner-farm status $1
-}
-
-start() {
-  if [[ ! -f /usr/local/bin/zebrunner-farm ]]; then
-    echo_warning "You have to setup services in advance using: ./zebrunner.sh setup"
-    echo_telegram
-    exit 1
-  fi
-
-  /usr/local/bin/zebrunner-farm start $1
-}
-
-stop() {
-  /usr/local/bin/zebrunner-farm stop $1
-}
-
-down() {
-  /usr/local/bin/zebrunner-farm down $1
-}
-
-
-confirm() {
-  local message=$1
-  local question=$2
-  local isEnabled=$3
-
-  if [[ "$isEnabled" == "1" ]]; then
-    isEnabled="y"
-  fi
-  if [[ "$isEnabled" == "0" ]]; then
-    isEnabled="n"
-  fi
-
-  while true; do
-    if [[ ! -z $message ]]; then
-      echo "$message"
-    fi
-
-    read -r -p "$question y/n [$isEnabled]:" response
-    if [[ -z $response ]]; then
-      if [[ "$isEnabled" == "y" ]]; then
-        return 1
-      fi
-      if [[ "$isEnabled" == "n" ]]; then
-        return 0
-      fi
-    fi
-
-    if [[ "$response" == "y" || "$response" == "Y" ]]; then
-      return 1
-    fi
-
-    if [[ "$response" == "n" || "$response" == "N" ]]; then
-      return 0
-    fi
-
-    echo "Please answer y (yes) or n (no)."
-    echo
-  done
-}
-
-version() {
-  echo "Zebrunner MCloud Agent"
-  device_version=$(cat defaults/main.yml | grep DEVICE_VERSION | cut -d ":" -f 2)
-  echo "zebrunner/mcloud-device:${device_version}"
-  appium_version=$(cat defaults/main.yml | grep APPIUM_VERSION | cut -d ":" -f 2)
-  echo "public.ecr.aws/zebrunner/appium:${appium_version}"
-}
-
-# IMPORTANT! In case of any changes please copy them in both zebrunner-farm files!
 ansible() {
+  echo -e "\n==== Deploying MCloud Agent from '$MCLOUD_AGENT_DIR_NAME' ====\n"
 
-  echo -e "\n*******************************************************************\n"
-
+  ### Check sudo permissions
   if ! sudo -n true 2>/dev/null ; then
     echo "You need to have sudo permissions"
   fi
 
-  echo "> sudo -v    # Extends the sudo timeout"
+  echo "> sudo -v    # Extends the sudo timeout for 5-15 minutes"
   if ! sudo -v ; then
-    echo "You need to have sudo permissions"
+    echo_warning "Can't proceed without sudo"
     exit 1
   fi
 
+  ### Check if the operating system is Linux or macOS
   echo -e "\n*******************************************************************\n"
-
-  # Check if the operating system is Linux or macOS
   if [[ "$(uname)" == "Linux" ]]; then
     echo "Operating system is Linux"
     file="$ZEBRUNNER_MCLOUD_AGENT_DIR/devices.yml"
@@ -278,13 +137,12 @@ ansible() {
     echo "Operating system is macOS"
     file="$ZEBRUNNER_MCLOUD_AGENT_DIR/mac-devices.yml"
   else
-    echo "This script is not running on a Linux or macOS system. Run ansible manually."
+    echo_warning "This script is not running on a Linux or macOS system. Run ansible manually."
     exit 1
   fi
 
+  ### Make a list of arguments
   echo -e "\n*******************************************************************\n"
-
-  # Make a list of arguments
   if [[ "$1" == "" ]]; then
     arg="$file"
   elif [[ "$1" == "devices" ]]; then
@@ -293,66 +151,173 @@ ansible() {
     arg="$@ $file"
   fi
 
-  # Run ansible with arguments
+  ### Run ansible with arguments
   echo "ansible-playbook -i hosts $arg"
   echo -e "\n*******************************************************************\n"
-  ansible-playbook -i hosts $arg
+  ansible-playbook -i hosts $arg || {
+    echo_warning "Ansible playbook execution failed!"
+    echo_telegram
+    exit 1
+  }
+
+  echo -e "\n==== Deploying MCloud Agent from '$MCLOUD_AGENT_DIR_NAME' finished successfully ====\n"
 }
 
-echo_warning() {
-  echo "
-      WARNING! $1"
+status() {
+  echo -e "\n==== Status of MCloud Agent components from '$MCLOUD_AGENT_DIR_NAME' ====\n"
+
+  os="$(uname)"
+  echo "Env var MCLOUD_AGENT_DIR_NAME:    $MCLOUD_AGENT_DIR_NAME"
+  echo "Current OS:                       $os"
+  echo "Zebrunner-farm script path:       '$(which zebrunner-farm)'"
+
+  if [[ "$os" == "Darwin" ]]; then
+    echo "Deployed launchctl Zebrunner files:"
+    ls "$HOME/Library/LaunchAgents" | grep -i zebrunner || echo "No deployed Zebrunner plist files found"
+    echo "Loaded launchctl Zebrunner jobs:"
+    launchctl list | grep -i zebrunner || echo "No loaded Zebrunner jobs found"
+  fi
+
+  echo "mcloud-devices.txt path:          $(ls /usr/local/bin/mcloud-devices.txt)"
+
+  if [ "$os" == "Darwin" ]; then
+    echo "roles/../vars/main.yml:           $(ls $MCLOUD_AGENT_DIR_NAME/roles/mac-devices/vars/main.yml)"
+  else
+    echo "90_mcloud.rules:                  $(ls /etc/udev/rules.d/90_mcloud.rules)"
+    echo "roles/../vars/main.yml:           $(ls $MCLOUD_AGENT_DIR_NAME/roles/devices/vars/main.yml)"
+  fi
+
+  echo "defaults/main.yml:                $(ls $MCLOUD_AGENT_DIR_NAME/defaults/main.yml)"
+
+  if [ "$os" == "Darwin" ]; then
+    echo "MacOS ansible-playbook:           $(ls $MCLOUD_AGENT_DIR_NAME/mac-devices.yml)"
+  else
+    echo "Linux ansible-playbook:           $(ls $MCLOUD_AGENT_DIR_NAME/devices.yml)"
+  fi
+
+  echo -e "\n===================================================================\n"
 }
 
-echo_telegram() {
-  echo "
-      For more help join telegram channel: https://t.me/zebrunner
-      "
+shutdown() {
+  echo -e "\n==== Shutting down MCloud Agent from '$MCLOUD_AGENT_DIR_NAME' ====\n"
+
+  ### Confirm shutdown
+  echo_warning "Shutdown will erase all settings and data for \"${BASEDIR}\"!"
+  confirm "" "      Do you want to continue?" "n" || {
+    echo "Shutdown cancelled"
+    exit 0
+  }
+
+  ### Remove launch agents in case of macOS
+  os="$(uname)"
+  if [[ "$os" == "Darwin" ]]; then
+    echo -e "\n*******************************************************************\n"
+    echo "Operating system is macOS"
+    echo ""
+
+    echo "Found Zebrunner launchctl files:"
+    ls "$HOME/Library/LaunchAgents" | grep -i zebrunner || echo "No Zebrunner plist files found"
+    echo ""
+
+    echo "Found loaded Zebrunner plists:"
+    launchctl list | grep -i zebrunner || echo "No loaded Zebrunner plists found"
+    echo ""
+
+    if [ -f $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist ]; then
+      launchctl unload $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist || {
+        echo "Failed to unload 'ZebrunnerDevicesListener.plist', it might be not loaded"
+      }
+      rm -vf $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist
+    fi
+    echo ""
+
+    if [ -f $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist ]; then
+      launchctl unload $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist || {
+          echo "Failed to unload 'ZebrunnerUsbmuxd.plist', it might be not loaded"
+        }
+      rm -vf $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist
+    fi
+  fi
+
+  ### Remove environment variable from shell profiles
+  echo -e "\n*******************************************************************\n"
+  echo "Removing var 'MCLOUD_AGENT_DIR_NAME' from shell profiles:"
+  TARGET_FILES+=("$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.zshrc" "$HOME/.zprofile" "$HOME/.profile")
+  for file in "${TARGET_FILES[@]}"; do
+    if [ -f "$file" ] && grep -q "export $MCLOUD_AGENT_DIR_NAME=" "$file"; then
+      echo "Removing from $file"
+      sed -i.bak "/^export $MCLOUD_AGENT_DIR_NAME=.*/d" "$file" && rm -f "$file.bak"
+    fi
+  done
+
+  ### Stop and remove containers
+  echo -e "\n*******************************************************************\n"
+  echo "Found MCloud Agent containers:"
+  docker ps -a --filter "name=device-" --format "{{.Names}}"
+  echo ""
+
+  echo "Stopping and removing MCloud Agent containers:"
+  if command -v zebrunner-farm >/dev/null 2>&1; then
+    zebrunner-farm down
+  else
+    echo "Can't find 'zebrunner-farm' command"
+  fi
+  echo ""
+
+  echo "Removing volume 'appium-storage-volume':"
+  if docker volume ls | grep -q "appium-storage-volume"; then
+    docker volume rm appium-storage-volume
+  else
+    echo "Volume 'appium-storage-volume' not found"
+  fi
+
+  ### Remove files
+  echo -e "\n*******************************************************************\n"
+  echo "Removing MCloud Agent files and volumes (sudo privileges required):"
+  sudo rm -vf /usr/local/bin/zebrunner-farm
+  sudo rm -vf /usr/local/bin/mcloud-devices.txt
+  if [ "$os" == "Darwin" ]; then
+    rm -vf roles/mac-devices/vars/main.yml
+  else
+    sudo rm -vf /etc/udev/rules.d/90_mcloud.rules
+    rm -vf roles/devices/vars/main.yml
+  fi
+
+  echo -e "\n==== Shutting down MCloud Agent from '$MCLOUD_AGENT_DIR_NAME' finished ====\n"
+}
+
+version() {
+  echo -e "\n==== Zebrunner MCloud Agent components versions for '$MCLOUD_AGENT_DIR_NAME' ====\n"
+  grep -i "version" defaults/main.yml | grep -v '^\s*#'
+  echo -e "\n===================================================================\n"
 }
 
 echo_help() {
   echo "
       Usage: ./zebrunner.sh [option]
-      Arguments:
-         status [udid]        Status of MCloud Agent whitelisted devices or exact device by udid
-         start [udid]         Start devices containers or exact device by udid
-         stop [udid]          Stop and keep devices containers or exact device by udid
-         restart [udid]       Restart all devices containers or exact device by udid
-         down [udid]          Stop and remove devices containers
-         ansible ['devices']  Run ansible-playbook script with custom or predefined args
-      	 shutdown             Stop and remove devices containers, clear volumes
-      	 backup               Backup MCloud agent setup
-      	 restore              Restore MCloud agent setup
-      	 version              Version of MCloud"
+      Options:
+         setup                Prepare MCloud Agent environment
+         ansible ['devices']  Deploy MCloud Agent with custom or predefined args
+         status               Status of MCloud Agent deployment
+         ---------------------------------------------------
+      	 backup               Backup MCloud Agent setup
+      	 restore              Restore MCloud Agent setup
+         ---------------------------------------------------
+      	 shutdown             Stop and remove MCloud Agent containers, clear volumes and environment
+         ---------------------------------------------------
+      	 version              Version of MCloud Agent components"
   echo_telegram
-  exit 0
 }
 
 case "$1" in
-status)
-  status $2
-  ;;
 setup)
   setup
-  ;;
-start)
-  start $2
-  ;;
-stop)
-  stop $2
-  ;;
-restart)
-  down $2
-  start $2
-  ;;
-down)
-  down $2
   ;;
 ansible)
   ansible "${@:2}"
   ;;
-shutdown)
-  shutdown
+status)
+  status $2
   ;;
 backup)
   backup
@@ -360,14 +325,13 @@ backup)
 restore)
   restore
   ;;
+shutdown)
+  shutdown
+  ;;
 version)
   version
   ;;
---help | -h)
-  echo_help
-  ;;
 *)
   echo_help
-  exit 1
   ;;
 esac
