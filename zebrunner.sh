@@ -84,7 +84,7 @@ setup() {
   echo -e "\n*******************************************************************\n"
   os="$(uname)"
   echo "Current OS: $os"
-  echo "Setting up 'roles/.../vars/main.yml' according to OS"
+  echo "Setting up 'roles/.../vars/main.yml' according to OS:"
   if [[ "$os" == "Linux" ]]; then
     if [ -f roles/devices/vars/main.yml ]; then
       echo "'roles/devices/vars/main.yml' already exists, making a backup 'roles/devices/vars/main.yml.bak'"
