@@ -166,7 +166,7 @@ status() {
   echo -e "\n==== Status of MCloud Agent components from '$ZEBRUNNER_MCLOUD_AGENT_DIR' ====\n"
 
   os="$(uname)" 2>/dev/null
-  echo "Env var MCLOUD_AGENT_DIR_NAME:    $(printenv $MCLOUD_AGENT_DIR_NAME 2>/dev/null || failed "'$MCLOUD_AGENT_DIR_NAME' not set")"
+  echo "Env var for Mcloud Agent path:    $(env | grep $MCLOUD_AGENT_DIR_NAME 2>/dev/null || failed "'$MCLOUD_AGENT_DIR_NAME' not set")"
   echo ""
   echo "Current OS:                       $(if [ -n "$os" ]; then echo "$os"; else failed "OS not detected"; fi)"
   echo ""
