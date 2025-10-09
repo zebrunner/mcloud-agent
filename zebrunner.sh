@@ -274,14 +274,18 @@ shutdown() {
   ### Remove files
   echo -e "\n*******************************************************************\n"
   echo "Removing MCloud Agent files and volumes (sudo privileges required):"
-  sudo rm -vf /usr/local/bin/zebrunner-farm
-  sudo rm -vf /usr/local/bin/mcloud-devices.txt
   if [ "$os" == "Darwin" ]; then
     rm -vf roles/mac-devices/vars/main.yml
   else
-    sudo rm -vf /etc/udev/rules.d/90_mcloud.rules
     rm -vf roles/devices/vars/main.yml
+    sudo rm -vf /etc/udev/rules.d/90_mcloud.rules
   fi
+  sudo rm -vf /usr/local/bin/zebrunner-farm
+  sudo rm -vf /usr/local/bin/mcloud-devices.txt
+
+  ### Final message
+  echo -e "\n*******************************************************************\n"
+  echo "Restart current terminal session or run 'source ~/.bashrc' or 'source ~/.zshrc' to apply changes"
 
   echo -e "\n==== Shutting down MCloud Agent from '$ZEBRUNNER_MCLOUD_AGENT_DIR' finished ====\n"
 }
