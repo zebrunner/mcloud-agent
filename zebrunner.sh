@@ -238,10 +238,12 @@ shutdown() {
     echo ""
 
     echo "Found Zebrunner launchctl files:"
+    echo ""
     ls "$HOME/Library/LaunchAgents" | grep -i zebrunner || echo "No Zebrunner plist files found"
     echo ""
 
     echo "Found loaded Zebrunner plists:"
+    echo ""
     launchctl list | grep -i zebrunner || echo "No loaded Zebrunner plists found"
     echo ""
 
