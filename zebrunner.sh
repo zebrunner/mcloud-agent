@@ -21,6 +21,7 @@ setup() {
   export $MCLOUD_AGENT_DIR_NAME="$MCLOUD_AGENT_DIR_VALUE"
 
   ### Install environment variable to shell profiles
+  echo -e "\n*******************************************************************\n"
   # Array to hold target files
   TARGET_FILES=()
   # Bash
