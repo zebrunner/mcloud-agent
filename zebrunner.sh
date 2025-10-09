@@ -17,6 +17,7 @@ setup() {
   cd "${MCLOUD_AGENT_DIR_VALUE}" || exit
   echo "Detected MCloud Agent directory: $MCLOUD_AGENT_DIR_VALUE"
   # Apply the variable in the current session
+  echo "Applying env var '$MCLOUD_AGENT_DIR_NAME=$MCLOUD_AGENT_DIR_VALUE' in the current session"
   export $MCLOUD_AGENT_DIR_NAME="$MCLOUD_AGENT_DIR_VALUE"
 
   ### Install environment variable to shell profiles
