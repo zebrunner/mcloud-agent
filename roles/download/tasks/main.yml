@@ -2,38 +2,31 @@
 
 - name: Pull an Zebrunner MCloud-device image
   shell: docker pull "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}"
-  register: device_result
   ignore_errors: yes
   changed_when: false
 
 - name: Pull an Zebrunner Appium image
   shell: docker pull "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}"
-  register: appium_result
   ignore_errors: yes
   changed_when: false
 
 - name: Pull an Zebrunner Uploader image
   shell: docker pull "{{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }}"
-  register: uploader_result
   ignore_errors: yes
   changed_when: false
 
 - name: Pull an Zebrunner iOS-Connector image
   shell: docker pull "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}"
-  register: ios_result
   ignore_errors: yes
   changed_when: false
 
 - name: Pull an Zebrunner Android-Connector image
   shell: docker pull "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}"
-  register: android_result
   ignore_errors: yes
   changed_when: false
 
 - name: Create infra network if absent
   shell: docker network inspect "{{ STF_DOCKER_NETWORK }}" >/dev/null 2>&1 || docker network create "{{ STF_DOCKER_NETWORK }}"
-  register: network_result
-  ignore_errors: yes
   changed_when: false
 
 
