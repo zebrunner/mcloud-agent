@@ -235,31 +235,39 @@ shutdown() {
   if [[ "$os" == "Darwin" ]]; then
     echo -e "\n*******************************************************************\n"
     echo "Operating system is $os"
-    echo ""
+    echo -e "\n*******************************************************************\n"
 
     echo "Found Zebrunner launchctl files:"
     echo ""
     ls "$HOME/Library/LaunchAgents" | grep -i zebrunner || echo "No Zebrunner plist files found"
-    echo ""
+
+    echo -e "\n*******************************************************************\n"
 
     echo "Found loaded Zebrunner plists:"
     echo ""
     launchctl list | grep -i zebrunner || echo "No loaded Zebrunner plists found"
     echo ""
 
+    echo "Unloading and removing ZebrunnerDevicesListener.plist launchctl file:"
     if [ -f $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist ]; then
       launchctl bootout user/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" || {
         echo "Failed to unload 'ZebrunnerDevicesListener.plist', it might be not loaded"
       }
       rm -vf $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist
+      echo ""
+    else
+      echo "ZebrunnerDevicesListener.plist file not found"
+      echo ""
     fi
-    echo ""
 
+    echo "Unloading and removing ZebrunnerUsbmuxd.plist launchctl file:"
     if [ -f $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist ]; then
       launchctl bootout user/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" || {
           echo "Failed to unload 'ZebrunnerUsbmuxd.plist', it might be not loaded"
         }
       rm -vf $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist
+    else
+      echo "ZebrunnerUsbmuxd.plist file not found"
     fi
   fi
 
