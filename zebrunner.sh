@@ -260,7 +260,7 @@ shutdown() {
   if command -v zebrunner-farm >/dev/null 2>&1; then
     zebrunner-farm down
   else
-    echo "Can't find 'zebrunner-farm' file"
+    echo "Can't find 'zebrunner-farm' executable file"
   fi
   echo ""
 
