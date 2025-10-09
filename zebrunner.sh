@@ -80,27 +80,30 @@ setup() {
   echo "Current shell: $current_shell"
   echo ""
   echo ">>> To apply the changes, please restart your terminal session or run the appropriate command below:"
+  echo -e "\033[0;32m"
   case "$current_shell" in
     bash)
       if [ -f "$HOME/.bashrc" ]; then
         echo -e ">\tsource ~/.bashrc"
       elif [ -f "$HOME/.bash_profile" ]; then
-        echo ">\tsource ~/.bash_profile"
+        echo -e ">\tsource ~/.bash_profile"
       fi
       ;;
     zsh)
       if [ -f "$HOME/.zshrc" ]; then
-        echo ">\tsource ~/.zshrc"
+        echo -e ">\tsource ~/.zshrc"
       elif [ -f "$HOME/.zprofile" ]; then
-        echo ">\tsource ~/.zprofile"
+        echo -e ">\tsource ~/.zprofile"
       fi
       ;;
     *)
       if [ -f "$HOME/.profile" ]; then
-        echo ">\tsource ~/.profile"
+        echo -e ">\tsource ~/.profile"
       fi
       ;;
   esac
+  echo -e "\033[0m"
+  echo ""
   echo ">>> Changes in other shells will be applied automatically <<<"
 
   ### Final message
