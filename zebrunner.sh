@@ -252,6 +252,7 @@ shutdown() {
       else
         echo "Failed to unload 'ZebrunnerDevicesListener.plist', it might be not loaded"
       fi
+      echo ""
       echo "Removing ZebrunnerDevicesListener.plist file:"
       rm -vf "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
     else
@@ -266,6 +267,7 @@ shutdown() {
       else
         echo "Failed to unload 'ZebrunnerUsbmuxd.plist', it might be not loaded"
       fi
+      echo ""
       echo "Removing ZebrunnerUsbmuxd.plist file:"
       rm -vf "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
     else
