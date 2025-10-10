@@ -195,6 +195,8 @@ status() {
     echo ""
     echo "Jq tool path:                     $(which jq 2>/dev/null || failed "'jq' not found")"
     echo ""
+    echo "Go-ios tool path:                  $(which ios 2>/dev/null || failed "'ios' not found")"
+    echo ""
     echo "Deployed launchctl Zebrunner files:"
     ls "$HOME/Library/LaunchAgents" 2>/dev/null | grep -i zebrunner || failed "No deployed Zebrunner plist files found"
     echo ""
