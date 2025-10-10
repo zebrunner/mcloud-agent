@@ -246,22 +246,28 @@ shutdown() {
 
     echo -e "\n*******************************************************************\n"
     echo "* Unloading and removing ZebrunnerDevicesListener.plist launchctl file:"
-    if [ -f $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist ]; then
-      launchctl bootout user/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" || {
+    if [ -f "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" ]; then
+      if launchctl bootout gui/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" 2>/dev/null; then
+        echo "ZebrunnerDevicesListener.plist unloaded successfully"
+      else
         echo "Failed to unload 'ZebrunnerDevicesListener.plist', it might be not loaded"
-      }
-      rm -vf $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist
+      fi
+      echo "Removing ZebrunnerDevicesListener.plist file:"
+      rm -vf "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
     else
       echo "ZebrunnerDevicesListener.plist file not found"
     fi
 
     echo -e "\n*******************************************************************\n"
     echo "* Unloading and removing ZebrunnerUsbmuxd.plist launchctl file:"
-    if [ -f $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist ]; then
-      launchctl bootout user/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" || {
-          echo "Failed to unload 'ZebrunnerUsbmuxd.plist', it might be not loaded"
-        }
-      rm -vf $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist
+    if [ -f "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" ]; then
+      if launchctl bootout gui/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" 2>/dev/null; then
+        echo "ZebrunnerUsbmuxd.plist unloaded successfully"
+      else
+        echo "Failed to unload 'ZebrunnerUsbmuxd.plist', it might be not loaded"
+      fi
+      echo "Removing ZebrunnerUsbmuxd.plist file:"
+      rm -vf "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
     else
       echo "ZebrunnerUsbmuxd.plist file not found"
     fi
