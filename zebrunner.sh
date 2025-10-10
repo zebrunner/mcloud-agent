@@ -208,11 +208,11 @@ status() {
     echo "MacOS ansible-playbook:           $(ls "$ZEBRUNNER_MCLOUD_AGENT_DIR/mac-devices.yml" 2>/dev/null || failed "File not found")"
     echo ""
   else
-    echo "90_mcloud.rules:                  $(ls /etc/udev/rules.d/90_mcloud.rules 2>/dev/null || failed "File not found")"
-    echo ""
     echo "roles/devices/vars/main.yml:           $(ls "$ZEBRUNNER_MCLOUD_AGENT_DIR/roles/devices/vars/main.yml" 2>/dev/null || failed "File not found")"
     echo ""
     echo "Linux ansible-playbook:           $(ls "$ZEBRUNNER_MCLOUD_AGENT_DIR/devices.yml" 2>/dev/null || failed "File not found")"
+    echo ""
+    echo "90_mcloud.rules:                  $(ls /etc/udev/rules.d/90_mcloud.rules 2>/dev/null || failed "File not found")"
     echo ""
   fi
   echo "mcloud-devices.txt path:          $(ls "/usr/local/bin/mcloud-devices.txt" 2>/dev/null || failed "File not found")"
