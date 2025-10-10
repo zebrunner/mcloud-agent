@@ -328,7 +328,16 @@ shutdown() {
 
 version() {
   echo -e "\n==== Zebrunner MCloud Agent components versions for '$ZEBRUNNER_MCLOUD_AGENT_DIR' ====\n"
-  grep -i "version" defaults/main.yml | grep -v '^\s*#'
+  if [ -z "$ZEBRUNNER_MCLOUD_AGENT_DIR" ]; then
+    echo_warning "Environment variable '$MCLOUD_AGENT_DIR_NAME' is not set"
+    echo "Please run './zebrunner.sh setup' first"
+    echo "Or restart your terminal session if you have already run './zebrunner.sh setup'"
+    echo -e "\n*******************************************************************\n"
+    echo "Versions from 'defaults/main.yml' in the current directory:"
+    grep -i "version" "defaults/main.yml" | grep -v '^\s*#' || exit 1
+  else
+    grep -i "version" "$ZEBRUNNER_MCLOUD_AGENT_DIR/defaults/main.yml" | grep -v '^\s*#'
+  fi
   echo -e "\n===================================================================\n"
 }
 
