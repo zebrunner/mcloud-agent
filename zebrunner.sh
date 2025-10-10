@@ -122,8 +122,7 @@ ansible() {
   ### Check if the environment variable is set
   if [ -z "$ZEBRUNNER_MCLOUD_AGENT_DIR" ]; then
     echo_warning "Environment variable '$MCLOUD_AGENT_DIR_NAME' is not set."
-    echo "Please run './zebrunner.sh setup' first."
-    echo "Or restart your terminal session if you have already run './zebrunner.sh setup'."
+    echo "Please, run './zebrunner.sh setup' first, or restart your terminal if you've already done so!"
     exit 1
   fi
 
@@ -330,8 +329,7 @@ version() {
   echo -e "\n==== Zebrunner MCloud Agent components versions for '$ZEBRUNNER_MCLOUD_AGENT_DIR' ====\n"
   if [ -z "$ZEBRUNNER_MCLOUD_AGENT_DIR" ]; then
     echo_warning "Environment variable '$MCLOUD_AGENT_DIR_NAME' is not set"
-    echo "Please run './zebrunner.sh setup' first"
-    echo "Or restart your terminal session if you have already run './zebrunner.sh setup'"
+    echo "Please, run './zebrunner.sh setup' first, or restart your terminal if you've already done so!"
     echo -e "\n*******************************************************************\n"
     echo "Versions from 'defaults/main.yml' in the current directory:"
     grep -i "version" "defaults/main.yml" | grep -v '^\s*#' || exit 1
