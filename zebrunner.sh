@@ -202,25 +202,22 @@ status() {
     echo ""
     echo "Loaded launchctl Zebrunner jobs:"
     launchctl list | grep -i zebrunner || failed "No loaded Zebrunner jobs found"
-  fi
-  echo ""
-  echo "mcloud-devices.txt path:          $(ls "/usr/local/bin/mcloud-devices.txt" 2>/dev/null || failed "File not found")"
-  echo ""
-  if [ "$os" == "Darwin" ]; then
-    echo "roles/../vars/main.yml:           $(ls "$ZEBRUNNER_MCLOUD_AGENT_DIR/roles/mac-devices/vars/main.yml" 2>/dev/null || failed "File not found")"
+    echo ""
+    echo "roles/mac-devices/vars/main.yml:           $(ls "$ZEBRUNNER_MCLOUD_AGENT_DIR/roles/mac-devices/vars/main.yml" 2>/dev/null || failed "File not found")"
+    echo ""
+    echo "MacOS ansible-playbook:           $(ls "$ZEBRUNNER_MCLOUD_AGENT_DIR/mac-devices.yml" 2>/dev/null || failed "File not found")"
+    echo ""
   else
     echo "90_mcloud.rules:                  $(ls /etc/udev/rules.d/90_mcloud.rules 2>/dev/null || failed "File not found")"
     echo ""
-    echo "roles/../vars/main.yml:           $(ls "$ZEBRUNNER_MCLOUD_AGENT_DIR/roles/devices/vars/main.yml" 2>/dev/null || failed "File not found")"
+    echo "roles/devices/vars/main.yml:           $(ls "$ZEBRUNNER_MCLOUD_AGENT_DIR/roles/devices/vars/main.yml" 2>/dev/null || failed "File not found")"
+    echo ""
+    echo "Linux ansible-playbook:           $(ls "$ZEBRUNNER_MCLOUD_AGENT_DIR/devices.yml" 2>/dev/null || failed "File not found")"
+    echo ""
   fi
+  echo "mcloud-devices.txt path:          $(ls "/usr/local/bin/mcloud-devices.txt" 2>/dev/null || failed "File not found")"
   echo ""
   echo "defaults/main.yml:                $(ls "$ZEBRUNNER_MCLOUD_AGENT_DIR/defaults/main.yml" 2>/dev/null || failed "File not found")"
-  echo ""
-  if [ "$os" == "Darwin" ]; then
-    echo "MacOS ansible-playbook:           $(ls "$ZEBRUNNER_MCLOUD_AGENT_DIR/mac-devices.yml" 2>/dev/null || failed "File not found")"
-  else
-    echo "Linux ansible-playbook:           $(ls "$ZEBRUNNER_MCLOUD_AGENT_DIR/devices.yml" 2>/dev/null || failed "File not found")"
-  fi
 
   echo -e "\n===================================================================\n"
 }
