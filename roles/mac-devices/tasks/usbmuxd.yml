@@ -74,7 +74,7 @@
   become: no
 
 - name: Unload ZebrunnerDevicesListener agent if loaded
-  command: launchctl unload -w "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
+  command: launchctl bootout gui/"$(id -u)" "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
   when: mcloud_agent_loaded.rc == 0
   changed_when: false
   become: no
@@ -87,7 +87,7 @@
   become: no
 
 - name: Unload ZebrunnerUsbmuxd agent if loaded
-  command: launchctl unload -w "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
+  command: launchctl bootout gui/"$(id -u)" "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
   when: usbmuxd_agent_loaded.rc == 0
   changed_when: false
   become: no
@@ -111,12 +111,23 @@
   changed_when: false
 
 - name: Load ZebrunnerDevicesListener agent if it was loaded earlier
-  command: launchctl load -w "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
+  command: launchctl bootstrap gui/"$(id -u)" "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
+  when: mcloud_agent_loaded.rc == 0
+  changed_when: false
+  become: no
+
+- name: Enable ZebrunnerDevicesListener agent via launchctl if it was loaded earlier
+  command: launchctl enable gui/"$(id -u)"/com.zebrunner.mcloud
   when: mcloud_agent_loaded.rc == 0
   changed_when: false
   become: no
 
 - name: Load ZebrunnerUsbmuxd agent via launchctl
-  command: launchctl load -w {{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist
+  command: launchctl bootstrap gui/"$(id -u)" "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
+  changed_when: false
+  become: no
+
+- name: Enable ZebrunnerUsbmuxd agent via launchctl
+  command: launchctl enable gui/"$(id -u)"/com.zebrunner.usbmuxd
   changed_when: false
   become: no
