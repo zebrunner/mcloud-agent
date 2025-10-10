@@ -191,6 +191,10 @@ status() {
   echo "Zebrunner-farm script path:       $(which zebrunner-farm 2>/dev/null || failed "'zebrunner-farm' not found")"
   echo ""
   if [[ "$os" == "Darwin" ]]; then
+    echo "Socat tool path:                  $(which socat >2/dev/null || failed "'socat' not found")"
+    echo ""
+    echo "Jq tool path:                     $(which jq 2>/dev/null || failed "'jq' not found")"
+    echo ""
     echo "Deployed launchctl Zebrunner files:"
     ls "$HOME/Library/LaunchAgents" 2>/dev/null | grep -i zebrunner || failed "No deployed Zebrunner plist files found"
     echo ""
