@@ -84,6 +84,7 @@ restore() {
     read -r -p "Please enter the backup directory name you want to restore: " backup_dir_name
     if [ -d "backup/$backup_dir_name" ]; then
       backup_dir_name="backup/$backup_dir_name"
+      break
     else
       echo -n "    "
       echo "Directory 'backup/$backup_dir_name' does not exist. Please try again."
