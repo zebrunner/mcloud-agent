@@ -11,38 +11,47 @@ backup() {
   "backup/templates/zebrunner-farm" \
   "backup/templates/mcloud-devices.txt" \
   "backup/vars/main.yml" )
-
+  echo ""
   echo "Backing up MCloud Agent related files:"
-
+  echo ""
   if [ ! -d "backup/defaults" ]; then
     echo "Creating directory for defaults/main.yml backup"
     mkdir -vp backup/defaults
+    echo ""
   fi
 
   if [ ! -d "backup/vars" ]; then
     echo "Creating directory for roles/.../vars/main.yml backup"
     mkdir -vp backup/vars
+    echo ""
   fi
 
   if [ ! -d "backup/templates" ]; then
     echo "Creating directory for rules backup"
     mkdir -vp backup/templates
+    echo ""
   fi
 
   cp -av defaults/main.yml backup/defaults/
-
+  echo ""
   cp -av /usr/local/bin/zebrunner-farm backup/templates/
+  echo ""
   cp -av /usr/local/bin/mcloud-devices.txt backup/templates/
-
+  echo ""
   if [ "$os" == "Darwin" ]; then
     required+=( "backup/templates/ZebrunnerDevicesListener.plist" "backup/templates/ZebrunnerUsbmuxd.plist" )
     cp -av "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" backup/templates/
+    echo ""
     cp -av "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" backup/templates/
+    echo ""
     cp -av roles/mac-devices/vars/main.yml backup/vars/
+    echo ""
   else
     required+=( "backup/templates/90_mcloud.rules" )
     cp -av /etc/udev/rules.d/90_mcloud.rules backup/templates/
+    echo ""
     cp -av roles/devices/vars/main.yml backup/vars/
+    echo ""
   fi
 
   missing=()
