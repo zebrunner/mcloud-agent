@@ -227,6 +227,12 @@ shutdown() {
     exit 0
   }
 
+  ### Ask for sudo permissions
+  ask_for_sudo || {
+    echo_warning "Sudo permissions are required to run this script!"
+    exit 1
+  }
+
   ### Remove launch agents in case of macOS
   os="$(uname)"
   if [[ "$os" == "Darwin" ]]; then
