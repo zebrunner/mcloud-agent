@@ -191,7 +191,7 @@ status() {
   echo "Zebrunner-farm script path:       $(which zebrunner-farm 2>/dev/null || failed "'zebrunner-farm' not found")"
   echo ""
   if [[ "$os" == "Darwin" ]]; then
-    echo "Socat tool path:                  $(which socat >2/dev/null || failed "'socat' not found")"
+    echo "Socat tool path:                  $(which socat 2>/dev/null || failed "'socat' not found")"
     echo ""
     echo "Jq tool path:                     $(which jq 2>/dev/null || failed "'jq' not found")"
     echo ""
