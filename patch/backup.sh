@@ -5,7 +5,8 @@ backup() {
 
   confirm "" "      Do you want to do a backup now?" "n" || exit 0
   echo ""
-  echo -en "Creating new backup directory:\n    "
+  echo "Creating new backup directory:"
+  echo -n "    "
   local backup_dir_name
   backup_dir_name="backup/bak_$(date +%d-%m-%Y_%H-%M)_$(random_string 5)"
   if mkdir -vp "$backup_dir_name" 2>/dev/null; then
@@ -16,19 +17,22 @@ backup() {
   fi
 
   if [ ! -d "$backup_dir_name/defaults" ]; then
-    echo -en "Creating directory for $backup_dir_name/main.yml backup:\n    "
+    echo "Creating directory for $backup_dir_name/main.yml backup:"
+    echo -n "    "
     mkdir -vp "$backup_dir_name/defaults" 2>/dev/null || failed "mkdir for '$backup_dir_name/defaults' failed"
     echo ""
   fi
 
   if [ ! -d "$backup_dir_name/vars" ]; then
-    echo -en "Creating directory for roles/.../vars/main.yml backup:\n    "
+    echo "Creating directory for roles/.../vars/main.yml backup:"
+    echo -n "    "
     mkdir -vp "$backup_dir_name/vars" 2>/dev/null || failed "mkdir for '$backup_dir_name/vars' failed"
     echo ""
   fi
 
   if [ ! -d "$backup_dir_name/templates" ]; then
-    echo -en "Creating directory for rules backup:\n    "
+    echo "Creating directory for rules backup:"
+    echo -n "    "
     mkdir -vp "$backup_dir_name/templates" 2>/dev/null || failed "mkdir for '$backup_dir_name/defaults' failed"
     echo ""
   fi
