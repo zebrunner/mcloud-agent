@@ -10,7 +10,11 @@ export_settings() {
 }
 
 random_string() {
-  cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 48
+  local length=48
+  if [[ -n "$1" && $1 =~ ^[0-9]+$ ]]; then
+    length="$1"
+  fi
+  cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c "$length"
   echo
 }
 
