@@ -5,52 +5,61 @@ backup() {
 
   confirm "" "      Do you want to do a backup now?" "n" || exit 0
 
+  echo "Creating backup directory:"
+  local backup_dir_name
+  backup_dir_name="backup/bak_$(date +%d-%m-%Y.%H-%M)_$(random_string 5)"
+  if mkdir "$backup_dir_name" 2>/dev/null; then
+   echo "$backup_dir_name created"
+  else
+    failed "mkdir for '$backup_dir_name' failed"
+  fi
+
   os="$(uname)" 2>/dev/null
   required=( \
-  "backup/defaults/main.yml" \
-  "backup/templates/zebrunner-farm" \
-  "backup/templates/mcloud-devices.txt" \
-  "backup/vars/main.yml" )
+  "$backup_dir_name/defaults/main.yml" \
+  "$backup_dir_name/templates/zebrunner-farm" \
+  "$backup_dir_name/templates/mcloud-devices.txt" \
+  "$backup_dir_name/vars/main.yml" )
   echo ""
   echo "Backing up MCloud Agent related files:"
   echo ""
-  if [ ! -d "backup/defaults" ]; then
-    echo "Creating directory for defaults/main.yml backup"
-    mkdir -vp backup/defaults 2>/dev/null || failed "mkdir for 'backup/defaults' failed"
+  if [ ! -d "$backup_dir_name/defaults" ]; then
+    echo "Creating directory for $backup_dir_name/main.yml backup"
+    mkdir -vp "$backup_dir_name/defaults" 2>/dev/null || failed "mkdir for '$backup_dir_name/defaults' failed"
     echo ""
   fi
 
-  if [ ! -d "backup/vars" ]; then
+  if [ ! -d "$backup_dir_name/vars" ]; then
     echo "Creating directory for roles/.../vars/main.yml backup"
-    mkdir -vp backup/vars 2>/dev/null || failed "mkdir for 'backup/vars' failed"
+    mkdir -vp "$backup_dir_name/vars" 2>/dev/null || failed "mkdir for '$backup_dir_name/vars' failed"
     echo ""
   fi
 
-  if [ ! -d "backup/templates" ]; then
+  if [ ! -d "$backup_dir_name/templates" ]; then
     echo "Creating directory for rules backup"
-    mkdir -vp backup/templates 2>/dev/null || failed "mkdir for 'backup/defaults' failed"
+    mkdir -vp "$backup_dir_name/templates" 2>/dev/null || failed "mkdir for '$backup_dir_name/defaults' failed"
     echo ""
   fi
 
-  cp -av defaults/main.yml backup/defaults/ 2>/dev/null || failed "cp for 'defaults/main.yml' failed"
+  cp -av defaults/main.yml $backup_dir_name/defaults/ 2>/dev/null || failed "cp for 'defaults/main.yml' failed"
   echo ""
-  cp -av /usr/local/bin/zebrunner-farm backup/templates/ 2>/dev/null || failed "cp for '/usr/local/bin/zebrunner-farm' failed"
+  cp -av /usr/local/bin/zebrunner-farm $backup_dir_name/templates/ 2>/dev/null || failed "cp for '/usr/local/bin/zebrunner-farm' failed"
   echo ""
-  cp -av /usr/local/bin/mcloud-devices.txt backup/templates/ 2>/dev/null || failed "cp for '/usr/local/bin/mcloud-devices.txt' failed"
+  cp -av /usr/local/bin/mcloud-devices.txt $backup_dir_name/templates/ 2>/dev/null || failed "cp for '/usr/local/bin/mcloud-devices.txt' failed"
   echo ""
   if [ "$os" == "Darwin" ]; then
-    required+=( "backup/templates/ZebrunnerDevicesListener.plist" "backup/templates/ZebrunnerUsbmuxd.plist" )
-    cp -av "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" backup/templates/ 2>/dev/null || failed "cp for '$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist' failed"
+    required+=( "$backup_dir_name/templates/ZebrunnerDevicesListener.plist" "$backup_dir_name/templates/ZebrunnerUsbmuxd.plist" )
+    cp -av "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" "$backup_dir_name/templates/" 2>/dev/null || failed "cp for '$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist' failed"
     echo ""
-    cp -av "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" backup/templates/ 2>/dev/null || failed "cp for '$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist' failed"
+    cp -av "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" "$backup_dir_name/templates/" 2>/dev/null || failed "cp for '$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist' failed"
     echo ""
-    cp -av roles/mac-devices/vars/main.yml backup/vars/ 2>/dev/null || failed "cp for 'roles/mac-devices/vars/main.yml' failed"
+    cp -av roles/mac-devices/vars/main.yml "$backup_dir_name/vars/" 2>/dev/null || failed "cp for 'roles/mac-devices/vars/main.yml' failed"
     echo ""
   else
-    required+=( "backup/templates/90_mcloud.rules" )
-    cp -av /etc/udev/rules.d/90_mcloud.rules backup/templates/ 2>/dev/null || failed "cp for '/etc/udev/rules.d/90_mcloud.rules' failed"
+    required+=( "$backup_dir_name/templates/90_mcloud.rules" )
+    cp -av /etc/udev/rules.d/90_mcloud.rules "$backup_dir_name/templates/" 2>/dev/null || failed "cp for '/etc/udev/rules.d/90_mcloud.rules' failed"
     echo ""
-    cp -av roles/devices/vars/main.yml backup/vars/ 2>/dev/null || failed "cp for 'roles/devices/vars/main.yml' failed"
+    cp -av roles/devices/vars/main.yml "$backup_dir_name/vars/" 2>/dev/null || failed "cp for 'roles/devices/vars/main.yml' failed"
     echo ""
   fi
 
@@ -60,7 +69,7 @@ backup() {
   done
 
   if (( ${#missing[@]} == 0 )); then
-    echo "MCloud backup succeeded."
+    echo "MCloud backup succeeded to the directory: $backup_dir_name"
   else
     echo_warning "MCloud backup failed! Missing: ${missing[*]}"
     echo_telegram
