@@ -70,10 +70,12 @@ backup() {
   echo ""
   echo "Status:"
   if (( ${#missing[@]} == 0 )); then
+    echo -n "    "
     echo "MCloud backup succeeded!"
     echo -n "    "
     succeed "Backup directory: $backup_dir_name"
   else
+    echo -n "    "
     echo "MCloud backup failed!"
     echo -n "    "
     failed "Missing: ${missing[*]}"
