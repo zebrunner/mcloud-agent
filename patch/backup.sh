@@ -93,7 +93,7 @@ restore() {
   done
 
   echo ""
-  echo "Backing up:"
+  echo "Restoring:"
   echo -n "    "
   cp -av "$backup_dir_name/defaults/main.yml" "defaults/main.yml" 2>/dev/null || failed "cp for 'defaults/main.yml' failed"
   echo -n "    "
