@@ -106,7 +106,7 @@ restore() {
 
     echo -n "    "
     echo "Unloading ZebrunnerDevicesListener.plist, replacing, loading again:"
-    if launchctl list com.zebrunner.mcloud; then
+    if launchctl list com.zebrunner.mcloud >/dev/null 2>&1; then
        if launchctl bootout gui/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" 2>/dev/null; then
          echo -n "    "; echo -n "    "
          echo "'$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist' stopped"
@@ -133,7 +133,7 @@ restore() {
 
     echo -n "    "
     echo "Unloading ZebrunnerUsbmuxd.plist, replacing, loading again:"
-    if launchctl list com.zebrunner.usbmuxd; then
+    if launchctl list com.zebrunner.usbmuxd >/dev/null 2>&1; then
        if launchctl bootout gui/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" 2>/dev/null; then
          echo -n "    "; echo -n "    "
          echo "'$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist' stopped"
