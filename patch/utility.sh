@@ -88,3 +88,17 @@ failed() {
 succeed() {
   echo -e "${GREEN}${1}${NC}"
 }
+
+ask_for_sudo() {
+  # Check for sudo permission
+  if ! sudo -n true 2>/dev/null ; then
+    echo "You need to have sudo permissions"
+  fi
+
+  # Show sudo prompt to be transparent and extend sudo timeout if the user has sudo permissions
+  echo "> sudo -v    # Extends the sudo timeout for default period"
+  if ! sudo -v ; then
+    echo_warning "Can't proceed without sudo"
+    return 1
+  fi
+}
