@@ -228,6 +228,7 @@ shutdown() {
   }
 
   ### Ask for sudo permissions
+  echo ""
   ask_for_sudo || {
     echo_warning "Sudo permissions are required to run this script!"
     exit 1
