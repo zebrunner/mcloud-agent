@@ -84,3 +84,7 @@ confirm() {
 failed() {
   echo -e "${RED}${1}${NC}"
 }
+
+succeed() {
+  echo -e "${GREEN}${1}${NC}"
+}
