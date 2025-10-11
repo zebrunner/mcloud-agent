@@ -40,27 +40,18 @@ backup() {
     "$backup_dir_name/templates/mcloud-devices.txt" \
     "$backup_dir_name/vars/main.yml"\
     )
-  echo ""
   cp -av defaults/main.yml "$backup_dir_name/defaults/" 2>/dev/null || failed "cp for 'defaults/main.yml' failed"
-  echo ""
   cp -av /usr/local/bin/zebrunner-farm "$backup_dir_name/templates/" 2>/dev/null || failed "cp for '/usr/local/bin/zebrunner-farm' failed"
-  echo ""
   cp -av /usr/local/bin/mcloud-devices.txt "$backup_dir_name/templates/" 2>/dev/null || failed "cp for '/usr/local/bin/mcloud-devices.txt' failed"
-  echo ""
   if [ "$(uname)" == "Darwin" ]; then
     required+=( "$backup_dir_name/templates/ZebrunnerDevicesListener.plist" "$backup_dir_name/templates/ZebrunnerUsbmuxd.plist" )
     cp -av "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" "$backup_dir_name/templates/" 2>/dev/null || failed "cp for '$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist' failed"
-    echo ""
     cp -av "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" "$backup_dir_name/templates/" 2>/dev/null || failed "cp for '$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist' failed"
-    echo ""
     cp -av roles/mac-devices/vars/main.yml "$backup_dir_name/vars/" 2>/dev/null || failed "cp for 'roles/mac-devices/vars/main.yml' failed"
-    echo ""
   else
     required+=( "$backup_dir_name/templates/90_mcloud.rules" )
     cp -av /etc/udev/rules.d/90_mcloud.rules "$backup_dir_name/templates/" 2>/dev/null || failed "cp for '/etc/udev/rules.d/90_mcloud.rules' failed"
-    echo ""
     cp -av roles/devices/vars/main.yml "$backup_dir_name/vars/" 2>/dev/null || failed "cp for 'roles/devices/vars/main.yml' failed"
-    echo ""
   fi
 
   missing=()
@@ -68,11 +59,13 @@ backup() {
     [[ -f "$f" ]] || missing+=("$f")
   done
 
+  echo ""
+  echo "Status:"
   if (( ${#missing[@]} == 0 )); then
-    echo "MCloud backup succeeded to the directory: $backup_dir_name"
+    succeed "MCloud backup succeeded to the directory: $backup_dir_name"
   else
-    echo_warning "MCloud backup failed! Missing: ${missing[*]}"
-    echo_telegram
+    echo "MCloud backup failed!"
+    failed "Missing: ${missing[*]}"
   fi
 
   echo -e "\n===================================================================\n"
