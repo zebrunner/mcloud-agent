@@ -85,7 +85,9 @@ restore() {
     if [ -d "backup/$backup_dir_name" ]; then
       backup_dir_name="backup/$backup_dir_name"
     else
+      echo -n "    "
       echo "Directory 'backup/$backup_dir_name' does not exist. Please try again."
+      echo ""
     fi
   done
 
