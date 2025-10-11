@@ -127,15 +127,10 @@ ansible() {
   fi
 
   ### Check sudo permissions
-  if ! sudo -n true 2>/dev/null ; then
-    echo "You need to have sudo permissions"
-  fi
-
-  echo "> sudo -v    # Extends the sudo timeout for 5-15 minutes"
-  if ! sudo -v ; then
-    echo_warning "Can't proceed without sudo"
+  ask_for_sudo || {
+    echo_warning "Sudo permissions are required to run this script!"
     exit 1
-  fi
+  }
 
   ### Check if the operating system is Linux or macOS
   echo -e "\n*******************************************************************\n"
