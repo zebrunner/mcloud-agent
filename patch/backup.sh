@@ -4,25 +4,17 @@ backup() {
   echo -e "\n==== Backup MCloud Agent in '$ZEBRUNNER_MCLOUD_AGENT_DIR' ====\n"
 
   confirm "" "      Do you want to do a backup now?" "n" || exit 0
-
-  echo "Creating backup directory:"
+  echo ""
+  echo "Creating new backup directory:"
   local backup_dir_name
-  backup_dir_name="backup/bak_$(date +%d-%m-%Y.%H-%M)_$(random_string 5)"
-  if mkdir "$backup_dir_name" 2>/dev/null; then
-   echo "$backup_dir_name created"
+  backup_dir_name="backup/bak_$(date +%d-%m-%Y_%H-%M)_$(random_string 5)"
+  if mkdir -vp "$backup_dir_name" 2>/dev/null; then
+   echo ""
   else
     failed "mkdir for '$backup_dir_name' failed"
+    exit 1
   fi
 
-  os="$(uname)" 2>/dev/null
-  required=( \
-  "$backup_dir_name/defaults/main.yml" \
-  "$backup_dir_name/templates/zebrunner-farm" \
-  "$backup_dir_name/templates/mcloud-devices.txt" \
-  "$backup_dir_name/vars/main.yml" )
-  echo ""
-  echo "Backing up MCloud Agent related files:"
-  echo ""
   if [ ! -d "$backup_dir_name/defaults" ]; then
     echo "Creating directory for $backup_dir_name/main.yml backup"
     mkdir -vp "$backup_dir_name/defaults" 2>/dev/null || failed "mkdir for '$backup_dir_name/defaults' failed"
@@ -41,13 +33,21 @@ backup() {
     echo ""
   fi
 
-  cp -av defaults/main.yml $backup_dir_name/defaults/ 2>/dev/null || failed "cp for 'defaults/main.yml' failed"
+  echo "Backing up MCloud Agent related files:"
+  required=( \
+    "$backup_dir_name/defaults/main.yml" \
+    "$backup_dir_name/templates/zebrunner-farm" \
+    "$backup_dir_name/templates/mcloud-devices.txt" \
+    "$backup_dir_name/vars/main.yml"\
+    )
   echo ""
-  cp -av /usr/local/bin/zebrunner-farm $backup_dir_name/templates/ 2>/dev/null || failed "cp for '/usr/local/bin/zebrunner-farm' failed"
+  cp -av defaults/main.yml "$backup_dir_name/defaults/" 2>/dev/null || failed "cp for 'defaults/main.yml' failed"
   echo ""
-  cp -av /usr/local/bin/mcloud-devices.txt $backup_dir_name/templates/ 2>/dev/null || failed "cp for '/usr/local/bin/mcloud-devices.txt' failed"
+  cp -av /usr/local/bin/zebrunner-farm "$backup_dir_name/templates/" 2>/dev/null || failed "cp for '/usr/local/bin/zebrunner-farm' failed"
   echo ""
-  if [ "$os" == "Darwin" ]; then
+  cp -av /usr/local/bin/mcloud-devices.txt "$backup_dir_name/templates/" 2>/dev/null || failed "cp for '/usr/local/bin/mcloud-devices.txt' failed"
+  echo ""
+  if [ "$(uname)" == "Darwin" ]; then
     required+=( "$backup_dir_name/templates/ZebrunnerDevicesListener.plist" "$backup_dir_name/templates/ZebrunnerUsbmuxd.plist" )
     cp -av "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" "$backup_dir_name/templates/" 2>/dev/null || failed "cp for '$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist' failed"
     echo ""
