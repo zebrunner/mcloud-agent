@@ -70,7 +70,10 @@ backup() {
 restore() {
   delimiter "Backup MCloud Agent in '$ZEBRUNNER_MCLOUD_AGENT_DIR'"
 
-  confirm "" "      Your services will be stopped and current data might be lost. Do you want to do a restore now?" "n" || exit 0
+    warn ">\tBefore restoring do the following:"
+    warn ">\tzebrunner-farm down"
+
+  confirm "" "      Current data might be lost. Do you want to do a restore now?" "n" || exit 0
 
   echo ""
   ask_for_sudo || {
