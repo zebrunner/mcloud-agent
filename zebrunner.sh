@@ -86,21 +86,21 @@ setup() {
   case "$current_shell" in
     bash)
       if [ -f "$HOME/.bashrc" ]; then
-        warn ">\tsource ~/.bashrc"
+        succeed ">\tsource ~/.bashrc"
       elif [ -f "$HOME/.bash_profile" ]; then
-        warn ">\tsource ~/.bash_profile"
+        succeed ">\tsource ~/.bash_profile"
       fi
       ;;
     zsh)
       if [ -f "$HOME/.zshrc" ]; then
-        warn ">\tsource ~/.zshrc"
+        succeed ">\tsource ~/.zshrc"
       elif [ -f "$HOME/.zprofile" ]; then
-        warn ">\tsource ~/.zprofile"
+        succeed ">\tsource ~/.zprofile"
       fi
       ;;
     *)
       if [ -f "$HOME/.profile" ]; then
-        warn ">\tsource ~/.profile"
+        succeed ">\tsource ~/.profile"
       fi
       ;;
   esac
