@@ -345,6 +345,7 @@ version() {
 }
 
 echo_help() {
+  delimiter "Zebrunner MCloud Agent help"
   echo "
       Usage: ./zebrunner.sh [option]
       Options:
@@ -359,6 +360,7 @@ echo_help() {
          ---------------------------------------------------
       	 version              Version of MCloud Agent components"
   echo_telegram
+  delimiter
 }
 
 case "$1" in
