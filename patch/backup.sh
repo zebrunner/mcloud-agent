@@ -23,10 +23,10 @@ backup() {
     echo ""
   fi
 
-  if [ ! -d "$backup_dir_name/vars" ]; then
-    echo "Creating directory for roles/.../vars/main.yml backup:"
+  if [ ! -d "$backup_dir_name/tasks" ]; then
+    echo "Creating directory for tasks backup:"
     echo -n "    "
-    mkdir -vp "$backup_dir_name/vars" 2>/dev/null || failed "mkdir for '$backup_dir_name/vars' failed"
+    mkdir -vp "$backup_dir_name/tasks" 2>/dev/null || failed "mkdir for '$backup_dir_name/tasks' failed"
     echo ""
   fi
 
@@ -37,25 +37,42 @@ backup() {
     echo ""
   fi
 
+  if [ ! -d "$backup_dir_name/vars" ]; then
+    echo "Creating directory for roles/.../vars/main.yml backup:"
+    echo -n "    "
+    mkdir -vp "$backup_dir_name/vars" 2>/dev/null || failed "mkdir for '$backup_dir_name/vars' failed"
+    echo ""
+  fi
+
+  if [ ! -d "$backup_dir_name/download" ]; then
+    echo "Creating directory for download/tasks/main.yml backup:"
+    echo -n "    "
+    mkdir -vp "$backup_dir_name/download" 2>/dev/null || failed "mkdir for '$backup_dir_name/download' failed"
+    echo ""
+  fi
+
   echo "Backing up MCloud Agent related files:"
   echo -n "    "
-  cp -av defaults/main.yml "$backup_dir_name/defaults/" 2>/dev/null || failed "cp for 'defaults/main.yml' failed"
+  cp -av "zebrunner.sh" "$backup_dir_name/zebrunner.sh" 2>/dev/null || failed "cp for 'zebrunner.sh' failed"
   echo -n "    "
-  cp -av /usr/local/bin/zebrunner-farm "$backup_dir_name/templates/" 2>/dev/null || failed "cp for '/usr/local/bin/zebrunner-farm' failed"
+  cp -av "defaults/main.yml" "$backup_dir_name/defaults/" 2>/dev/null || failed "cp for 'defaults/main.yml' failed"
   echo -n "    "
-  cp -av /usr/local/bin/mcloud-devices.txt "$backup_dir_name/templates/" 2>/dev/null || failed "cp for '/usr/local/bin/mcloud-devices.txt' failed"
+  cp -av "roles/download/tasks/main.yml" "$backup_dir_name/download/" 2>/dev/null || failed "cp for 'roles/download/tasks/main.yml' failed"
+
   if [ "$(uname)" == "Darwin" ]; then
     echo -n "    "
-    cp -av "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" "$backup_dir_name/templates/" 2>/dev/null || failed "cp for '$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist' failed"
+    cp -av "roles/mac-devices/tasks/usbmuxd.yml" "$backup_dir_name/tasks/" 2>/dev/null || failed "cp for 'roles/mac-devices/tasks/usbmuxd.yml' failed"
     echo -n "    "
-    cp -av "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" "$backup_dir_name/templates/" 2>/dev/null || failed "cp for '$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist' failed"
+    cp -av "roles/mac-devices/templates/zebrunner-farm" "$backup_dir_name/templates/" 2>/dev/null || failed "cp for 'roles/mac-devices/templates/zebrunner-farm' failed"
     echo -n "    "
-    cp -av roles/mac-devices/vars/main.yml "$backup_dir_name/vars/" 2>/dev/null || failed "cp for 'roles/mac-devices/vars/main.yml' failed"
+    cp -av "roles/mac-devices/vars/main.yml" "$backup_dir_name/vars/" 2>/dev/null || failed "cp for 'roles/mac-devices/vars/main.yml' failed"
   else
     echo -n "    "
-    cp -av /etc/udev/rules.d/90_mcloud.rules "$backup_dir_name/templates/" 2>/dev/null || failed "cp for '/etc/udev/rules.d/90_mcloud.rules' failed"
+    cp -av "roles/devices/tasks/udev.yml" "$backup_dir_name/tasks/" 2>/dev/null || failed "cp for 'roles/devices/tasks/udev.yml' failed"
     echo -n "    "
-    cp -av roles/devices/vars/main.yml "$backup_dir_name/vars/" 2>/dev/null || failed "cp for 'roles/devices/vars/main.yml' failed"
+    cp -av "roles/devices/templates/zebrunner-farm" "$backup_dir_name/templates/" 2>/dev/null || failed "cp for 'roles/devices/templates/zebrunner-farm' failed"
+    echo -n "    "
+    cp -av "roles/devices/vars/main.yml" "$backup_dir_name/vars/" 2>/dev/null || failed "cp for 'roles/devices/vars/main.yml' failed"
   fi
 
   echo -e "\n===================================================================\n"
@@ -93,79 +110,28 @@ restore() {
   done
 
   echo ""
-  echo "Restoring:"
+  echo "Restoring from 'backup_dir_name':"
   echo -n "    "
-  cp -av "$backup_dir_name/defaults/main.yml" "defaults/main.yml" 2>/dev/null || failed "cp for 'defaults/main.yml' failed"
+  cp -av "$backup_dir_name/zebrunner.sh" "zebrunner.sh" 2>/dev/null || failed "cp for '$backup_dir_name/zebrunner.sh' failed"
   echo -n "    "
-  sudo cp -av "$backup_dir_name/templates/zebrunner-farm" "/usr/local/bin/zebrunner-farm" 2>/dev/null || failed "cp for '$backup_dir_name/templates/zebrunner-farm' failed"
+  cp -av "$backup_dir_name/defaults/main.yml" "defaults/" 2>/dev/null || failed "cp for '$backup_dir_name/defaults/main.yml' failed"
   echo -n "    "
-  sudo cp -av "$backup_dir_name/templates/mcloud-devices.txt" "/usr/local/bin/mcloud-devices.txt" 2>/dev/null || failed "cp for '$backup_dir_name/templates/mcloud-devices.txt' failed"
+  cp -av "$backup_dir_name/download/main.yml" "roles/download/tasks/"  2>/dev/null || failed "cp for '$backup_dir_name/download/main.yml' failed"
+
   if [ "$(uname)" == "Darwin" ]; then
     echo -n "    "
-    cp -av "$backup_dir_name/vars/main.yml" "roles/mac-devices/vars/main.yml" 2>/dev/null || failed "cp for 'roles/mac-devices/vars/main.yml' failed"
-
+    cp -av "$backup_dir_name/tasks/usbmuxd.yml" "roles/mac-devices/tasks/" 2>/dev/null || failed "cp for '$backup_dir_name/tasks/usbmuxd.yml' failed"
     echo -n "    "
-    echo "Unloading ZebrunnerDevicesListener.plist, replacing, loading again:"
-    if launchctl list com.zebrunner.mcloud >/dev/null 2>&1; then
-       if launchctl bootout gui/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" 2>/dev/null; then
-         echo -n "    "; echo -n "    "
-         echo "'$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist' stopped"
-         echo -n "    "; echo -n "    "
-          if sudo cp -av "$backup_dir_name/templates/ZebrunnerDevicesListener.plist" "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" 2>/dev/null; then
-            if launchctl bootstrap gui/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" 2>/dev/null && launchctl enable gui/"$(id -u)"/com.zebrunner.mcloud; then
-              echo -n "    "; echo -n "    "
-              echo "'$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist' started"
-            else
-              echo -n "    "; echo -n "    "
-              failed "launchctl bootstrap for '$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist' failed"
-            fi
-          else
-            echo -n "    "; echo -n "    "
-            failed "cp for '$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist' failed"
-          fi
-       fi
-    else
-      echo -n "    "; echo -n "    "
-      echo "'$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist' is not running"
-      echo -n "    "; echo -n "    "
-      sudo cp -av "$backup_dir_name/templates/ZebrunnerDevicesListener.plist" "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" 2>/dev/null || failed "cp for '$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist' failed"
-    fi
-
+    cp -av "$backup_dir_name/templates/zebrunner-farm" "roles/mac-devices/templates/" 2>/dev/null || failed "cp for '$backup_dir_name/templates/zebrunner-farm' failed"
     echo -n "    "
-    echo "Unloading ZebrunnerUsbmuxd.plist, replacing, loading again:"
-    if launchctl list com.zebrunner.usbmuxd >/dev/null 2>&1; then
-       if launchctl bootout gui/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" 2>/dev/null; then
-         echo -n "    "; echo -n "    "
-         echo "'$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist' stopped"
-         echo -n "    "; echo -n "    "
-          if sudo cp -av "$backup_dir_name/templates/ZebrunnerUsbmuxd.plist" "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" 2>/dev/null; then
-            if launchctl bootstrap gui/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" 2>/dev/null && launchctl enable gui/"$(id -u)"/com.zebrunner.usbmuxd; then
-              echo -n "    "; echo -n "    "
-              echo "'$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist' started"
-            else
-              echo -n "    "; echo -n "    "
-              failed "launchctl bootstrap for '$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist' failed"
-            fi
-          else
-            echo -n "    "; echo -n "    "
-            failed "cp for '$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist' failed"
-          fi
-       fi
-    else
-      echo -n "    "; echo -n "    "
-      echo "'$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist' is not running"
-      echo -n "    "; echo -n "    "
-      sudo cp -av "$backup_dir_name/templates/ZebrunnerUsbmuxd.plist" "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" 2>/dev/null || failed "cp for '$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist' failed"
-    fi
-
+    cp -av "$backup_dir_name/vars/main.yml" "roles/mac-devices/vars/" 2>/dev/null || failed "cp for '$backup_dir_name/vars/main.yml' failed"
   else
     echo -n "    "
-    sudo cp -av "$backup_dir_name/templates/90_mcloud.rules" "/etc/udev/rules.d/90_mcloud.rules" 2>/dev/null || failed "cp for 'roles/devices/vars/main.yml' failed"
+    cp -av "$backup_dir_name/tasks/udev.yml" "roles/devices/tasks/" 2>/dev/null || failed "cp for '$backup_dir_name/tasks/udev.yml' failed"
     echo -n "    "
-    cp -av "$backup_dir_name/vars/main.yml" "roles/devices/vars/main.yml" 2>/dev/null || failed "cp for 'roles/devices/vars/main.yml' failed"
-
-    # reload udevadm rules
-    sudo udevadm control --reload-rules
+    cp -av "$backup_dir_name/templates/zebrunner-farm" "roles/devices/templates/" 2>/dev/null || failed "cp for '$backup_dir_name/templates/zebrunner-farm' failed"
+    echo -n "    "
+    cp -av "$backup_dir_name/vars/main.yml" "roles/devices/vars/" 2>/dev/null || failed "cp for '$backup_dir_name/vars/main.yml' failed"
   fi
 
   echo_warning "Your services needs to be restarted after restore."
