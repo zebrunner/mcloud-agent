@@ -239,18 +239,18 @@ shutdown() {
   os="$(uname)"
   if [[ "$os" == "Darwin" ]]; then
     delimiter "*"
-    echo "* Operating system is $os"
+    echo "Current OS: $os"
     delimiter "*"
 
-    echo "* Found Zebrunner launchctl files:"
+    echo "Found Zebrunner launchctl files:"
     ls "$HOME/Library/LaunchAgents" | grep -i zebrunner || echo "No Zebrunner plist files found"
 
     delimiter "*"
-    echo "* Found loaded Zebrunner plists:"
+    echo "Found loaded Zebrunner plists:"
     launchctl list | grep -i zebrunner || echo "No loaded Zebrunner plists found"
 
     delimiter "*"
-    echo "* Unloading and removing ZebrunnerDevicesListener.plist launchctl file:"
+    echo "Unloading and removing ZebrunnerDevicesListener.plist launchctl file:"
     if [ -f "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" ]; then
       if launchctl bootout gui/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" 2>/dev/null; then
         echo "ZebrunnerDevicesListener.plist unloaded successfully"
@@ -258,14 +258,14 @@ shutdown() {
         echo "Failed to unload 'ZebrunnerDevicesListener.plist', it might be not loaded"
       fi
       echo ""
-      echo "* Removing ZebrunnerDevicesListener.plist file:"
+      echo "Removing ZebrunnerDevicesListener.plist file:"
       rm -vf "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
     else
       echo "ZebrunnerDevicesListener.plist file not found"
     fi
 
     delimiter "*"
-    echo "* Unloading and removing ZebrunnerUsbmuxd.plist launchctl file:"
+    echo "Unloading and removing ZebrunnerUsbmuxd.plist launchctl file:"
     if [ -f "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" ]; then
       if launchctl bootout gui/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" 2>/dev/null; then
         echo "ZebrunnerUsbmuxd.plist unloaded successfully"
@@ -273,7 +273,7 @@ shutdown() {
         echo "Failed to unload 'ZebrunnerUsbmuxd.plist', it might be not loaded"
       fi
       echo ""
-      echo "* Removing ZebrunnerUsbmuxd.plist file:"
+      echo "Removing ZebrunnerUsbmuxd.plist file:"
       rm -vf "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
     else
       echo "ZebrunnerUsbmuxd.plist file not found"
@@ -282,7 +282,7 @@ shutdown() {
 
   ### Remove environment variable from shell profiles
   delimiter "*"
-  echo "* Removing var 'ZEBRUNNER_MCLOUD_AGENT_DIR' from shell profiles:"
+  echo "Removing var 'ZEBRUNNER_MCLOUD_AGENT_DIR' from shell profiles:"
   TARGET_FILES+=("$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.zshrc" "$HOME/.zprofile" "$HOME/.profile")
   for file in "${TARGET_FILES[@]}"; do
     if [ -f "$file" ] && grep -q "export $MCLOUD_AGENT_DIR_NAME=" "$file"; then
@@ -293,11 +293,11 @@ shutdown() {
 
   ### Stop and remove containers
   delimiter "*"
-  echo "* Found MCloud Agent containers:"
+  echo "Found MCloud Agent containers:"
   docker ps -a --filter "name=device-" --format "{{.Names}}"
 
   delimiter "*"
-  echo "* Stopping and removing MCloud Agent containers:"
+  echo "Stopping and removing MCloud Agent containers:"
   if command -v zebrunner-farm >/dev/null 2>&1; then
     zebrunner-farm down
   else
@@ -305,7 +305,7 @@ shutdown() {
   fi
 
   delimiter "*"
-  echo "* Removing volume 'appium-storage-volume':"
+  echo "Removing volume 'appium-storage-volume':"
   if docker volume ls | grep -q "appium-storage-volume"; then
     docker volume rm appium-storage-volume
   else
@@ -314,7 +314,7 @@ shutdown() {
 
   ### Remove files
   delimiter "*"
-  echo "* Removing MCloud Agent files and volumes (sudo privileges required):"
+  echo "Removing MCloud Agent files and volumes (sudo privileges required):"
   if [ "$os" == "Darwin" ]; then
     rm -vf roles/mac-devices/vars/main.yml
   else
