@@ -10,7 +10,7 @@ MCLOUD_AGENT_DIR_NAME="ZEBRUNNER_MCLOUD_AGENT_DIR"
 
 
 setup() {
-  delimiter "Setting up MCloud Agent in '$ZEBRUNNER_MCLOUD_AGENT_DIR'"
+  delimiter "Setting up MCloud Agent"
 
   ### Detect MCloud Agent directory and set environment variable
   MCLOUD_AGENT_DIR_VALUE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
