@@ -102,3 +102,35 @@ ask_for_sudo() {
     return 1
   fi
 }
+
+delimiter() {
+  local char="="
+  local text=""
+  # If the first argument is a single character, use it as the delimiter
+  if [[ $# -gt 0 && ${#1} -eq 1 ]]; then
+    char="$1"
+    shift
+  fi
+  # Other arguments are the text
+  text="$*"
+
+  local width
+  width=$(tput cols)
+  if [[ -z "$text" ]]; then
+    # Simple delimiter line
+    printf '%*s\n' "$width" '' | tr ' ' "$char"
+  else
+    # Add spaces around the text
+    text=" $text "
+    local textlen=${#text}
+    # How many chars on the left and right
+    local left=4
+    local right=$(( width - textlen - left ))
+    # Print the line with text
+    printf "\n"
+    printf '%*s' "$left" '' | tr ' ' "$char"
+    printf '%s' "$text"
+    printf '%*s\n' "$right" '' | tr ' ' "$char"
+    printf "\n"
+  fi
+}
