@@ -5,50 +5,38 @@ backup() {
 
   confirm "" "      Do you want to do a backup now?" "n" || exit 0
   echo ""
-  echo "Creating new backup directory:"
+  echo "Creating backup directories:"
   echo -n "    "
   local backup_dir_name
   backup_dir_name="backup/bak_$(date +%d-%m-%Y_%H-%M)_$(random_string 5)"
-  if mkdir -vp "$backup_dir_name" 2>/dev/null; then
-   echo ""
-  else
+  if ! mkdir -vp "$backup_dir_name" 2>/dev/null; then
     failed "mkdir for '$backup_dir_name' failed"
     exit 1
   fi
 
   if [ ! -d "$backup_dir_name/defaults" ]; then
-    echo "Creating directory for $backup_dir_name/main.yml backup:"
     echo -n "    "
     mkdir -vp "$backup_dir_name/defaults" 2>/dev/null || failed "mkdir for '$backup_dir_name/defaults' failed"
-    echo ""
   fi
 
   if [ ! -d "$backup_dir_name/tasks" ]; then
-    echo "Creating directory for tasks backup:"
     echo -n "    "
     mkdir -vp "$backup_dir_name/tasks" 2>/dev/null || failed "mkdir for '$backup_dir_name/tasks' failed"
-    echo ""
   fi
 
   if [ ! -d "$backup_dir_name/templates" ]; then
-    echo "Creating directory for rules backup:"
     echo -n "    "
     mkdir -vp "$backup_dir_name/templates" 2>/dev/null || failed "mkdir for '$backup_dir_name/defaults' failed"
-    echo ""
   fi
 
   if [ ! -d "$backup_dir_name/vars" ]; then
-    echo "Creating directory for roles/.../vars/main.yml backup:"
     echo -n "    "
     mkdir -vp "$backup_dir_name/vars" 2>/dev/null || failed "mkdir for '$backup_dir_name/vars' failed"
-    echo ""
   fi
 
   if [ ! -d "$backup_dir_name/download" ]; then
-    echo "Creating directory for download/tasks/main.yml backup:"
     echo -n "    "
     mkdir -vp "$backup_dir_name/download" 2>/dev/null || failed "mkdir for '$backup_dir_name/download' failed"
-    echo ""
   fi
 
   echo "Backing up MCloud Agent related files:"
