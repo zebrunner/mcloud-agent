@@ -82,31 +82,29 @@ setup() {
   current_shell="$(basename "$SHELL")"
   echo "Current shell: $current_shell"
   echo ""
-  echo ">>> To apply the changes, please restart your terminal session or run the appropriate command below:"
-  echo -e "\033[0;32m"
+  warn ">>> To apply the changes, please restart your terminal session or run the appropriate command below:"
   case "$current_shell" in
     bash)
       if [ -f "$HOME/.bashrc" ]; then
-        echo -e ">\tsource ~/.bashrc"
+        warn ">\tsource ~/.bashrc"
       elif [ -f "$HOME/.bash_profile" ]; then
-        echo -e ">\tsource ~/.bash_profile"
+        warn ">\tsource ~/.bash_profile"
       fi
       ;;
     zsh)
       if [ -f "$HOME/.zshrc" ]; then
-        echo -e ">\tsource ~/.zshrc"
+        warn ">\tsource ~/.zshrc"
       elif [ -f "$HOME/.zprofile" ]; then
-        echo -e ">\tsource ~/.zprofile"
+        warn ">\tsource ~/.zprofile"
       fi
       ;;
     *)
       if [ -f "$HOME/.profile" ]; then
-        echo -e ">\tsource ~/.profile"
+        warn ">\tsource ~/.profile"
       fi
       ;;
   esac
-  echo -e "\033[0m"
-  echo ">>> Changes in other shells will be applied automatically <<<"
+  warn ">>> Changes in other shells will be applied automatically <<<"
 
   ### Final message
   delimiter "*"
@@ -325,7 +323,7 @@ shutdown() {
 
   ### Final message
   delimiter "*"
-  echo ">>> Restart current terminal session to apply all changes <<<"
+  warn ">>> Restart current terminal session to apply all changes <<<"
 
   delimiter "Shutting down MCloud Agent from '$ZEBRUNNER_MCLOUD_AGENT_DIR' finished"
 }
