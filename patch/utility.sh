@@ -116,6 +116,7 @@ delimiter() {
 
   local width
   width=$(tput cols)
+  printf "\n"
   if [[ -z "$text" ]]; then
     # Simple delimiter line
     printf '%*s\n' "$width" '' | tr ' ' "$char"
@@ -127,10 +128,9 @@ delimiter() {
     local left=4
     local right=$(( width - textlen - left ))
     # Print the line with text
-    printf "\n"
     printf '%*s' "$left" '' | tr ' ' "$char"
     printf '%s' "$text"
     printf '%*s\n' "$right" '' | tr ' ' "$char"
-    printf "\n"
   fi
+  printf "\n"
 }
