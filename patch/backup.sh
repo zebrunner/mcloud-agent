@@ -126,7 +126,9 @@ restore() {
     cp -av "$backup_dir_name/vars/main.yml" "roles/devices/vars/" 2>/dev/null || failed "cp for '$backup_dir_name/vars/main.yml' failed"
   fi
 
-  echo_warning "Your services needs to be restarted after restore."
+  echo_warning "After recovery, you need to reapply the settings:"
+  warn ">\t./zebrunner.sh ansible"
+  warn ">\tzebrunner-farm start"
 
   delimiter
 }
