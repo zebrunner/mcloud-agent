@@ -42,13 +42,13 @@ setup() {
   fi
   # Loop through target files and add or update the environment variable
   delimiter "*"
-  echo "Updating var '$MCLOUD_AGENT_DIR_NAME' in:"
+  echo "Adding '$MCLOUD_AGENT_DIR_NAME=$MCLOUD_AGENT_DIR_VALUE' to:"
   for file in "${TARGET_FILES[@]}"; do
     if [ -f "$file" ] && grep -q "^export $MCLOUD_AGENT_DIR_NAME=" "$file"; then
       echo "$file"
       sed -i.bak "s|^export $MCLOUD_AGENT_DIR_NAME=.*|export $MCLOUD_AGENT_DIR_NAME=$MCLOUD_AGENT_DIR_VALUE|" "$file" && rm -f "$file.bak"
     else
-      echo "Adding '$MCLOUD_AGENT_DIR_NAME=$MCLOUD_AGENT_DIR_VALUE' to '$file'"
+      echo "$file"
       echo "export $MCLOUD_AGENT_DIR_NAME=$MCLOUD_AGENT_DIR_VALUE" >> "$file"
     fi
   done
@@ -57,6 +57,7 @@ setup() {
   delimiter "*"
   os="$(uname)"
   echo "Current OS: $os"
+  echo ""
   echo "Setting up 'roles/.../vars/main.yml' according to OS:"
   if [[ "$os" == "Linux" ]]; then
     if [ -f roles/devices/vars/main.yml ]; then
