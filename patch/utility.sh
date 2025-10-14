@@ -85,6 +85,10 @@ failed() {
   echo -e "${RED}${1}${NC}"
 }
 
+warn() {
+  echo -e "${YELLOW}${1}${NC}"
+}
+
 succeed() {
   echo -e "${GREEN}${1}${NC}"
 }
