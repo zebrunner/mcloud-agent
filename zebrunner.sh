@@ -352,12 +352,9 @@ echo_help() {
          setup                Prepare MCloud Agent environment
          ansible ['devices']  Deploy MCloud Agent with custom or predefined args
          status               Status of MCloud Agent deployment
-         ---------------------------------------------------
       	 backup               Backup MCloud Agent setup
       	 restore              Restore MCloud Agent setup
-         ---------------------------------------------------
       	 shutdown             Stop and remove MCloud Agent containers, clear volumes and environment
-         ---------------------------------------------------
       	 version              Version of MCloud Agent components"
   echo_telegram
   delimiter
