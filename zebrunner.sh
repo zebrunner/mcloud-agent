@@ -24,14 +24,15 @@ setup() {
   delimiter "*"
   # Array to hold target files
   TARGET_FILES=()
+  echo "Shells found in this system:"
   # Bash
   if command -v bash >/dev/null 2>&1; then
-    echo "BASH shell found in this system"
+    echo "BASH"
     TARGET_FILES+=("$HOME/.bashrc" "$HOME/.bash_profile")
   fi
   # Zsh
   if command -v zsh >/dev/null 2>&1; then
-    echo "ZSH shell found in this system"
+    echo "ZSH"
     TARGET_FILES+=("$HOME/.zshrc" "$HOME/.zprofile")
   fi
   # Other
@@ -41,9 +42,10 @@ setup() {
   fi
   # Loop through target files and add or update the environment variable
   delimiter "*"
+  echo "Updating var '$MCLOUD_AGENT_DIR_NAME' in:"
   for file in "${TARGET_FILES[@]}"; do
     if [ -f "$file" ] && grep -q "^export $MCLOUD_AGENT_DIR_NAME=" "$file"; then
-      echo "Updating var '$MCLOUD_AGENT_DIR_NAME' in '$file'"
+      echo "$file"
       sed -i.bak "s|^export $MCLOUD_AGENT_DIR_NAME=.*|export $MCLOUD_AGENT_DIR_NAME=$MCLOUD_AGENT_DIR_VALUE|" "$file" && rm -f "$file.bak"
     else
       echo "Adding '$MCLOUD_AGENT_DIR_NAME=$MCLOUD_AGENT_DIR_VALUE' to '$file'"
@@ -82,7 +84,7 @@ setup() {
   current_shell="$(basename "$SHELL")"
   echo "Current shell: $current_shell"
   echo ""
-  warn ">>> To apply the changes, please restart your terminal session or run the appropriate command below:"
+  warn "To apply the changes, please restart your terminal session or run the appropriate command below:"
   case "$current_shell" in
     bash)
       if [ -f "$HOME/.bashrc" ]; then
@@ -104,6 +106,7 @@ setup() {
       fi
       ;;
   esac
+  echo ""
   warn ">>> Changes in other shells will be applied automatically <<<"
 
   ### Final message
