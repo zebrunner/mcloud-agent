@@ -1,7 +1,7 @@
 #!/bin/bash
 
 backup() {
-  echo -e "\n==== Backup MCloud Agent in '$ZEBRUNNER_MCLOUD_AGENT_DIR' ====\n"
+  delimiter "Backup MCloud Agent in '$ZEBRUNNER_MCLOUD_AGENT_DIR'"
 
   confirm "" "      Do you want to do a backup now?" "n" || exit 0
   echo ""
@@ -64,11 +64,11 @@ backup() {
     cp -av "roles/devices/vars/main.yml" "$backup_dir_name/vars/" 2>/dev/null || failed "cp for 'roles/devices/vars/main.yml' failed"
   fi
 
-  echo -e "\n===================================================================\n"
+  delimiter
 }
 
 restore() {
-  echo -e "\n==== Backup MCloud Agent in '$ZEBRUNNER_MCLOUD_AGENT_DIR' ====\n"
+  delimiter "Backup MCloud Agent in '$ZEBRUNNER_MCLOUD_AGENT_DIR'"
 
   confirm "" "      Your services will be stopped and current data might be lost. Do you want to do a restore now?" "n" || exit 0
 
@@ -125,5 +125,5 @@ restore() {
 
   echo_warning "Your services needs to be restarted after restore."
 
-  echo -e "\n===================================================================\n"
+  delimiter
 }
