@@ -39,6 +39,7 @@ backup() {
     mkdir -vp "$backup_dir_name/download" 2>/dev/null || failed "mkdir for '$backup_dir_name/download' failed"
   fi
 
+  echo ""
   echo "Backing up MCloud Agent related files:"
   echo -n "    "
   cp -av "zebrunner.sh" "$backup_dir_name/zebrunner.sh" 2>/dev/null || failed "cp for 'zebrunner.sh' failed"
