@@ -75,11 +75,6 @@ restore() {
   confirm "" "      Current data might be lost. Do you want to do a restore now?" "n" || exit 0
 
   echo ""
-  ask_for_sudo || {
-    echo_warning "Sudo permissions are required to run this script!"
-    exit 1
-  }
-  echo ""
   echo "Backups found in 'backup' directory:"
   for bup in backup/bak_*; do
     if [ -d "$bup" ]; then
