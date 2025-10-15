@@ -1,24 +1,14 @@
 #!/bin/bash
 
+# Export docker env variables to avoid issues on macOS
 export DOCKER_BUILDKIT=0
 export COMPOSE_DOCKER_CLI_BUILD=0
 export DOCKER_DEFAULT_PLATFORM=linux/amd64
 
-if [ ! -z $ACTION ]; then
-  # triggered by udev rule where device serial (udid) is a must to proceed!
-  if [ -z $2 ]; then
-    echo "do nothing as device id/udid missed."
-    exit 0
-  fi
-else
-  ACTION=$1
-fi
-#echo ACTION: $ACTION
+# Load utility functions
+source "$ZEBRUNNER_MCLOUD_AGENT_DIR/patch/utility.sh"
 
-# useful export command to detect existing env vars per each device/vendor
-#export
-
-on-usb-update() {
+function on-usb-update() {
   read
   while true; do
     #process $REPLY
@@ -64,7 +54,7 @@ on-usb-update() {
   done
 }
 
-listen() {
+function listen() {
   # do analysis of ios listen output and organize automatic start/stop for connected/disconnected device
   ios listen | on-usb-update
 }
@@ -615,17 +605,6 @@ function status() {
 
 }
 
-echo_warning() {
-  echo "
-      WARNING! $1"
-}
-
-echo_telegram() {
-  echo "
-      For more help join telegram channel: https://t.me/zebrunner
-      "
-}
-
 function echo_help() {
   echo "
       Usage: zebrunner-farm [option]
@@ -635,62 +614,15 @@ function echo_help() {
           stop [udid]          Stop and keep devices containers or exact device by udid
           restart [udid]       Restart all devices containers or exact device by udid
           down [udid]          Stop and remove devices containers
-          ansible ['devices']  Run ansible-playbook script with custom or predefined args"
+          ansible ['devices']  Run ansible-playbook script with custom or predefined args
+          version              Show version of MCloud Agent components"
   echo_telegram
   exit 0
 }
 
-# IMPORTANT! In case of any changes please copy them in ./zebrunner.sh file!
-function ansible() {
-
-  echo -e "\n*******************************************************************\n"
-
-  if ! sudo -n true 2>/dev/null ; then
-    echo "You need to have sudo permissions"
-  fi
-
-  echo "> sudo -v    # Extends the sudo timeout for another 5 minutes by default"
-  if ! sudo -v ; then
-    echo "You need to have sudo permissions"
-    exit 1
-  fi
-
-  echo -e "\n*******************************************************************\n"
-
-  if [[ "$1" == "" ]]; then
-    arg="mac-devices.yml"
-  elif [[ "$1" == "devices" ]]; then
-    arg="mac-devices.yml --tag registerDevices"
-  else
-    arg="$@ mac-devices.yml"
-  fi
-
-  echo "ansible-playbook -i hosts $arg"
-  echo -e "\n*******************************************************************\n"
-  ansible-playbook -i hosts $arg
-}
-
-#CONTAINERS=( `docker ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep device | grep -v appium | cut -d '-' -f 2-` )
-#echo CONTAINERS: $CONTAINERS
-
-#CONNECTED_DEVICES=( `ls /dev/ | grep device | cut -d '-' -f 2-` )
-#echo CONNECTED_DEVICES: $CONNECTED_DEVICES
-
-case "$ACTION" in
+case "$1" in
 status)
   status $2
-  ;;
-add)
-  # #122 on start obligatory re-created any existing exited containers
-  # add action means physical connect via usb and as result we have to remove any existing container for device!
-  down $2
-  start $2
-  ;;
-bind)
-  echo "do nothing"
-  ;;
-remove)
-  down $2
   ;;
 start)
   start $2
@@ -706,24 +638,15 @@ down)
   down $2
   ;;
 ansible)
-  ansible "${@:2}"
+  "$ZEBRUNNER_MCLOUD_AGENT_DIR"/zebrunner.sh ansible "${@:2}"
   ;;
-shutdown)
-  shutdown
+version)
+  "$ZEBRUNNER_MCLOUD_AGENT_DIR"/zebrunner.sh version
   ;;
 listen)
   listen
   ;;
-version)
-  version
-  ;;
 *)
-  if [ ! -z $1 ]; then
-    echo "Unknown option detected: $1"
-  fi
   echo_help
-  exit 1
   ;;
 esac
-
-exit 0
