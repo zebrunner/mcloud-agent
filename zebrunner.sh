@@ -1,20 +1,20 @@
 #!/bin/bash
 
-# Load utility functions
-source patch/utility.sh
-# Load backup/restore functions
-source patch/backup.sh
-
 # Define Mcloud Agent dir environment variable name
 MCLOUD_AGENT_DIR_NAME="ZEBRUNNER_MCLOUD_AGENT_DIR"
+MCLOUD_AGENT_DIR_VALUE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "${MCLOUD_AGENT_DIR_VALUE}" || exit
+
+# Load utility functions
+source "$MCLOUD_AGENT_DIR_VALUE/patch/utility.sh"
+# Load backup/restore functions
+source "$MCLOUD_AGENT_DIR_VALUE/patch/backup.sh"
 
 
 setup() {
   delimiter "Setting up MCloud Agent"
 
   ### Detect MCloud Agent directory and set environment variable
-  MCLOUD_AGENT_DIR_VALUE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  cd "${MCLOUD_AGENT_DIR_VALUE}" || exit
   echo "Detected MCloud Agent directory: $MCLOUD_AGENT_DIR_VALUE"
   # Apply the variable in the current session
   echo "Applying env var '$MCLOUD_AGENT_DIR_NAME=$MCLOUD_AGENT_DIR_VALUE' in the current session"
