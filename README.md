@@ -83,7 +83,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
  * Deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist to share usbmuxd into the device containers
  * Deployed $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist to load and manage iOS devices connect/disconnect automatically
 
-   
+
 ## Usage
 
 ### Android devices
@@ -114,7 +114,7 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
 2. Open **WebDriverAgent.xcodeproj** in Xcode.
 3. Ensure a team is selected before building the application. To do this, go to *Targets* and select each target (one at a time). There should be a field for assigning team certificates to the target.
 4. Remove your **WebDriverAgent** folder from *DerivedData* and run *Clean build folder* (just in case).
-5. Build the application by selecting the *WebDriverAgentRunner* target and build for *Generic iOS Device*. Run *Product -> Build for testing*. This will create a *Products/Debug-iphoneos* in the specified project directory.  
+5. Build the application by selecting the *WebDriverAgentRunner* target and build for *Generic iOS Device*. Run *Product -> Build for testing*. This will create a *Products/Debug-iphoneos* in the specified project directory.
  *Example*: **/Users/$USER/Library/Developer/Xcode/DerivedData/WebDriverAgent-dzxbpamuepiwamhdbyvyfkbecyer/Build/Products/Debug-iphoneos**
 6. Go to the "Products/Debug-iphoneos" directory and run:
  **mkdir Payload**
@@ -122,7 +122,7 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
  **cp -r WebDriverAgentRunner-Runner.app Payload**
 8. Finally, zip up the project as an *.ipa file:
  **zip -r WebDriverAgent.ipa ./Payload**
-   > Make sure to specify relative `./Payload` to archive only Payload folder content 
+   > Make sure to specify relative `./Payload` to archive only Payload folder content
 9. Share built ipa via WDA_FILE variable in roles/devices/vars/main.yml file.
    > to override WDA_FILE artifacts per each device use `wda_file` and `wda_bundleid` iOS device properties and re-execute ansible playbook.
 
@@ -159,7 +159,7 @@ Follow the below algorithm to identify any configuration issues with MCloud agen
 * If you have any problems running ansible:
   * Make sure you have sudo access and try to run ansible with sudo permissions.
   * Try to rub ansible commands manually (`<devices_file>` name is `mac-devices` on macOS  or `devices` on Linux servers)
- 
+
   > To download the required components and set up udev rules:
   ```
   ansible-playbook -vvv -i hosts <devices_file>.yml
