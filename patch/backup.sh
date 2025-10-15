@@ -42,8 +42,6 @@ backup() {
   echo ""
   echo "Backing up MCloud Agent related files:"
   echo -n "    "
-  cp -av "zebrunner.sh" "$backup_dir_name/zebrunner.sh" 2>/dev/null || failed "cp for 'zebrunner.sh' failed"
-  echo -n "    "
   cp -av "defaults/main.yml" "$backup_dir_name/defaults/" 2>/dev/null || failed "cp for 'defaults/main.yml' failed"
   echo -n "    "
   cp -av "roles/download/tasks/main.yml" "$backup_dir_name/download/" 2>/dev/null || failed "cp for 'roles/download/tasks/main.yml' failed"
@@ -104,8 +102,6 @@ restore() {
 
   echo ""
   echo "Restoring from 'backup_dir_name':"
-  echo -n "    "
-  cp -av "$backup_dir_name/zebrunner.sh" "zebrunner.sh" 2>/dev/null || failed "cp for '$backup_dir_name/zebrunner.sh' failed"
   echo -n "    "
   cp -av "$backup_dir_name/defaults/main.yml" "defaults/" 2>/dev/null || failed "cp for '$backup_dir_name/defaults/main.yml' failed"
   echo -n "    "
