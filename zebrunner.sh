@@ -128,12 +128,6 @@ ansible() {
     exit 1
   fi
 
-  ### Check sudo permissions
-  ask_for_sudo || {
-    echo_warning "Sudo permissions are required to run this script!"
-    exit 1
-  }
-
   ### Check if the operating system is Linux or macOS
   delimiter "*"
   if [[ "$(uname)" == "Linux" ]]; then
@@ -158,9 +152,10 @@ ansible() {
   fi
 
   ### Run ansible with arguments
-  echo "ansible-playbook -i hosts $arg"
+  echo_warning "Sudo permissions are required to run this script!"
+  echo "ansible-playbook --ask-become-pass -i hosts $arg"
   delimiter "*"
-  ansible-playbook -i hosts $arg || {
+  ansible-playbook --ask-become-pass -i hosts $arg || {
     echo_warning "Ansible playbook execution failed!"
     echo_telegram
     exit 1
