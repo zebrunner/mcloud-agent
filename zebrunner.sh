@@ -153,9 +153,9 @@ ansible() {
 
   ### Run ansible with arguments
   echo_warning "Sudo permissions are required to run this script!"
-  echo "ansible-playbook --ask-become-pass -i hosts $arg"
+  echo "ansible-playbook --ask-become-pass --inventory hosts $arg"
   delimiter "*"
-  ansible-playbook --ask-become-pass -i hosts $arg || {
+  ansible-playbook --ask-become-pass --inventory hosts $arg || {
     echo_warning "Ansible playbook execution failed!"
     echo_telegram
     exit 1
