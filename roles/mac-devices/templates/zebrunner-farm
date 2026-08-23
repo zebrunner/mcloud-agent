@@ -211,6 +211,7 @@ function create_containers() {
       -e STF_PROVIDER_CONNECT_APP_DEALER={{ STF_PROVIDER_CONNECT_APP_DEALER }} \
       -e STF_PROVIDER_CONNECT_DEV_DEALER={{ STF_PROVIDER_CONNECT_DEV_DEALER }} \
       -e RETHINKDB_PORT_28015_TCP={{ STF_RETHINKDB }} \
+      -e STORAGE_TOKEN={{ STORAGE_TOKEN }} \
       {{ DEVICE_IMAGE }}:{{DEVICE_VERSION }} || echo 'already created'
 
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
