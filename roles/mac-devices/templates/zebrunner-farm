@@ -72,11 +72,18 @@ function create_containers() {
 
   cleanUdid=$(echo "$udid" | tr -d '-')
   connectedDevices=$(ioreg -p IOUSB -w0 -l 2> /dev/null)
-  if echo "$connectedDevices" | grep -q "$cleanUdid"; then
-    echo -e "\nDevice with udid: '$cleanUdid' was SUCCESSFULLY detected as connected."
+  local wireless=$(cat ${devices} | grep "$udid" | cut -d '|' -f 11)
+
+  if [ "$wireless" == "true" ]; then
+    echo -e "\nDevice with udid: '$cleanUdid' is wireless, skipping USB presence check."
   else
-    echo -e "\nDevice with udid: '$cleanUdid' was NOT detected as connected. The containers will not be created."
-    return 1
+    connectedDevices=$(ioreg -p IOUSB -w0 -l 2> /dev/null)
+    if echo "$connectedDevices" | grep -q "$cleanUdid"; then
+      echo -e "\nDevice with udid: '$cleanUdid' was SUCCESSFULLY detected as connected."
+    else
+      echo -e "\nDevice with udid: '$cleanUdid' was NOT detected as connected. The containers will not be created."
+      return 1
+    fi
   fi
 
   #verify if device containers already exist and do nothing then
