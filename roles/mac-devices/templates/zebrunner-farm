@@ -74,7 +74,7 @@ function create_containers() {
   connectedDevices=$(ioreg -p IOUSB -w0 -l 2> /dev/null)
   local wireless=$(cat ${devices} | grep "$udid" | cut -d '|' -f 11)
 
-  if [ "$wireless" == "True" ]; then
+  if [ "$wireless" == "true" ]; then
     echo -e "\nDevice with udid: '$cleanUdid' is wireless, skipping USB presence check."
   else
     connectedDevices=$(ioreg -p IOUSB -w0 -l 2> /dev/null)
@@ -208,7 +208,7 @@ function create_containers() {
     # ${arr[@]+"${arr[@]}"} is the portable form and preserves element quoting.
     local wda_link_args=()
     local wda_env_args=(-e WDA_HOST=connector -e WDA_PORT=8100)
-    if [ "$wireless" == "True" ]; then
+    if [ "$wireless" == "true" ]; then
       if [ -z "$wda_host" ]; then
         echo "ERROR! device $udid has wireless=true but no wda_host in field 14 of mcloud-devices.txt"
         echo "       A wireless device cannot be reached without a published WebDriverAgent endpoint."
@@ -226,7 +226,7 @@ function create_containers() {
     # The connector exists purely to share usbmuxd into the other containers. A
     # wireless device has no usbmuxd path, so it is skipped entirely rather than
     # started and left failing.
-    if [ "$wireless" != "True" ]; then
+    if [ "$wireless" != "true" ]; then
       echo -n "device-${device_name_underscored}-${udid}-connector:  "
       docker run -itd --name device-${device_name_underscored}-${udid}-connector \
         --log-driver=local \
