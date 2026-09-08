@@ -72,7 +72,7 @@ function create_containers() {
   local STF_DEVICE_UDID=${udid}
   local DEVICE_ARG=--device=/dev/device-${device_name_underscored}-${udid}:${usb_bus}
 
-  if [ "$wireless" = "True" ]; then
+  if [ "$wireless" = "true" ]; then
     # provide ANDROID_DEVICE with 5555 port to trigger remote adb connect on appium startup
     ANDROID_DEVICE=$udid:5555
     # append 5555 port to be able to rename device in STF
@@ -375,7 +375,7 @@ function stop() {
       #echo "udid: $udid"
       local wireless=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 11)
 
-      if [ -L "/dev/device-${device_name}-${udid}" ] || [ "$wireless" == "True" ]; then
+      if [ -L "/dev/device-${device_name}-${udid}" ] || [ "$wireless" == "true" ]; then
         stop_containers ${device_name_underscored} ${udid}
       fi
     done < ${devices}
@@ -529,7 +529,7 @@ function verify_containers() {
   local wireless=$(cat ${devices} | grep "$udid" | cut -d '|' -f 11)
 
   local container=device-$device-$udid
-  if [ ! -L "/dev/$container" ] && [ "$wireless" != "True" ]; then
+  if [ ! -L "/dev/$container" ] && [ "$wireless" != "true" ]; then
     echo -e "$container\n\nDISCONNECTED\n"
   else
     echo -e "$container\n"
@@ -607,7 +607,7 @@ function start() {
       local udid=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 1)
       #echo "udid: $udid"
       local wireless=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 11)
-      if [ -L "/dev/device-${device_name}-${udid}" ] || [ "$wireless" == "True" ]; then
+      if [ -L "/dev/device-${device_name}-${udid}" ] || [ "$wireless" == "true" ]; then
         create_containers "${device_name}" "${udid}" "${device_name_underscored}" && start_containers "${device_name}" "${udid}" "${device_name_underscored}"
         echo -e "\n-----------------------------------------------------------------"
       fi

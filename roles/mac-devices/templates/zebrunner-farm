@@ -72,11 +72,18 @@ function create_containers() {
 
   cleanUdid=$(echo "$udid" | tr -d '-')
   connectedDevices=$(ioreg -p IOUSB -w0 -l 2> /dev/null)
-  if echo "$connectedDevices" | grep -q "$cleanUdid"; then
-    echo -e "\nDevice with udid: '$cleanUdid' was SUCCESSFULLY detected as connected."
+  local wireless=$(cat ${devices} | grep "$udid" | cut -d '|' -f 11)
+
+  if [ "$wireless" == "true" ]; then
+    echo -e "\nDevice with udid: '$cleanUdid' is wireless, skipping USB presence check."
   else
-    echo -e "\nDevice with udid: '$cleanUdid' was NOT detected as connected. The containers will not be created."
-    return 1
+    connectedDevices=$(ioreg -p IOUSB -w0 -l 2> /dev/null)
+    if echo "$connectedDevices" | grep -q "$cleanUdid"; then
+      echo -e "\nDevice with udid: '$cleanUdid' was SUCCESSFULLY detected as connected."
+    else
+      echo -e "\nDevice with udid: '$cleanUdid' was NOT detected as connected. The containers will not be created."
+      return 1
+    fi
   fi
 
   #verify if device containers already exist and do nothing then
@@ -121,6 +128,22 @@ function create_containers() {
   #echo "stf_min_port: $stf_min_port"
 
   local stf_max_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 10)
+
+  # Field 11 - 'wireless'.
+  # Marks a device with NO usb path, reached over a network tunnel maintained
+  # outside this script (for example an Apple TV 4K, which has no diagnostic port at
+  # all, reached over Apple's RemoteXPC tunnel). The field has existed in
+  # mcloud-devices.txt since it was introduced but was never read; 'false' keeps
+  # every existing row behaving exactly as before.
+  local wireless=$(cat ${devices} | grep "$udid" | cut -d '|' -f 11)
+
+  # Fields 14 / 15 - 'wda_host' and 'wda_port'.
+  # Where WebDriverAgent is reachable for a WIRELESS device. The tunnel owner on the
+  # host publishes WDA on a routable TCP endpoint and these point at it. For a usb
+  # device both stay empty: the connector container owns WDA and is reached over a
+  # docker --link instead.
+  local wda_host=$(cat ${devices} | grep "$udid" | cut -d '|' -f 14)
+  local wda_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 15)
   #echo "stf_max_port: $stf_max_port"
 
   local net={{ STF_DOCKER_NETWORK }}
@@ -166,23 +189,62 @@ function create_containers() {
     fi
     echo -e "wdaBundleId: $wdaBundleId\n"
 
-    echo -n "device-${device_name_underscored}-${udid}-connector:  "
-    docker run -itd --name device-${device_name_underscored}-${udid}-connector \
-      --log-driver=local \
-      --log-opt max-size=256m \
-      --log-opt max-file=2 \
-      --net=${net} \
-      --restart on-failure:{{ RESTARTS_LIMIT }} $DEVICE_ARG \
-      -e USBMUXD_SOCKET_ADDRESS={{ USBMUXD_SOCKET_ADDRESS }} \
-      -e HOST_OS=DARWIN \
-      -e DEVICE_BUS=$usb_bus \
-      -e WDA_BUNDLEID=$wdaBundleId \
-      -e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
-      -v ${wdaIpaPath}:/tmp/zebrunner/WebDriverAgent.ipa \
-      -v device-${device_name_underscored}-${udid}-lockdown:/var/lib/lockdown \
-      -v device-${device_name_underscored}-${udid}:/tmp/log \
-      -e DEVICE_UDID=$udid \
-      {{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }} || echo 'already created'
+    # How the device and appium containers reach WebDriverAgent is the only thing
+    # that differs for a wireless device:
+    #
+    #   usb      - the connector container owns WDA. Containers --link to it and
+    #              address it as host 'connector' (the historical behaviour).
+    #   wireless - WDA is published by the tunnel owner on the host. There is no
+    #              connector container to link, so WDA_HOST/WDA_PORT address it
+    #              directly. WIRELESS=true additionally tells the device and appium
+    #              containers to skip their usbmuxd clients, which cannot work here.
+    #
+    # No change is needed in the appium image: it already builds
+    # 'appium:webDriverAgentUrl' as http://${WDA_HOST}:${WDA_PORT} (see
+    # zbr-default-caps-gen.sh), so pointing those two variables elsewhere is enough.
+    #
+    # NOTE on the expansion form used below: macOS ships bash 3.2, where
+    # "${arr[@]}" on an EMPTY array is an unbound-variable error under `set -u`.
+    # ${arr[@]+"${arr[@]}"} is the portable form and preserves element quoting.
+    local wda_link_args=()
+    local wda_env_args=(-e WDA_HOST=connector -e WDA_PORT=8100)
+    if [ "$wireless" == "true" ]; then
+      if [ -z "$wda_host" ]; then
+        echo "ERROR! device $udid has wireless=true but no wda_host in field 14 of mcloud-devices.txt"
+        echo "       A wireless device cannot be reached without a published WebDriverAgent endpoint."
+        return 1
+      fi
+      if [ -z "$wda_port" ]; then
+        wda_port=8100
+      fi
+      echo "wireless device: WDA at ${wda_host}:${wda_port} (no connector container)"
+      wda_env_args=(-e WDA_HOST=$wda_host -e WDA_PORT=$wda_port -e WIRELESS=true)
+    else
+      wda_link_args=(--link device-${device_name_underscored}-${udid}-connector:connector)
+    fi
+
+    # The connector exists purely to share usbmuxd into the other containers. A
+    # wireless device has no usbmuxd path, so it is skipped entirely rather than
+    # started and left failing.
+    if [ "$wireless" != "true" ]; then
+      echo -n "device-${device_name_underscored}-${udid}-connector:  "
+      docker run -itd --name device-${device_name_underscored}-${udid}-connector \
+        --log-driver=local \
+        --log-opt max-size=256m \
+        --log-opt max-file=2 \
+        --net=${net} \
+        --restart on-failure:{{ RESTARTS_LIMIT }} $DEVICE_ARG \
+        -e USBMUXD_SOCKET_ADDRESS={{ USBMUXD_SOCKET_ADDRESS }} \
+        -e HOST_OS=DARWIN \
+        -e DEVICE_BUS=$usb_bus \
+        -e WDA_BUNDLEID=$wdaBundleId \
+        -e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
+        -v ${wdaIpaPath}:/tmp/zebrunner/WebDriverAgent.ipa \
+        -v device-${device_name_underscored}-${udid}-lockdown:/var/lib/lockdown \
+        -v device-${device_name_underscored}-${udid}:/tmp/log \
+        -e DEVICE_UDID=$udid \
+        {{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }} || echo 'already created'
+    fi
 
     # Linking with apppium required to share usbmuxd via socat
     echo -n "device-${device_name_underscored}-${udid}:            "
@@ -192,8 +254,8 @@ function create_containers() {
       --log-opt max-file=2 \
       --net=${net} \
       --restart on-failure:{{ RESTARTS_LIMIT }} \
-      --link device-${device_name_underscored}-${udid}-connector:connector \
-      -e WDA_HOST=connector \
+      ${wda_link_args[@]+"${wda_link_args[@]}"} \
+      ${wda_env_args[@]+"${wda_env_args[@]}"} \
       -e WDA_WAIT_TIMEOUT=60 \
       -e PLATFORM_NAME=$platform_name \
       -e STF_PROVIDER_DEVICE_NAME="${device_name}" \
@@ -224,8 +286,8 @@ function create_containers() {
       --net=${net} \
       --restart on-failure:{{ RESTARTS_LIMIT }} $DEVICE_ARG \
       --link device-${device_name_underscored}-${udid}:device \
-      --link device-${device_name_underscored}-${udid}-connector:connector \
-      -e WDA_HOST=connector \
+      ${wda_link_args[@]+"${wda_link_args[@]}"} \
+      ${wda_env_args[@]+"${wda_env_args[@]}"} \
       -v appium-storage-volume:/opt/appium-storage \
       -v device-${device_name_underscored}-${udid}:/tmp/log \
       -e TASK_LOG=/tmp/log/appium.log \
