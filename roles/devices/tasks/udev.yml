@@ -88,6 +88,10 @@
     group: root
   tags: [devices, files]
 
+# WARNING: udevadm control --reload only re-reads the rules file.
+#      It does NOT reapply rules to already-connected devices.
+#      Re-plug affected devices manually, or run:
+#      zebrunner-farm restart <device_udid>
 - name: Reload udev rules
   command: udevadm control --reload
   register: udev_reload
