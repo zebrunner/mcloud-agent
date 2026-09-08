@@ -33,6 +33,10 @@ STF_PROVIDER_NAME: mcloud-macos
 # [OPTIONAL] STF integration settings to move devices into Unhealthy state
 STF_API_URL:
 STF_AUTH_TOKEN:
+# Shared token the provider sends (x-stf-internal-token) so device screenshot uploads and app-install blob fetches pass
+# the authenticated STF storage routes.
+# MUST match STF_STORAGE_TOKEN in the STF server's variables.env.
+STF_STORAGE_TOKEN:
 
 # [OPTIONAL] S3 compatible storage for video recordings.
 S3_BUCKET:
