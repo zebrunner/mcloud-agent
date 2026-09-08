@@ -30,13 +30,19 @@
     all_names: "{{ devices | map(attribute='name') | list }}"
   tags: [devices, precheck, dedup]
 
-- name: Find duplicate device IDs
+- name: Count occurrences of each device id
   set_fact:
-    dup_ids: "{{ dup_ids + [item] }}"
-  loop: "{{ all_ids | unique }}"
-  when: all_ids | select('equalto', item) | list | length > 1
+    id_counts: "{{ id_counts | default({}) | combine({item: (id_counts | default({}) )[item] | default(0) + 1}) }}"
+  loop: "{{ all_ids }}"
+  tags: [devices, precheck, dedup]
 
-- name: Find duplicate device names
+- name: Count occurrences of each device name
+  set_fact:
+    name_counts: "{{ name_counts | default({}) | combine({item: (name_counts | default({}))[item] | default(0) + 1}) }}"
+  loop: "{{ all_names }}"
+  tags: [devices, precheck, dedup]
+
+- name: Determine duplicate ids
   set_fact:
     dup_ids: "{{ id_counts | dict2items | selectattr('value', '>', 1) | map(attribute='key') | list }}"
   tags: [devices, precheck, dedup]
