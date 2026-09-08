@@ -3,9 +3,9 @@
 - name: Check OS compatibility
   assert:
     that:
-      - ansible_system == "Linux"
+      - ansible_facts['system'] == "Linux"
     fail_msg: "OS version is not compatible! This playbook supports Linux only."
-    success_msg: "OS is compatible: {{ ansible_system }}"
+    success_msg: "OS is compatible: {{ ansible_facts['system'] }}"
   tags: [devices, precheck]
 
 - name: Check setup completion
@@ -38,9 +38,13 @@
 
 - name: Find duplicate device names
   set_fact:
-    dup_names: "{{ dup_names + [item] }}"
-  loop: "{{ all_names | unique }}"
-  when: all_names | select('equalto', item) | list | length > 1
+    dup_ids: "{{ id_counts | dict2items | selectattr('value', '>', 1) | map(attribute='key') | list }}"
+  tags: [devices, precheck, dedup]
+
+- name: Determine duplicate names
+  set_fact:
+    dup_names: "{{ name_counts | dict2items | selectattr('value', '>', 1) | map(attribute='key') | list }}"
+  tags: [devices, precheck, dedup]
 
 - name: Check for duplicate device IDs or names
   assert:
