@@ -3,15 +3,6 @@
 DEVICE_IMAGE: public.ecr.aws/zebrunner/mcloud-device
 DEVICE_VERSION: 3.0-hardening-2026.08
 
-# [OBLIGATORY] Shared token the provider sends (x-stf-internal-token) so device
-# screenshot uploads and app-install blob fetches pass the authenticated STF
-# storage routes. MUST match STORAGE_TOKEN in the STF server's variables.env.
-# Defined here (lowest precedence) so it applies to both the devices and
-# mac-devices roles; override per host in roles/*/vars/main.yml only if needed.
-# Sourced from the environment: this file is tracked in git, so the value must
-# never be written here. Export STORAGE_TOKEN before running the playbook.
-STORAGE_TOKEN: "{{ lookup('env', 'STORAGE_TOKEN') }}"
-
 APPIUM_IMAGE: public.ecr.aws/zebrunner/appium
 APPIUM_VERSION: 2.1
 
