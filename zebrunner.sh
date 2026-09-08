@@ -190,7 +190,16 @@ status() {
     echo "Go-ios tool path:                 $(which ios 2>/dev/null || failed "'ios' not found")"
     echo ""
     echo "Deployed launchctl Zebrunner files:"
-    ls "$HOME/Library/LaunchAgents" 2>/dev/null | grep -i zebrunner || failed "No deployed Zebrunner plist files found"
+    shopt -s nullglob nocaseglob
+    plists=("$HOME/Library/LaunchAgents"/*zebrunner*)
+    shopt -u nullglob nocaseglob
+    if (( ${#plists[@]} == 0 )); then
+      failed "No deployed Zebrunner plist files found"
+    else
+      for f in "${plists[@]}"; do
+        echo "$f"
+      done
+    fi
     echo ""
     echo "Loaded launchctl Zebrunner jobs:"
     launchctl list | grep -i zebrunner || failed "No loaded Zebrunner jobs found"
@@ -239,11 +248,20 @@ shutdown() {
     delimiter "*"
 
     echo "Found Zebrunner launchctl files:"
-    ls "$HOME/Library/LaunchAgents" | grep -i zebrunner || echo "No Zebrunner plist files found"
+    shopt -s nullglob nocaseglob
+    plists=("$HOME/Library/LaunchAgents"/*zebrunner*)
+    shopt -u nullglob nocaseglob
+    if (( ${#plists[@]} == 0 )); then
+      failed "No Zebrunner plist files found"
+    else
+      for f in "${plists[@]}"; do
+        echo "$f"
+      done
+    fi
 
     delimiter "*"
     echo "Found loaded Zebrunner plists:"
-    launchctl list | grep -i zebrunner || echo "No loaded Zebrunner plists found"
+    launchctl list | grep -i zebrunner || failed "No loaded Zebrunner plists found"
 
     delimiter "*"
     echo "Unloading and removing ZebrunnerDevicesListener.plist launchctl file:"
@@ -251,13 +269,13 @@ shutdown() {
       if launchctl bootout gui/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist" 2>/dev/null; then
         echo "ZebrunnerDevicesListener.plist unloaded successfully"
       else
-        echo "Failed to unload 'ZebrunnerDevicesListener.plist', it might be not loaded"
+        failed "Failed to unload 'ZebrunnerDevicesListener.plist', it might be not loaded"
       fi
       echo ""
       echo "Removing ZebrunnerDevicesListener.plist file:"
       rm -vf "$HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
     else
-      echo "ZebrunnerDevicesListener.plist file not found"
+      failed "ZebrunnerDevicesListener.plist file not found"
     fi
 
     delimiter "*"
@@ -266,13 +284,13 @@ shutdown() {
       if launchctl bootout gui/"$(id -u)" "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" 2>/dev/null; then
         echo "ZebrunnerUsbmuxd.plist unloaded successfully"
       else
-        echo "Failed to unload 'ZebrunnerUsbmuxd.plist', it might be not loaded"
+        failed "Failed to unload 'ZebrunnerUsbmuxd.plist', it might be not loaded"
       fi
       echo ""
       echo "Removing ZebrunnerUsbmuxd.plist file:"
       rm -vf "$HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
     else
-      echo "ZebrunnerUsbmuxd.plist file not found"
+      failed "ZebrunnerUsbmuxd.plist file not found"
     fi
   fi
 
@@ -297,7 +315,7 @@ shutdown() {
   if command -v zebrunner-farm >/dev/null 2>&1; then
     zebrunner-farm down
   else
-    echo "Can't find 'zebrunner-farm' executable file"
+    failed "Can't find 'zebrunner-farm' executable file"
   fi
 
   delimiter "*"
@@ -305,7 +323,7 @@ shutdown() {
   if docker volume ls | grep -q "appium-storage-volume"; then
     docker volume rm appium-storage-volume
   else
-    echo "Volume 'appium-storage-volume' not found"
+    failed "Volume 'appium-storage-volume' not found"
   fi
 
   ### Remove files
@@ -349,10 +367,10 @@ echo_help() {
          setup                Prepare MCloud Agent environment
          ansible ['devices']  Deploy MCloud Agent with custom or predefined args
          status               Status of MCloud Agent deployment
-      	 backup               Backup MCloud Agent setup
-      	 restore              Restore MCloud Agent setup
-      	 shutdown             Stop and remove MCloud Agent containers, clear volumes and environment
-      	 version              Version of MCloud Agent components"
+         backup               Backup MCloud Agent setup
+         restore              Restore MCloud Agent setup
+         shutdown             Stop and remove MCloud Agent containers, clear volumes and environment
+         version              Version of MCloud Agent components"
   echo_telegram
   delimiter
 }
@@ -365,7 +383,7 @@ ansible)
   ansible "${@:2}"
   ;;
 status)
-  status $2
+  status "$2"
   ;;
 backup)
   backup
