@@ -12,7 +12,7 @@
   assert:
     that:
       - lookup('file', 'roles/devices/vars/main.yml', errors='ignore') is not none
-    fail_msg: "You have to setup services in advance using: ./zebrunner.sh setup!"
+    fail_msg: "You have to set up services in advance using: ./zebrunner.sh setup!"
     success_msg: "Setup is ready: 'roles/devices/vars/main.yml' exists."
   tags: [devices, precheck]
 
@@ -20,7 +20,7 @@
   assert:
     that:
       - lookup('env','ZEBRUNNER_MCLOUD_AGENT_DIR') is not none
-    fail_msg: "You have to setup 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable in advance!"
+    fail_msg: "You have to set up 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable in advance!"
     success_msg: "'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable is defined."
   tags: [devices, precheck]
 
