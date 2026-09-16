@@ -235,6 +235,7 @@ function create_containers() {
       -e DEVICE_BUS="$usb_bus" \
       -e WDA_BUNDLEID="$wdaBundleId" \
       -e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
+      -v devimages_cache:/opt/zebrunner/devimages \
       -v "$wdaIpaPath":/tmp/zebrunner/WebDriverAgent.ipa \
       -v "device-${device_name_underscored}-${udid}-lockdown":/var/lib/lockdown \
       -v "device-${device_name_underscored}-${udid}":/tmp/log \
