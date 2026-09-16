@@ -180,14 +180,14 @@ status() {
   echo ""
   echo "Ansible-playbook info:            $(ansible-playbook --version 2>/dev/null | head -n 1 || failed "'ansible-playbook' not found")"
   echo ""
-  echo "Zebrunner-farm script path:       $(which zebrunner-farm 2>/dev/null || failed "'zebrunner-farm' not found")"
+  echo "Zebrunner-farm script:            $(which zebrunner-farm 2>/dev/null || failed "'zebrunner-farm' not found")"
   echo ""
   if [[ "$os" == "Darwin" ]]; then
-    echo "Socat tool path:                  $(which socat 2>/dev/null || failed "'socat' not found")"
+    echo "Socat tool:                       $(which socat 2>/dev/null || failed "'socat' not found")"
     echo ""
-    echo "Jq tool path:                     $(which jq 2>/dev/null || failed "'jq' not found")"
+    echo "Jq tool:                          $(which jq 2>/dev/null || failed "'jq' not found")"
     echo ""
-    echo "Go-ios tool path:                 $(which ios 2>/dev/null || failed "'ios' not found")"
+    echo "Go-ios tool:                      $(which ios 2>/dev/null || failed "'ios' not found")"
     echo ""
     echo "Deployed launchctl Zebrunner files:"
     shopt -s nullglob nocaseglob
@@ -216,7 +216,7 @@ status() {
     echo "90_mcloud.rules:                  $(ls /etc/udev/rules.d/90_mcloud.rules 2>/dev/null || failed "File not found")"
     echo ""
   fi
-  echo "mcloud-devices.txt path:          $(ls "/usr/local/bin/mcloud-devices.txt" 2>/dev/null || failed "File not found")"
+  echo "mcloud-devices.txt:               $(ls "/usr/local/bin/mcloud-devices.txt" 2>/dev/null || failed "File not found")"
   echo ""
   echo "defaults/main.yml:                $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/defaults/main.yml" 2>/dev/null || failed "File not found")"
 
