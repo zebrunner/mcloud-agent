@@ -520,7 +520,7 @@ function verify_containers() {
     local stfStatus="UNKNOWN"
     local stfUptime="UNKNOWN"
     local stfRestarts="UNKNOWN"
-    #verify if device containers already exist and do nothing then
+    # verify if device containers already exist and do nothing then
     if grep -v appium <<< "$ps_out" | grep -q "$container"; then
       stfState="$(detect_state "$container")"
       stfStatus="$(detect_status "$container")"
