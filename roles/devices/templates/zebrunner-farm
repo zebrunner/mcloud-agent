@@ -520,7 +520,7 @@ function verify_containers() {
     local stfStatus="UNKNOWN"
     local stfUptime="UNKNOWN"
     local stfRestarts="UNKNOWN"
-    # verify if device containers already exist and do nothing then
+
     if grep -v appium <<< "$ps_out" | grep -q "$container"; then
       stfState="$(detect_state "$container")"
       stfStatus="$(detect_status "$container")"
@@ -563,10 +563,10 @@ function verify_containers() {
 
     echo -e ",| Container,| State,| Status,| Uptime,| Restarts,|
 ,| ---------,| ---------,| ---------,| ---------,| ---------,|
-,| Connector,| $connectorState,| $connectorStatus,| $connectorUptime,| $connectorRestarts,|
-,| Appium,| $appiumState,| $appiumStatus,| $appiumUptime,| $appiumRestarts,|
-,| STF,| $stfState,| $stfStatus,| $stfUptime,| $stfRestarts,|
-,| Uploader,| $uploaderState,| $uploaderStatus,| $uploaderUptime,| $uploaderRestarts,|" | column -t -s ','
+,| Connector,| ${connectorState},| ${connectorStatus},| ${connectorUptime},| ${connectorRestarts},|
+,| Appium,| ${appiumState},| ${appiumStatus},| ${appiumUptime},| ${appiumRestarts},|
+,| STF,| ${stfState},| ${stfStatus},| ${stfUptime},| ${stfRestarts},|
+,| Uploader,| ${uploaderState},| ${uploaderStatus},| ${uploaderUptime},| ${uploaderRestarts},|" | column -t -s ','
 
   fi
   echo -e "==============================================================\n"
