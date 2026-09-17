@@ -23,7 +23,10 @@ function create_containers() {
   fi
 
   local current_device
-  current_device="$(grep "$udid" "$MCLOUD_DEVICES")" || { failed "UDID ${udid} not found in ${MCLOUD_DEVICES}" >&2; return 1; }
+  current_device="$(grep "$udid" "$MCLOUD_DEVICES")" || {
+    failed "UDID ${udid} not found in ${MCLOUD_DEVICES}" >&2
+    return 1
+  }
 
   local IFS='|'
   local -a fields
@@ -61,7 +64,7 @@ function create_containers() {
     DEVICE_ARG=""
   else
     local cleanUdid
-    cleanUdid="$(echo "$udid" | tr -d '-')"
+    cleanUdid="${udid//-/})"
     local connectedDevices
     connectedDevices="$(lsusb -v 2> /dev/null)"
     if grep -q "$cleanUdid" <<< "$connectedDevices"; then
@@ -595,14 +598,14 @@ function start() {
   else
     while read -r line; do
       local device_name
-      device_name="$(echo "$line" | grep "$filter_device" | cut -d '|' -f 3)"
+      device_name="$(grep "$filter_device" <<< "$line" | cut -d '|' -f 3)"
       local device_name_underscored
       device_name_underscored="${device_name// /_}"
 
       local udid
-      udid="$(echo "$line" | grep "$filter_device" | cut -d '|' -f 1)"
+      udid="$(grep "$filter_device" <<< "$line" | cut -d '|' -f 1)"
       local wireless
-      wireless="$(echo "$line" | grep "$filter_device" | cut -d '|' -f 11)"
+      wireless="$(grep "$filter_device" <<< "$line" | cut -d '|' -f 11)"
       if [ -L "/dev/device-${device_name}-${udid}" ] || [ "$wireless" == "true" ]; then
         create_containers "$device_name" "$udid" "$device_name_underscored" && \
           start_containers "$device_name" "$udid" "$device_name_underscored"
@@ -641,11 +644,11 @@ function status() {
   else
     while read -r line; do
       local device_name
-      device_name="$(echo "$line" | grep "$filter_device" | cut -d '|' -f 3)"
+      device_name="$(grep "$filter_device" <<< "$line" | cut -d '|' -f 3)"
       local device_name_underscored
       device_name_underscored="${device_name// /_}"
       local udid
-      udid="$(echo "$line" | grep "$filter_device" | cut -d '|' -f 1)"
+      udid="$(grep "$filter_device" <<< "$line" | cut -d '|' -f 1)"
       if [ -z "$udid" ]; then
         continue
       fi
