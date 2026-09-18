@@ -63,14 +63,14 @@ function create_containers() {
     # reset device arg as no symlink generated for the wireless device
     DEVICE_ARG=""
   else
-    local cleanUdid
-    cleanUdid="${udid//-/})"
-    local connectedDevices
-    connectedDevices="$(lsusb -v 2> /dev/null)"
-    if grep -q "$cleanUdid" <<< "$connectedDevices"; then
-      succeed "\nDevice with udid: '${cleanUdid}' was SUCCESSFULLY detected as connected."
+    local clean_udid
+    clean_udid="${udid//-/}"
+    local connected_devices
+    connected_devices="$(lsusb -v 2> /dev/null)"
+    if grep -q "$clean_udid" <<< "$connected_devices"; then
+      succeed "\nDevice with udid: '${clean_udid}' was SUCCESSFULLY detected as connected."
     else
-      failed "\nDevice with udid: '${cleanUdid}' was NOT detected as connected. The containers will not be created."
+      failed "\nDevice with udid: '${clean_udid}' was NOT detected as connected. The containers will not be created."
       return 1
     fi
   fi
@@ -200,28 +200,28 @@ function create_containers() {
 
   elif [ "$platform_name" == "ios" ]; then
 
-    local wdaIpaPath="{{ WDA_FILE }}"
-    local deviceWdaIpaPath="${fields[11]}"
+    local wda_ipa_path="{{ WDA_FILE }}"
+    local device_wda_ipa_path="${fields[11]}"
 
-    if [ -n "$deviceWdaIpaPath" ] && [ ! "$deviceWdaIpaPath" == "/dev/null" ]; then
-      wdaIpaPath="$deviceWdaIpaPath"
+    if [ -n "$device_wda_ipa_path" ] && [ ! "$device_wda_ipa_path" == "/dev/null" ]; then
+      wda_ipa_path="$device_wda_ipa_path"
     fi
-    if [ -z "$wdaIpaPath" ]; then
+    if [ -z "$wda_ipa_path" ]; then
       # unable to use empty value for docker volume share!
-      wdaIpaPath="/dev/null"
+      wda_ipa_path="/dev/null"
     fi
-    echo "wdaIpaPath: $wdaIpaPath"
+    echo "wda_ipa_path: $wda_ipa_path"
 
-    local wdaBundleId="{{ WDA_BUNDLEID }}"
-    local deviceWdaBundleId="${fields[12]}"
+    local wda_bundle_id="{{ WDA_BUNDLEID }}"
+    local device_wda_bundle_id="${fields[12]}"
 
-    if [ -n "$deviceWdaBundleId" ]; then
-      wdaBundleId="$deviceWdaBundleId"
+    if [ -n "$device_wda_bundle_id" ]; then
+      wda_bundle_id="$device_wda_bundle_id"
     else
       # provide default value if empty
-      wdaBundleId="com.facebook.WebDriverAgentRunner.xctrunner"
+      wda_bundle_id="com.facebook.WebDriverAgentRunner.xctrunner"
     fi
-    echo -e "wdaBundleId: ${wdaBundleId}\n"
+    echo -e "wda_bundle_id: ${wda_bundle_id}\n"
 
     echo -n "device-${device_name_underscored}-${udid}-connector:  "
     docker run -itd --name "device-${device_name_underscored}-${udid}-connector" \
@@ -236,10 +236,10 @@ function create_containers() {
       --device=/dev/net/tun \
       -e HOST_OS=LINUX \
       -e DEVICE_BUS="$usb_bus" \
-      -e WDA_BUNDLEID="$wdaBundleId" \
+      -e WDA_BUNDLEID="$wda_bundle_id" \
       -e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
       -v devimages_cache:/opt/zebrunner/devimages \
-      -v "$wdaIpaPath":/tmp/zebrunner/WebDriverAgent.ipa \
+      -v "$wda_ipa_path":/tmp/zebrunner/WebDriverAgent.ipa \
       -v "device-${device_name_underscored}-${udid}-lockdown":/var/lib/lockdown \
       -v "device-${device_name_underscored}-${udid}":/tmp/log \
       -e DEVICE_UDID="$STF_DEVICE_UDID" \
@@ -466,20 +466,20 @@ function remove_containers() {
 }
 
 function detect_uptime() {
-  local startedAt
-  startedAt="$(docker inspect --format='{{ '{{' }}.State.StartedAt{{ '}}' }}' "$1")"
-  local finishedAt
-  finishedAt="$(docker inspect --format='{{ '{{' }}.State.FinishedAt{{ '}}' }}' "$1")"
-  local startedAtEpoch
-  startedAtEpoch="$(date -d "$startedAt" "+%s")"
-  local finishedAtEpoch
-  finishedAtEpoch="$(date -d "$finishedAt" "+%s")"
+  local started_at
+  started_at="$(docker inspect --format='{{ '{{' }}.State.StartedAt{{ '}}' }}' "$1")"
+  local finished_at
+  finished_at="$(docker inspect --format='{{ '{{' }}.State.FinishedAt{{ '}}' }}' "$1")"
+  local started_at_epoch
+  started_at_epoch="$(date -d "$started_at" "+%s")"
+  local finished_at_epoch
+  finished_at_epoch="$(date -d "$finished_at" "+%s")"
   local uptime="UNKNOWN"
 
-  if [ "$startedAtEpoch" -gt "$finishedAtEpoch" ]; then
-    local currentTime="UNKNOWN"
-    currentTime="$(date "+%s")"
-    uptime="$(TZ=UTC date -d @"$((currentTime - startedAtEpoch))" "+%H:%M:%S")"
+  if [ "$started_at_epoch" -gt "$finished_at_epoch" ]; then
+    local current_time="UNKNOWN"
+    current_time="$(date "+%s")"
+    uptime="$(TZ=UTC date -d @"$((current_time - started_at_epoch))" "+%H:%M:%S")"
   fi
   echo "$uptime"
 }
@@ -519,57 +519,57 @@ function verify_containers() {
   else
     echo -e "${container}\n"
 
-    local stfState="UNKNOWN"
-    local stfStatus="UNKNOWN"
-    local stfUptime="UNKNOWN"
-    local stfRestarts="UNKNOWN"
+    local stf_state="UNKNOWN"
+    local stf_status="UNKNOWN"
+    local stf_uptime="UNKNOWN"
+    local stf_restarts="UNKNOWN"
 
     if grep -v appium <<< "$ps_out" | grep -q "$container"; then
-      stfState="$(detect_state "$container")"
-      stfStatus="$(detect_status "$container")"
-      stfUptime="$(detect_uptime "$container")"
-      stfRestarts="$(detect_restarts "$container")"
+      stf_state="$(detect_state "$container")"
+      stf_status="$(detect_status "$container")"
+      stf_uptime="$(detect_uptime "$container")"
+      stf_restarts="$(detect_restarts "$container")"
     fi
 
-    local appiumState="UNKNOWN"
-    local appiumStatus="UNKNOWN"
-    local appiumUptime="UNKNOWN"
-    local appiumRestarts="UNKNOWN"
+    local appium_state="UNKNOWN"
+    local appium_status="UNKNOWN"
+    local appium_uptime="UNKNOWN"
+    local appium_restarts="UNKNOWN"
     if grep appium <<< "$ps_out" | grep -q "$container"; then
-      appiumState="$(detect_state "${container}-appium")"
-      appiumStatus="$(detect_status "${container}-appium")"
-      appiumUptime="$(detect_uptime "${container}-appium")"
-      appiumRestarts="$(detect_restarts "${container}-appium")"
+      appium_state="$(detect_state "${container}-appium")"
+      appium_status="$(detect_status "${container}-appium")"
+      appium_uptime="$(detect_uptime "${container}-appium")"
+      appium_restarts="$(detect_restarts "${container}-appium")"
     fi
 
-    local connectorState="UNKNOWN"
-    local connectorStatus="UNKNOWN"
-    local connectorUptime="UNKNOWN"
-    local connectorRestarts="UNKNOWN"
+    local connector_state="UNKNOWN"
+    local connector_status="UNKNOWN"
+    local connector_uptime="UNKNOWN"
+    local connector_restarts="UNKNOWN"
     if grep connector <<< "$ps_out" | grep -q "$container"; then
-      connectorState="$(detect_state "${container}-connector")"
-      connectorStatus="$(detect_status "${container}-connector")"
-      connectorUptime="$(detect_uptime "${container}-connector")"
-      connectorRestarts="$(detect_restarts "${container}-connector")"
+      connector_state="$(detect_state "${container}-connector")"
+      connector_status="$(detect_status "${container}-connector")"
+      connector_uptime="$(detect_uptime "${container}-connector")"
+      connector_restarts="$(detect_restarts "${container}-connector")"
     fi
 
-    local uploaderState="UNKNOWN"
-    local uploaderStatus="UNKNOWN"
-    local uploaderUptime="UNKNOWN"
-    local uploaderRestarts="UNKNOWN"
+    local uploader_state="UNKNOWN"
+    local uploader_status="UNKNOWN"
+    local uploader_uptime="UNKNOWN"
+    local uploader_restarts="UNKNOWN"
     if grep uploader <<< "$ps_out" | grep -q "$container"; then
-      uploaderState="$(detect_state "${container}-uploader")"
-      uploaderStatus="$(detect_status "${container}-uploader")"
-      uploaderUptime="$(detect_uptime "${container}-uploader")"
-      uploaderRestarts="$(detect_restarts "${container}-uploader")"
+      uploader_state="$(detect_state "${container}-uploader")"
+      uploader_status="$(detect_status "${container}-uploader")"
+      uploader_uptime="$(detect_uptime "${container}-uploader")"
+      uploader_restarts="$(detect_restarts "${container}-uploader")"
     fi
 
     echo -e ",| Container,| State,| Status,| Uptime,| Restarts,|
 ,| ---------,| ---------,| ---------,| ---------,| ---------,|
-,| Connector,| ${connectorState},| ${connectorStatus},| ${connectorUptime},| ${connectorRestarts},|
-,| Appium,| ${appiumState},| ${appiumStatus},| ${appiumUptime},| ${appiumRestarts},|
-,| STF,| ${stfState},| ${stfStatus},| ${stfUptime},| ${stfRestarts},|
-,| Uploader,| ${uploaderState},| ${uploaderStatus},| ${uploaderUptime},| ${uploaderRestarts},|" | column -t -s ','
+,| Connector,| ${connector_state},| ${connector_status},| ${connector_uptime},| ${connector_restarts},|
+,| Appium,| ${appium_state},| ${appium_status},| ${appium_uptime},| ${appium_restarts},|
+,| STF,| ${stf_state},| ${stf_status},| ${stf_uptime},| ${stf_restarts},|
+,| Uploader,| ${uploader_state},| ${uploader_status},| ${uploader_uptime},| ${uploader_restarts},|" | column -t -s ','
 
   fi
   echo -e "==============================================================\n"
