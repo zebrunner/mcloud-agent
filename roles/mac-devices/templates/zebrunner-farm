@@ -6,14 +6,15 @@ export COMPOSE_DOCKER_CLI_BUILD=0
 export DOCKER_DEFAULT_PLATFORM=linux/amd64
 
 # Load utility functions
-source "$ZEBRUNNER_MCLOUD_AGENT_DIR/patch/utility.sh"
+source "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/utility.sh"
 
-function on-usb-update() {
-  read
+MCLOUD_DEVICES="/usr/local/bin/mcloud-devices.txt"
+
+function on_usb_update() {
+  read -r
   while true; do
-    #process $REPLY
-    #The new line content is in the variable $REPLY
-    echo REPLY: $REPLY
+    #The new line content is in the variable "$REPLY"
+    echo "REPLY: ${REPLY}"
 
     # message on device connect
     # {"MessageType":"Attached","DeviceID":27,"Properties":{"ConnectionSpeed":480000000,"ConnectionType":"USB","DeviceID":27,"LocationID":336592896,"ProductID":4776,"SerialNumber":"b09fa26acc4c3f777e9b8b49e3348b7243f862b5"}}
@@ -22,112 +23,97 @@ function on-usb-update() {
     # {"MessageType":"Detached","DeviceID":27,"Properties":{"ConnectionSpeed":0,"ConnectionType":"","DeviceID":0,"LocationID":0,"ProductID":0,"SerialNumber":""}}
 
     # parse MessageType
-    action=$(echo $REPLY | jq -r ".MessageType")
-    #echo "action: $action"
+    action="$(echo "$REPLY" | jq -r ".MessageType")"
 
     if [[ "$action" == "Attached" ]]; then
-      echo REPLY: $REPLY
+      echo "REPLY: ${REPLY}"
       # parse udid and start services
-      udid=$(echo $REPLY | jq -r ".Properties.SerialNumber")
-      echo udid: $udid
+      udid="$(echo "$REPLY" | jq -r ".Properties.SerialNumber")"
+      echo "udid: ${udid}"
 
-      local devices=/usr/local/bin/mcloud-devices.txt
-      local device_name=$(cat ${devices} | grep "$udid" | cut -d '|' -f 3)
-      local device_name_underscored=${device_name// /_}
-      echo "device_name_underscored: $device_name_underscored"
-      if [ -z $device_name_underscored ]; then
-        echo "$udid device is not whitelisted in main.yml!"
+      local device_name
+      device_name="$(grep "$udid" "$MCLOUD_DEVICES" | cut -d '|' -f 3)"
+      local device_name_underscored
+      device_name_underscored="${device_name// /_}"
+      echo "device_name_underscored: ${device_name_underscored}"
+      if [ -z "$device_name_underscored" ]; then
+        echo "${udid} device is not whitelisted in main.yml!"
         break
       fi
 
-      verify_containers "${device_name_underscored}" "$udid"
-      if [ $? -eq 0 ]; then
-        echo "do nothing as state is valid (healthy or starting) for $device_name_underscored ($udid)"
+      verify_containers "$device_name_underscored" "$udid" && {
+        echo "do nothing as state is valid (healthy or starting) for ${device_name_underscored} (${udid})"
         return 0
-      fi
+      }
 
-      echo "zebrunner-farm restart $udid..."
-      zebrunner-farm restart $udid
+      echo "zebrunner-farm restart ${udid}..."
+      zebrunner-farm restart "$udid"
     fi
 
-    read
+    read -r
   done
 }
 
 function listen() {
   # do analysis of ios listen output and organize automatic start/stop for connected/disconnected device
-  ios listen | on-usb-update
+  ios listen | on_usb_update
 }
 
 function create_containers() {
-  local device_name=$1
-  #echo "device_name: $device_name"
+  local device_name="$1"
+  local udid="$2"
+  local device_name_underscored="$3"
+  local container="device-${device_name_underscored}-${udid}"
 
-  local udid=$2
-  #echo "udid: $udid"
-
-  local device_name_underscored=$3
-
-  local container=device-$device_name_underscored-$udid
-
-  cleanUdid=$(echo "$udid" | tr -d '-')
-  connectedDevices=$(ioreg -p IOUSB -w0 -l 2> /dev/null)
-  local wireless=$(cat ${devices} | grep "$udid" | cut -d '|' -f 11)
+  local clean_udid
+  clean_udid="${udid//-/}"
+  local connected_devices
+  connected_devices="$(ioreg -p IOUSB -w0 -l 2> /dev/null)"
+  local wireless
+  wireless="$(grep "$udid" "$MCLOUD_DEVICES" | cut -d '|' -f 11)"
 
   if [ "$wireless" == "true" ]; then
-    echo -e "\nDevice with udid: '$cleanUdid' is wireless, skipping USB presence check."
+    echo -e "\nDevice with udid: '${clean_udid}' is wireless, skipping USB presence check."
   else
-    connectedDevices=$(ioreg -p IOUSB -w0 -l 2> /dev/null)
-    if echo "$connectedDevices" | grep -q "$cleanUdid"; then
-      echo -e "\nDevice with udid: '$cleanUdid' was SUCCESSFULLY detected as connected."
+    connected_devices="$(ioreg -p IOUSB -w0 -l 2> /dev/null)"
+    if echo "$connected_devices" | grep -q "$clean_udid"; then
+      echo -e "\nDevice with udid: '${clean_udid}' was SUCCESSFULLY detected as connected."
     else
-      echo -e "\nDevice with udid: '$cleanUdid' was NOT detected as connected. The containers will not be created."
+      echo -e "\nDevice with udid: '${clean_udid}' was NOT detected as connected. The containers will not be created."
       return 1
     fi
   fi
 
-  #verify if device containers already exist and do nothing then
-  docker ps -a | grep -v appium | grep $container > /dev/null
-  local isDeviceExists=$?
-  #echo isDeviceExists: $isDeviceExists
+  local current_device
+  current_device="$(grep "$udid" "$MCLOUD_DEVICES")" || {
+    failed "UDID ${udid} not found in ${MCLOUD_DEVICES}" >&2
+    return 1
+  }
 
-  docker ps -a | grep appium | grep $container > /dev/null
-  local isAppiumExists=$?
-  #echo isAppiumExists: $isAppiumExists
-
-  docker ps -a | grep connector | grep $container > /dev/null
-  local isConnectorExists=$?
-  #echo isConnectorExists: $isConnectorExists
-
-  if [ $isDeviceExists -eq 0 ] && [ $isAppiumExists -eq 0 ] && [ $isConnectorExists -eq 0 ]; then
-    echo "WARN! do nothing as containers already exists!"
-    return 0
+  local ps_out
+  ps_out="$(docker ps -a)"
+  if grep -v appium <<< "$ps_out" | grep -q "$container" && \
+   grep appium      <<< "$ps_out" | grep -q "$container" && \
+   grep connector   <<< "$ps_out" | grep -q "$container" && \
+   grep uploader    <<< "$ps_out" | grep -q "$container"; then
+     warn "Do nothing as containers already exists!"
+     return 0
   fi
 
-  local devices=/usr/local/bin/mcloud-devices.txt
+  local IFS='|'
+  local -a fields
+  read -r -a fields <<< "$current_device"
+  unset IFS
 
-  local platform_name=$(cat ${devices} | grep "$udid" | cut -d '|' -f 2)
-  #echo "platform_name: $platform_name"
-
-  local location=$(cat ${devices} | grep "$udid" | cut -d '|' -f 4)
-  #echo "location: $location"
-
-  local appium_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 5)
-  #echo "appium_port: $appium_port"
-
-  local device_adb_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 6)
-  #echo "device_adb_port: $device_adb_port"
-
-  local proxy_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 7)
-  #echo "proxy_port: $proxy_port"
-
-  local server_proxy_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 8)
-  #echo "server_proxy_port: $server_proxy_port"
-
-  local stf_min_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 9)
-  #echo "stf_min_port: $stf_min_port"
-
-  local stf_max_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 10)
+  # We have 0 indexed array and that's why indexes of fields shifted by -1
+  local platform_name="${fields[1]}"
+  local location="${fields[3]}"
+  local appium_port="${fields[4]}"
+  local device_adb_port="${fields[5]}"
+  local proxy_port="${fields[6]}"
+  local server_proxy_port="${fields[7]}"
+  local stf_min_port="${fields[8]}"
+  local stf_max_port="${fields[9]}"
 
   # Field 11 - 'wireless'.
   # Marks a device with NO usb path, reached over a network tunnel maintained
@@ -135,59 +121,54 @@ function create_containers() {
   # all, reached over Apple's RemoteXPC tunnel). The field has existed in
   # mcloud-devices.txt since it was introduced but was never read; 'false' keeps
   # every existing row behaving exactly as before.
-  local wireless=$(cat ${devices} | grep "$udid" | cut -d '|' -f 11)
+  local wireless="${fields[10]}"
 
   # Fields 14 / 15 - 'wda_host' and 'wda_port'.
   # Where WebDriverAgent is reachable for a WIRELESS device. The tunnel owner on the
   # host publishes WDA on a routable TCP endpoint and these point at it. For a usb
   # device both stay empty: the connector container owns WDA and is reached over a
   # docker --link instead.
-  local wda_host=$(cat ${devices} | grep "$udid" | cut -d '|' -f 14)
-  local wda_port=$(cat ${devices} | grep "$udid" | cut -d '|' -f 15)
-  #echo "stf_max_port: $stf_max_port"
+  local wda_host="${fields[13]}"
+  local wda_port="${fields[14]}"
 
   local net={{ STF_DOCKER_NETWORK }}
 
-  docker network inspect ${net} > /dev/null 2>&1 || docker network create ${net}
+  docker network inspect "$net" > /dev/null 2>&1 || docker network create "$net"
 
-  echo -e "\n\tCreating '$udid' containers:\n"
+  echo -e "\n\tCreating '${udid}' containers:\n"
 
-  local S3_KEY_PATTERN=
+  local S3_KEY_PATTERN=""
   local TENANT={{ S3_TENANT }}
   local BUCKET={{ S3_BUCKET }}
-  if [ -z $TENANT ] && [ ! -z $BUCKET ]; then
-    # use-case with embedded minio storage
-    S3_KEY_PATTERN=s3://$BUCKET/artifacts/test-sessions
+  if [ -n "$BUCKET" ]; then
+    S3_KEY_PATTERN="s3://${BUCKET}${TENANT:+/${TENANT}}/artifacts/test-sessions"
   fi
 
-  if [ ! -z $TENANT ] && [ ! -z $BUCKET ]; then
-    S3_KEY_PATTERN=s3://$BUCKET/$TENANT/artifacts/test-sessions
-  fi
-
-  #echo platform_name: $platform_name
   if [ "$platform_name" == "ios" ]; then
 
-    local wdaIpaPath={{ WDA_FILE }}
-    local deviceWdaIpaPath=$(cat ${devices} | grep "$udid" | cut -d '|' -f 12)
-    if [ ! -z $deviceWdaIpaPath ] && [ ! "$deviceWdaIpaPath" == "/dev/null" ]; then
-      wdaIpaPath=$deviceWdaIpaPath
+    local wda_ipa_path={{ WDA_FILE }}
+    local device_wda_ipa_path
+    device_wda_ipa_path="$(grep "$udid" "$MCLOUD_DEVICES" | cut -d '|' -f 12)"
+    if [ -n "$device_wda_ipa_path" ] && [ ! "$device_wda_ipa_path" == "/dev/null" ]; then
+      wda_ipa_path="$device_wda_ipa_path"
     fi
-    if [ -z $wdaIpaPath ]; then
+    if [ -z "$wda_ipa_path" ]; then
       # unable to use empty value for docker volume share!
-      wdaIpaPath="/dev/null"
+      wda_ipa_path="/dev/null"
     fi
-    echo "wdaIpaPath: $wdaIpaPath"
+    echo "wda_ipa_path: ${wda_ipa_path}"
 
-    local wdaBundleId={{ WDA_BUNDLEID }}
-    local deviceWdaBundleId=$(cat ${devices} | grep "$udid" | cut -d '|' -f 13)
-    if [ ! -z $deviceWdaBundleId ]; then
-      wdaBundleId=$deviceWdaBundleId
+    local wda_bundle_id={{ WDA_BUNDLEID }}
+    local device_wda_bundle_id
+    device_wda_bundle_id="$(grep "$udid" "$MCLOUD_DEVICES" | cut -d '|' -f 13)"
+    if [ -n "$device_wda_bundle_id" ]; then
+      wda_bundle_id="$device_wda_bundle_id"
     fi
-    if [ -z $wdaBundleId ]; then
+    if [ -z "$wda_bundle_id" ]; then
       # provide default value if empty
-      wdaBundleId="com.facebook.WebDriverAgentRunner.xctrunner"
+      wda_bundle_id="com.facebook.WebDriverAgentRunner.xctrunner"
     fi
-    echo -e "wdaBundleId: $wdaBundleId\n"
+    echo -e "wda_bundle_id: ${wda_bundle_id}\n"
 
     # How the device and appium containers reach WebDriverAgent is the only thing
     # that differs for a wireless device:
@@ -200,17 +181,17 @@ function create_containers() {
     #              containers to skip their usbmuxd clients, which cannot work here.
     #
     # No change is needed in the appium image: it already builds
-    # 'appium:webDriverAgentUrl' as http://${WDA_HOST}:${WDA_PORT} (see
+    # 'appium:webDriverAgentUrl' as "http://${WDA_HOST}:${WDA_PORT}" (see
     # zbr-default-caps-gen.sh), so pointing those two variables elsewhere is enough.
     #
     # NOTE on the expansion form used below: macOS ships bash 3.2, where
     # "${arr[@]}" on an EMPTY array is an unbound-variable error under `set -u`.
-    # ${arr[@]+"${arr[@]}"} is the portable form and preserves element quoting.
+    # "${arr[@]+"${arr[@]}"}" is the portable form and preserves element quoting.
     local wda_link_args=()
     local wda_env_args=(-e WDA_HOST=connector -e WDA_PORT=8100)
     if [ "$wireless" == "true" ]; then
       if [ -z "$wda_host" ]; then
-        echo "ERROR! device $udid has wireless=true but no wda_host in field 14 of mcloud-devices.txt"
+        echo "ERROR! device ${udid} has wireless=true but no wda_host in field 14 of mcloud-devices.txt"
         echo "       A wireless device cannot be reached without a published WebDriverAgent endpoint."
         return 1
       fi
@@ -218,9 +199,9 @@ function create_containers() {
         wda_port=8100
       fi
       echo "wireless device: WDA at ${wda_host}:${wda_port} (no connector container)"
-      wda_env_args=(-e WDA_HOST=$wda_host -e WDA_PORT=$wda_port -e WIRELESS=true)
+      wda_env_args=(-e WDA_HOST="$wda_host" -e WDA_PORT="$wda_port" -e WIRELESS=true)
     else
-      wda_link_args=(--link device-${device_name_underscored}-${udid}-connector:connector)
+      wda_link_args=(--link "device-${device_name_underscored}-${udid}-connector:connector")
     fi
 
     # The connector exists purely to share usbmuxd into the other containers. A
@@ -228,43 +209,45 @@ function create_containers() {
     # started and left failing.
     if [ "$wireless" != "true" ]; then
       echo -n "device-${device_name_underscored}-${udid}-connector:  "
-      docker run -itd --name device-${device_name_underscored}-${udid}-connector \
+      docker run -itd --name "device-${device_name_underscored}-${udid}-connector" \
         --log-driver=local \
         --log-opt max-size=256m \
         --log-opt max-file=2 \
-        --net=${net} \
-        --restart on-failure:{{ RESTARTS_LIMIT }} $DEVICE_ARG \
+        --net="$net" \
+        --restart on-failure:{{ RESTARTS_LIMIT }} \
+        "$DEVICE_ARG" \
         -e USBMUXD_SOCKET_ADDRESS={{ USBMUXD_SOCKET_ADDRESS }} \
         -e HOST_OS=DARWIN \
-        -e DEVICE_BUS=$usb_bus \
-        -e WDA_BUNDLEID=$wdaBundleId \
+        -e DEVICE_BUS="$usb_bus" \
+        -e WDA_BUNDLEID="$wda_bundle_id" \
         -e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
-        -v ${wdaIpaPath}:/tmp/zebrunner/WebDriverAgent.ipa \
-        -v device-${device_name_underscored}-${udid}-lockdown:/var/lib/lockdown \
-        -v device-${device_name_underscored}-${udid}:/tmp/log \
-        -e DEVICE_UDID=$udid \
+        -v devimages_cache:/opt/zebrunner/devimages \
+        -v "$wda_ipa_path":/tmp/zebrunner/WebDriverAgent.ipa \
+        -v "device-${device_name_underscored}-${udid}-lockdown":/var/lib/lockdown \
+        -v "device-${device_name_underscored}-${udid}":/tmp/log \
+        -e DEVICE_UDID="$udid" \
         {{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }} || echo 'already created'
     fi
 
-    # Linking with apppium required to share usbmuxd via socat
+    # Linking with appium required to share usbmuxd via socat
     echo -n "device-${device_name_underscored}-${udid}:            "
-    docker run -d --name device-${device_name_underscored}-${udid} \
+    docker run -d --name "device-${device_name_underscored}-${udid}" \
       --log-driver=local \
       --log-opt max-size=256m \
       --log-opt max-file=2 \
-      --net=${net} \
+      --net="$net" \
       --restart on-failure:{{ RESTARTS_LIMIT }} \
-      ${wda_link_args[@]+"${wda_link_args[@]}"} \
-      ${wda_env_args[@]+"${wda_env_args[@]}"} \
+      "${wda_link_args[@]+"${wda_link_args[@]}"}" \
+      "${wda_env_args[@]+"${wda_env_args[@]}"}" \
       -e WDA_WAIT_TIMEOUT=60 \
-      -e PLATFORM_NAME=$platform_name \
-      -e STF_PROVIDER_DEVICE_NAME="${device_name}" \
-      -e DEVICE_UDID="${udid}" \
+      -e PLATFORM_NAME="$platform_name" \
+      -e STF_PROVIDER_DEVICE_NAME="$device_name" \
+      -e DEVICE_UDID="$udid" \
       -e STF_PROVIDER_HOST={{ STF_PROVIDER_HOST }} \
       -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}${location:+_$location}" \
-      -e STF_PROVIDER_MIN_PORT=$stf_min_port \
-      -e STF_PROVIDER_MAX_PORT=$stf_max_port \
-      -p $stf_min_port-$stf_max_port:$stf_min_port-$stf_max_port \
+      -e STF_PROVIDER_MIN_PORT="$stf_min_port" \
+      -e STF_PROVIDER_MAX_PORT="$stf_max_port" \
+      -p "$stf_min_port"-"$stf_max_port":"$stf_min_port"-"$stf_max_port" \
       -e STF_PROVIDER_PUBLIC_IP={{ PUBLIC_IP }} \
       -e PUBLIC_IP_PORT={{ PUBLIC_IP_PORT }} \
       -e PUBLIC_IP_PROTOCOL={{ PUBLIC_IP_PROTOCOL }} \
@@ -278,21 +261,22 @@ function create_containers() {
 
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     echo -n "device-${device_name_underscored}-${udid}-appium:     "
-    docker run -itd --name device-${device_name_underscored}-${udid}-appium \
+    docker run -itd --name "device-${device_name_underscored}-${udid}-appium" \
       -m 1g \
       --log-driver=local \
       --log-opt max-size=256m \
       --log-opt max-file=2 \
-      --net=${net} \
-      --restart on-failure:{{ RESTARTS_LIMIT }} $DEVICE_ARG \
-      --link device-${device_name_underscored}-${udid}:device \
-      ${wda_link_args[@]+"${wda_link_args[@]}"} \
-      ${wda_env_args[@]+"${wda_env_args[@]}"} \
+      --net="$net" \
+      --restart on-failure:{{ RESTARTS_LIMIT }} \
+      "$DEVICE_ARG" \
+      --link "device-${device_name_underscored}-${udid}":device \
+      "${wda_link_args[@]+"${wda_link_args[@]}"}" \
+      "${wda_env_args[@]+"${wda_env_args[@]}"}" \
       -v appium-storage-volume:/opt/appium-storage \
-      -v device-${device_name_underscored}-${udid}:/tmp/log \
+      -v "device-${device_name_underscored}-${udid}":/tmp/log \
       -e TASK_LOG=/tmp/log/appium.log \
       -e APPIUM_CLI="--session-override" \
-      -e PLATFORM_NAME=$platform_name \
+      -e PLATFORM_NAME="$platform_name" \
       -e RETAIN_TASK=true \
       -e CONNECT_TO_GRID=true \
       -e RECORD_ARTIFACTS=true \
@@ -305,26 +289,26 @@ function create_containers() {
       -e SELENIUM_HOST={{ SELENIUM_HUB_HOST }} \
       -e SELENIUM_PORT={{ SELENIUM_HUB_PORT }} \
       -e DEFAULT_CAPABILITIES=true \
-      -e DEVICE_NAME="${device_name}" \
-      -e DEVICE_UDID="${udid}" \
-      -e ADB_PORT=$device_adb_port \
-      -e PROXY_PORT=$proxy_port \
-      -e SERVER_PROXY_PORT=$server_proxy_port \
-      -e APPIUM_PORT=$appium_port \
-      -p $appium_port:$appium_port \
+      -e DEVICE_NAME="$device_name" \
+      -e DEVICE_UDID="$udid" \
+      -e ADB_PORT="$device_adb_port" \
+      -e PROXY_PORT="$proxy_port" \
+      -e SERVER_PROXY_PORT="$server_proxy_port" \
+      -e APPIUM_PORT="$appium_port" \
+      -p "$appium_port":"$appium_port" \
       -e RELAXED_SECURITY=true \
       {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }} || echo 'already created'
 
     echo -n "device-${device_name_underscored}-${udid}-uploader:   "
-    docker run -d --name device-${device_name_underscored}-${udid}-uploader \
+    docker run -d --name "device-${device_name_underscored}-${udid}-uploader" \
       --log-driver=local \
       --log-opt max-size=256m \
       --log-opt max-file=2 \
-      --net=${net} \
+      --net="$net" \
       --restart on-failure:{{ RESTARTS_LIMIT }} \
-      -v device-${device_name_underscored}-${udid}:/tmp/log \
+      -v "device-${device_name_underscored}-${udid}":/tmp/log \
       -e ENDPOINT_URL={{ S3_ENDPOINT }} \
-      -e S3_KEY_PATTERN=${S3_KEY_PATTERN} \
+      -e S3_KEY_PATTERN="$S3_KEY_PATTERN" \
       -e AWS_ACCESS_KEY_ID={{ S3_ACCESS_KEY_ID }} \
       -e AWS_SECRET_ACCESS_KEY={{ S3_SECRET }} \
       -e AWS_DEFAULT_REGION={{ S3_REGION }} \
@@ -337,132 +321,124 @@ function create_containers() {
 }
 
 function stop() {
-  local filter_device=$1
-  local devices=/usr/local/bin/mcloud-devices.txt
+  local filter_device="$1"
 
-  # if $filter_device is empty do stop for all connected devices otherwise stop only filtered
-  if [ ! -z $filter_device ] && [ "$filter_device" != "ios" ] && [ "$filter_device" != "android" ]; then
-    echo stopping containers for $filter_device...
-    local device_name=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 3)
-    local device_name_underscored=${device_name// /_}
-    local udid=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 1)
+  # if "$filter_device" is empty do stop for all connected devices otherwise stop only filtered
+  if [ -n "$filter_device" ] && [ "$filter_device" != "ios" ] && [ "$filter_device" != "android" ]; then
+    echo "stopping containers for ${filter_device}..."
+    local device_name
+    device_name="$(grep "$filter_device" "$MCLOUD_DEVICES" | cut -d '|' -f 3)"
+    local device_name_underscored
+    device_name_underscored="${device_name// /_}"
+    local udid
+    udid="$(grep "$filter_device" "$MCLOUD_DEVICES" | cut -d '|' -f 1)"
 
-    if [ -z "$device_name" ] || [ -z $udid ]; then
-      echo_warning "Unable to find device by \"$filter_device\"!"
+    if [ -z "$device_name" ] || [ -z "$udid" ]; then
+      echo_warning "Unable to find device by \"${filter_device}\"!"
       return 0
     fi
 
-    stop_containers ${device_name_underscored} ${udid}
+    stop_containers "$device_name_underscored" "$udid"
   else
-    launchctl unload $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist > /dev/null 2>&1
+    launchctl unload "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
 
     # as no device filter provided continue with stopping all device containers
     while read -r line; do
-      local device_name=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 3)
-      local device_name_underscored=${device_name// /_}
-      #echo "device_name_underscored: $device_name_underscored"
-      local udid=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 1)
-      #echo "udid: $udid"
-      stop_containers ${device_name_underscored} ${udid}
-    done < ${devices}
+      local device_name
+      device_name="$(grep "$filter_device" <<< "$line" | cut -d '|' -f 3)"
+      local device_name_underscored
+      device_name_underscored="${device_name// /_}"
+      local udid
+      udid="$(grep "$filter_device" <<< "$line" | cut -d '|' -f 1)"
+      stop_containers "$device_name_underscored" "$udid"
+    done < "$MCLOUD_DEVICES"
   fi
 }
 
 function stop_containers() {
-  echo -e "\n\tStop $udid containers:"
-  local device_name=$1
-  #echo "device_name: $device_name"
-
-  local udid=$2
-  #echo "udid: $udid"
-
-  local container=device-$device_name-$udid
-  echo "$container stopping..."
+  echo -e "\n\tStop ${udid} containers:"
+  local device_name="$1"
+  local udid="$2"
+  local container="device-${device_name}-${udid}"
+  echo "${container} stopping..."
   # connector should be stopped first to disconnect in STF asap
-  docker stop $container-connector
-  docker stop $container-appium
-  docker stop $container
-  docker stop $container-uploader
+  docker stop "${container}-connector"
+  docker stop "${container}-appium"
+  docker stop "${container}"
+  docker stop "${container}-uploader"
 }
 
 function down() {
-  local filter_device=$1
-  local devices=/usr/local/bin/mcloud-devices.txt
+  local filter_device="$1"
 
-  # if $filter_device is empty do rm for all connected devices otherwise rm only filtered
-  if [ ! -z $filter_device ] && [ "$filter_device" != "ios" ] && [ "$filter_device" != "android" ]; then
-    #echo removing containers for $filter_device...
-    local device_name=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 3)
-    local device_name_underscored=${device_name// /_}
-    local udid=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 1)
+  # if "$filter_device" is empty do rm for all connected devices otherwise rm only filtered
+  if [ -n "$filter_device" ] && [ "$filter_device" != "ios" ] && [ "$filter_device" != "android" ]; then
+    local device_name
+    device_name="$(grep "$filter_device" "$MCLOUD_DEVICES" | cut -d '|' -f 3)"
+    local device_name_underscored
+    device_name_underscored="${device_name// /_}"
+    local udid
+    udid="$(grep "$filter_device" "$MCLOUD_DEVICES" | cut -d '|' -f 1)"
 
-    if [ -z $device_name ] || [ -z $udid ]; then
-      echo_warning "Unable to find device by \"$filter_device\"!"
+    if [ -z "$device_name" ] || [ -z "$udid" ]; then
+      echo_warning "Unable to find device by \"${filter_device}\"!"
       return 0
     fi
 
-    remove_containers ${device_name_underscored} ${udid}
+    remove_containers "$device_name_underscored" "$udid"
   else
-    launchctl unload $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist > /dev/null 2>&1
+    launchctl unload "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
 
     while read -r line; do
-      local device_name=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 3)
-      local device_name_underscored=${device_name// /_}
-      #echo "device_name_underscored: $device_name_underscored"
-      local udid=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 1)
-      #echo "udid: $udid"
-      remove_containers ${device_name_underscored} ${udid}
-    done < ${devices}
+      local device_name
+      device_name="$(grep "$filter_device" <<< "$line" | cut -d '|' -f 3)"
+      local device_name_underscored
+      device_name_underscored="${device_name// /_}"
+      local udid
+      udid="$(grep "$filter_device" <<< "$line" | cut -d '|' -f 1)"
+      remove_containers "$device_name_underscored" "$udid"
+    done < "$MCLOUD_DEVICES"
   fi
 }
 
 function remove_containers() {
-  echo -e "\n\tRemoving '$udid' data:\n"
-  local device_name=$1
-  #echo "device_name: $device_name"
+  local device_name="$1"
+  local udid="$2"
+  local container="device-${device_name}-${udid}"
+  local ps_out
+  ps_out="$(docker ps -a)"
 
-  local udid=$2
-  #echo "udid: $udid"
-
-  local container=device-$device_name-$udid
-  #echo "$container removing..."
-  # remove container(s) only if exists
+  echo -e "\n\tRemoving '${udid}' data:\n"
   echo -n "Connector:  "
-  docker ps -a | grep connector | grep $container > /dev/null
-  if [ $? -eq 0 ]; then
-    # remove connector first to disconnect device in stf asap
-    docker rm -f $container-connector
+  if grep connector <<< "$ps_out" | grep -q "$container"; then
+    docker rm -f "${container}-connector"
   else
-    echo "container not found"
+    failed "container not found"
   fi
 
   echo -n "Appium:     "
-  docker ps -a | grep appium | grep $container > /dev/null
-  if [ $? -eq 0 ]; then
-    docker rm -f $container-appium
+  if grep appium <<< "$ps_out" | grep -q "$container"; then
+    docker rm -f "${container}-appium"
   else
-    echo "container not found"
+    failed "container not found"
   fi
 
   echo -n "STF:        "
-  docker ps -a | grep -v appium | grep $container > /dev/null
-  if [ $? -eq 0 ]; then
-    docker rm -f $container
+  if grep -v appium <<< "$ps_out" | grep -q "$container"; then
+    docker rm -f "${container}"
   else
-    echo "container not found"
+    failed "container not found"
   fi
 
   echo -n "Uploader:   "
-  docker ps -a | grep uploader | grep $container > /dev/null
-  if [ $? -eq 0 ]; then
-    docker rm -f $container-uploader
+  if grep uploader <<< "$ps_out" | grep -q "$container"; then
+    docker rm -f "${container}-uploader"
   else
-    echo "container not found"
+    failed "container not found"
   fi
 
   echo -ne "--\nVolume:     "
-  docker volume ls | grep "$container$" > /dev/null
-  if [ $? -eq 0 ]; then
+  if docker volume ls | grep -q "$container"; then
     docker volume rm "$container"
   else
     echo "volume not found"
@@ -471,119 +447,132 @@ function remove_containers() {
   echo -e "\n-----------------------------------------------------------------"
 }
 
-function measure_uptime() {
-  startedAt="$(docker inspect --format='{{ '{{' }}.State.StartedAt{{ '}}' }}' "$1" | cut -d '.' -f 1)"
-  finishedAt="$(docker inspect --format='{{ '{{' }}.State.FinishedAt{{ '}}' }}' "$1" | cut -d '.' -f 1)"
+function detect_uptime() {
+  local started_at
+  started_at="$(docker inspect --format='{{ '{{' }}.State.StartedAt{{ '}}' }}' "$1" | cut -d '.' -f 1)"
+  local finished_at
+  finished_at="$(docker inspect --format='{{ '{{' }}.State.FinishedAt{{ '}}' }}' "$1" | cut -d '.' -f 1)"
 
-  startedAtEpoch="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$startedAt" "+%s")"
-  if [ "$finishedAt" = "0001-01-01T00:00:00Z" ]; then
-    finishedAtEpoch=0
+  local started_at_epoch
+  started_at_epoch="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$started_at" "+%s")"
+  local finished_at_epoch
+  if [ "$finished_at" = "0001-01-01T00:00:00Z" ]; then
+    finished_at_epoch=0
   else
-    finishedAtEpoch="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$finishedAt" "+%s")"
+    finished_at_epoch="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$finished_at" "+%s")"
   fi
 
-  if [ "$startedAtEpoch" -lt "$finishedAtEpoch" ]; then
-    uptime="UNKNOWN"
-  else
-    currentTime=$(TZ=UTC date "+%s")
-    uptime="$(TZ=UTC date -r "$((currentTime - startedAtEpoch))" "+%H:%M:%S")"
+  local uptime="UNKNOWN"
+  if [ "$started_at_epoch" -gt "$finished_at_epoch" ]; then
+    local current_time="UNKNOWN"
+    current_time="$(TZ=UTC date "+%s")"
+    uptime="$(TZ=UTC date -r "$((current_time - started_at_epoch))" "+%H:%M:%S")"
   fi
   echo "$uptime"
 }
 
 function detect_state() {
+  local state="UNKNOWN"
   state="$(docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' "$1" 2> /dev/null)"
-  if [ $? -eq 0 ]; then
-    echo "$state"
-  else
-    echo "UNKNOWN"
-  fi
+  echo "$state"
 }
 
 function detect_status() {
-  state="$(docker inspect --format='{{ '{{' }}.State.Status{{ '}}' }}' "$1" 2> /dev/null)"
-  if [ $? -eq 0 ]; then
-    echo "$state"
-  else
-    echo "UNKNOWN"
-  fi
+  local status="UNKNOWN"
+  status="$(docker inspect --format='{{ '{{' }}.State.Status{{ '}}' }}' "$1" 2> /dev/null)"
+  echo "$status"
+}
+
+function detect_restarts() {
+  local restarts="UNKNOWN"
+  restarts="$(docker inspect --format='{{ '{{' }}.RestartCount{{ '}}' }}' "$1" 2> /dev/null)"
+  echo "$restarts"
 }
 
 function verify_containers() {
-  echo -e "\n\tVerify $udid containers:"
-  local device_name=$1
-  #echo "device_name: $device_name"
+  local device_name="$1"
+  local udid="$2"
+  clean_udid="${udid//-/}"
+  local container="device-${device_name}-${udid}"
 
-  local udid=$2
-  #echo "udid: $udid"
-  cleanUdid=$(echo "$udid" | tr -d '-')
+  local ps_out
+  ps_out="$(docker ps -a)"
 
-  local container=device-$device_name-$udid
-  if ! ioreg -p IOUSB -w0 -l | grep -q "$cleanUdid"; then
-    echo -e "$container\n\nDISCONNECTED\n"
+  echo -e "\n\tVerify ${udid} containers:"
+
+  if ! ioreg -p IOUSB -w0 -l | grep -q "$clean_udid"; then
+    echo -e "${container}\n\nDISCONNECTED\n"
   else
-    echo -e "$container\n"
-    local stfState="UNKNOWN"
-    local stfStatus="UNKNOWN"
-    local stfUptime="UNKNOWN"
-    local stfRestarts="UNKNOWN"
-    #verify if device containers already exist and do nothing then
-    docker ps -a | grep -v appium | grep -v uploader | grep $container > /dev/null
-    if [ $? -eq 0 ]; then
-      stfState="$(detect_state $container)"
-      stfStatus="$(detect_status $container)"
-      stfUptime="$(measure_uptime $container)"
-      stfRestarts="$(docker inspect --format='{{ '{{' }}.RestartCount{{ '}}' }}' $container)"
+    echo -e "${container}\n"
+
+    local stf_state="UNKNOWN"
+    local stf_status="UNKNOWN"
+    local stf_uptime="UNKNOWN"
+    local stf_restarts="UNKNOWN"
+
+    if grep -v appium <<< "$ps_out" | grep -v uploader | grep -q "$container"; then
+      stf_state="$(detect_state "$container")"
+      stf_status="$(detect_status "$container")"
+      stf_uptime="$(detect_uptime "$container")"
+      stf_restarts="$(detect_restarts "$container")"
     fi
 
-    local appiumState="UNKNOWN"
-    local appiumStatus="UNKNOWN"
-    local appiumUptime="UNKNOWN"
-    local appiumRestarts="UNKNOWN"
-    docker ps -a | grep appium | grep $container > /dev/null
-    if [ $? -eq 0 ]; then
-      appiumState="$(detect_state $container-appium)"
-      appiumStatus="$(detect_status $container-appium)"
-      appiumUptime="$(measure_uptime $container-appium)"
-      appiumRestarts="$(docker inspect --format='{{ '{{' }}.RestartCount{{ '}}' }}' $container-appium)"
+    local appium_state="UNKNOWN"
+    local appium_status="UNKNOWN"
+    local appium_uptime="UNKNOWN"
+    local appium_restarts="UNKNOWN"
+    if grep appium <<< "$ps_out" | grep -q "$container"; then
+      appium_state="$(detect_state "${container}-appium")"
+      appium_status="$(detect_status "${container}-appium")"
+      appium_uptime="$(detect_uptime "${container}-appium")"
+      appium_restarts="$(detect_restarts "${container}-appium")"
     fi
 
-    local connectorState="UNKNOWN"
-    local connectorStatus="UNKNOWN"
-    local connectorUptime="UNKNOWN"
-    local connectorRestarts="UNKNOWN"
-    docker ps -a | grep connector | grep $container > /dev/null
-    if [ $? -eq 0 ]; then
-      connectorState="$(detect_state $container-connector)"
-      connectorStatus="$(detect_status $container-connector)"
-      connectorUptime="$(measure_uptime $container-connector)"
-      connectorRestarts="$(docker inspect --format='{{ '{{' }}.RestartCount{{ '}}' }}' $container-connector)"
+    local connector_state="UNKNOWN"
+    local connector_status="UNKNOWN"
+    local connector_uptime="UNKNOWN"
+    local connector_restarts="UNKNOWN"
+    if grep connector <<< "$ps_out" | grep -q "$container"; then
+      connector_state="$(detect_state "${container}-connector")"
+      connector_status="$(detect_status "${container}-connector")"
+      connector_uptime="$(detect_uptime "${container}-connector")"
+      connector_restarts="$(detect_restarts "${container}-connector")"
+    fi
+
+    local uploader_state="UNKNOWN"
+    local uploader_status="UNKNOWN"
+    local uploader_uptime="UNKNOWN"
+    local uploader_restarts="UNKNOWN"
+    if grep uploader <<< "$ps_out" | grep -q "$container"; then
+      uploader_state="$(detect_state "${container}-uploader")"
+      uploader_status="$(detect_status "${container}-uploader")"
+      uploader_uptime="$(detect_uptime "${container}-uploader")"
+      uploader_restarts="$(detect_restarts "${container}-uploader")"
     fi
 
     echo -e ",| Container,| State,| Status,| Uptime,| Restarts,|
 ,| ---------,| ---------,| ---------,| ---------,| ---------,|
-,| Connector,| $connectorState,| $connectorStatus,| $connectorUptime,| $connectorRestarts,|
-,| Appium,| $appiumState,| $appiumStatus,| $appiumUptime,| $appiumRestarts,|
-,| STF,| $stfState,| $stfStatus,| $stfUptime,| $stfRestarts,|" | column -t -s ','
+,| Connector,| ${connector_state},| ${connector_status},| ${connector_uptime},| ${connector_restarts},|
+,| Appium,| ${appium_state},| ${appium_status},| ${appium_uptime},| ${appium_restarts},|
+,| STF,| ${stf_state},| ${stf_status},| ${stf_uptime},| ${stf_restarts},|
+,| Uploader,| ${uploader_state},| ${uploader_status},| ${uploader_uptime},| ${uploader_restarts},|" | column -t -s ','
 
   fi
   echo -e "==============================================================\n"
 
-  #echo stfState: $stfState
-  if [[ "$stfState" != "\"healthy\"" ]] && [[ "$stfState" != "\"starting\"" ]]; then
-    #echo "stf neither healthy nor starting!"
+  if [[ "$stf_state" != "\"healthy\"" ]] && [[ "$stf_state" != "\"starting\"" ]]; then
     return 1
   fi
 
-  #echo appiumState:$appiumState
-  if [[ "$appiumState" != "\"healthy\"" ]] && [[ "$appiumState" != "\"starting\"" ]]; then
-    #echo "appium neither healthy nor starting!"
+  if [[ "$appium_state" != "\"healthy\"" ]] && [[ "$appium_state" != "\"starting\"" ]]; then
     return 1
   fi
 
-  #echo connectorState:$connectorState
-  if [[ "$connectorState" != "\"healthy\"" ]] && [[ "$connectorState" != "\"starting\"" ]]; then
-    #echo "connector neither healthy nor starting!"
+  if [[ "$connector_state" != "\"healthy\"" ]] && [[ "$connector_state" != "\"starting\"" ]]; then
+    return 1
+  fi
+
+  if [[ "$uploader_state" != "\"healthy\"" ]] && [[ "$uploader_state" != "\"starting\"" ]]; then
     return 1
   fi
 
@@ -591,79 +580,81 @@ function verify_containers() {
 }
 
 function start() {
-  local filter_device=$1
-  local devices=/usr/local/bin/mcloud-devices.txt
+  local filter_device="$1"
 
-  # if $filter_device is empty do start for all connected devices otherwise start only filtered
-  if [ ! -z $filter_device ] && [ "$filter_device" != "ios" ] && [ "$filter_device" != "android" ]; then
-    local device_name=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 3)
-    local device_name_underscored=${device_name// /_}
-    local udid=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 1)
+  # if "$filter_device" is empty do start for all connected devices otherwise start only filtered
+  if [ -n "$filter_device" ] && [ "$filter_device" != "ios" ] && [ "$filter_device" != "android" ]; then
+    local device_name
+    device_name="$(grep "$filter_device" "$MCLOUD_DEVICES" | cut -d '|' -f 3)"
+    local device_name_underscored
+    device_name_underscored="${device_name// /_}"
+    local udid
+    udid="$(grep "$filter_device" "$MCLOUD_DEVICES" | cut -d '|' -f 1)"
 
-    if [ -z $device_name ] || [ -z $udid ]; then
-      echo_warning "Unable to find device by \"$filter_device\"!"
+    if [ -z "$device_name" ] || [ -z "$udid" ]; then
+      echo_warning "Unable to find device by \"${filter_device}\"!"
       return 0
     fi
 
-    create_containers "${device_name}" "${udid}" "${device_name_underscored}" && start_containers "${device_name}" "${udid}" "${device_name_underscored}"
+    create_containers "$device_name" "$udid" "$device_name_underscored" && \
+      start_containers "$device_name" "$udid" "$device_name_underscored"
     echo -e "\n-----------------------------------------------------------------"
   else
     while read -r line; do
-      local device_name=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 3)
-      local device_name_underscored=${device_name// /_}
-      #echo "device_name_underscored: $device_name_underscored"
-      local udid=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 1)
-      #echo "udid: $udid"
-      create_containers "${device_name}" "${udid}" "${device_name_underscored}" && start_containers "${device_name}" "${udid}" "${device_name_underscored}"
+      local device_name
+      device_name="$(grep "$filter_device" <<< "$line" | cut -d '|' -f 3)"
+      local device_name_underscored
+      device_name_underscored="${device_name// /_}"
+      local udid
+      udid="$(grep "$filter_device" <<< "$line" | cut -d '|' -f 1)"
+      create_containers "$device_name" "$udid" "$device_name_underscored" && \
+      start_containers "$device_name" "$udid" "$device_name_underscored"
       echo -e "\n-----------------------------------------------------------------"
-    done < ${devices}
+    done < "$MCLOUD_DEVICES"
 
     # do listener load only after creating last container otherwise listener starts in parallel
-    launchctl load $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist > /dev/null 2>&1
+    launchctl load "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
   fi
 }
 
 function start_containers() {
-  echo -e "\n\tStarting '$udid' containers:\n"
-  local device_name=$1
-  #echo "device_name: $device_name"
+  local device_name="$1"
+  local udid="$2"
+  local device_name_underscored="$3"
+  local container="device-${device_name_underscored}-${udid}"
 
-  local udid=$2
-  #echo "udid: $udid"
-
-  local device_name_underscored=$3
-
-  local container=device-$device_name_underscored-$udid
-
-  docker start $container-connector
-  docker start $container
-  docker start $container-appium
-  docker start $container-uploader
+  echo -e "\n\tStarting '${udid}' containers:\n"
+  docker start "${container}-connector"
+  docker start "${container}"
+  docker start "${container}-appium"
+  docker start "${container}-uploader"
 }
 
 function status() {
-  local filter_device=$1
-  local devices=/usr/local/bin/mcloud-devices.txt
+  local filter_device="$1"
 
-  if [ ! -z $filter_device ] && [ "$filter_device" != "ios" ] && [ "$filter_device" != "android" ]; then
-    local device_name=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 3)
-    local device_name_underscored=${device_name// /_}
-    #echo "device_name_underscored: $device_name_underscored"
-    local udid=$(cat ${devices} | grep "$filter_device" | cut -d '|' -f 1)
-    #echo "udid: $udid"
-    verify_containers "${device_name_underscored}" "${udid}"
+  if [ -n "$filter_device" ] && [ "$filter_device" != "ios" ] && [ "$filter_device" != "android" ]; then
+    local device_name
+    device_name="$(grep "$filter_device" "$MCLOUD_DEVICES" | cut -d '|' -f 3)"
+    local device_name_underscored
+    device_name_underscored="${device_name// /_}"
+    local udid
+    udid="$(grep "$filter_device" "$MCLOUD_DEVICES" | cut -d '|' -f 1)"
+
+    verify_containers "$device_name_underscored" "$udid"
   else
     while read -r line; do
-      local device_name=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 3)
-      local device_name_underscored=${device_name// /_}
-      #echo "device_name_underscored: $device_name_underscored"
-      local udid=$(echo ${line} | grep "$filter_device" | cut -d '|' -f 1)
-      if [ -z $udid ]; then
+      local device_name
+      device_name="$(grep "$filter_device" <<< "$line" | cut -d '|' -f 3)"
+      local device_name_underscored
+      device_name_underscored="${device_name// /_}"
+      local udid
+      udid="$(grep "$filter_device" <<< "$line" | cut -d '|' -f 1)"
+      if [ -z "$udid" ]; then
         continue
       fi
-      #echo "udid: $udid"
-      verify_containers "${device_name_underscored}" "${udid}"
-    done < ${devices}
+      verify_containers "$device_name_underscored" "$udid"
+    done < "$MCLOUD_DEVICES"
   fi
 
 }
@@ -685,20 +676,20 @@ function echo_help() {
 
 case "$1" in
 status)
-  status $2
+  status "$2"
   ;;
 start)
-  start $2
+  start "$2"
   ;;
 stop)
-  stop $2
+  stop "$2"
   ;;
 restart)
-  down $2
-  start $2
+  down "$2"
+  start "$2"
   ;;
 down)
-  down $2
+  down "$2"
   ;;
 ansible)
   "$ZEBRUNNER_MCLOUD_AGENT_DIR"/zebrunner.sh ansible "${@:2}"

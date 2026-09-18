@@ -3,42 +3,54 @@
 - name: Check OS compatibility
   assert:
     that:
-      - ansible_system == "Linux"
+      - ansible_facts['system'] == "Linux"
     fail_msg: "OS version is not compatible! This playbook supports Linux only."
-    success_msg: "OS is compatible: {{ ansible_system }}"
+    success_msg: "OS is compatible: {{ ansible_facts['system'] }}"
+  tags: [devices, precheck]
 
 - name: Check setup completion
   assert:
     that:
       - lookup('file', 'roles/devices/vars/main.yml', errors='ignore') is not none
-    fail_msg: "You have to setup services in advance using: ./zebrunner.sh setup!"
+    fail_msg: "You have to set up services in advance using: ./zebrunner.sh setup!"
     success_msg: "Setup is ready: 'roles/devices/vars/main.yml' exists."
+  tags: [devices, precheck]
 
 - name: Check 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable
   assert:
     that:
       - lookup('env','ZEBRUNNER_MCLOUD_AGENT_DIR') is not none
-    fail_msg: "You have to setup 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable in advance!"
+    fail_msg: "You have to set up 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable in advance!"
     success_msg: "'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable is defined."
+  tags: [devices, precheck]
 
 - name: Collect all device IDs and names
   set_fact:
     all_ids: "{{ devices | map(attribute='id') | list }}"
     all_names: "{{ devices | map(attribute='name') | list }}"
-    dup_ids: []
-    dup_names: []
+  tags: [devices, precheck, dedup]
 
-- name: Find duplicate device IDs
+- name: Count occurrences of each device id
   set_fact:
-    dup_ids: "{{ dup_ids + [item] }}"
-  loop: "{{ all_ids | unique }}"
-  when: all_ids | select('equalto', item) | list | length > 1
+    id_counts: "{{ id_counts | default({}) | combine({item: (id_counts | default({}) )[item] | default(0) + 1}) }}"
+  loop: "{{ all_ids }}"
+  tags: [devices, precheck, dedup]
 
-- name: Find duplicate device names
+- name: Count occurrences of each device name
   set_fact:
-    dup_names: "{{ dup_names + [item] }}"
-  loop: "{{ all_names | unique }}"
-  when: all_names | select('equalto', item) | list | length > 1
+    name_counts: "{{ name_counts | default({}) | combine({item: (name_counts | default({}))[item] | default(0) + 1}) }}"
+  loop: "{{ all_names }}"
+  tags: [devices, precheck, dedup]
+
+- name: Determine duplicate ids
+  set_fact:
+    dup_ids: "{{ id_counts | dict2items | selectattr('value', '>', 1) | map(attribute='key') | list }}"
+  tags: [devices, precheck, dedup]
+
+- name: Determine duplicate names
+  set_fact:
+    dup_names: "{{ name_counts | dict2items | selectattr('value', '>', 1) | map(attribute='key') | list }}"
+  tags: [devices, precheck, dedup]
 
 - name: Check for duplicate device IDs or names
   assert:
@@ -47,6 +59,7 @@
       - dup_names | length == 0
     fail_msg: "Duplicate devices found! Duplicate IDs: {{ dup_ids }} Duplicate Names: {{ dup_names }}"
     success_msg: "All device IDs and names are unique."
+  tags: [devices, precheck, dedup]
 
 - name: Copy 'zebrunner-farm' script file
   template:
@@ -55,6 +68,7 @@
     mode: '0755'
     owner: root
     group: root
+  tags: [devices, files]
 
 - name: Copy rules file
   template:
@@ -63,6 +77,7 @@
     mode: '0644'
     owner: root
     group: root
+  tags: [devices, udev, files]
 
 - name: Copy devices details file
   template:
@@ -71,12 +86,18 @@
     mode: '0644'
     owner: root
     group: root
+  tags: [devices, files]
 
+# WARNING: udevadm control --reload only re-reads the rules file.
+#      It does NOT reapply rules to already-connected devices.
+#      Re-plug affected devices manually, or run:
+#      zebrunner-farm restart <device_udid>
 - name: Reload udev rules
   command: udevadm control --reload
   register: udev_reload
   failed_when: udev_reload.rc != 0
   changed_when: false
+  tags: [devices, udev]
 
 - name: Usbmuxd mask and stop
   systemd:
@@ -85,6 +106,7 @@
     state: stopped
   become: true
   ignore_errors: yes
+  tags: [devices, usbmuxd]
 
 - name: ADB handling
   block:
@@ -115,3 +137,4 @@
           {% endif %}
         fail_msg: "Failed to stop ADB server!"
       ignore_errors: yes
+  tags: [devices, adb]
