@@ -83,7 +83,6 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
  * Deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist to share usbmuxd into the device containers
  * Deployed $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist to load and manage iOS devices connect/disconnect automatically
 
-
 ## Usage
 
 ### Android devices
@@ -125,8 +124,7 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
    > Make sure to specify relative `./Payload` to archive only Payload folder content
 9. Share built ipa via WDA_FILE variable in roles/devices/vars/main.yml file.
    > to override WDA_FILE artifacts per each device use `wda_file` and `wda_bundleid` iOS device properties and re-execute ansible playbook.
-
-
+   
 ### SmartTestFarm
 * Open in your browser http://<PUBLIC_IP>/stf, authenticate yourself based on preconfigured auth system.
 * The connected device should be available in STF.

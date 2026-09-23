@@ -34,4 +34,3 @@
   shell: docker network inspect "{{ STF_DOCKER_NETWORK }}" >/dev/null 2>&1 || docker network create "{{ STF_DOCKER_NETWORK }}"
   changed_when: false
   tags: [ pull, download ]
-

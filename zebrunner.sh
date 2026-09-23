@@ -10,7 +10,6 @@ source "${MCLOUD_AGENT_DIR_VALUE}/patch/utility.sh"
 # Load backup/restore functions
 source "${MCLOUD_AGENT_DIR_VALUE}/patch/backup.sh"
 
-
 setup() {
   delimiter "Setting up MCloud Agent"
 

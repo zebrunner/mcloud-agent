@@ -54,7 +54,6 @@ S3_REGION:
 #S3_SECRET: J33dNyeTDj
 #S3_REGION: us-east-1
 
-
 # Path to prebuild WebDriverAgent.ipa
 WDA_FILE:
 # Override to use custom WDA bundle id: https://github.com/zebrunner/mcloud-agent#prepare-webdriveragentipa-file
