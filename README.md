@@ -3,7 +3,7 @@ Zebrunner Device Farm (Android and iOS agent)
 
 Feel free to support the development with a [**donation**](https://www.paypal.com/donate/?hosted_button_id=MNHYYCYHAKUVA) for the next improvements.
 
-<p align="center">
+<p style="text-align: center">
   <a href="https://zebrunner.com/"><img alt="Zebrunner" src="https://github.com/zebrunner/zebrunner/raw/master/docs/img/zebrunner_intro.png"></a>
 </p>
 
@@ -14,13 +14,13 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 |  <b>Operating System</b>  | Ubuntu 16.04, 18.04, 20.04, 21.04, 22.04 <br>Linux CentOS 7+<br>Amazon Linux2<br> MacOS (Ventura) |
 |  <b>       CPU      </b>  | 8+ Cores                                                                                          |
 |  <b>      Memory    </b>  | 32 Gb RAM                                                                                         |
-| <b>    Free space  </b>   | SSD 128Gb+ of free space                                                                          |
+|  <b>    Free space  </b>  | SSD 128Gb+ of free space                                                                          |
 
 ## Software prerequisites
 * Install docker ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-20-04), [Amazon Linux 2](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/docker-basics.html), [Redhat/Cent OS](https://www.cyberciti.biz/faq/install-use-setup-docker-on-rhel7-centos7-linux/)).
 * Install 2.9.6+ ansible ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-20-04)).
-* MacOS: install and authorize [go-ios](https://github.com/danielpaulus/go-ios) utility 1.0.121+
-* MacOS: install socat utility to share usbmuxd websocket into the device containers
+* macOS: install and authorize [go-ios](https://github.com/danielpaulus/go-ios) utility 1.0.121+
+* macOS: install socat utility to share usbmuxd websocket into the device containers
   > valid path to socat binary should be `/usr/local/bin/socat`
 * MacOS: install jq utility
 
@@ -65,7 +65,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 ### Mac OS
 * update `roles/mac-devices/vars/main.yml` file according to the obligatory/optional comments inside.
   > Register all whitelisted iOS devices (phones, tablets or TVes) with their udids!
-  > Important! Only iOS devices supported on MacOS!
+  > Important! Only iOS devices supported on macOS!
 * Run ansible-playbook script to download the required components and set up udev rules:
   ```bash
   ./zebrunner.sh ansible
@@ -98,9 +98,9 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * Settings -> Safari -> Advanced -> Web Inspector.
 * Enable Siri.
 * Disable screen lock:
-  > Phone and Tablet: Settings->Lock screen->Turn display off when inactive->select Never
+  > Phone and Tablet: Settings -> Lock screen -> Turn display off when inactive -> select Never
 
-  > Apple TV: Settings->General->Sleep after->Select never
+  > Apple TV: Settings -> General -> Sleep after -> Select never
 
 #### Build WebDriverAgent.ipa
 

@@ -142,12 +142,12 @@ ansible() {
 
   ### Make a list of arguments
   delimiter "*"
-  if [[ "$1" == "" ]]; then
+  if [[ -z "$1" ]]; then
     arg="$file"
   elif [[ "$1" == "devices" ]]; then
     arg="${file} --tag registerDevices"
   else
-    arg="$@ $file"
+    arg="$* $file"
   fi
 
   ### Run ansible with arguments

@@ -46,7 +46,7 @@ confirm() {
   local default="$3"
 
   while true; do
-    if [[ ! -z $message ]]; then
+    if [[ -n $message ]]; then
       echo "$message"
     fi
 
