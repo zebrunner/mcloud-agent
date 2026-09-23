@@ -33,8 +33,8 @@
 
 - name: Collect all device IDs and names
   set_fact:
-    all_ids: "{{ devices | map(attribute='id') | list }}"
-    all_names: "{{ devices | map(attribute='name') | list }}"
+    all_ids: "{{ devices | map(attribute='id') | trim | list }}"
+    all_names: "{{ devices | map(attribute='name') | trim | map('regex_replace', '\s+', '_') | list }}"
   tags: [devices, precheck, dedup]
 
 - name: Count occurrences of each device id
@@ -72,6 +72,26 @@
   template:
     src: zebrunner-farm
     dest: /usr/local/bin/zebrunner-farm
+    mode: '0755'
+    owner: root
+    group: wheel
+  changed_when: false
+  tags: [devices, files]
+
+- name: Copy 'zebrunner-device-listener' script file
+  template:
+    src: zebrunner-device-listener
+    dest: /usr/local/bin/zebrunner-device-listener
+    mode: '0755'
+    owner: root
+    group: wheel
+  changed_when: false
+  tags: [devices, files]
+
+- name: Copy 'usbmuxd_watch' script file
+  template:
+    src: usbmuxd_watch
+    dest: /usr/local/bin/usbmuxd_watch
     mode: '0755'
     owner: root
     group: wheel
