@@ -79,7 +79,7 @@ function create_containers() {
   #verify if device containers already exist and do nothing then
   local ps_out
   ps_out="$(docker ps -a)"
-  if grep stf <<< "$ps_out" | grep -q "$container" && \
+  if grep stf       <<< "$ps_out" | grep -q "$container" && \
    grep appium      <<< "$ps_out" | grep -q "$container" && \
    grep connector   <<< "$ps_out" | grep -q "$container" && \
    grep uploader    <<< "$ps_out" | grep -q "$container"; then
@@ -102,9 +102,15 @@ function create_containers() {
     fi
   fi
 
+  #TODO: check if we can move network creation away from this block
   local net={{ STF_DOCKER_NETWORK }}
-
-  docker network inspect "$net" > /dev/null 2>&1 || docker network create "$net"
+  echo -e "\nInspecting network ${net}:"
+  if docker network inspect "$net" > /dev/null 2>&1; then
+    echo "Network '${net}' already exists"
+  else
+    echo "Network '${net}' does not exist. Creating..."
+    docker network create "$net"
+  fi
 
   echo -e "\n\tCreating '${dev_udid}' containers:\n"
 
@@ -320,6 +326,7 @@ function stop() {
 
     while read -r line; do
       get_device_fields "$line"
+      stop_containers
       echo -e "\n-----------------------------------------------------------------"
     done < "$MCLOUD_DEVICES"
   fi
@@ -328,7 +335,6 @@ function stop() {
 function stop_containers() {
   local container="device-${dev_device_name}-${dev_udid}"
   echo -e "\n\tStopping '${dev_udid}' containers:\n"
-  # connector should be stopped first to disconnect in STF asap
   docker stop "${container}-connector"
   docker stop "${container}-appium"
   docker stop "${container}-stf"
@@ -434,18 +440,18 @@ function verify_containers() {
     local stf_uptime="UNKNOWN"
     local stf_restarts="UNKNOWN"
 
-    if grep stf <<< "$ps_out" | grep -q "$container"; then
-      stf_state="$(detect_state "$container")"
-      stf_status="$(detect_status "$container")"
-      stf_uptime="$(detect_uptime "$container")"
-      stf_restarts="$(detect_restarts "$container")"
+    if grep -q "${container}-stf" <<< "$ps_out"; then
+      stf_state="$(detect_state "${container}-stf")"
+      stf_status="$(detect_status "${container}-stf")"
+      stf_uptime="$(detect_uptime "${container}-stf")"
+      stf_restarts="$(detect_restarts "${container}-stf")"
     fi
 
     local appium_state="UNKNOWN"
     local appium_status="UNKNOWN"
     local appium_uptime="UNKNOWN"
     local appium_restarts="UNKNOWN"
-    if grep appium <<< "$ps_out" | grep -q "$container"; then
+    if grep -q "${container}-appium" <<< "$ps_out"; then
       appium_state="$(detect_state "${container}-appium")"
       appium_status="$(detect_status "${container}-appium")"
       appium_uptime="$(detect_uptime "${container}-appium")"
@@ -456,7 +462,7 @@ function verify_containers() {
     local connector_status="UNKNOWN"
     local connector_uptime="UNKNOWN"
     local connector_restarts="UNKNOWN"
-    if grep connector <<< "$ps_out" | grep -q "$container"; then
+    if grep -q "${container}-connector" <<< "$ps_out"; then
       connector_state="$(detect_state "${container}-connector")"
       connector_status="$(detect_status "${container}-connector")"
       connector_uptime="$(detect_uptime "${container}-connector")"
@@ -467,7 +473,7 @@ function verify_containers() {
     local uploader_status="UNKNOWN"
     local uploader_uptime="UNKNOWN"
     local uploader_restarts="UNKNOWN"
-    if grep uploader <<< "$ps_out" | grep -q "$container"; then
+    if grep -q "${container}-uploader" <<< "$ps_out"; then
       uploader_state="$(detect_state "${container}-uploader")"
       uploader_status="$(detect_status "${container}-uploader")"
       uploader_uptime="$(detect_uptime "${container}-uploader")"
