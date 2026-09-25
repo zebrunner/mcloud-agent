@@ -539,10 +539,10 @@ function main() {
     down "$2"
     ;;
   ansible)
-    "$ZEBRUNNER_MCLOUD_AGENT_DIR"/zebrunner.sh ansible "${@:2}"
+    "${ZEBRUNNER_MCLOUD_AGENT_DIR}"/zebrunner.sh ansible "${@:2}"
     ;;
   version)
-    "$ZEBRUNNER_MCLOUD_AGENT_DIR"/zebrunner.sh version
+    "${ZEBRUNNER_MCLOUD_AGENT_DIR}"/zebrunner.sh version
     ;;
   *)
     echo_help
