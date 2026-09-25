@@ -16,7 +16,7 @@
     <key>ProgramArguments</key>
       <array>
         <string>/usr/local/bin/socat</string>
-        <string>TCP-LISTEN:2222,reuseaddr,fork</string>
+        <string>TCP-LISTEN:2222,reuseaddr,fork,bind=127.0.0.1</string>
         <string>UNIX-CONNECT:/var/run/usbmuxd</string>
       </array>
 
@@ -32,14 +32,11 @@
     <key>RunAtLoad</key>
       <true/>
 
-    <key>StartInterval</key>
-      <integer>0</integer>
-
     <key>StandardErrorPath</key>
-      <string>logs/socat.log</string>
+      <string>{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/logs/usbmuxd-socat.err.log</string>
 
     <key>StandardOutPath</key>
-      <string>logs/socat.log</string>
+      <string>{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/logs/usbmuxd-socat.log</string>
 
   </dict>
 </plist>

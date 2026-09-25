@@ -16,7 +16,6 @@ STF_PROVIDER_CONNECT_PUSH: tcp://stf-triproxy-dev:7270
 STF_PROVIDER_CONNECT_APP_DEALER: tcp://stf-triproxy-app:7160
 STF_PROVIDER_CONNECT_DEV_DEALER: tcp://stf-triproxy-dev:7260
 
-
 # [OPTIONAL] Set host address and port of mcloud-grid container: https://github.com/zebrunner/mcloud/blob/8442bceec096f886c02bf84a39816f10c694ad9e/docker-compose.yml#L17
 # IMPORTANT! make sure to use valid hostname and port if it is located on different host.
 SELENIUM_HUB_HOST: mcloud-grid
@@ -51,7 +50,6 @@ S3_REGION:
 #S3_ACCESS_KEY_ID: zebrunner
 #S3_SECRET: J33dNyeTDj
 #S3_REGION: us-east-1
-
 
 # Path to prebuild WebDriverAgent.ipa
 WDA_FILE:
