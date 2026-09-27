@@ -90,7 +90,7 @@ function create_containers() {
   local STF_DEVICE_UDID="$dev_udid"
   local DEVICE_ARG="--device=/dev/device-${dev_device_name}-${dev_udid}:${usb_bus}"
 
-  if [ "$dev_wireless" = "true" ]; then
+  if [[ "$dev_wireless" == "true" ]]; then
     # provide ANDROID_DEVICE with 5555 port to trigger remote adb connect on appium startup
     ANDROID_DEVICE="${dev_udid}:5555"
     # append 5555 port to be able to rename device in STF
@@ -115,11 +115,11 @@ function create_containers() {
   local S3_KEY_PATTERN=""
   local TENANT={{ S3_TENANT }}
   local BUCKET={{ S3_BUCKET }}
-  if [ -n "$BUCKET" ]; then
+  if [[ -n "$BUCKET" ]]; then
     S3_KEY_PATTERN="s3://${BUCKET}${TENANT:+/${TENANT}}/artifacts/test-sessions"
   fi
 
-  if [ "$dev_platform_name" == "android" ]; then
+  if [[ "$dev_platform_name" == "android" ]]; then
 
     echo -n "device-${dev_device_name}-${dev_udid}-connector:  "
     docker run -itd --name "device-${dev_device_name}-${dev_udid}-connector" \
@@ -228,10 +228,10 @@ function create_containers() {
       -e AWS_DEFAULT_REGION={{ S3_REGION }} \
       {{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }} || failed "already created"
 
-  elif [ "$dev_platform_name" == "ios" ]; then
+  elif [[ "$dev_platform_name" == "ios" ]]; then
 
     local wda_ipa_path={{ WDA_FILE }}
-    if [[ -n "$dev_device_wda_ipa_path" ]]; then
+    if [[ -n "$dev_device_wda_ipa_path" && "$dev_device_wda_ipa_path" != "/dev/null" ]]; then
       wda_ipa_path="$dev_device_wda_ipa_path"
     fi
     # If still empty - set '/dev/null' because unable to use empty value for docker volume share!
@@ -239,7 +239,7 @@ function create_containers() {
     echo "wda_ipa_path: ${wda_ipa_path}"
 
     local wda_bundle_id={{ WDA_BUNDLEID }}
-    if [ -n "$dev_device_wda_bundle_id" ]; then
+    if [[ -n "$dev_device_wda_bundle_id" && "$dev_device_wda_ipa_path" != "/dev/null" ]]; then
       wda_bundle_id="$dev_device_wda_bundle_id"
     fi
     : "${wda_bundle_id:='com.facebook.WebDriverAgentRunner.xctrunner'}"
@@ -369,7 +369,7 @@ function start() {
   else
     while read -r line; do
       get_device_fields "$line"
-      if [ -L "/dev/device-${dev_device_name}-${dev_udid}" ] || [ "$dev_wireless" == "true" ]; then
+      if [[ -L "/dev/device-${dev_device_name}-${dev_udid}" || "$dev_wireless" == "true" ]]; then
         create_containers && start_containers
         echo -e "\n-----------------------------------------------------------------"
       fi
@@ -463,7 +463,7 @@ function detect_uptime() {
   finished_at_epoch="$(date -d "$finished_at" "+%s")"
   local uptime="UNKNOWN"
 
-  if [ "$started_at_epoch" -gt "$finished_at_epoch" ]; then
+  if [[ "$started_at_epoch" -gt "$finished_at_epoch" ]]; then
     local current_time="UNKNOWN"
     current_time="$(date "+%s")"
     uptime="$(TZ=UTC date -d @"$((current_time - started_at_epoch))" "+%H:%M:%S")"
@@ -497,7 +497,7 @@ function verify_containers() {
 
   echo -e "\n\tVerify ${dev_udid} containers:"
 
-  if [ ! -L "/dev/${container}" ] && [ "$dev_wireless" != "true" ]; then
+  if [[ ! -L "/dev/${container}" && "$dev_wireless" != "true" ]]; then
     echo -e "${container}\n\nDISCONNECTED\n"
   else
     echo -e "${container}\n"

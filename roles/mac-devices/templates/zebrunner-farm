@@ -89,7 +89,7 @@ function create_containers() {
 
   local clean_udid="${dev_udid//-/}"
 
-  if [ "$dev_wireless" == "true" ]; then
+  if [[ "$dev_wireless" == "true" ]]; then
     echo -e "\nDevice with udid: '${clean_udid}' is wireless, skipping USB presence check."
   else
     local connected_devices
@@ -117,14 +117,14 @@ function create_containers() {
   local S3_KEY_PATTERN=""
   local TENANT={{ S3_TENANT }}
   local BUCKET={{ S3_BUCKET }}
-  if [ -n "$BUCKET" ]; then
+  if [[ -n "$BUCKET" ]]; then
     S3_KEY_PATTERN="s3://${BUCKET}${TENANT:+/${TENANT}}/artifacts/test-sessions"
   fi
 
-  if [ "$dev_platform_name" == "ios" ]; then
+  if [[ "$dev_platform_name" == "ios" ]]; then
 
     local wda_ipa_path={{ WDA_FILE }}
-    if [[ -n "$dev_device_wda_ipa_path" ]]; then
+    if [[ -n "$dev_device_wda_ipa_path" && "$dev_device_wda_ipa_path" != "/dev/null" ]]; then
       wda_ipa_path="$dev_device_wda_ipa_path"
     fi
     # If still empty - set '/dev/null' because unable to use empty value for docker volume share!
@@ -132,7 +132,7 @@ function create_containers() {
     echo "wda_ipa_path: ${wda_ipa_path}"
 
     local wda_bundle_id={{ WDA_BUNDLEID }}
-    if [ -n "$dev_device_wda_bundle_id" ]; then
+    if [[ -n "$dev_device_wda_bundle_id" && "$dev_device_wda_bundle_id" != "/dev/null" ]]; then
       wda_bundle_id="$dev_device_wda_bundle_id"
     fi
     : "${wda_bundle_id:='com.facebook.WebDriverAgentRunner.xctrunner'}"
@@ -157,13 +157,13 @@ function create_containers() {
     # "${arr[@]+"${arr[@]}"}" is the portable form and preserves element quoting.
     local wda_link_args=()
     local wda_env_args=(-e WDA_HOST=connector -e WDA_PORT=8100)
-    if [ "$dev_wireless" == "true" ]; then
-      if [ -z "$dev_wda_host" ]; then
+    if [[ "$dev_wireless" == "true" ]]; then
+      if [[ -z "$dev_wda_host" ]]; then
         echo "ERROR! device ${dev_udid} has wireless=true but no wda_host in field 14 of mcloud-devices.txt"
         echo "       A wireless device cannot be reached without a published WebDriverAgent endpoint."
         return 1
       fi
-      if [ -z "$dev_wda_port" ]; then
+      if [[ -z "$dev_wda_port" ]]; then
         dev_wda_port=8100
       fi
       echo "wireless device: WDA at ${dev_wda_host}:${dev_wda_port} (no connector container)"
@@ -175,7 +175,7 @@ function create_containers() {
     # The connector exists purely to share usbmuxd into the other containers. A
     # wireless device has no usbmuxd path, so it is skipped entirely rather than
     # started and left failing.
-    if [ "$dev_wireless" != "true" ]; then
+    if [[ "$dev_wireless" != "true" ]]; then
       echo -n "device-${dev_device_name}-${dev_udid}-connector:  "
       docker run -itd --name "device-${dev_device_name}-${dev_udid}-connector" \
         --log-driver=local \
@@ -389,14 +389,14 @@ function detect_uptime() {
   local started_at_epoch
   started_at_epoch="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$started_at" "+%s")"
   local finished_at_epoch
-  if [ "$finished_at" = "0001-01-01T00:00:00Z" ]; then
+  if [[ "$finished_at" == "0001-01-01T00:00:00Z" ]]; then
     finished_at_epoch=0
   else
     finished_at_epoch="$(TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "$finished_at" "+%s")"
   fi
 
   local uptime="UNKNOWN"
-  if [ "$started_at_epoch" -gt "$finished_at_epoch" ]; then
+  if [[ "$started_at_epoch" -gt "$finished_at_epoch" ]]; then
     local current_time="UNKNOWN"
     current_time="$(TZ=UTC date "+%s")"
     uptime="$(TZ=UTC date -r "$((current_time - started_at_epoch))" "+%H:%M:%S")"
