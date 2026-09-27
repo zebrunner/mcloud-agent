@@ -35,7 +35,7 @@ setup() {
     TARGET_FILES+=("${HOME}/.zshrc" "${HOME}/.zprofile")
   fi
   # Other
-  if [ ${#TARGET_FILES[@]} -eq 0 ]; then
+  if [[ ${#TARGET_FILES[@]} -eq 0 ]]; then
     echo "Other (Except 'BASH' or 'ZSH') shell detected"
     TARGET_FILES+=("${HOME}/.profile")
   fi
@@ -43,7 +43,7 @@ setup() {
   delimiter "*"
   echo "Adding '${MCLOUD_AGENT_DIR_NAME}=${MCLOUD_AGENT_DIR_VALUE}' to:"
   for file in "${TARGET_FILES[@]}"; do
-    if [ -f "$file" ] && grep -q "^export ${MCLOUD_AGENT_DIR_NAME}=" "$file"; then
+    if [[ -f "$file" ]] && grep -q "^export ${MCLOUD_AGENT_DIR_NAME}=" "$file"; then
       echo "$file"
       sed -i.bak "s|^export ${MCLOUD_AGENT_DIR_NAME}=.*|export ${MCLOUD_AGENT_DIR_NAME}=${MCLOUD_AGENT_DIR_VALUE}|" "$file" && rm -f "${file}.bak"
     else
@@ -59,7 +59,7 @@ setup() {
   echo ""
   echo "Setting up 'roles/.../vars/main.yml' according to OS:"
   if [[ "$os" == "Linux" ]]; then
-    if [ -f roles/devices/vars/main.yml ]; then
+    if [[ -f roles/devices/vars/main.yml ]]; then
       echo "'roles/devices/vars/main.yml' already exists, making a backup 'roles/devices/vars/main.yml.bak'"
       cp roles/devices/vars/main.yml roles/devices/vars/main.yml.bak
     else
@@ -67,7 +67,7 @@ setup() {
       cp roles/devices/vars/main.yml.original roles/devices/vars/main.yml
     fi
   elif [[ "$os" == "Darwin" ]]; then
-    if [ -f roles/mac-devices/vars/main.yml ]; then
+    if [[ -f roles/mac-devices/vars/main.yml ]]; then
       echo "'roles/mac-devices/vars/main.yml' already exists, making a backup 'roles/mac-devices/vars/main.yml.bak'"
       cp roles/mac-devices/vars/main.yml roles/mac-devices/vars/main.yml.bak
     else
@@ -87,21 +87,21 @@ setup() {
   warn "To apply the changes, please restart your terminal session or run the appropriate command below:"
   case "$current_shell" in
     bash)
-      if [ -f "${HOME}/.bashrc" ]; then
+      if [[ -f "${HOME}/.bashrc" ]]; then
         succeed ">\tsource ~/.bashrc"
-      elif [ -f "${HOME}/.bash_profile" ]; then
+      elif [[ -f "${HOME}/.bash_profile" ]]; then
         succeed ">\tsource ~/.bash_profile"
       fi
       ;;
     zsh)
-      if [ -f "${HOME}/.zshrc" ]; then
+      if [[ -f "${HOME}/.zshrc" ]]; then
         succeed ">\tsource ~/.zshrc"
-      elif [ -f "${HOME}/.zprofile" ]; then
+      elif [[ -f "${HOME}/.zprofile" ]]; then
         succeed ">\tsource ~/.zprofile"
       fi
       ;;
     *)
-      if [ -f "${HOME}/.profile" ]; then
+      if [[ -f "${HOME}/.profile" ]]; then
         succeed ">\tsource ~/.profile"
       fi
       ;;
@@ -121,7 +121,7 @@ ansible() {
   delimiter "Deploying MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
 
   ### Check if the environment variable is set
-  if [ -z "$ZEBRUNNER_MCLOUD_AGENT_DIR" ]; then
+  if [[ -z "$ZEBRUNNER_MCLOUD_AGENT_DIR" ]]; then
     echo_warning "Environment variable '${MCLOUD_AGENT_DIR_NAME}' is not set."
     echo "Please, run './zebrunner.sh setup' first, or restart your terminal if you've already done so!"
     exit 1
@@ -169,7 +169,7 @@ status() {
   os="$(uname)" 2>/dev/null
   echo "Env var for Mcloud Agent path:    $(env | grep "$MCLOUD_AGENT_DIR_NAME" 2>/dev/null || failed "$MCLOUD_AGENT_DIR_NAME not set")"
   echo ""
-  echo "Current OS:                       $(if [ -n "$os" ]; then echo "$os"; else failed "OS not detected"; fi)"
+  echo "Current OS:                       $(if [[ -n "$os" ]]; then echo "$os"; else failed "OS not detected"; fi)"
   echo ""
   echo "Current user:                     $(whoami 2>/dev/null || failed username not detected)"
   echo ""
@@ -264,7 +264,7 @@ shutdown() {
 
     delimiter "*"
     echo "Unloading and removing ZebrunnerDevicesListener.plist launchctl file:"
-    if [ -f "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" ]; then
+    if [[ -f "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" ]]; then
       if launchctl bootout gui/"$(id -u)" "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" 2>/dev/null; then
         echo "ZebrunnerDevicesListener.plist unloaded successfully"
       else
@@ -279,7 +279,7 @@ shutdown() {
 
     delimiter "*"
     echo "Unloading and removing ZebrunnerUsbmuxd.plist launchctl file:"
-    if [ -f "${HOME}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" ]; then
+    if [[ -f "${HOME}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" ]]; then
       if launchctl bootout gui/"$(id -u)" "${HOME}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" 2>/dev/null; then
         echo "ZebrunnerUsbmuxd.plist unloaded successfully"
       else
@@ -298,7 +298,7 @@ shutdown() {
   echo "Removing var 'ZEBRUNNER_MCLOUD_AGENT_DIR' from shell profiles:"
   TARGET_FILES+=("${HOME}/.bashrc" "${HOME}/.bash_profile" "${HOME}/.zshrc" "${HOME}/.zprofile" "${HOME}/.profile")
   for file in "${TARGET_FILES[@]}"; do
-    if [ -f "$file" ] && grep -q "export ${MCLOUD_AGENT_DIR_NAME}=" "$file"; then
+    if [[ -f "$file" ]] && grep -q "export ${MCLOUD_AGENT_DIR_NAME}=" "$file"; then
       echo "$file"
       sed -i.bak "/^export ${MCLOUD_AGENT_DIR_NAME}=.*/d" "$file" && rm -f "${file}.bak"
     fi
@@ -328,7 +328,7 @@ shutdown() {
   ### Remove files
   delimiter "*"
   echo "Removing MCloud Agent files and volumes (sudo privileges required):"
-  if [ "$os" == "Darwin" ]; then
+  if [[ "$os" == "Darwin" ]]; then
     rm -vf roles/mac-devices/vars/main.yml
   else
     rm -vf roles/devices/vars/main.yml
@@ -346,7 +346,7 @@ shutdown() {
 
 version() {
   delimiter "Zebrunner MCloud Agent components versions for '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
-  if [ -z "$ZEBRUNNER_MCLOUD_AGENT_DIR" ]; then
+  if [[ -z "$ZEBRUNNER_MCLOUD_AGENT_DIR" ]]; then
     echo_warning "Environment variable '${MCLOUD_AGENT_DIR_NAME}' is not set"
     echo "Please, run './zebrunner.sh setup' first, or restart your terminal if you've already done so!"
     delimiter "*"

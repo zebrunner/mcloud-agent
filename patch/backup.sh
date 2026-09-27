@@ -14,27 +14,27 @@ backup() {
     exit 1
   fi
 
-  if [ ! -d "${backup_dir_name}/defaults" ]; then
+  if [[ ! -d "${backup_dir_name}/defaults" ]]; then
     echo -n "    "
     mkdir -vp "${backup_dir_name}/defaults" 2>/dev/null || failed "mkdir for '${backup_dir_name}/defaults' failed"
   fi
 
-  if [ ! -d "${backup_dir_name}/tasks" ]; then
+  if [[ ! -d "${backup_dir_name}/tasks" ]]; then
     echo -n "    "
     mkdir -vp "${backup_dir_name}/tasks" 2>/dev/null || failed "mkdir for '${backup_dir_name}/tasks' failed"
   fi
 
-  if [ ! -d "${backup_dir_name}/templates" ]; then
+  if [[ ! -d "${backup_dir_name}/templates" ]]; then
     echo -n "    "
     mkdir -vp "${backup_dir_name}/templates" 2>/dev/null || failed "mkdir for '${backup_dir_name}/templates' failed"
   fi
 
-  if [ ! -d "${backup_dir_name}/vars" ]; then
+  if [[ ! -d "${backup_dir_name}/vars" ]]; then
     echo -n "    "
     mkdir -vp "${backup_dir_name}/vars" 2>/dev/null || failed "mkdir for '${backup_dir_name}/vars' failed"
   fi
 
-  if [ ! -d "${backup_dir_name}/download" ]; then
+  if [[ ! -d "${backup_dir_name}/download" ]]; then
     echo -n "    "
     mkdir -vp "${backup_dir_name}/download" 2>/dev/null || failed "mkdir for '${backup_dir_name}/download' failed"
   fi
@@ -46,7 +46,7 @@ backup() {
   echo -n "    "
   cp -av "roles/download/tasks/main.yml" "${backup_dir_name}/download/" 2>/dev/null || failed "cp for 'roles/download/tasks/main.yml' failed"
 
-  if [ "$(uname)" == "Darwin" ]; then
+  if [[ "$(uname)" == "Darwin" ]]; then
     echo -n "    "
     cp -av "roles/mac-devices/tasks/usbmuxd.yml" "${backup_dir_name}/tasks/" 2>/dev/null || failed "cp for 'roles/mac-devices/tasks/usbmuxd.yml' failed"
     echo -n "    "
@@ -77,7 +77,7 @@ restore() {
   echo ""
   echo "Backups found in 'backup' directory:"
   for bup in backup/bak_*; do
-    if [ -d "$bup" ]; then
+    if [[ -d "$bup" ]]; then
       echo "    $(basename "$bup")"
     fi
   done
@@ -85,7 +85,7 @@ restore() {
   echo ""
   while true; do
     read -r -p "Please enter the backup directory name you want to restore: " backup_dir_name
-    if [ -d "backup/${backup_dir_name}" ]; then
+    if [[ -d "backup/${backup_dir_name}" ]]; then
       backup_dir_name="backup/${backup_dir_name}"
       break
     else
@@ -102,7 +102,7 @@ restore() {
   echo -n "    "
   cp -av "${backup_dir_name}/download/main.yml" "roles/download/tasks/"  2>/dev/null || failed "cp for '${backup_dir_name}/download/main.yml' failed"
 
-  if [ "$(uname)" == "Darwin" ]; then
+  if [[ "$(uname)" == "Darwin" ]]; then
     echo -n "    "
     cp -av "${backup_dir_name}/tasks/usbmuxd.yml" "roles/mac-devices/tasks/" 2>/dev/null || failed "cp for '${backup_dir_name}/tasks/usbmuxd.yml' failed"
     echo -n "    "
