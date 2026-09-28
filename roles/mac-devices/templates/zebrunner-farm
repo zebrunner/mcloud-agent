@@ -412,13 +412,11 @@ function verify_containers() {
   local ps_out
   ps_out="$(docker ps -a)"
 
-  echo -e "\n\tVerify ${dev_container} containers:"
+  echo -e "\n\tVerify ${dev_container} containers:\n"
 
   if ! ioreg -p IOUSB -w0 -l | grep -q "${dev_udid//-/}"; then
-    echo -e "${dev_container}\n\nDISCONNECTED\n"
+    failed "\n--- DISCONNECTED ---\n"
   else
-    echo -e "${dev_container}\n"
-
     local stf_state="UNKNOWN"
     local stf_status="UNKNOWN"
     local stf_uptime="UNKNOWN"
