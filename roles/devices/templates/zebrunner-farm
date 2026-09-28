@@ -55,7 +55,16 @@ function get_device_fields() {
   # Fields 12 / 13 - 'device_wda_ipa_path' and 'device_wda_bundle_id'.
   # Device specific WebDriverAgent path and bundle ID.
   dev_device_wda_ipa_path="${fields[11]}"
+  if [[ "$dev_device_wda_ipa_path" == "/dev/null" || -z "$dev_device_wda_ipa_path" ]]; then
+    dev_device_wda_ipa_path="{{ WDA_FILE }}"
+  fi
+  : "${dev_device_wda_ipa_path:='/dev/null'}"
+
   dev_device_wda_bundle_id="${fields[12]}"
+  if [[ "$dev_device_wda_bundle_id" == "/dev/null" || -z "$dev_device_wda_bundle_id" ]]; then
+    dev_device_wda_bundle_id="{{ WDA_BUNDLEID }}"
+  fi
+  : "${dev_device_wda_bundle_id:='com.facebook.WebDriverAgentRunner.xctrunner'}"
 
   # Common name prefix for all containers
   dev_container="device-${dev_device_name}-${dev_udid}"
@@ -231,20 +240,8 @@ function create_containers() {
 
   elif [[ "$dev_platform_name" == "ios" ]]; then
 
-    local wda_ipa_path="{{ WDA_FILE }}"
-    if [[ -n "$dev_device_wda_ipa_path" && "$dev_device_wda_ipa_path" != "/dev/null" ]]; then
-      wda_ipa_path="$dev_device_wda_ipa_path"
-    fi
-    # If still empty - set '/dev/null' because unable to use empty value for docker volume share!
-    : "${wda_ipa_path:='/dev/null'}"
-    echo "wda_ipa_path: ${wda_ipa_path}"
-
-    local wda_bundle_id="{{ WDA_BUNDLEID }}"
-    if [[ -n "$dev_device_wda_bundle_id" && "$dev_device_wda_ipa_path" != "/dev/null" ]]; then
-      wda_bundle_id="$dev_device_wda_bundle_id"
-    fi
-    : "${wda_bundle_id:='com.facebook.WebDriverAgentRunner.xctrunner'}"
-    echo -e "wda_bundle_id: ${wda_bundle_id}\n"
+    echo "WDA *.ipa file path: ${dev_device_wda_ipa_path}"
+    echo -e "WDA bundle ID: ${dev_device_wda_bundle_id}\n"
 
     echo -n "${dev_container}-connector:  "
     docker run -itd --name "${dev_container}-connector" \
@@ -259,10 +256,10 @@ function create_containers() {
       --device=/dev/net/tun \
       -e HOST_OS=LINUX \
       -e DEVICE_BUS="$usb_bus" \
-      -e WDA_BUNDLEID="$wda_bundle_id" \
+      -e WDA_BUNDLEID="$dev_device_wda_bundle_id" \
       -e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
       -v devimages_cache:/opt/zebrunner/devimages \
-      -v "$wda_ipa_path":/tmp/zebrunner/WebDriverAgent.ipa \
+      -v "${dev_device_wda_ipa_path}":/tmp/zebrunner/WebDriverAgent.ipa \
       -v "${dev_container}-lockdown":/var/lib/lockdown \
       -v "${dev_container}":/tmp/log \
       -e DEVICE_UDID="$STF_DEVICE_UDID" \
