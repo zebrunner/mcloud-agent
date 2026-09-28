@@ -71,18 +71,19 @@ function get_device_fields() {
   # docker --link instead.
   dev_wda_host="${fields[13]}"
   dev_wda_port="${fields[14]}"
+
+  # Common name prefix for all containers
+  dev_container="device-${dev_device_name}-${dev_udid}"
 }
 
 function create_containers() {
-  local container="device-${dev_device_name}-${dev_udid}"
-
   #verify if device containers already exist and do nothing then
   local ps_out
   ps_out="$(docker ps -a)"
-  if grep stf       <<< "$ps_out" | grep -q "$container" && \
-   grep appium      <<< "$ps_out" | grep -q "$container" && \
-   grep connector   <<< "$ps_out" | grep -q "$container" && \
-   grep uploader    <<< "$ps_out" | grep -q "$container"; then
+  if grep -q "${dev_container}-stf"       <<< "$ps_out" && \
+   grep -q "${dev_container}-appium"      <<< "$ps_out" && \
+   grep -q "${dev_container}-connector"   <<< "$ps_out" && \
+   grep -q "${dev_container}-uploader"    <<< "$ps_out"; then
      warn "Do nothing as containers already exists!"
      return 0
   fi
@@ -112,7 +113,7 @@ function create_containers() {
     docker network create "$net"
   fi
 
-  echo -e "\n\tCreating '${dev_udid}' containers:\n"
+  echo -e "\n\tCreating '${dev_container}' containers:\n"
 
   local S3_KEY_PATTERN=""
   local TENANT={{ S3_TENANT }}
@@ -159,7 +160,7 @@ function create_containers() {
     local wda_env_args=(-e WDA_HOST=connector -e WDA_PORT=8100)
     if [[ "$dev_wireless" == "true" ]]; then
       if [[ -z "$dev_wda_host" ]]; then
-        echo "ERROR! device ${dev_udid} has wireless=true but no wda_host in field 14 of mcloud-devices.txt"
+        echo "ERROR! device ${dev_container} has wireless=true but no wda_host in field 14 of mcloud-devices.txt"
         echo "       A wireless device cannot be reached without a published WebDriverAgent endpoint."
         return 1
       fi
@@ -169,15 +170,15 @@ function create_containers() {
       echo "wireless device: WDA at ${dev_wda_host}:${dev_wda_port} (no connector container)"
       wda_env_args=(-e WDA_HOST="$dev_wda_host" -e WDA_PORT="$dev_wda_port" -e WIRELESS=true)
     else
-      wda_link_args=(--link "device-${dev_device_name}-${dev_udid}-connector:connector")
+      wda_link_args=(--link "${dev_container}-connector:connector")
     fi
 
     # The connector exists purely to share usbmuxd into the other containers. A
     # wireless device has no usbmuxd path, so it is skipped entirely rather than
     # started and left failing.
     if [[ "$dev_wireless" != "true" ]]; then
-      echo -n "device-${dev_device_name}-${dev_udid}-connector:  "
-      docker run -itd --name "device-${dev_device_name}-${dev_udid}-connector" \
+      echo -n "-connector:  "
+      docker run -itd --name "${dev_container}-connector" \
         --log-driver=local \
         --log-opt max-size=256m \
         --log-opt max-file=2 \
@@ -189,15 +190,15 @@ function create_containers() {
         -e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
         -v devimages_cache:/opt/zebrunner/devimages \
         -v "$wda_ipa_path":/tmp/zebrunner/WebDriverAgent.ipa \
-        -v "device-${dev_device_name}-${dev_udid}-lockdown":/var/lib/lockdown \
-        -v "device-${dev_device_name}-${dev_udid}":/tmp/log \
+        -v "${dev_container}-lockdown":/var/lib/lockdown \
+        -v "${dev_container}":/tmp/log \
         -e DEVICE_UDID="$dev_udid" \
         {{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }} || echo 'already created'
     fi
 
     # Linking with appium required to share usbmuxd via socat
-    echo -n "device-${dev_device_name}-${dev_udid}-stf:            "
-    docker run -d --name "device-${dev_device_name}-${dev_udid}-stf" \
+    echo -n "${dev_container}-stf:            "
+    docker run -d --name "${dev_container}-stf" \
       --log-driver=local \
       --log-opt max-size=256m \
       --log-opt max-file=2 \
@@ -226,19 +227,19 @@ function create_containers() {
       {{ DEVICE_IMAGE }}:{{DEVICE_VERSION }} || echo 'already created'
 
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
-    echo -n "device-${dev_device_name}-${dev_udid}-appium:     "
-    docker run -itd --name "device-${dev_device_name}-${dev_udid}-appium" \
+    echo -n "${dev_container}-appium:     "
+    docker run -itd --name "${dev_container}-appium" \
       -m 1g \
       --log-driver=local \
       --log-opt max-size=256m \
       --log-opt max-file=2 \
       --net="$net" \
       --restart on-failure:{{ RESTARTS_LIMIT }} \
-      --link "device-${dev_device_name}-${dev_udid}":device \
+      --link "${dev_container}":device \
       "${wda_link_args[@]+"${wda_link_args[@]}"}" \
       "${wda_env_args[@]+"${wda_env_args[@]}"}" \
       -v appium-storage-volume:/opt/appium-storage \
-      -v "device-${dev_device_name}-${dev_udid}":/tmp/log \
+      -v "${dev_container}":/tmp/log \
       -e TASK_LOG=/tmp/log/appium.log \
       -e APPIUM_CLI="--session-override" \
       -e PLATFORM_NAME="$dev_platform_name" \
@@ -264,14 +265,14 @@ function create_containers() {
       -e RELAXED_SECURITY=true \
       {{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }} || echo 'already created'
 
-    echo -n "device-${dev_device_name}-${dev_udid}-uploader:   "
-    docker run -d --name "device-${dev_device_name}-${dev_udid}-uploader" \
+    echo -n "${dev_container}-uploader:   "
+    docker run -d --name "${dev_container}-uploader" \
       --log-driver=local \
       --log-opt max-size=256m \
       --log-opt max-file=2 \
       --net="$net" \
       --restart on-failure:{{ RESTARTS_LIMIT }} \
-      -v "device-${dev_device_name}-${dev_udid}":/tmp/log \
+      -v "${dev_container}":/tmp/log \
       -e ENDPOINT_URL={{ S3_ENDPOINT }} \
       -e S3_KEY_PATTERN="$S3_KEY_PATTERN" \
       -e AWS_ACCESS_KEY_ID={{ S3_ACCESS_KEY_ID }} \
@@ -305,12 +306,11 @@ function start() {
 }
 
 function start_containers() {
-  local container="device-${dev_device_name}-${dev_udid}"
-  echo -e "\n\tStarting '${dev_udid}' containers:\n"
-  docker start "${container}-connector"
-  docker start "${container}-stf"
-  docker start "${container}-appium"
-  docker start "${container}-uploader"
+  echo -e "\n\tStarting '${dev_container}' containers:\n"
+  docker start "${dev_container}-connector"
+  docker start "${dev_container}-stf"
+  docker start "${dev_container}-appium"
+  docker start "${dev_container}-uploader"
 }
 
 function stop() {
@@ -333,12 +333,11 @@ function stop() {
 }
 
 function stop_containers() {
-  local container="device-${dev_device_name}-${dev_udid}"
-  echo -e "\n\tStopping '${dev_udid}' containers:\n"
-  docker stop "${container}-connector"
-  docker stop "${container}-appium"
-  docker stop "${container}-stf"
-  docker stop "${container}-uploader"
+  echo -e "\n\tStopping '${dev_container}' containers:\n"
+  docker stop "${dev_container}-connector"
+  docker stop "${dev_container}-appium"
+  docker stop "${dev_container}-stf"
+  docker stop "${dev_container}-uploader"
 }
 
 function down() {
@@ -361,23 +360,21 @@ function down() {
 }
 
 function remove_containers() {
-  local container="device-${dev_device_name}-${dev_udid}"
-
-  echo -e "\n\tRemoving '${dev_udid}' containers:\n"
+  echo -e "\n\tRemoving '${dev_container}' containers:\n"
   echo -n "Connector:  "
-  docker rm -f "${container}-connector" || failed "container not found"
+  docker rm -f "${dev_container}-connector" || failed "container not found"
 
   echo -n "Appium:     "
-  docker rm -f "${container}-appium" || failed "container not found"
+  docker rm -f "${dev_container}-appium" || failed "container not found"
 
   echo -n "STF:        "
-  docker rm -f "${container}-stf" || failed "container not found"
+  docker rm -f "${dev_container}-stf" || failed "container not found"
 
   echo -n "Uploader:   "
-  docker rm -f "${container}-uploader" || failed "container not found"
+  docker rm -f "${dev_container}-uploader" || failed "container not found"
 
   echo -ne "--\nVolume:     "
-  docker volume rm "$container" || failed "volume not found"
+  docker volume rm "$dev_container" || failed "volume not found"
 }
 
 function detect_uptime() {
@@ -423,38 +420,36 @@ function detect_restarts() {
 }
 
 function verify_containers() {
-  local container="device-${dev_device_name}-${dev_udid}"
-
   local ps_out
   ps_out="$(docker ps -a)"
 
-  echo -e "\n\tVerify ${dev_udid} containers:"
+  echo -e "\n\tVerify ${dev_container} containers:"
 
   if ! ioreg -p IOUSB -w0 -l | grep -q "${dev_udid//-/}"; then
-    echo -e "${container}\n\nDISCONNECTED\n"
+    echo -e "${dev_container}\n\nDISCONNECTED\n"
   else
-    echo -e "${container}\n"
+    echo -e "${dev_container}\n"
 
     local stf_state="UNKNOWN"
     local stf_status="UNKNOWN"
     local stf_uptime="UNKNOWN"
     local stf_restarts="UNKNOWN"
 
-    if grep -q "${container}-stf" <<< "$ps_out"; then
-      stf_state="$(detect_state "${container}-stf")"
-      stf_status="$(detect_status "${container}-stf")"
-      stf_uptime="$(detect_uptime "${container}-stf")"
-      stf_restarts="$(detect_restarts "${container}-stf")"
+    if grep -q "${dev_container}-stf" <<< "$ps_out"; then
+      stf_state="$(detect_state "${dev_container}-stf")"
+      stf_status="$(detect_status "${dev_container}-stf")"
+      stf_uptime="$(detect_uptime "${dev_container}-stf")"
+      stf_restarts="$(detect_restarts "${dev_container}-stf")"
     fi
 
     local appium_state="UNKNOWN"
     local appium_status="UNKNOWN"
     local appium_uptime="UNKNOWN"
     local appium_restarts="UNKNOWN"
-    if grep -q "${container}-appium" <<< "$ps_out"; then
-      appium_state="$(detect_state "${container}-appium")"
-      appium_status="$(detect_status "${container}-appium")"
-      appium_uptime="$(detect_uptime "${container}-appium")"
+    if grep -q "${dev_container}-appium" <<< "$ps_out"; then
+      appium_state="$(detect_state "${dev_container}-appium")"
+      appium_status="$(detect_status "${dev_container}-appium")"
+      appium_uptime="$(detect_uptime "${dev_container}-appium")"
       appium_restarts="$(detect_restarts "${container}-appium")"
     fi
 
@@ -462,22 +457,22 @@ function verify_containers() {
     local connector_status="UNKNOWN"
     local connector_uptime="UNKNOWN"
     local connector_restarts="UNKNOWN"
-    if grep -q "${container}-connector" <<< "$ps_out"; then
-      connector_state="$(detect_state "${container}-connector")"
-      connector_status="$(detect_status "${container}-connector")"
-      connector_uptime="$(detect_uptime "${container}-connector")"
-      connector_restarts="$(detect_restarts "${container}-connector")"
+    if grep -q "${dev_container}-connector" <<< "$ps_out"; then
+      connector_state="$(detect_state "${dev_container}-connector")"
+      connector_status="$(detect_status "${dev_container}-connector")"
+      connector_uptime="$(detect_uptime "${dev_container}-connector")"
+      connector_restarts="$(detect_restarts "${dev_container}-connector")"
     fi
 
     local uploader_state="UNKNOWN"
     local uploader_status="UNKNOWN"
     local uploader_uptime="UNKNOWN"
     local uploader_restarts="UNKNOWN"
-    if grep -q "${container}-uploader" <<< "$ps_out"; then
-      uploader_state="$(detect_state "${container}-uploader")"
-      uploader_status="$(detect_status "${container}-uploader")"
-      uploader_uptime="$(detect_uptime "${container}-uploader")"
-      uploader_restarts="$(detect_restarts "${container}-uploader")"
+    if grep -q "${dev_container}-uploader" <<< "$ps_out"; then
+      uploader_state="$(detect_state "${dev_container}-uploader")"
+      uploader_status="$(detect_status "${dev_container}-uploader")"
+      uploader_uptime="$(detect_uptime "${dev_container}-uploader")"
+      uploader_restarts="$(detect_restarts "${dev_container}-uploader")"
     fi
 
     echo -e ",| Container,| State,| Status,| Uptime,| Restarts,|
