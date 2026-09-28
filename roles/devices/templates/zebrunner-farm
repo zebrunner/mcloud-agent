@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# Load utility functions
 source "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/utility.sh"
 
 MCLOUD_DEVICES="/usr/local/bin/mcloud-devices.txt"
@@ -33,6 +32,7 @@ function get_device_fields() {
   read -r -a fields <<< "$line"
   unset IFS
 
+  # fields values shifted by -1 as `fields` is zero-indexed array
   dev_udid="${fields[0]}"
   dev_platform_name="${fields[1]}"
   dev_device_name="${fields[2]}"
@@ -47,9 +47,7 @@ function get_device_fields() {
   # Field 11 - 'wireless'.
   # Marks a device with NO usb path, reached over a network tunnel maintained
   # outside this script (for example an Apple TV 4K, which has no diagnostic port at
-  # all, reached over Apple's RemoteXPC tunnel). The field has existed in
-  # mcloud-devices.txt since it was introduced but was never read; 'false' keeps
-  # every existing row behaving exactly as before.
+  # all, reached over Apple's RemoteXPC tunnel).
   dev_wireless="${fields[10]}"
 
   # Fields 12 / 13 - 'device_wda_ipa_path' and 'device_wda_bundle_id'.
@@ -71,18 +69,16 @@ function get_device_fields() {
 }
 
 function create_containers() {
-  #verify if device containers already exist and do nothing then
   local ps_out
   ps_out="$(docker ps -a)"
-  if grep -q "${dev_container}-stf" <<< "$ps_out" && \
-   grep -q "${dev_container}-appium" <<< "$ps_out" && \
+  if grep -q "${dev_container}-stf"     <<< "$ps_out" && \
+   grep -q "${dev_container}-appium"    <<< "$ps_out" && \
    grep -q "${dev_container}-connector" <<< "$ps_out" && \
-   grep -q "${dev_container}-uploader" <<< "$ps_out"; then
+   grep -q "${dev_container}-uploader"  <<< "$ps_out"; then
      warn "Do nothing as containers already exists!"
      return 0
   fi
 
-  #TODO: check if we can move network creation away from this block
   local net="{{ STF_DOCKER_NETWORK }}"
   echo -e "\nInspecting network ${net}:"
   if docker network inspect "$net" > /dev/null 2>&1; then
@@ -108,14 +104,12 @@ function create_containers() {
     # reset device arg as no symlink generated for the wireless device
     DEVICE_ARG=""
   else
-    local clean_udid
-    clean_udid="${dev_udid//-/}"
     local connected_devices
     connected_devices="$(lsusb -v 2>/dev/null)"
-    if grep -q "$clean_udid" <<< "$connected_devices"; then
-      succeed "\nDevice with udid: '${clean_udid}' was SUCCESSFULLY detected as connected."
+    if grep -q "${dev_udid//-/}" <<< "$connected_devices"; then
+      succeed "\nDevice with udid: '${dev_udid//-/}' was SUCCESSFULLY detected as connected."
     else
-      failed "\nDevice with udid: '${clean_udid}' was NOT detected as connected. The containers will not be created."
+      failed "\nDevice with udid: '${dev_udid//-/}' was NOT detected as connected. The containers will not be created."
       return 1
     fi
   fi
@@ -359,7 +353,6 @@ function create_containers() {
 function start() {
   local filter_device="$1"
 
-  # if $device is empty do start for all connected devices otherwise start only filtered
   if [[ -n "$filter_device" && "$filter_device" != "ios" && "$filter_device" != "android" ]]; then
     get_device_fields "$filter_device"
     create_containers && start_containers
@@ -377,18 +370,15 @@ function start() {
 
 function start_containers() {
   echo -e "\n\tStarting '${dev_container}' containers:\n"
-
   docker start "${dev_container}-connector"
   docker start "${dev_container}-stf"
   docker start "${dev_container}-appium"
   docker start "${dev_container}-uploader"
 }
 
-
 function stop() {
   local filter_device="$1"
 
-  # if $device is empty do stop for all connected devices otherwise stop only filtered
   if [[ -n "$filter_device" && "$filter_device" != "ios" && "$filter_device" != "android" ]]; then
     get_device_fields "$filter_device"
     stop_containers
@@ -413,7 +403,6 @@ function stop_containers() {
 function down() {
   local filter_device="$1"
 
-  # if "$filter_device" is empty do rm for all connected devices otherwise rm only filtered
   if [[ -n "$filter_device" && "$filter_device" != "ios" && "$filter_device" != "android" ]]; then
     get_device_fields "$filter_device"
     remove_containers
@@ -450,12 +439,13 @@ function detect_uptime() {
   started_at="$(docker inspect --format='{{ '{{' }}.State.StartedAt{{ '}}' }}' "$1")"
   local finished_at
   finished_at="$(docker inspect --format='{{ '{{' }}.State.FinishedAt{{ '}}' }}' "$1")"
+
   local started_at_epoch
   started_at_epoch="$(date -d "$started_at" "+%s")"
   local finished_at_epoch
   finished_at_epoch="$(date -d "$finished_at" "+%s")"
-  local uptime="UNKNOWN"
 
+  local uptime="UNKNOWN"
   if [[ "$started_at_epoch" -gt "$finished_at_epoch" ]]; then
     local current_time="UNKNOWN"
     current_time="$(date "+%s")"

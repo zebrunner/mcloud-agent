@@ -5,7 +5,6 @@ export DOCKER_BUILDKIT=0
 export COMPOSE_DOCKER_CLI_BUILD=0
 export DOCKER_DEFAULT_PLATFORM=linux/amd64
 
-# Load utility functions
 source "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/utility.sh"
 
 MCLOUD_DEVICES="/usr/local/bin/mcloud-devices.txt"
@@ -40,6 +39,7 @@ function get_device_fields() {
   read -r -a fields <<< "$line"
   unset IFS
 
+  # fields values shifted by -1 as `fields` is zero-indexed array
   dev_udid="${fields[0]}"
   dev_platform_name="${fields[1]}"
   dev_device_name="${fields[2]}"
@@ -54,9 +54,7 @@ function get_device_fields() {
   # Field 11 - 'wireless'.
   # Marks a device with NO usb path, reached over a network tunnel maintained
   # outside this script (for example an Apple TV 4K, which has no diagnostic port at
-  # all, reached over Apple's RemoteXPC tunnel). The field has existed in
-  # mcloud-devices.txt since it was introduced but was never read; 'false' keeps
-  # every existing row behaving exactly as before.
+  # all, reached over Apple's RemoteXPC tunnel).
   dev_wireless="${fields[10]}"
 
   # Fields 12 / 13 - 'device_wda_ipa_path' and 'device_wda_bundle_id'.
@@ -86,33 +84,16 @@ function get_device_fields() {
 }
 
 function create_containers() {
-  #verify if device containers already exist and do nothing then
   local ps_out
   ps_out="$(docker ps -a)"
-  if grep -q "${dev_container}-stf"       <<< "$ps_out" && \
-   grep -q "${dev_container}-appium"      <<< "$ps_out" && \
-   grep -q "${dev_container}-connector"   <<< "$ps_out" && \
-   grep -q "${dev_container}-uploader"    <<< "$ps_out"; then
+  if grep -q "${dev_container}-stf"     <<< "$ps_out" && \
+   grep -q "${dev_container}-appium"    <<< "$ps_out" && \
+   grep -q "${dev_container}-connector" <<< "$ps_out" && \
+   grep -q "${dev_container}-uploader"  <<< "$ps_out"; then
      warn "Do nothing as containers already exists!"
      return 0
   fi
 
-  local clean_udid="${dev_udid//-/}"
-
-  if [[ "$dev_wireless" == "true" ]]; then
-    echo -e "\nDevice with udid: '${clean_udid}' is wireless, skipping USB presence check."
-  else
-    local connected_devices
-    connected_devices="$(ioreg -p IOUSB -w0 -l 2> /dev/null)"
-    if grep -q "$clean_udid" <<< "$connected_devices"; then
-      echo -e "\nDevice with udid: '${clean_udid}' was SUCCESSFULLY detected as connected."
-    else
-      echo -e "\nDevice with udid: '${clean_udid}' was NOT detected as connected. The containers will not be created."
-      return 1
-    fi
-  fi
-
-  #TODO: check if we can move network creation away from this block
   local net="{{ STF_DOCKER_NETWORK }}"
   echo -e "\nInspecting network ${net}:"
   if docker network inspect "$net" > /dev/null 2>&1; then
@@ -120,6 +101,19 @@ function create_containers() {
   else
     echo "Network '${net}' does not exist. Creating..."
     docker network create "$net"
+  fi
+
+  if [[ "$dev_wireless" == "true" ]]; then
+    echo -e "\nDevice with udid: '${dev_udid}' is wireless, skipping USB presence check."
+  else
+    local connected_devices
+    connected_devices="$(ioreg -p IOUSB -w0 -l 2> /dev/null)"
+    if grep -q "${dev_udid//-/}" <<< "$connected_devices"; then
+      echo -e "\nDevice with udid: '${dev_udid//-/}' was SUCCESSFULLY detected as connected."
+    else
+      echo -e "\nDevice with udid: '${dev_udid//-/}' was NOT detected as connected. The containers will not be created."
+      return 1
+    fi
   fi
 
   echo -e "\n\tCreating '${dev_container}' containers:\n"
@@ -314,7 +308,6 @@ function stop() {
   local filter_device="$1"
 
   if [[ -n "$filter_device" && "$filter_device" != "ios" && "$filter_device" != "android" ]]; then
-    echo "stopping containers for ${filter_device}..."
     get_device_fields "$filter_device"
     stop_containers
     echo -e "\n-----------------------------------------------------------------"
@@ -340,7 +333,6 @@ function stop_containers() {
 function down() {
   local filter_device="$1"
 
-  # if "$filter_device" is empty do rm for all connected devices otherwise rm only filtered
   if [[ -n "$filter_device" && "$filter_device" != "ios" && "$filter_device" != "android" ]]; then
     get_device_fields "$filter_device"
     remove_containers
@@ -447,7 +439,7 @@ function verify_containers() {
       appium_state="$(detect_state "${dev_container}-appium")"
       appium_status="$(detect_status "${dev_container}-appium")"
       appium_uptime="$(detect_uptime "${dev_container}-appium")"
-      appium_restarts="$(detect_restarts "${container}-appium")"
+      appium_restarts="$(detect_restarts "${dev_container}-appium")"
     fi
 
     local connector_state="UNKNOWN"
