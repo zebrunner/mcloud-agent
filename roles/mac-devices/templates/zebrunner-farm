@@ -94,15 +94,6 @@ function create_containers() {
      return 0
   fi
 
-  local net="{{ STF_DOCKER_NETWORK }}"
-  echo -e "\nInspecting network ${net}:"
-  if docker network inspect "$net" > /dev/null 2>&1; then
-    echo "Network '${net}' already exists"
-  else
-    echo "Network '${net}' does not exist. Creating..."
-    docker network create "$net"
-  fi
-
   if [[ "$dev_wireless" == "true" ]]; then
     echo -e "\nDevice with udid: '${dev_udid}' is wireless, skipping USB presence check."
   else
@@ -278,8 +269,16 @@ function create_containers() {
 }
 
 function start() {
-  local filter_device="$1"
+  local net="{{ STF_DOCKER_NETWORK }}"
+  echo -e "\nInspecting network ${net}:"
+  if docker network inspect "$net" > /dev/null 2>&1; then
+    echo "Network '${net}' already exists"
+  else
+    echo "Network '${net}' does not exist. Creating..."
+    docker network create "$net"
+  fi
 
+  local filter_device="$1"
   if [[ -n "$filter_device" && "$filter_device" != "ios" && "$filter_device" != "android" ]]; then
     get_device_fields "$filter_device"
     create_containers && start_containers
