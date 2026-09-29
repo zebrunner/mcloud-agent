@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# $$ scopes tags to this run only, avoids clashing with a stale prior incarnation
+LISTENER_TAG_PREFIX="usb-debounce:$$"
+
+function schedule_action() {
+  # On the previous step we make sure udid have at least one non-whitespace character
+  local udid="$1"
+  local action="$2"
+  local tag="${LISTENER_TAG_PREFIX}:${udid}"
+  # cancel this device's pending debounce job, if any
+  pkill -f "$tag" 2>/dev/null
+  # exec -a sets argv[0] so `tag` is visible in `ps`/pkill -f for the job's whole lifetime (sleep + action)
+  ( exec -a "$tag" bash -c "sleep 5; timeout 100 zebrunner-farm '$action' '$udid'" ) &
+}
+
+function on_usb_update() {
+  while read -r; do
+    if [[ "$REPLY" =~ ^ATTACH[[:space:]]+udid=([^[:space:]]+) ]]; then
+      schedule_action "${BASH_REMATCH[1]}" restart
+    elif [[ "$REPLY" =~ ^DETACH[[:space:]]+udid=([^[:space:]]+) ]]; then
+      schedule_action "${BASH_REMATCH[1]}" down
+    fi
+  done
+}
+
+# no PID filter: sweep orphaned jobs left by a previous, crashed run
+pkill -f 'usb-debounce:' 2>/dev/null
+
+usbmuxd_watch | on_usb_update &
+# PID of the LAST stage (on_usb_update), not usbmuxd_watch
+pipeline_pid=$!
+
+# trap only fires promptly if the shell is blocked in `wait`, that's why the pipeline above is backgrounded
+# killing on_usb_update alone is enough: usbmuxd_watch dies on its own next write (SIGPIPE)
+trap 'kill "$pipeline_pid" $(jobs -p) 2>/dev/null; exit 0' TERM INT
+
+wait "$pipeline_pid"
+
+echo "[$(date -Iseconds)] - [ERROR] Device listener fall"

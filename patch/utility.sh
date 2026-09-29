@@ -14,8 +14,8 @@ random_string() {
   if [[ -n "$1" && $1 =~ ^[0-9]+$ ]]; then
     length="$1"
   fi
-  cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c "$length"
-  echo
+  env LC_CTYPE=C tr -dc a-zA-Z0-9 < /dev/urandom | head -c "$length"
+  echo ""
 }
 
 echo_warning() {
@@ -31,35 +31,27 @@ echo_telegram() {
 
 replace() {
   #TODO: https://github.com/zebrunner/zebrunner/issues/328 organize debug logging for setup/replace
-  file=$1
-  #echo "file: $file"
-  content=$(< "$file") # read the file's content into
-  #echo "content: $content"
-
-  old=$2
-  #echo "old: $old"
-
-  new=$3
-  #echo "new: $new"
-  content=${content//"$old"/$new}
-
-  #echo "content: $content"
+  file="$1"
+  content="$(< "$file")" # read the file's content into
+  old="$2"
+  new="$3"
+  content="${content//"$old"/$new}"
 
   printf '%s' "$content" > "$file" # write new content to disk
 }
 
 confirm() {
-  local message=$1
-  local question=$2
-  local default=$3
+  local message="$1"
+  local question="$2"
+  local default="$3"
 
   while true; do
-    if [[ ! -z $message ]]; then
+    if [[ -n $message ]]; then
       echo "$message"
     fi
 
-    read -r -p "$question y/n [$default]:" response
-    if [[ -z $response ]]; then
+    read -r -p "${question} y/n [${default}]:" response
+    if [[ -z "$response" ]]; then
       if [[ "$default" == "y" ]]; then
         return 0
       fi
