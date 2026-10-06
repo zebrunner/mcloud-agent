@@ -43,11 +43,10 @@ jobs:
           python-version: "3.13"
       - name: Install ansible
         run: pip install ansible-core
-      # Diagnostics of the slow fact gathering on the macOS runner (about 70 seconds per playbook)
-      - name: Time hostname lookups and fact gathering
-        run: |
-          time python3 -c 'import socket; print("hostname:", socket.gethostname())'
-          time python3 -c 'import socket; print("fqdn:", socket.getfqdn())'
-          time ansible localhost --connection local --module-name setup --args gather_subset=min > /dev/null
+      # Temporary: diagnostics of the slow fact gathering on the macOS runner (about 70 seconds per playbook)
+      - name: Diagnose fact gathering
+        run: tests/diagnose_facts.sh
+        continue-on-error: true
+        timeout-minutes: 12
       - name: Run tests
         run: tests/run_all.sh
