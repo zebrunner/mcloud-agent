@@ -12,7 +12,7 @@
   command: id -u
   register: user_uid
   changed_when: false
-  become: no
+  become: false
   tags: [devices, usbmuxd, listener]
 
 - name: Check setup completion
@@ -175,14 +175,14 @@
   register: mcloud_agent_loaded
   failed_when: false
   changed_when: false
-  become: no
+  become: false
   tags: [devices, precheck, listener]
 
 - name: Unload ZebrunnerDevicesListener agent if loaded
   command: launchctl bootout gui/{{ user_uid.stdout }} "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
   when: mcloud_agent_loaded.rc == 0
   changed_when: false
-  become: no
+  become: false
   tags: [devices, listener]
 
 - name: Check if ZebrunnerUsbmuxd agent is loaded
@@ -190,14 +190,14 @@
   register: usbmuxd_agent_loaded
   failed_when: false
   changed_when: false
-  become: no
+  become: false
   tags: [devices, precheck, usbmuxd]
 
 - name: Unload ZebrunnerUsbmuxd agent if loaded
   command: launchctl bootout gui/{{ user_uid.stdout }} "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
   when: usbmuxd_agent_loaded.rc == 0
   changed_when: false
-  become: no
+  become: false
   tags: [devices, usbmuxd]
 
 - name: Copy ZebrunnerDevicesListener.plist into LaunchAgents
@@ -222,24 +222,24 @@
   command: launchctl bootstrap gui/{{ user_uid.stdout }} "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
   when: mcloud_agent_loaded.rc == 0
   changed_when: false
-  become: no
+  become: false
   tags: [devices, listener]
 
 - name: Enable ZebrunnerDevicesListener agent via launchctl if it was loaded earlier
   command: launchctl enable gui/{{ user_uid.stdout }}/com.zebrunner.mcloud
   when: mcloud_agent_loaded.rc == 0
   changed_when: false
-  become: no
+  become: false
   tags: [devices, listener]
 
 - name: Load ZebrunnerUsbmuxd agent via launchctl
   command: launchctl bootstrap gui/{{ user_uid.stdout }} "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
   changed_when: false
-  become: no
+  become: false
   tags: [devices, usbmuxd]
 
 - name: Enable ZebrunnerUsbmuxd agent via launchctl
   command: launchctl enable gui/{{ user_uid.stdout }}/com.zebrunner.usbmuxd
   changed_when: false
-  become: no
+  become: false
   tags: [devices, usbmuxd]

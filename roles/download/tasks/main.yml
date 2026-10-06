@@ -10,7 +10,7 @@
     - "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}"
     - "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}"
   register: images_pull
-  ignore_errors: yes
+  ignore_errors: true
   changed_when: false
   tags: [pull, download]
 

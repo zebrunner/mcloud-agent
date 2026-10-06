@@ -148,10 +148,10 @@
 - name: Usbmuxd mask and stop
   systemd:
     name: usbmuxd
-    masked: yes
+    masked: true
     state: stopped
   become: true
-  ignore_errors: yes
+  ignore_errors: true
   tags: [devices, usbmuxd]
 
 - name: ADB handling
@@ -169,7 +169,7 @@
       changed_when: false
       when: adb_exists.rc == 0
       become: true
-      ignore_errors: yes
+      ignore_errors: true
 
     - name: ADB stop status
       assert:
@@ -182,5 +182,5 @@
           ADB stopped successfully.
           {% endif %}
         fail_msg: "Failed to stop ADB server!"
-      ignore_errors: yes
+      ignore_errors: true
   tags: [devices, adb]

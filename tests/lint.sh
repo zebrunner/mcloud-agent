@@ -5,13 +5,16 @@ source "$(dirname "$0")/lib.sh"
 cd "$REPO"
 
 missing=""
-for tool in ansible-playbook shellcheck; do
+for tool in ansible-playbook shellcheck yamllint; do
   command -v "$tool" > /dev/null 2>&1 || missing="${missing} ${tool}"
 done
 if [[ -n "$missing" ]]; then
   echo "missing tools:${missing} (pip install -r tests/requirements-lint.txt)"
   exit 1
 fi
+
+echo "# yaml"
+yamllint --strict .
 
 echo "# ansible playbooks syntax"
 for playbook in devices.yml mac-devices.yml; do
