@@ -5,7 +5,7 @@ source "$(dirname "$0")/lib.sh"
 cd "$REPO"
 
 missing=""
-for tool in actionlint ansible-playbook hadolint ruff shellcheck yamllint; do
+for tool in actionlint ansible-playbook hadolint pymarkdown ruff shellcheck yamllint; do
   command -v "$tool" > /dev/null 2>&1 || missing="${missing} ${tool}"
 done
 if [[ -n "$missing" ]]; then
@@ -25,6 +25,9 @@ ruff format --check --no-cache .
 
 echo "# Dockerfile"
 hadolint tests/Dockerfile
+
+echo "# markdown"
+pymarkdown scan README.md
 
 echo "# ansible playbooks syntax"
 for playbook in devices.yml mac-devices.yml; do
