@@ -178,7 +178,7 @@ status() {
   echo ""
   echo "Docker compose version:           $(docker compose version 2>/dev/null || failed "'docker compose' not found")"
   echo ""
-  echo "Ansible-playbook info:            $(ansible-playbook --version 2>/dev/null | head -n 1 || failed "'ansible-playbook' not found")"
+  echo "Ansible-playbook info:            $(ansible-playbook --version 2>/dev/null | head -n 1 | grep . || failed "'ansible-playbook' not found")"
   echo ""
   echo "Zebrunner-farm script:            $(which zebrunner-farm 2>/dev/null || failed "'zebrunner-farm' not found")"
   echo ""
