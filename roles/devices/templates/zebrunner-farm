@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Rendered at deploy time: udev runs this script without the user's env variables
+export ZEBRUNNER_MCLOUD_AGENT_DIR="{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}"
+
 source "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/utility.sh"
 
 MCLOUD_DEVICES="/usr/local/bin/mcloud-devices.txt"
@@ -364,12 +367,12 @@ function start() {
 
   local filter_device="$1"
   if [[ -n "$filter_device" && "$filter_device" != "ios" && "$filter_device" != "android" ]]; then
-    get_device_fields "$filter_device"
+    get_device_fields "$filter_device" || return 1
     create_containers && start_containers
     echo -e "\n-----------------------------------------------------------------"
   else
     while read -r line; do
-      get_device_fields "$line"
+      get_device_fields "$line" || continue
       if [[ -L "/dev/${dev_container}" || "$dev_wireless" == "true" ]]; then
         create_containers && start_containers
         echo -e "\n-----------------------------------------------------------------"
@@ -393,12 +396,12 @@ function stop() {
   local filter_device="$1"
 
   if [[ -n "$filter_device" && "$filter_device" != "ios" && "$filter_device" != "android" ]]; then
-    get_device_fields "$filter_device"
+    get_device_fields "$filter_device" || return 1
     stop_containers
     echo -e "\n-----------------------------------------------------------------"
   else
     while read -r line; do
-      get_device_fields "$line"
+      get_device_fields "$line" || continue
       stop_containers
       echo -e "\n-----------------------------------------------------------------"
     done < "$MCLOUD_DEVICES"
@@ -417,12 +420,12 @@ function down() {
   local filter_device="$1"
 
   if [[ -n "$filter_device" && "$filter_device" != "ios" && "$filter_device" != "android" ]]; then
-    get_device_fields "$filter_device"
+    get_device_fields "$filter_device" || return 1
     remove_containers
     echo -e "\n-----------------------------------------------------------------"
   else
     while read -r line; do
-      get_device_fields "$line"
+      get_device_fields "$line" || continue
       remove_containers
       echo -e "\n-----------------------------------------------------------------"
     done < "$MCLOUD_DEVICES"
@@ -583,11 +586,11 @@ function status() {
   local filter_device="$1"
 
   if [[ -n "$filter_device" && "$filter_device" != "ios" && "$filter_device" != "android" ]]; then
-    get_device_fields "$filter_device"
+    get_device_fields "$filter_device" || return 1
     verify_containers
   else
     while read -r line; do
-      get_device_fields "$line"
+      get_device_fields "$line" || continue
       verify_containers
     done < "$MCLOUD_DEVICES"
   fi

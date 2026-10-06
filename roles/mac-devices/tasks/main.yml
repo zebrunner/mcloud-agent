@@ -1,5 +1,5 @@
 ---
 
 - name: Configure device on MacOS
-  include_tasks: usbmuxd.yml
+  import_tasks: usbmuxd.yml
   tags: registerDevices
