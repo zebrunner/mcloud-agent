@@ -305,7 +305,8 @@ function start() {
     done < "$MCLOUD_DEVICES"
 
     # do listener load only after creating last container otherwise listener starts in parallel
-    launchctl load "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
+    # the listener handles iOS devices only, the android filter must not affect it
+    [[ "$filter_device" == "android" ]] || launchctl load "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
   fi
 }
 
@@ -326,7 +327,8 @@ function stop() {
     stop_containers
     echo -e "\n-----------------------------------------------------------------"
   else
-    launchctl unload "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
+    # the listener handles iOS devices only, the android filter must not affect it
+    [[ "$filter_device" == "android" ]] || launchctl unload "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
 
     while read -r line; do
       get_device_fields "${line%%|*}" || continue
@@ -354,7 +356,8 @@ function down() {
     remove_containers
     echo -e "\n-----------------------------------------------------------------"
   else
-    launchctl unload "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
+    # the listener handles iOS devices only, the android filter must not affect it
+    [[ "$filter_device" == "android" ]] || launchctl unload "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
 
     while read -r line; do
       get_device_fields "${line%%|*}" || continue
