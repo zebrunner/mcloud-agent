@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install ansible
+        run: pip install ansible-core
+      - name: Lint playbooks, scripts and rendered templates
+        run: tests/lint.sh
+      - name: Test zebrunner-farm device selection
+        run: tests/farm_test.sh
+
+  listener:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test macOS device listener
+        run: tests/listener_test.sh
