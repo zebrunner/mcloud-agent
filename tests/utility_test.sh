@@ -24,6 +24,26 @@ check "default length" "48" "$(random_string | tr -d '\n' | wc -c | tr -d ' ')"
 check "custom length" "5" "$(random_string 5 | tr -d '\n' | wc -c | tr -d ' ')"
 check "letters and digits only" "" "$(random_string 200 | tr -d 'a-zA-Z0-9\n')"
 check "invalid length takes the default" "48" "$(random_string abc | tr -d '\n' | wc -c | tr -d ' ')"
+check "zero length is empty" "" "$(random_string 0)"
+check "long string" "500" "$(random_string 500 | tr -d '\n' | wc -c | tr -d ' ')"
+# CI runners set a UTF-8 LC_ALL (tr failed with "Illegal byte sequence") and start processes with SIGPIPE ignored
+[[ "$(uname)" == "Darwin" ]] && utf8=en_US.UTF-8 || utf8=C.UTF-8
+check "UTF-8 locale" "5" \
+  "$(LC_ALL="$utf8" /bin/bash -c "source '${REPO}/patch/utility.sh'; random_string 5" 2> /dev/null | tr -d '\n' | wc -c | tr -d ' ')"
+(trap '' PIPE; random_string 5 > "${WORK}/random") &
+random_pid=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  kill -0 "$random_pid" 2> /dev/null || break
+  sleep 0.5
+done
+random_state="finished"
+if kill -0 "$random_pid" 2> /dev/null; then
+  pkill -P "$random_pid"
+  kill "$random_pid"
+  random_state="hung"
+fi
+check "ignored SIGPIPE does not hang" "finished" "$random_state"
+check "ignored SIGPIPE result" "5" "$(tr -d '\n' < "${WORK}/random" | wc -c | tr -d ' ')"
 
 echo "# delimiter"
 width="$(tput cols)"

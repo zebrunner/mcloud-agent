@@ -14,8 +14,13 @@ random_string() {
   if [[ -n "$1" && $1 =~ ^[0-9]+$ ]]; then
     length="$1"
   fi
-  env LC_CTYPE=C tr -dc a-zA-Z0-9 < /dev/urandom | head -c "$length"
-  echo ""
+  local result=""
+  # Finite chunks of /dev/urandom: with SIGPIPE ignored (e.g. under CI runners) `tr < /dev/urandom | head`
+  # never ends. LC_ALL as it overrides a UTF-8 LC_ALL, which makes tr fail on random bytes.
+  while [[ ${#result} -lt $length ]]; do
+    result+="$(head -c 1024 /dev/urandom | LC_ALL=C tr -dc 'a-zA-Z0-9')"
+  done
+  echo "${result:0:$length}"
 }
 
 echo_warning() {
