@@ -429,7 +429,7 @@ function verify_containers() {
 
   echo -e "\n\tVerify ${dev_container} containers:\n"
 
-  if ! ioreg -p IOUSB -w0 -l | grep -q "${dev_udid//-/}"; then
+  if [[ "$dev_wireless" != "true" ]] && ! ioreg -p IOUSB -w0 -l | grep -q "${dev_udid//-/}"; then
     failed "\n--- DISCONNECTED ---\n"
   else
     local stf_state="UNKNOWN"
