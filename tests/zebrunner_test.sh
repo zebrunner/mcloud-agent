@@ -77,8 +77,8 @@ reset_calls
 AGENT_DIR="$AGENT" OS=Darwin zbr "" ansible devices > /dev/null
 check "devices registration only" "--ask-become-pass|--inventory|hosts|${AGENT}/mac-devices.yml|--tag|registerDevices" "$(calls ansible-playbook)"
 reset_calls
-AGENT_DIR="$AGENT" OS=Linux zbr "" ansible --user=bob --extra-vars "ansible_sudo_pass=a b" > /dev/null
-check "custom arguments keep their words" "--ask-become-pass|--inventory|hosts|--user=bob|--extra-vars|ansible_sudo_pass=a b|${AGENT}/devices.yml" "$(calls ansible-playbook)"
+AGENT_DIR="$AGENT" OS=Linux zbr "" ansible --user=bob --extra-vars "app_name=a b" > /dev/null
+check "custom arguments keep their words" "--ask-become-pass|--inventory|hosts|--user=bob|--extra-vars|app_name=a b|${AGENT}/devices.yml" "$(calls ansible-playbook)"
 output="$(ANSIBLE_EXIT=2 AGENT_DIR="$AGENT" zbr "" ansible)"
 check "failed playbook fails" "1" "$?"
 check_contains "failed playbook is reported" "Ansible playbook execution failed!" "$output"

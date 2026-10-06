@@ -51,9 +51,9 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
   ```bash
   ./zebrunner.sh ansible devices
   ```
-  > To provide extra arguments including sudo permissions, you can use the below command:
+  > To provide extra arguments, e.g. another user, you can use the below command. The sudo password is asked interactively: do not pass it in the command line, where it stays in the shell history and is visible in the processes list.
   ```bash
-  ./zebrunner.sh ansible --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD"
+  ./zebrunner.sh ansible --user=USERNAME
   ```
  * Devices management script is deployed to /usr/local/bin/zebrunner-farm.
  * Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules.
@@ -75,9 +75,9 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
   ```bash
   ./zebrunner.sh ansible devices
   ```
-  > To provide extra arguments including sudo permissions, you can use the below command:
+  > To provide extra arguments, e.g. another user, you can use the below command. The sudo password is asked interactively: do not pass it in the command line, where it stays in the shell history and is visible in the processes list.
   ```bash
-  ./zebrunner.sh ansible --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD"
+  ./zebrunner.sh ansible --user=USERNAME
   ```
  * Devices management script is deployed to /usr/local/bin/zebrunner-farm.
  * Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
@@ -171,9 +171,10 @@ Follow the below algorithm to identify any configuration issues with MCloud agen
   ```
   ansible-playbook -vvv -i hosts <devices_file>.yml --tag registerDevices
   ```
-  > To provide extra arguments including sudo permissions, you can use the below command:
+  > To run it non-interactively, keep the sudo password in an ansible-vault encrypted file instead of the command line (use `--vault-password-file` instead of `--ask-vault-pass` for automation):
   ```
-  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD" <devices_file>.yml
+  ansible-vault create become.yml    # with the line: ansible_become_password: PSWD
+  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars @become.yml --ask-vault-pass <devices_file>.yml
   ```
 
 ## Tests
