@@ -142,19 +142,20 @@ ansible() {
 
   ### Make a list of arguments
   delimiter "*"
+  local -a args
   if [[ -z "$1" ]]; then
-    arg="$file"
+    args=("$file")
   elif [[ "$1" == "devices" ]]; then
-    arg="${file} --tag registerDevices"
+    args=("$file" --tag registerDevices)
   else
-    arg="$* $file"
+    args=("$@" "$file")
   fi
 
   ### Run ansible with arguments
   echo_warning "Sudo permissions are required to run this script!"
-  echo "ansible-playbook --ask-become-pass --inventory hosts ${arg}"
+  echo "ansible-playbook --ask-become-pass --inventory hosts ${args[*]}"
   delimiter "*"
-  ansible-playbook --ask-become-pass --inventory hosts "$arg" || {
+  ansible-playbook --ask-become-pass --inventory hosts "${args[@]}" || {
     echo_warning "Ansible playbook execution failed!"
     echo_telegram
     exit 1

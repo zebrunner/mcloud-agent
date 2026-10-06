@@ -159,7 +159,7 @@ function create_containers() {
     # wireless device has no usbmuxd path, so it is skipped entirely rather than
     # started and left failing.
     if [[ "$dev_wireless" != "true" ]]; then
-      echo -n "-connector:  "
+      echo -n "${dev_container}-connector:  "
       docker run -itd --name "${dev_container}-connector" \
         --log-driver=local \
         --log-opt max-size=256m \
@@ -217,7 +217,7 @@ function create_containers() {
       --log-opt max-file=2 \
       --net="$net" \
       --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-      --link "${dev_container}":device \
+      --link "${dev_container}-stf":device \
       "${wda_link_args[@]+"${wda_link_args[@]}"}" \
       "${wda_env_args[@]+"${wda_env_args[@]}"}" \
       -v appium-storage-volume:/opt/appium-storage \

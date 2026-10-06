@@ -26,15 +26,15 @@
 - name: Check 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable
   assert:
     that:
-      - lookup('env','ZEBRUNNER_MCLOUD_AGENT_DIR') is not none
+      - lookup('env','ZEBRUNNER_MCLOUD_AGENT_DIR') | length > 0
     fail_msg: "You have to set up 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable in advance!"
     success_msg: "'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable is defined."
   tags: [devices, precheck]
 
 - name: Collect all device IDs and names
   set_fact:
-    all_ids: "{{ devices | map(attribute='id') | trim | list }}"
-    all_names: "{{ devices | map(attribute='name') | trim | map('regex_replace', '\\s+', '_') | list }}"
+    all_ids: "{{ devices | map(attribute='id') | map('trim') | list }}"
+    all_names: "{{ devices | map(attribute='name') | map('trim') | map('regex_replace', '\\s+', '_') | list }}"
   tags: [devices, precheck, dedup]
 
 - name: Count occurrences of each device id
@@ -88,8 +88,8 @@
   changed_when: false
   tags: [devices, files]
 
-- name: Copy 'usbmuxd_watch' script file
-  template:
+- name: Copy 'usbmuxd_watch' binary file
+  copy:
     src: usbmuxd_watch
     dest: /usr/local/bin/usbmuxd_watch
     mode: '0755'

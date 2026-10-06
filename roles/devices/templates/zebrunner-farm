@@ -78,7 +78,8 @@ function create_containers() {
   # for the physically connected devices via usb
   local ANDROID_DEVICE=""
   local STF_DEVICE_UDID="$dev_udid"
-  local DEVICE_ARG="--device=/dev/${dev_container}:${usb_bus}"
+  # array, so an empty value expands to no argument at all instead of an empty "" one
+  local DEVICE_ARGS=(--device="/dev/${dev_container}:${usb_bus}")
 
   if [[ "$dev_wireless" == "true" ]]; then
     # provide ANDROID_DEVICE with 5555 port to trigger remote adb connect on appium startup
@@ -86,7 +87,7 @@ function create_containers() {
     # append 5555 port to be able to rename device in STF
     STF_DEVICE_UDID="${dev_udid}:5555"
     # reset device arg as no symlink generated for the wireless device
-    DEVICE_ARG=""
+    DEVICE_ARGS=()
   else
     local connected_devices
     connected_devices="$(lsusb -v 2>/dev/null)"
@@ -117,7 +118,7 @@ function create_containers() {
         --log-opt max-file=2 \
         --net="$net" \
         --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-        "$DEVICE_ARG" \
+        "${DEVICE_ARGS[@]}" \
         -e DEVICE_BUS="$usb_bus" \
         -v mcloud-key-volume:/root/.android \
         -v "${dev_container}":/tmp/log \
@@ -238,7 +239,7 @@ function create_containers() {
         --net="$net" \
         --sysctl net.ipv6.conf.all.disable_ipv6=0 \
         --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-        "$DEVICE_ARG" \
+        "${DEVICE_ARGS[@]}" \
         --cap-add=NET_ADMIN \
         --device=/dev/net/tun \
         -e HOST_OS=LINUX \
@@ -295,7 +296,7 @@ function create_containers() {
         --log-opt max-file=2 \
         --net="$net" \
         --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-        "$DEVICE_ARG" \
+        "${DEVICE_ARGS[@]}" \
         --link "${dev_container}-stf":device \
         --link "${dev_container}-connector":connector \
         -e WDA_HOST=connector \
