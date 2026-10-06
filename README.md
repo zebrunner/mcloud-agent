@@ -22,6 +22,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * macOS: install and authorize [go-ios](https://github.com/danielpaulus/go-ios) utility 1.0.121+
 * macOS: install socat utility to share usbmuxd websocket into the device containers
   > valid path to socat binary should be `/usr/local/bin/socat`
+  > on Apple Silicon Homebrew installs it to `/opt/homebrew/bin/socat`, link it: `sudo ln -s /opt/homebrew/bin/socat /usr/local/bin/socat`
 * MacOS: install jq utility
 
 ## Clone and setup
@@ -35,7 +36,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 ## Run ansible playbook
 * [Optional] To enable opencv support append `-opencv5.6.0` postfix to the `APPIUM_VERSION` in the ./defaults/main.yml:
   ```
-  APPIUM_VERSION: 2.0-opencv5.6.0
+  APPIUM_VERSION: 2.1-opencv5.6.0
   ```
   > Full list of supported appium+opencv images can be found here: https://gallery.ecr.aws/zebrunner/appium
 
@@ -82,6 +83,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
  * Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
  * Deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist to share usbmuxd into the device containers
  * Deployed $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist to load and manage iOS devices connect/disconnect automatically
+ * Run `zebrunner-farm start` to create the containers of the connected devices and to load the devices listener (otherwise it is loaded on the next login only).
 
 ## Usage
 
@@ -134,6 +136,7 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
 
 ## Troubleshooting
 Follow the below algorithm to identify any configuration issues with MCloud agent:
+* macOS: the devices listener logs into `logs/listener.log` and `logs/listener.err.log`, the usbmuxd sharing (socat) into `logs/usbmuxd-socat.log` and `logs/usbmuxd-socat.err.log` of the MCloud agent directory. Loaded agents are shown by `launchctl list | grep zebrunner`.
 * Enable the debug log level for udev rules: `sudo udevadm control --log-priority=debug`.
 * Inspect syslog to check if the `zebrunner-farm` shell script executed on every whitelisted device is able to connect/disconnect:
   ```
