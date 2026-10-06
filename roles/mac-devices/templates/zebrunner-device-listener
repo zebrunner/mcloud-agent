@@ -4,6 +4,13 @@
 LISTENER_TAG_PREFIX="usb-debounce:$$"
 DEBOUNCE_SECONDS=5
 ACTION_TIMEOUT_SECONDS=100
+# an action holds its device lock at most ACTION_TIMEOUT_SECONDS plus the time to kill it,
+# so an older lock was left by a job killed before releasing it
+LOCK_STALE_SECONDS=$((ACTION_TIMEOUT_SECONDS + 10))
+# per-device locks and newest event ids of this run
+LISTENER_STATE_DIR="${TMPDIR:-/tmp}/zebrunner-listener.$$"
+# incremented by on_usb_update only, so events get increasing ids
+event_id=0
 
 # Pure bash replacement for coreutils `timeout`, which is not shipped with macOS
 function run_with_timeout() {
@@ -29,16 +36,52 @@ function run_with_timeout() {
   wait "$pid" 2>/dev/null
 }
 
+# Runs the action once no other action of this device is running,
+# unless a newer event for the device arrived in the meantime
+function run_serialized() {
+  local udid="$1"
+  local action="$2"
+  local id="$3"
+  local lock="${LISTENER_STATE_DIR}/${udid}.lock"
+  local latest="${LISTENER_STATE_DIR}/${udid}.latest"
+  local lock_time
+  # mkdir is atomic: only one action per device holds the lock, the others wait for it
+  until mkdir "$lock" 2>/dev/null; do
+    # a newer event is queued for this device, its action brings the device to the actual state
+    [[ "$(cat "$latest" 2>/dev/null)" == "$id" ]] || return 0
+    lock_time="$(stat -f %m "$lock" 2>/dev/null)"
+    if [[ -n "$lock_time" ]] && (( $(date +%s) - lock_time > LOCK_STALE_SECONDS )); then
+      echo "[$(date -Iseconds)] - [WARN] removing stale lock of ${udid}"
+      rm -rf "$lock"
+      continue
+    fi
+    sleep 1
+  done
+  # the owner id lets a job release only its own lock: after a sleep of the Mac a live job's
+  # lock may be taken over as stale, and the job must not remove the lock of its successor
+  echo "$id" > "${lock}/owner"
+  if [[ "$(cat "$latest" 2>/dev/null)" == "$id" ]]; then
+    run_with_timeout "$ACTION_TIMEOUT_SECONDS" zebrunner-farm "$action" "$udid"
+  fi
+  if [[ "$(cat "${lock}/owner" 2>/dev/null)" == "$id" ]]; then
+    rm -rf "$lock"
+  fi
+}
+
 function schedule_action() {
   # On the previous step we make sure udid have at least one non-whitespace character
   local udid="$1"
   local action="$2"
   local tag="${LISTENER_TAG_PREFIX}:${udid}"
+  event_id=$((event_id + 1))
+  # remember the newest event of the device: older actions still waiting for the device skip themselves
+  echo "$event_id" > "${LISTENER_STATE_DIR}/${udid}.latest"
   # cancel this device's pending debounce job, if any
   pkill -f "$tag" 2>/dev/null
   # only the debounce sleep carries the tag (exec -a sets its argv[0]): killing it cancels
   # the scheduled action, while an action that has already started runs to completion
-  ( { ( exec -a "$tag" sleep "$DEBOUNCE_SECONDS" ); } 2>/dev/null && run_with_timeout "$ACTION_TIMEOUT_SECONDS" zebrunner-farm "$action" "$udid" ) &
+  # and the next action of the device waits for it in run_serialized
+  ( { ( exec -a "$tag" sleep "$DEBOUNCE_SECONDS" ); } 2>/dev/null && run_serialized "$udid" "$action" "$event_id" ) &
 }
 
 function on_usb_update() {
@@ -51,8 +94,10 @@ function on_usb_update() {
   done
 }
 
-# no PID filter: sweep orphaned jobs left by a previous, crashed run
+# no PID filter: sweep orphaned jobs and state left by a previous, crashed run
 pkill -f 'usb-debounce:' 2>/dev/null
+rm -rf "${TMPDIR:-/tmp}"/zebrunner-listener.*
+mkdir -p "$LISTENER_STATE_DIR"
 
 usbmuxd_watch | on_usb_update &
 # PID of the LAST stage (on_usb_update), not usbmuxd_watch
