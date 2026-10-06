@@ -33,10 +33,12 @@ function get_device_fields() {
   dev_wda_port=""
 
   local line
-  line="$(grep "$filter" "$MCLOUD_DEVICES")" || {
+  # exact match of udid (field 1) or name (field 3)
+  line="$(awk -F"|" -v filter="$filter" 'filter != "" && ($1 == filter || $3 == filter) { print; exit }' "$MCLOUD_DEVICES")"
+  if [[ -z "$line" ]]; then
     failed "device not found: ${filter}"
     return 1
-  }
+  fi
 
   local IFS='|'
   read -r -a fields <<< "$line"
@@ -288,7 +290,8 @@ function start() {
     echo -e "\n-----------------------------------------------------------------"
   else
     while read -r line; do
-      get_device_fields "$line" || continue
+      get_device_fields "${line%%|*}" || continue
+      [[ -z "$filter_device" || "$dev_platform_name" == "$filter_device" ]] || continue
       create_containers && start_containers
       echo -e "\n-----------------------------------------------------------------"
     done < "$MCLOUD_DEVICES"
@@ -317,7 +320,8 @@ function stop() {
     launchctl unload "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
 
     while read -r line; do
-      get_device_fields "$line" || continue
+      get_device_fields "${line%%|*}" || continue
+      [[ -z "$filter_device" || "$dev_platform_name" == "$filter_device" ]] || continue
       stop_containers
       echo -e "\n-----------------------------------------------------------------"
     done < "$MCLOUD_DEVICES"
@@ -343,7 +347,8 @@ function down() {
     launchctl unload "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
 
     while read -r line; do
-      get_device_fields "$line" || continue
+      get_device_fields "${line%%|*}" || continue
+      [[ -z "$filter_device" || "$dev_platform_name" == "$filter_device" ]] || continue
       remove_containers
       echo -e "\n-----------------------------------------------------------------"
     done < "$MCLOUD_DEVICES"
@@ -483,7 +488,8 @@ function status() {
     verify_containers
   else
     while read -r line; do
-      get_device_fields "$line" || continue
+      get_device_fields "${line%%|*}" || continue
+      [[ -z "$filter_device" || "$dev_platform_name" == "$filter_device" ]] || continue
       verify_containers
     done < "$MCLOUD_DEVICES"
   fi
@@ -493,13 +499,15 @@ function echo_help() {
   echo "
       Usage: zebrunner-farm [option]
       Arguments:
-          status               Status of MCloud Agent and each whitelisted device
-          start [udid]         Start devices containers or exact device by udid
-          stop [udid]          Stop and keep devices containers or exact device by udid
-          restart [udid]       Restart all devices containers or exact device by udid
-          down [udid]          Stop and remove devices containers
+          status [device]      Status of MCloud Agent and each whitelisted device
+          start [device]       Start devices containers
+          stop [device]        Stop and keep devices containers
+          restart [device]     Restart devices containers
+          down [device]        Stop and remove devices containers
           ansible ['devices']  Run ansible-playbook script with custom or predefined args
-          version              Show version of MCloud Agent components"
+          version              Show version of MCloud Agent components
+      Device: udid or name of a whitelisted device, or ios/android for all devices of the platform.
+      All whitelisted devices are used if the device is omitted."
   echo_telegram
   exit 0
 }
