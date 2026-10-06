@@ -1,6 +1,6 @@
 ---
-
-- hosts: devices_servers
+- name: Deploy MCloud agent for the Android and iOS devices of a Linux server
+  hosts: devices_servers
   become: true
   # the roles use ansible_facts['system'] only, hardware facts are slow on macOS (system_profiler)
   gather_subset: [min]

@@ -7,7 +7,6 @@ on:
   pull_request:
     branches: [develop, main, master]
   workflow_dispatch:
-
 # a new push to a pull request cancels its outdated run, runs of the branches themselves are kept
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -24,7 +23,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.13'
+          python-version: "3.13"
       - name: Install linters
         run: pip install -r tests/requirements-lint.txt
       - name: Lint playbooks, scripts and rendered templates
@@ -41,7 +40,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.13'
+          python-version: "3.13"
       - name: Install ansible
         run: pip install ansible-core
       - name: Run tests

@@ -1,5 +1,4 @@
 ---
-
 - name: Configure devices on Linux server
-  import_tasks: udev.yml
+  ansible.builtin.import_tasks: udev.yml
   tags: registerDevices

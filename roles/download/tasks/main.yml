@@ -1,28 +1,27 @@
 ---
-
 # A failed pull is reported but does not stop the deploy: the image may exist locally only
 - name: Pull Zebrunner images
-  shell: docker pull "{{ item }}"
+  ansible.builtin.command: docker pull "{{ item }}"
   loop:
     - "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}"
     - "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}"
     - "{{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }}"
     - "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}"
     - "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}"
-  register: images_pull
+  register: download_images_pull
   ignore_errors: true
   changed_when: false
   tags: [pull, download]
 
 - name: Check that images failed to pull exist locally
-  command: docker image inspect "{{ item.item }}"
-  loop: "{{ images_pull.results | select('failed') | list }}"
+  ansible.builtin.command: docker image inspect "{{ item.item }}"
+  loop: "{{ download_images_pull.results | select('failed') | list }}"
   loop_control:
     label: "{{ item.item }}"
   changed_when: false
   tags: [pull, download]
 
 - name: Create infra network if absent
-  shell: docker network inspect "{{ STF_DOCKER_NETWORK }}" >/dev/null 2>&1 || docker network create "{{ STF_DOCKER_NETWORK }}"
+  ansible.builtin.shell: docker network inspect "{{ STF_DOCKER_NETWORK }}" >/dev/null 2>&1 || docker network create "{{ STF_DOCKER_NETWORK }}"
   changed_when: false
   tags: [pull, download]
