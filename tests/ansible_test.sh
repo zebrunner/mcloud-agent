@@ -66,6 +66,33 @@ for role in devices mac-devices; do
 EOF
 done
 
+echo "# devices settings check"
+for role in devices mac-devices; do
+  check_contains "${role}: example settings are valid" "failed=0" "$(playbook "$role" --tags validate)"
+  while IFS='=' read -r devices expected; do
+    output="$(playbook "$role" --tags validate --extra-vars "{\"devices\": ${devices}}")"
+    check_contains "${role}: ${devices}" "$expected" "$output"
+  done <<'EOF'
+[{"id": "a", "name": "A", "os": "ios", "adb_port": 2, "min_port": 3, "max_port": 4}]=Invalid settings of device 'A'
+[{"id": "a", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4}]=Invalid settings of device 'a'
+[{"id": "a", "name": "A", "os": "windows", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4}]=Invalid settings of device 'A'
+[{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 9, "max_port": 4}]=Invalid settings of device 'A'
+[{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 70000}]=Invalid settings of device 'A'
+[{"id": "a", "name": "A", "os": "ios", "appium_port": 7421, "adb_port": 2, "min_port": 7425, "max_port": 7430}, {"id": "b", "name": "B", "os": "ios", "appium_port": 7427, "adb_port": 2, "min_port": 7435, "max_port": 7440}]=Host ports [7427] of device 'B'
+[{"id": "a", "name": "A", "os": "ios", "appium_port": 7421, "adb_port": 2, "min_port": 7425, "max_port": 7430}, {"id": "b", "name": "B", "os": "ios", "appium_port": 7421, "adb_port": 2, "min_port": 7435, "max_port": 7440}]=Host ports [7421] of device 'B'
+[{"id": "a", "name": "A", "os": "ios", "appium_port": 7421, "adb_port": 2, "min_port": 7425, "max_port": 7430}, {"id": "b", "name": "B", "os": "ios", "appium_port": 7441, "adb_port": 2, "min_port": 7430, "max_port": 7440}]=Host ports [7430] of device 'B'
+[{"id": "a", "name": "A", "os": "ios", "appium_port": 7426, "adb_port": 2, "min_port": 7425, "max_port": 7430}]=Host ports [7426] of device 'A'
+[{"id": "a", "name": "A", "os": "ios", "appium_port": 7421, "adb_port": 7422, "min_port": 7425, "max_port": 7430}, {"id": "b", "name": "B", "os": "android", "appium_port": 7431, "adb_port": 7422, "min_port": 7432, "max_port": 7440}]=failed=0
+EOF
+done
+while IFS='=' read -r devices expected; do
+  check_contains "mac-devices: ${devices}" "$expected" "$(playbook mac-devices --tags validate --extra-vars "{\"devices\": ${devices}}")"
+done <<'EOF'
+[{"id": "a", "name": "TV", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "wireless": true}]=Wireless device 'TV' needs wda_host
+[{"id": "a", "name": "TV", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "wireless": "true", "wda_host": ""}]=Wireless device 'TV' needs wda_host
+[{"id": "a", "name": "TV", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "wireless": true, "wda_host": "10.0.0.5"}]=failed=0
+EOF
+
 echo "# prechecks of ${OS_ROLE}"
 output="$(playbook "$OS_ROLE" --check --tags precheck)"
 check_contains "OS is compatible" "OS is compatible: $(uname)" "$output"
