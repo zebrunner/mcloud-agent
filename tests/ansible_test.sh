@@ -4,6 +4,12 @@
 source "$(dirname "$0")/lib.sh"
 require_cmd ansible-playbook
 
+# Facts are gathered by the first playbook only and cached for the others: on the GitHub macOS
+# runner gathering even the minimal facts takes about 70 seconds per playbook.
+export ANSIBLE_GATHERING=smart
+export ANSIBLE_CACHE_PLUGIN=jsonfile
+export ANSIBLE_CACHE_PLUGIN_CONNECTION="${WORK}/facts"
+
 if [[ "$(uname)" == "Darwin" ]]; then
   OS_ROLE=mac-devices
 else
