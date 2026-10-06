@@ -164,108 +164,116 @@ function create_containers() {
     # wireless device has no usbmuxd path, so it is skipped entirely rather than
     # started and left failing.
     if [[ "$dev_wireless" != "true" ]]; then
-      echo -n "${dev_container}-connector:  "
-      docker run -itd --name "${dev_container}-connector" \
+      grep -q "${dev_container}-connector" <<< "$ps_out" || {
+        echo -n "${dev_container}-connector:  "
+        docker run -itd --name "${dev_container}-connector" \
+          --log-driver=local \
+          --log-opt max-size=256m \
+          --log-opt max-file=2 \
+          --net="$net" \
+          --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+          -e USBMUXD_SOCKET_ADDRESS="{{ USBMUXD_SOCKET_ADDRESS }}" \
+          -e HOST_OS=DARWIN \
+          -e WDA_BUNDLEID="$dev_device_wda_bundle_id" \
+          -e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
+          -v devimages_cache:/opt/zebrunner/devimages \
+          -v "${dev_device_wda_ipa_path}":/tmp/zebrunner/WebDriverAgent.ipa \
+          -v "${dev_container}-lockdown":/var/lib/lockdown \
+          -v "${dev_container}":/tmp/log \
+          -e DEVICE_UDID="$dev_udid" \
+          "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}" || failed "Error. Not created"
+      }
+    fi
+
+    # Linking with appium required to share usbmuxd via socat
+    grep -q "${dev_container}-stf" <<< "$ps_out" || {
+      echo -n "${dev_container}-stf:            "
+      docker run -d --name "${dev_container}-stf" \
         --log-driver=local \
         --log-opt max-size=256m \
         --log-opt max-file=2 \
         --net="$net" \
         --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-        -e USBMUXD_SOCKET_ADDRESS="{{ USBMUXD_SOCKET_ADDRESS }}" \
-        -e HOST_OS=DARWIN \
-        -e WDA_BUNDLEID="$dev_device_wda_bundle_id" \
-        -e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
-        -v devimages_cache:/opt/zebrunner/devimages \
-        -v "${dev_device_wda_ipa_path}":/tmp/zebrunner/WebDriverAgent.ipa \
-        -v "${dev_container}-lockdown":/var/lib/lockdown \
-        -v "${dev_container}":/tmp/log \
+        "${wda_link_args[@]+"${wda_link_args[@]}"}" \
+        "${wda_env_args[@]+"${wda_env_args[@]}"}" \
+        -e WDA_WAIT_TIMEOUT=60 \
+        -e PLATFORM_NAME="$dev_platform_name" \
+        -e STF_PROVIDER_DEVICE_NAME="$dev_device_name" \
         -e DEVICE_UDID="$dev_udid" \
-        "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}" || echo 'already created'
-    fi
-
-    # Linking with appium required to share usbmuxd via socat
-    echo -n "${dev_container}-stf:            "
-    docker run -d --name "${dev_container}-stf" \
-      --log-driver=local \
-      --log-opt max-size=256m \
-      --log-opt max-file=2 \
-      --net="$net" \
-      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-      "${wda_link_args[@]+"${wda_link_args[@]}"}" \
-      "${wda_env_args[@]+"${wda_env_args[@]}"}" \
-      -e WDA_WAIT_TIMEOUT=60 \
-      -e PLATFORM_NAME="$dev_platform_name" \
-      -e STF_PROVIDER_DEVICE_NAME="$dev_device_name" \
-      -e DEVICE_UDID="$dev_udid" \
-      -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
-      -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}${dev_location:+_$dev_location}" \
-      -e STF_PROVIDER_MIN_PORT="$dev_stf_min_port" \
-      -e STF_PROVIDER_MAX_PORT="$dev_stf_max_port" \
-      -p "$dev_stf_min_port"-"$dev_stf_max_port":"$dev_stf_min_port"-"$dev_stf_max_port" \
-      -e STF_PROVIDER_PUBLIC_IP="{{ PUBLIC_IP }}" \
-      -e PUBLIC_IP_PORT="{{ PUBLIC_IP_PORT }}" \
-      -e PUBLIC_IP_PROTOCOL="{{ PUBLIC_IP_PROTOCOL }}" \
-      -e STF_PROVIDER_CONNECT_SUB="{{ STF_PROVIDER_CONNECT_SUB }}" \
-      -e STF_PROVIDER_CONNECT_PUSH="{{ STF_PROVIDER_CONNECT_PUSH }}" \
-      -e STF_PROVIDER_CONNECT_APP_DEALER="{{ STF_PROVIDER_CONNECT_APP_DEALER }}" \
-      -e STF_PROVIDER_CONNECT_DEV_DEALER="{{ STF_PROVIDER_CONNECT_DEV_DEALER }}" \
-      -e RETHINKDB_PORT_28015_TCP="{{ STF_RETHINKDB }}" \
-      -e STF_STORAGE_TOKEN="{{ STF_STORAGE_TOKEN }}" \
-      "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}" || echo 'already created'
+        -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
+        -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}${dev_location:+_$dev_location}" \
+        -e STF_PROVIDER_MIN_PORT="$dev_stf_min_port" \
+        -e STF_PROVIDER_MAX_PORT="$dev_stf_max_port" \
+        -p "$dev_stf_min_port"-"$dev_stf_max_port":"$dev_stf_min_port"-"$dev_stf_max_port" \
+        -e STF_PROVIDER_PUBLIC_IP="{{ PUBLIC_IP }}" \
+        -e PUBLIC_IP_PORT="{{ PUBLIC_IP_PORT }}" \
+        -e PUBLIC_IP_PROTOCOL="{{ PUBLIC_IP_PROTOCOL }}" \
+        -e STF_PROVIDER_CONNECT_SUB="{{ STF_PROVIDER_CONNECT_SUB }}" \
+        -e STF_PROVIDER_CONNECT_PUSH="{{ STF_PROVIDER_CONNECT_PUSH }}" \
+        -e STF_PROVIDER_CONNECT_APP_DEALER="{{ STF_PROVIDER_CONNECT_APP_DEALER }}" \
+        -e STF_PROVIDER_CONNECT_DEV_DEALER="{{ STF_PROVIDER_CONNECT_DEV_DEALER }}" \
+        -e RETHINKDB_PORT_28015_TCP="{{ STF_RETHINKDB }}" \
+        -e STF_STORAGE_TOKEN="{{ STF_STORAGE_TOKEN }}" \
+        "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}" || failed "Error. Not created"
+    }
 
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
-    echo -n "${dev_container}-appium:     "
-    docker run -itd --name "${dev_container}-appium" \
-      -m 1g \
-      --log-driver=local \
-      --log-opt max-size=256m \
-      --log-opt max-file=2 \
-      --net="$net" \
-      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-      --link "${dev_container}-stf":device \
-      "${wda_link_args[@]+"${wda_link_args[@]}"}" \
-      "${wda_env_args[@]+"${wda_env_args[@]}"}" \
-      -v appium-storage-volume:/opt/appium-storage \
-      -v "${dev_container}":/tmp/log \
-      -e TASK_LOG=/tmp/log/appium.log \
-      -e APPIUM_CLI="--session-override" \
-      -e PLATFORM_NAME="$dev_platform_name" \
-      -e RETAIN_TASK=true \
-      -e CONNECT_TO_GRID=true \
-      -e RECORD_ARTIFACTS=true \
-      -e CUSTOM_NODE_CONFIG=true \
-      -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
-      -e APPIUM_APP_SIZE_DISABLE="{{ APPIUM_APP_SIZE_DISABLE }}" \
-      -e APPIUM_APP_FETCH_RETRIES="{{ APPIUM_APP_FETCH_RETRIES }}" \
-      -e APPIUM_MAX_LOCK_FILE_LIFETIME="{{ APPIUM_MAX_LOCK_FILE_LIFETIME }}" \
-      -e APPIUM_APP_WAITING_TIMEOUT="{{ APPIUM_APP_WAITING_TIMEOUT }}" \
-      -e SELENIUM_HOST="{{ SELENIUM_HUB_HOST }}" \
-      -e SELENIUM_PORT="{{ SELENIUM_HUB_PORT }}" \
-      -e DEFAULT_CAPABILITIES=true \
-      -e DEVICE_NAME="$dev_device_name" \
-      -e DEVICE_UDID="$dev_udid" \
-      -e ADB_PORT="$dev_adb_port" \
-      -e PROXY_PORT="$dev_proxy_port" \
-      -e SERVER_PROXY_PORT="$dev_server_proxy_port" \
-      -e APPIUM_PORT="$dev_appium_port" \
-      -p "$dev_appium_port":"$dev_appium_port" \
-      -e RELAXED_SECURITY=true \
-      "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}" || echo 'already created'
+    grep -q "${dev_container}-appium" <<< "$ps_out" || {
+      echo -n "${dev_container}-appium:     "
+      docker run -itd --name "${dev_container}-appium" \
+        -m 1g \
+        --log-driver=local \
+        --log-opt max-size=256m \
+        --log-opt max-file=2 \
+        --net="$net" \
+        --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+        --link "${dev_container}-stf":device \
+        "${wda_link_args[@]+"${wda_link_args[@]}"}" \
+        "${wda_env_args[@]+"${wda_env_args[@]}"}" \
+        -v appium-storage-volume:/opt/appium-storage \
+        -v "${dev_container}":/tmp/log \
+        -e TASK_LOG=/tmp/log/appium.log \
+        -e APPIUM_CLI="--session-override" \
+        -e PLATFORM_NAME="$dev_platform_name" \
+        -e RETAIN_TASK=true \
+        -e CONNECT_TO_GRID=true \
+        -e RECORD_ARTIFACTS=true \
+        -e CUSTOM_NODE_CONFIG=true \
+        -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
+        -e APPIUM_APP_SIZE_DISABLE="{{ APPIUM_APP_SIZE_DISABLE }}" \
+        -e APPIUM_APP_FETCH_RETRIES="{{ APPIUM_APP_FETCH_RETRIES }}" \
+        -e APPIUM_MAX_LOCK_FILE_LIFETIME="{{ APPIUM_MAX_LOCK_FILE_LIFETIME }}" \
+        -e APPIUM_APP_WAITING_TIMEOUT="{{ APPIUM_APP_WAITING_TIMEOUT }}" \
+        -e SELENIUM_HOST="{{ SELENIUM_HUB_HOST }}" \
+        -e SELENIUM_PORT="{{ SELENIUM_HUB_PORT }}" \
+        -e DEFAULT_CAPABILITIES=true \
+        -e DEVICE_NAME="$dev_device_name" \
+        -e DEVICE_UDID="$dev_udid" \
+        -e ADB_PORT="$dev_adb_port" \
+        -e PROXY_PORT="$dev_proxy_port" \
+        -e SERVER_PROXY_PORT="$dev_server_proxy_port" \
+        -e APPIUM_PORT="$dev_appium_port" \
+        -p "$dev_appium_port":"$dev_appium_port" \
+        -e RELAXED_SECURITY=true \
+        "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}" || failed "Error. Not created"
+    }
 
-    echo -n "${dev_container}-uploader:   "
-    docker run -d --name "${dev_container}-uploader" \
-      --log-driver=local \
-      --log-opt max-size=256m \
-      --log-opt max-file=2 \
-      --net="$net" \
-      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-      -v "${dev_container}":/tmp/log \
-      -e ENDPOINT_URL="{{ S3_ENDPOINT }}" \
-      -e S3_KEY_PATTERN="$S3_KEY_PATTERN" \
-      -e AWS_ACCESS_KEY_ID="{{ S3_ACCESS_KEY_ID }}" \
-      -e AWS_SECRET_ACCESS_KEY="{{ S3_SECRET }}" \
-      -e AWS_DEFAULT_REGION="{{ S3_REGION }}" \
-      "{{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }}" || echo 'already created'
+    grep -q "${dev_container}-uploader" <<< "$ps_out" || {
+      echo -n "${dev_container}-uploader:   "
+      docker run -d --name "${dev_container}-uploader" \
+        --log-driver=local \
+        --log-opt max-size=256m \
+        --log-opt max-file=2 \
+        --net="$net" \
+        --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+        -v "${dev_container}":/tmp/log \
+        -e ENDPOINT_URL="{{ S3_ENDPOINT }}" \
+        -e S3_KEY_PATTERN="$S3_KEY_PATTERN" \
+        -e AWS_ACCESS_KEY_ID="{{ S3_ACCESS_KEY_ID }}" \
+        -e AWS_SECRET_ACCESS_KEY="{{ S3_SECRET }}" \
+        -e AWS_DEFAULT_REGION="{{ S3_REGION }}" \
+        "{{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }}" || failed "Error. Not created"
+    }
 
   else
     echo "ERROR! Unsupported platform: ${dev_platform_name}"
