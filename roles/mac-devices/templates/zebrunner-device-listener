@@ -2,6 +2,32 @@
 
 # $$ scopes tags to this run only, avoids clashing with a stale prior incarnation
 LISTENER_TAG_PREFIX="usb-debounce:$$"
+DEBOUNCE_SECONDS=5
+ACTION_TIMEOUT_SECONDS=100
+
+# Pure bash replacement for coreutils `timeout`, which is not shipped with macOS
+function run_with_timeout() {
+  local seconds="$1"
+  shift
+  # job control puts the command into its own process group, so the docker
+  # processes spawned by it are killed together with it
+  set -m
+  "$@" &
+  local pid=$!
+  set +m
+  local waited=0
+  while kill -0 "$pid" 2>/dev/null; do
+    if (( waited >= seconds )); then
+      echo "[$(date -Iseconds)] - [ERROR] '$*' timed out after ${seconds}s"
+      kill -TERM -- "-${pid}" 2>/dev/null
+      break
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  # the timeout above is already logged, skip bash's own "Terminated" job report
+  wait "$pid" 2>/dev/null
+}
 
 function schedule_action() {
   # On the previous step we make sure udid have at least one non-whitespace character
@@ -10,8 +36,9 @@ function schedule_action() {
   local tag="${LISTENER_TAG_PREFIX}:${udid}"
   # cancel this device's pending debounce job, if any
   pkill -f "$tag" 2>/dev/null
-  # exec -a sets argv[0] so `tag` is visible in `ps`/pkill -f for the job's whole lifetime (sleep + action)
-  ( exec -a "$tag" bash -c "sleep 5; timeout 100 zebrunner-farm '$action' '$udid'" ) &
+  # only the debounce sleep carries the tag (exec -a sets its argv[0]): killing it cancels
+  # the scheduled action, while an action that has already started runs to completion
+  ( { ( exec -a "$tag" sleep "$DEBOUNCE_SECONDS" ); } 2>/dev/null && run_with_timeout "$ACTION_TIMEOUT_SECONDS" zebrunner-farm "$action" "$udid" ) &
 }
 
 function on_usb_update() {
