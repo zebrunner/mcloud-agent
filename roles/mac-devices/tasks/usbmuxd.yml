@@ -75,7 +75,6 @@
     mode: '0755'
     owner: root
     group: wheel
-  changed_when: false
   tags: [devices, files]
 
 - name: Copy 'zebrunner-device-listener' script file
@@ -85,7 +84,6 @@
     mode: '0755'
     owner: root
     group: wheel
-  changed_when: false
   tags: [devices, files]
 
 - name: Copy 'usbmuxd_watch' binary file
@@ -95,7 +93,6 @@
     mode: '0755'
     owner: root
     group: wheel
-  changed_when: false
   tags: [devices, files]
 
 - name: Copy devices details file
@@ -105,7 +102,6 @@
     mode: '0644'
     owner: root
     group: wheel
-  changed_when: false
   tags: [devices, files]
 
 - name: Check if ZebrunnerDevicesListener agent is loaded
@@ -145,7 +141,6 @@
     mode: '0644'
     owner: "{{ lookup('env','USER') }}"
     group: staff
-  changed_when: false
   tags: [devices, listener]
 
 - name: Copy ZebrunnerUsbmuxd.plist into LaunchAgents
@@ -155,7 +150,6 @@
     mode: '0644'
     owner: "{{ lookup('env','USER') }}"
     group: staff
-  changed_when: false
   tags: [devices, usbmuxd]
 
 - name: Load ZebrunnerDevicesListener agent if it was loaded earlier
