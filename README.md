@@ -66,7 +66,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * update `roles/mac-devices/vars/main.yml` file according to the obligatory/optional comments inside.
   > Register all whitelisted iOS devices (phones, tablets or TVes) with their udids!
   > Important! Only iOS devices supported on macOS!
-* Run ansible-playbook script to download the required components and set up udev rules:
+* Run ansible-playbook script to download the required components and set up launchd agents:
   ```bash
   ./zebrunner.sh ansible
   ```
@@ -122,15 +122,15 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
 8. Finally, zip up the project as an *.ipa file:
  **zip -r WebDriverAgent.ipa ./Payload**
    > Make sure to specify relative `./Payload` to archive only Payload folder content
-9. Share built ipa via WDA_FILE variable in roles/devices/vars/main.yml file.
+9. Share built ipa via WDA_FILE variable in roles/devices/vars/main.yml (Linux) or roles/mac-devices/vars/main.yml (macOS) file.
    > to override WDA_FILE artifacts per each device use `wda_file` and `wda_bundleid` iOS device properties and re-execute ansible playbook.
    
 ### SmartTestFarm
 * Open in your browser http://<PUBLIC_IP>/stf, authenticate yourself based on preconfigured auth system.
 * The connected device should be available in STF.
 * Disconnect the device from the server. Device containers will be removed asap, then, in 15-30 sec, the device should change the state in STF to disconnected as well.
-* Use different commands from `./zebrunner.sh start/stop/restart` to manage the devices.
-  > Run `./zebrunner.sh` to see available options.
+* Use different commands from `zebrunner-farm start/stop/restart/down/status` to manage all devices, a device by udid or name, or all devices of a platform (ios/android).
+  > Run `zebrunner-farm` to see available options.
 
 ## Troubleshooting
 Follow the below algorithm to identify any configuration issues with MCloud agent:
@@ -147,10 +147,12 @@ Follow the below algorithm to identify any configuration issues with MCloud agen
 * Analyze device container logs if the status is not `healthy`:
   ```
   docker ps -a | grep device
-  // appium and WebDriverAgent for iOS container:
+  // device connector container (adb for Android, usbmuxd and WebDriverAgent for iOS):
+  docker logs -f device-<Name>-<udid>-connector
+  // appium container:
   docker logs -f device-<Name>-<udid>-appium
   // STF provider container:
-  docker logs -f device-<Name>-<udid>
+  docker logs -f device-<Name>-<udid>-stf
   // artifacts uploader container:
   docker logs -f device-<Name>-<udid>-uploader
   ```
@@ -158,7 +160,7 @@ Follow the below algorithm to identify any configuration issues with MCloud agen
   * Make sure you have sudo access and try to run ansible with sudo permissions.
   * Try to rub ansible commands manually (`<devices_file>` name is `mac-devices` on macOS  or `devices` on Linux servers)
 
-  > To download the required components and set up udev rules:
+  > To download the required components and register the devices:
   ```
   ansible-playbook -vvv -i hosts <devices_file>.yml
   ```
