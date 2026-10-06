@@ -66,7 +66,7 @@ backup() {
 }
 
 restore() {
-  delimiter "Backup MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
+  delimiter "Restore MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
 
     warn "\tBefore restoring do the following:"
     warn ">\tzebrunner-farm down"
