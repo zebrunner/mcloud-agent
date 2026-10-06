@@ -24,6 +24,7 @@ make_play() {
   cat > "${dir}/play.yml" <<EOF
 - hosts: localhost
   connection: local
+  gather_subset: [min]
   vars_files:
     - ${REPO}/defaults/main.yml
   vars:
