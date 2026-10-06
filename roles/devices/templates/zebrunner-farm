@@ -499,7 +499,12 @@ function detect_uptime() {
   if [[ "$started_at_epoch" -gt "$finished_at_epoch" ]]; then
     local current_time="UNKNOWN"
     current_time="$(date "+%s")"
-    uptime="$(TZ=UTC date -d @"$((current_time - started_at_epoch))" "+%H:%M:%S")"
+    local elapsed=$((current_time - started_at_epoch))
+    uptime="$(printf "%02d:%02d:%02d" $((elapsed / 3600 % 24)) $((elapsed / 60 % 60)) $((elapsed % 60)))"
+    # date based formatting wrapped around after 24 hours
+    if (( elapsed >= 86400 )); then
+      uptime="$((elapsed / 86400))d ${uptime}"
+    fi
   fi
   echo "$uptime"
 }
