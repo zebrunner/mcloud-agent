@@ -24,8 +24,8 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
-      - name: Install ansible
-        run: pip install ansible-core
+      - name: Install linters
+        run: pip install -r tests/requirements-lint.txt
       - name: Lint playbooks, scripts and rendered templates
         run: tests/lint.sh
 

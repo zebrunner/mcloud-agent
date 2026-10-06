@@ -179,7 +179,7 @@ Follow the below algorithm to identify any configuration issues with MCloud agen
 
 ## Tests
 The `tests` folder covers zebrunner.sh, the ansible roles and templates, zebrunner-farm, the macOS devices listener and the usbmuxd_watch binary. docker, sudo, launchctl, usbmuxd and other host tools are replaced by stubs, so the tests change nothing on the host.
-* Run them with ansible-core and shellcheck installed (macOS specific tests are skipped on Linux):
+* Run them with the tools of `tests/requirements-lint.txt` installed (`pip install -r tests/requirements-lint.txt`), macOS specific tests are skipped on Linux:
   ```bash
   tests/lint.sh
   tests/run_all.sh
