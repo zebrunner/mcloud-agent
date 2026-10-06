@@ -176,6 +176,19 @@ Follow the below algorithm to identify any configuration issues with MCloud agen
   ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars "ansible_sudo_pass=PSWD" <devices_file>.yml
   ```
 
+## Tests
+The `tests` folder covers zebrunner.sh, the ansible roles and templates, zebrunner-farm, the macOS devices listener and the usbmuxd_watch binary. docker, sudo, launchctl, usbmuxd and other host tools are replaced by stubs, so the tests change nothing on the host.
+* Run them with ansible-core and shellcheck installed (macOS specific tests are skipped on Linux):
+  ```bash
+  tests/lint.sh
+  tests/run_all.sh
+  ```
+* Run the Linux tests on macOS with docker:
+  ```bash
+  docker build -t mcloud-agent-tests tests
+  docker run --rm -v "$PWD":/repo:ro mcloud-agent-tests bash -c '/repo/tests/lint.sh && /repo/tests/run_all.sh'
+  ```
+
 ## Documentation and free support
 * [Zebrunner PRO](https://zebrunner.com)
 * [Zebrunner CE](https://zebrunner.github.io/community-edition)
