@@ -21,7 +21,7 @@ make_play() {
   if [[ -f "${REPO}/roles/$1/vars/main.yml.original" ]]; then
     cp "${REPO}/roles/$1/vars/main.yml.original" "${dir}/roles/$1/vars/main.yml"
   fi
-  cat > "${dir}/play.yml" <<EOF
+  cat > "${dir}/play.yml" << EOF
 - hosts: localhost
   connection: local
   gather_subset: [min]
@@ -58,7 +58,7 @@ for role in devices mac-devices; do
   while IFS='=' read -r devices expected; do
     output="$(playbook "$role" --tags dedup --extra-vars "{\"devices\": ${devices}}")"
     check_contains "${role}: ${devices}" "$expected" "$output"
-  done <<'EOF'
+  done << 'EOF'
 [{"id": "abc", "name": "A"}]=All device IDs and names are unique.
 [{"id": "abc", "name": "A"}, {"id": "def", "name": "B"}]=All device IDs and names are unique.
 [{"id": 12345, "name": "A"}, {"id": "12345 ", "name": "B"}]=Duplicate IDs: ['12345']
@@ -73,7 +73,7 @@ for role in devices mac-devices; do
   while IFS='=' read -r devices expected; do
     output="$(playbook "$role" --tags validate --extra-vars "{\"devices\": ${devices}}")"
     check_contains "${role}: ${devices}" "$expected" "$output"
-  done <<'EOF'
+  done << 'EOF'
 [{"id": "a", "name": "A", "os": "ios", "adb_port": 2, "min_port": 3, "max_port": 4}]=Invalid settings of device 'A'
 [{"id": "a", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4}]=Invalid settings of device 'a'
 [{"id": "a", "name": "A", "os": "windows", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4}]=Invalid settings of device 'A'
@@ -88,7 +88,7 @@ EOF
 done
 while IFS='=' read -r devices expected; do
   check_contains "mac-devices: ${devices}" "$expected" "$(playbook mac-devices --tags validate --extra-vars "{\"devices\": ${devices}}")"
-done <<'EOF'
+done << 'EOF'
 [{"id": "a", "name": "TV", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "wireless": true}]=Wireless device 'TV' needs wda_host
 [{"id": "a", "name": "TV", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "wireless": "true", "wda_host": ""}]=Wireless device 'TV' needs wda_host
 [{"id": "a", "name": "TV", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "wireless": true, "wda_host": "10.0.0.5"}]=failed=0
@@ -118,7 +118,7 @@ fi
 
 echo "# images download"
 # docker: pulls fail for images matching $FAIL_PULL, only images matching $LOCAL_IMAGE exist locally
-cat > "${WORK}/bin/docker" <<'EOF'
+cat > "${WORK}/bin/docker" << 'EOF'
 #!/bin/bash
 (IFS='|'; echo "docker|$*") >> "${STUB_DIR}/calls.log"
 case "$1 $2" in
@@ -160,7 +160,7 @@ for role in devices mac-devices; do
   check_contains "${role}: app size check true is lower case" "APPIUM_APP_SIZE_DISABLE=\"true\"" "$farm"
 done
 
-cat > "${WORK}/devices.yml" <<'EOF'
+cat > "${WORK}/devices.yml" << 'EOF'
 devices:
   - {id: " R28M-1384YQY ", os: android, name: " Galaxy S10 ", appium_port: 1, adb_port: 2, min_port: 3, max_port: 4, wireless: true}
   - {id: 12345, os: android, name: Numeric, appium_port: 5, adb_port: 6, proxy_port: 7, server_proxy_port: 8, min_port: 9, max_port: 10, wireless: "True"}
@@ -175,7 +175,7 @@ check "macOS devices list" "R28M-1384YQY|android|Galaxy_S10||1|2|0|0|3|4|true|/d
 12345|android|Numeric||5|6|7|8|9|10|true|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||
 abc|ios|Phone||11|12|0|0|13|14|false|/wda.ipa|my.wda|10.0.0.5|8101" "$(cat "${WORK}/mac.txt")"
 render "${REPO}/roles/devices/templates/90_mcloud.rules" "${WORK}/rules" --extra-vars "@${WORK}/devices.yml" || exit 1
-cat > "${WORK}/expected_rules" <<'EOF'
+cat > "${WORK}/expected_rules" << 'EOF'
 SUBSYSTEM=="usb", ENV{ID_SERIAL_SHORT}=="R28M1384YQY", MODE="0666", SYMLINK+="device-Galaxy_S10-R28M-1384YQY"
 ACTION=="remove", ENV{ID_SERIAL_SHORT}=="R28M1384YQY", RUN+="/usr/local/bin/zebrunner-farm down R28M-1384YQY"
 ACTION=="add", ENV{ID_SERIAL_SHORT}=="R28M1384YQY", RUN+="/usr/local/bin/zebrunner-farm restart R28M-1384YQY"

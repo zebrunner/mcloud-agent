@@ -25,12 +25,12 @@ setup() {
   TARGET_FILES=()
   echo "Shells found in this system:"
   # Bash
-  if command -v bash >/dev/null 2>&1; then
+  if command -v bash > /dev/null 2>&1; then
     echo "BASH"
     TARGET_FILES+=("${HOME}/.bashrc" "${HOME}/.bash_profile")
   fi
   # Zsh
-  if command -v zsh >/dev/null 2>&1; then
+  if command -v zsh > /dev/null 2>&1; then
     echo "ZSH"
     TARGET_FILES+=("${HOME}/.zshrc" "${HOME}/.zprofile")
   fi
@@ -72,7 +72,7 @@ setup() {
       cp roles/mac-devices/vars/main.yml roles/mac-devices/vars/main.yml.bak
     else
       echo "Creating 'roles/mac-devices/vars/main.yml'"
-     cp roles/mac-devices/vars/main.yml.original roles/mac-devices/vars/main.yml
+      cp roles/mac-devices/vars/main.yml.original roles/mac-devices/vars/main.yml
     fi
   else
     echo "Unknown OS. Supported OS are Linux and macOS."
@@ -86,25 +86,25 @@ setup() {
   echo ""
   warn "To apply the changes, please restart your terminal session or run the appropriate command below:"
   case "$current_shell" in
-    bash)
-      if [[ -f "${HOME}/.bashrc" ]]; then
-        succeed ">\tsource ~/.bashrc"
-      elif [[ -f "${HOME}/.bash_profile" ]]; then
-        succeed ">\tsource ~/.bash_profile"
-      fi
-      ;;
-    zsh)
-      if [[ -f "${HOME}/.zshrc" ]]; then
-        succeed ">\tsource ~/.zshrc"
-      elif [[ -f "${HOME}/.zprofile" ]]; then
-        succeed ">\tsource ~/.zprofile"
-      fi
-      ;;
-    *)
-      if [[ -f "${HOME}/.profile" ]]; then
-        succeed ">\tsource ~/.profile"
-      fi
-      ;;
+  bash)
+    if [[ -f "${HOME}/.bashrc" ]]; then
+      succeed ">\tsource ~/.bashrc"
+    elif [[ -f "${HOME}/.bash_profile" ]]; then
+      succeed ">\tsource ~/.bash_profile"
+    fi
+    ;;
+  zsh)
+    if [[ -f "${HOME}/.zshrc" ]]; then
+      succeed ">\tsource ~/.zshrc"
+    elif [[ -f "${HOME}/.zprofile" ]]; then
+      succeed ">\tsource ~/.zprofile"
+    fi
+    ;;
+  *)
+    if [[ -f "${HOME}/.profile" ]]; then
+      succeed ">\tsource ~/.profile"
+    fi
+    ;;
   esac
   echo ""
   warn ">>> Changes in other shells will be applied automatically <<<"
@@ -167,33 +167,33 @@ ansible() {
 status() {
   delimiter "Status of MCloud Agent components"
 
-  os="$(uname)" 2>/dev/null
-  echo "Env var for Mcloud Agent path:    $(env | grep "$MCLOUD_AGENT_DIR_NAME" 2>/dev/null || failed "$MCLOUD_AGENT_DIR_NAME not set")"
+  os="$(uname)" 2> /dev/null
+  echo "Env var for Mcloud Agent path:    $(env | grep "$MCLOUD_AGENT_DIR_NAME" 2> /dev/null || failed "$MCLOUD_AGENT_DIR_NAME not set")"
   echo ""
   echo "Current OS:                       $(if [[ -n "$os" ]]; then echo "$os"; else failed "OS not detected"; fi)"
   echo ""
-  echo "Current user:                     $(whoami 2>/dev/null || failed username not detected)"
+  echo "Current user:                     $(whoami 2> /dev/null || failed username not detected)"
   echo ""
-  echo "Docker version:                   $(docker --version 2>/dev/null || failed "'docker' not found")"
+  echo "Docker version:                   $(docker --version 2> /dev/null || failed "'docker' not found")"
   echo ""
-  echo "Docker compose version:           $(docker compose version 2>/dev/null || failed "'docker compose' not found")"
+  echo "Docker compose version:           $(docker compose version 2> /dev/null || failed "'docker compose' not found")"
   echo ""
-  echo "Ansible-playbook info:            $(ansible-playbook --version 2>/dev/null | head -n 1 | grep . || failed "'ansible-playbook' not found")"
+  echo "Ansible-playbook info:            $(ansible-playbook --version 2> /dev/null | head -n 1 | grep . || failed "'ansible-playbook' not found")"
   echo ""
-  echo "Zebrunner-farm script:            $(which zebrunner-farm 2>/dev/null || failed "'zebrunner-farm' not found")"
+  echo "Zebrunner-farm script:            $(which zebrunner-farm 2> /dev/null || failed "'zebrunner-farm' not found")"
   echo ""
   if [[ "$os" == "Darwin" ]]; then
-    echo "Socat tool:                       $(which socat 2>/dev/null || failed "'socat' not found")"
+    echo "Socat tool:                       $(which socat 2> /dev/null || failed "'socat' not found")"
     echo ""
-    echo "Jq tool:                          $(which jq 2>/dev/null || failed "'jq' not found")"
+    echo "Jq tool:                          $(which jq 2> /dev/null || failed "'jq' not found")"
     echo ""
-    echo "Go-ios tool:                      $(which ios 2>/dev/null || failed "'ios' not found")"
+    echo "Go-ios tool:                      $(which ios 2> /dev/null || failed "'ios' not found")"
     echo ""
     echo "Deployed launchctl Zebrunner files:"
     shopt -s nullglob nocaseglob
     plists=("${HOME}/Library/LaunchAgents"/*zebrunner*)
     shopt -u nullglob nocaseglob
-    if (( ${#plists[@]} == 0 )); then
+    if ((${#plists[@]} == 0)); then
       failed "No deployed Zebrunner plist files found"
     else
       for f in "${plists[@]}"; do
@@ -204,21 +204,21 @@ status() {
     echo "Loaded launchctl Zebrunner jobs:"
     launchctl list | grep -i zebrunner || failed "No loaded Zebrunner jobs found"
     echo ""
-    echo "roles/mac-devices/vars/main.yml:  $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/roles/mac-devices/vars/main.yml" 2>/dev/null || failed "File not found")"
+    echo "roles/mac-devices/vars/main.yml:  $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/roles/mac-devices/vars/main.yml" 2> /dev/null || failed "File not found")"
     echo ""
-    echo "MacOS ansible-playbook:           $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/mac-devices.yml" 2>/dev/null || failed "File not found")"
+    echo "MacOS ansible-playbook:           $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/mac-devices.yml" 2> /dev/null || failed "File not found")"
     echo ""
   else
-    echo "roles/devices/vars/main.yml:      $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/roles/devices/vars/main.yml" 2>/dev/null || failed "File not found")"
+    echo "roles/devices/vars/main.yml:      $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/roles/devices/vars/main.yml" 2> /dev/null || failed "File not found")"
     echo ""
-    echo "Linux ansible-playbook:           $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/devices.yml" 2>/dev/null || failed "File not found")"
+    echo "Linux ansible-playbook:           $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/devices.yml" 2> /dev/null || failed "File not found")"
     echo ""
-    echo "90_mcloud.rules:                  $(ls /etc/udev/rules.d/90_mcloud.rules 2>/dev/null || failed "File not found")"
+    echo "90_mcloud.rules:                  $(ls /etc/udev/rules.d/90_mcloud.rules 2> /dev/null || failed "File not found")"
     echo ""
   fi
-  echo "mcloud-devices.txt:               $(ls "/usr/local/bin/mcloud-devices.txt" 2>/dev/null || failed "File not found")"
+  echo "mcloud-devices.txt:               $(ls "/usr/local/bin/mcloud-devices.txt" 2> /dev/null || failed "File not found")"
   echo ""
-  echo "defaults/main.yml:                $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/defaults/main.yml" 2>/dev/null || failed "File not found")"
+  echo "defaults/main.yml:                $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/defaults/main.yml" 2> /dev/null || failed "File not found")"
 
   delimiter
 }
@@ -251,7 +251,7 @@ shutdown() {
     shopt -s nullglob nocaseglob
     plists=("${HOME}/Library/LaunchAgents"/*zebrunner*)
     shopt -u nullglob nocaseglob
-    if (( ${#plists[@]} == 0 )); then
+    if ((${#plists[@]} == 0)); then
       failed "No Zebrunner plist files found"
     else
       for f in "${plists[@]}"; do
@@ -266,7 +266,7 @@ shutdown() {
     delimiter "*"
     echo "Unloading and removing ZebrunnerDevicesListener.plist launchctl file:"
     if [[ -f "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" ]]; then
-      if launchctl bootout gui/"$(id -u)" "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" 2>/dev/null; then
+      if launchctl bootout gui/"$(id -u)" "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" 2> /dev/null; then
         echo "ZebrunnerDevicesListener.plist unloaded successfully"
       else
         failed "Failed to unload 'ZebrunnerDevicesListener.plist', it might be not loaded"
@@ -281,7 +281,7 @@ shutdown() {
     delimiter "*"
     echo "Unloading and removing ZebrunnerUsbmuxd.plist launchctl file:"
     if [[ -f "${HOME}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" ]]; then
-      if launchctl bootout gui/"$(id -u)" "${HOME}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" 2>/dev/null; then
+      if launchctl bootout gui/"$(id -u)" "${HOME}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" 2> /dev/null; then
         echo "ZebrunnerUsbmuxd.plist unloaded successfully"
       else
         failed "Failed to unload 'ZebrunnerUsbmuxd.plist', it might be not loaded"
@@ -312,7 +312,7 @@ shutdown() {
 
   delimiter "*"
   echo "Stopping and removing MCloud Agent containers:"
-  if command -v zebrunner-farm >/dev/null 2>&1; then
+  if command -v zebrunner-farm > /dev/null 2>&1; then
     zebrunner-farm down
   else
     failed "Can't find 'zebrunner-farm' executable file"

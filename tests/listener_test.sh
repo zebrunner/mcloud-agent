@@ -29,7 +29,7 @@ line() {
 }
 
 echo "# debounce, serialization and timeout"
-cat > "${WORK}/bin/usbmuxd_watch" <<'EOF'
+cat > "${WORK}/bin/usbmuxd_watch" << 'EOF'
 #!/bin/bash
 echo "ATTACH udid=BURST handle=1"; sleep 0.3
 echo "DETACH udid=BURST handle=1"; sleep 0.3
@@ -43,7 +43,7 @@ sleep 1;   echo "ATTACH udid=SLOW2 handle=6"
 sleep 15
 EOF
 # an action takes 4 seconds, HANG never ends
-cat > "${WORK}/bin/zebrunner-farm" <<'EOF'
+cat > "${WORK}/bin/zebrunner-farm" << 'EOF'
 #!/bin/bash
 echo "START $1 $2" >> "${STUB_DIR}/farm.log"
 if [[ "$2" == HANG ]]; then sleep 3013 & wait; else sleep 4; fi
@@ -64,7 +64,7 @@ check "no bash job reports in the log" "0" "$(grep -c 'Terminated' "${WORK}/list
 
 echo "# stale locks and lock ownership"
 # STALE: a lock left by a killed job; OWN: a live job whose lock looks stale after a sleep of the Mac
-cat > "${WORK}/bin/usbmuxd_watch" <<'EOF'
+cat > "${WORK}/bin/usbmuxd_watch" << 'EOF'
 #!/bin/bash
 state="$(ls -d "${TMPDIR}"/zebrunner-listener.*)"
 mkdir "${state}/STALE.lock"
@@ -76,7 +76,7 @@ sleep 1.5; echo "DETACH udid=OWN handle=2"
 sleep 2;   echo "ATTACH udid=OWN handle=3"
 sleep 14
 EOF
-cat > "${WORK}/bin/zebrunner-farm" <<'EOF'
+cat > "${WORK}/bin/zebrunner-farm" << 'EOF'
 #!/bin/bash
 echo "START $1 $2" >> "${STUB_DIR}/farm.log"
 if [[ "$1 $2" == "restart OWN" && ! -f "${STUB_DIR}/own-first" ]]; then
@@ -105,7 +105,7 @@ check "no device locks are left" "0" "$(find "${WORK}/tmp" -name '*.lock' | wc -
 
 echo "# log rotation"
 # the log is renamed between two actions, as newsyslog does
-cat > "${WORK}/bin/usbmuxd_watch" <<'EOF'
+cat > "${WORK}/bin/usbmuxd_watch" << 'EOF'
 #!/bin/bash
 echo "ATTACH udid=ROT1 handle=1"
 sleep 3
@@ -113,7 +113,7 @@ mv "${STUB_DIR}/listener.log" "${STUB_DIR}/listener.log.0"
 echo "ATTACH udid=ROT2 handle=2"
 sleep 3
 EOF
-cat > "${WORK}/bin/zebrunner-farm" <<'EOF'
+cat > "${WORK}/bin/zebrunner-farm" << 'EOF'
 #!/bin/bash
 echo "START $1 $2" >> "${STUB_DIR}/farm.log"
 echo "output of $1 $2"
@@ -127,7 +127,9 @@ check "listener messages after the rotation are in the new log" "1" "$(grep -c '
 check "nothing is written to the launchd stdout/stderr files" "" "$(cat "${WORK}/listener.out")"
 
 if [[ "$FAILED" -ne 0 ]]; then
-  echo "--- zebrunner-farm calls:"; cat "${WORK}/farm.log"
-  echo "--- listener output:"; cat "${WORK}/listener.out" "${WORK}/listener.log" 2> /dev/null
+  echo "--- zebrunner-farm calls:"
+  cat "${WORK}/farm.log"
+  echo "--- listener output:"
+  cat "${WORK}/listener.out" "${WORK}/listener.log" 2> /dev/null
 fi
 finish

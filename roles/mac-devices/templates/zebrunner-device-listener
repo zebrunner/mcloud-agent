@@ -30,17 +30,17 @@ function run_with_timeout() {
   local pid=$!
   set +m
   local waited=0
-  while kill -0 "$pid" 2>/dev/null; do
-    if (( waited >= seconds )); then
+  while kill -0 "$pid" 2> /dev/null; do
+    if ((waited >= seconds)); then
       log "[ERROR] '$*' timed out after ${seconds}s"
-      kill -TERM -- "-${pid}" 2>/dev/null
+      kill -TERM -- "-${pid}" 2> /dev/null
       break
     fi
     sleep 1
     waited=$((waited + 1))
   done
   # the timeout above is already logged, skip bash's own "Terminated" job report
-  wait "$pid" 2>/dev/null
+  wait "$pid" 2> /dev/null
 }
 
 # Runs the action once no other action of this device is running,
@@ -53,11 +53,11 @@ function run_serialized() {
   local latest="${LISTENER_STATE_DIR}/${udid}.latest"
   local lock_time
   # mkdir is atomic: only one action per device holds the lock, the others wait for it
-  until mkdir "$lock" 2>/dev/null; do
+  until mkdir "$lock" 2> /dev/null; do
     # a newer event is queued for this device, its action brings the device to the actual state
-    [[ "$(cat "$latest" 2>/dev/null)" == "$id" ]] || return 0
-    lock_time="$(stat -f %m "$lock" 2>/dev/null)"
-    if [[ -n "$lock_time" ]] && (( $(date +%s) - lock_time > LOCK_STALE_SECONDS )); then
+    [[ "$(cat "$latest" 2> /dev/null)" == "$id" ]] || return 0
+    lock_time="$(stat -f %m "$lock" 2> /dev/null)"
+    if [[ -n "$lock_time" ]] && (($(date +%s) - lock_time > LOCK_STALE_SECONDS)); then
       log "[WARN] removing stale lock of ${udid}"
       rm -rf "$lock"
       continue
@@ -67,10 +67,10 @@ function run_serialized() {
   # the owner id lets a job release only its own lock: after a sleep of the Mac a live job's
   # lock may be taken over as stale, and the job must not remove the lock of its successor
   echo "$id" > "${lock}/owner"
-  if [[ "$(cat "$latest" 2>/dev/null)" == "$id" ]]; then
+  if [[ "$(cat "$latest" 2> /dev/null)" == "$id" ]]; then
     run_with_timeout "$ACTION_TIMEOUT_SECONDS" zebrunner-farm "$action" "$udid" >> "$LISTENER_LOG" 2>&1
   fi
-  if [[ "$(cat "${lock}/owner" 2>/dev/null)" == "$id" ]]; then
+  if [[ "$(cat "${lock}/owner" 2> /dev/null)" == "$id" ]]; then
     rm -rf "$lock"
   fi
 }
@@ -84,11 +84,11 @@ function schedule_action() {
   # remember the newest event of the device: older actions still waiting for the device skip themselves
   echo "$event_id" > "${LISTENER_STATE_DIR}/${udid}.latest"
   # cancel this device's pending debounce job, if any
-  pkill -f "$tag" 2>/dev/null
+  pkill -f "$tag" 2> /dev/null
   # only the debounce sleep carries the tag (exec -a sets its argv[0]): killing it cancels
   # the scheduled action, while an action that has already started runs to completion
   # and the next action of the device waits for it in run_serialized
-  ( { ( exec -a "$tag" sleep "$DEBOUNCE_SECONDS" ); } 2>/dev/null && run_serialized "$udid" "$action" "$event_id" ) &
+  ({ (exec -a "$tag" sleep "$DEBOUNCE_SECONDS"); } 2> /dev/null && run_serialized "$udid" "$action" "$event_id") &
 }
 
 function on_usb_update() {
@@ -102,7 +102,7 @@ function on_usb_update() {
 }
 
 # no PID filter: sweep orphaned jobs and state left by a previous, crashed run
-pkill -f 'usb-debounce:' 2>/dev/null
+pkill -f 'usb-debounce:' 2> /dev/null
 rm -rf "${TMPDIR:-/tmp}"/zebrunner-listener.*
 mkdir -p "$LISTENER_STATE_DIR"
 

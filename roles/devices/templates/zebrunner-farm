@@ -95,7 +95,7 @@ function create_containers() {
     DEVICE_ARGS=()
   else
     local connected_devices
-    connected_devices="$(lsusb -v 2>/dev/null)"
+    connected_devices="$(lsusb -v 2> /dev/null)"
     if grep -q "${dev_udid//-/}" <<< "$connected_devices"; then
       succeed "\nDevice with udid: '${dev_udid//-/}' was SUCCESSFULLY detected as connected."
     else
@@ -390,9 +390,9 @@ function start_containers() {
 
   echo -e "\n\tStarting '${dev_container}' containers:\n"
   grep -q "${dev_container}-connector" <<< "$ps_out" || docker start "${dev_container}-connector"
-  grep -q "${dev_container}-stf"       <<< "$ps_out" || docker start "${dev_container}-stf"
-  grep -q "${dev_container}-appium"    <<< "$ps_out" || docker start "${dev_container}-appium"
-  grep -q "${dev_container}-uploader"  <<< "$ps_out" || docker start "${dev_container}-uploader"
+  grep -q "${dev_container}-stf" <<< "$ps_out" || docker start "${dev_container}-stf"
+  grep -q "${dev_container}-appium" <<< "$ps_out" || docker start "${dev_container}-appium"
+  grep -q "${dev_container}-uploader" <<< "$ps_out" || docker start "${dev_container}-uploader"
 }
 
 function stop() {
@@ -502,7 +502,7 @@ function detect_uptime() {
     local elapsed=$((current_time - started_at_epoch))
     uptime="$(printf "%02d:%02d:%02d" $((elapsed / 3600 % 24)) $((elapsed / 60 % 60)) $((elapsed % 60)))"
     # date based formatting wrapped around after 24 hours
-    if (( elapsed >= 86400 )); then
+    if ((elapsed >= 86400)); then
       uptime="$((elapsed / 86400))d ${uptime}"
     fi
   fi

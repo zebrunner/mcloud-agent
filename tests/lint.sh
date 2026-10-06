@@ -5,7 +5,7 @@ source "$(dirname "$0")/lib.sh"
 cd "$REPO"
 
 missing=""
-for tool in actionlint ansible-lint ansible-playbook hadolint pymarkdown ruff shellcheck yamllint; do
+for tool in actionlint ansible-lint ansible-playbook hadolint pymarkdown ruff shellcheck shfmt yamllint; do
   command -v "$tool" > /dev/null 2>&1 || missing="${missing} ${tool}"
 done
 if [[ -n "$missing" ]]; then
@@ -46,5 +46,7 @@ for script in "${scripts[@]}"; do
   bash -n "$script"
 done
 shellcheck --severity=warning "${scripts[@]}"
+# style of .editorconfig
+shfmt -d zebrunner.sh patch/*.sh tests/*.sh roles/mac-devices/templates/zebrunner-device-listener roles/*/templates/zebrunner-farm
 
 echo "lint: ok"

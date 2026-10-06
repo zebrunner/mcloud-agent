@@ -91,12 +91,12 @@ function get_device_fields() {
 function create_containers() {
   local ps_out
   ps_out="$(docker ps -a)"
-  if grep -q "${dev_container}-stf"     <<< "$ps_out" && \
-   grep -q "${dev_container}-appium"    <<< "$ps_out" && \
-   grep -q "${dev_container}-connector" <<< "$ps_out" && \
-   grep -q "${dev_container}-uploader"  <<< "$ps_out"; then
-     warn "Do nothing as containers already exists!"
-     return 0
+  if grep -q "${dev_container}-stf" <<< "$ps_out" &&
+    grep -q "${dev_container}-appium" <<< "$ps_out" &&
+    grep -q "${dev_container}-connector" <<< "$ps_out" &&
+    grep -q "${dev_container}-uploader" <<< "$ps_out"; then
+    warn "Do nothing as containers already exists!"
+    return 0
   fi
 
   if [[ "$dev_wireless" == "true" ]]; then
@@ -408,7 +408,7 @@ function detect_uptime() {
     local elapsed=$((current_time - started_at_epoch))
     uptime="$(printf "%02d:%02d:%02d" $((elapsed / 3600 % 24)) $((elapsed / 60 % 60)) $((elapsed % 60)))"
     # date based formatting wrapped around after 24 hours
-    if (( elapsed >= 86400 )); then
+    if ((elapsed >= 86400)); then
       uptime="$((elapsed / 86400))d ${uptime}"
     fi
   fi

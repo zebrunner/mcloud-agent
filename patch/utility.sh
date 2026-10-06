@@ -92,13 +92,13 @@ succeed() {
 
 ask_for_sudo() {
   # Check for sudo permission
-  if ! sudo -n true 2>/dev/null ; then
+  if ! sudo -n true 2> /dev/null; then
     echo "You need to have sudo permissions"
   fi
 
   # Show sudo prompt to be transparent and extend sudo timeout if the user has sudo permissions
   echo "> sudo -v    # Extends the sudo timeout for default period"
-  if ! sudo -v ; then
+  if ! sudo -v; then
     echo_warning "Can't proceed without sudo"
     return 1
   fi
@@ -127,7 +127,7 @@ delimiter() {
     local textlen=${#text}
     # How many chars on the left and right
     local left=4
-    local right=$(( width - textlen - left ))
+    local right=$((width - textlen - left))
     # Print the line with text
     printf '%*s' "$left" '' | tr ' ' "$char"
     printf '%s' "$text"

@@ -6,7 +6,7 @@ source "$(dirname "$0")/lib.sh"
 require_cmd ansible
 
 # udid|platform|name|location|appium|adb|proxy|server proxy|min|max|wireless|wda file|wda bundle id|wda host|wda port
-cat > "${WORK}/devices.txt" <<'EOF'
+cat > "${WORK}/devices.txt" << 'EOF'
 R28M1384YQY|android|Galaxy|loc|7421|7422|7423|7424|7425|7430|false|/dev/null|x||
 192.168.1.50|android|WiFi|loc|7431|7432|7433|7434|7435|7440|true|/dev/null|x||
 d6afc6b3a65584ca0813eb8957c6479b9b6ebb11|ios|iPhone_8_Plus|loc|7441|7442|7443|7444|7445|7450|false|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||
@@ -16,7 +16,7 @@ IPHONE="device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"
 
 # docker: records the calls, prints ${STUB_DIR}/docker_ps for `ps`, fails `run` of a container
 # ending with $DOCKER_FAIL_RUN and returns $DOCKER_STARTED_AT/$DOCKER_FINISHED_AT for `inspect`
-cat > "${WORK}/bin/docker" <<'EOF'
+cat > "${WORK}/bin/docker" << 'EOF'
 #!/bin/bash
 (IFS='|'; echo "docker|$*") >> "${STUB_DIR}/calls.log"
 case "$1" in
@@ -85,7 +85,7 @@ for role in devices mac-devices; do
     setup_case
     farm "$role" down "$query" > /dev/null
     check "${role}: down '${query}' selects '${expected}'" "$expected" "$(removed)"
-  done <<'EOF'
+  done << 'EOF'
 R28M1384YQY=Galaxy
 Galaxy=Galaxy
 iPhone_8_Plus=iPhone_8_Plus
