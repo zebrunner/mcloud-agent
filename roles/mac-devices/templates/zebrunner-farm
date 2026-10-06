@@ -311,7 +311,8 @@ function start() {
 
 function start_containers() {
   echo -e "\n\tStarting '${dev_container}' containers:\n"
-  docker start "${dev_container}-connector"
+  # a wireless device has no connector container
+  [[ "$dev_wireless" == "true" ]] || docker start "${dev_container}-connector"
   docker start "${dev_container}-stf"
   docker start "${dev_container}-appium"
   docker start "${dev_container}-uploader"
@@ -338,7 +339,8 @@ function stop() {
 
 function stop_containers() {
   echo -e "\n\tStopping '${dev_container}' containers:\n"
-  docker stop "${dev_container}-connector"
+  # a wireless device has no connector container
+  [[ "$dev_wireless" == "true" ]] || docker stop "${dev_container}-connector"
   docker stop "${dev_container}-appium"
   docker stop "${dev_container}-stf"
   docker stop "${dev_container}-uploader"
