@@ -254,7 +254,7 @@ function create_containers() {
         -e SERVER_PROXY_PORT="$dev_server_proxy_port" \
         -e APPIUM_PORT="$dev_appium_port" \
         -p "$dev_appium_port":"$dev_appium_port" \
-        -e RELAXED_SECURITY=true \
+        -e RELAXED_SECURITY="{{ APPIUM_RELAXED_SECURITY | string | lower }}" \
         "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}" || failed "Error. Not created"
     }
 
