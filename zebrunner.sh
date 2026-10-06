@@ -331,6 +331,8 @@ shutdown() {
   echo "Removing MCloud Agent files and volumes (sudo privileges required):"
   if [[ "$os" == "Darwin" ]]; then
     rm -vf roles/mac-devices/vars/main.yml
+    sudo rm -vf /usr/local/bin/zebrunner-device-listener
+    sudo rm -vf /usr/local/bin/usbmuxd_watch
   else
     rm -vf roles/devices/vars/main.yml
     sudo rm -vf /etc/udev/rules.d/90_mcloud.rules
