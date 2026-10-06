@@ -5,7 +5,7 @@ source "$(dirname "$0")/lib.sh"
 cd "$REPO"
 
 missing=""
-for tool in actionlint ansible-playbook shellcheck yamllint; do
+for tool in actionlint ansible-playbook ruff shellcheck yamllint; do
   command -v "$tool" > /dev/null 2>&1 || missing="${missing} ${tool}"
 done
 if [[ -n "$missing" ]]; then
@@ -18,6 +18,10 @@ yamllint --strict .
 
 echo "# GitHub workflows"
 actionlint
+
+echo "# python"
+ruff check .
+ruff format --check .
 
 echo "# ansible playbooks syntax"
 for playbook in devices.yml mac-devices.yml; do

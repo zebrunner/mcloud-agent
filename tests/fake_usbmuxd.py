@@ -5,6 +5,7 @@ Listens on a free local port written into <port file> and replays the device eve
 of the scenario to every Listen client; libusbmuxd connects to it when
 USBMUXD_SOCKET_ADDRESS=127.0.0.1:<port> is set.
 """
+
 import plistlib
 import socket
 import struct
@@ -14,16 +15,31 @@ import time
 
 
 def usb(device_id, serial):
-    return {"MessageType": "Attached", "DeviceID": device_id, "Properties": {
-        "ConnectionType": "USB", "DeviceID": device_id, "LocationID": device_id,
-        "ProductID": 4776, "SerialNumber": serial}}
+    return {
+        "MessageType": "Attached",
+        "DeviceID": device_id,
+        "Properties": {
+            "ConnectionType": "USB",
+            "DeviceID": device_id,
+            "LocationID": device_id,
+            "ProductID": 4776,
+            "SerialNumber": serial,
+        },
+    }
 
 
 def network(device_id, serial, ip_last_byte):
     address = bytes([16, 2, 0, 0, 192, 168, 1, ip_last_byte] + [0] * 8)  # sockaddr_in
-    return {"MessageType": "Attached", "DeviceID": device_id, "Properties": {
-        "ConnectionType": "Network", "DeviceID": device_id, "SerialNumber": serial,
-        "NetworkAddress": address}}
+    return {
+        "MessageType": "Attached",
+        "DeviceID": device_id,
+        "Properties": {
+            "ConnectionType": "Network",
+            "DeviceID": device_id,
+            "SerialNumber": serial,
+            "NetworkAddress": address,
+        },
+    }
 
 
 def event(kind, device_id):
