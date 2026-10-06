@@ -5,11 +5,11 @@ source "$(dirname "$0")/lib.sh"
 cd "$REPO"
 
 missing=""
-for tool in actionlint ansible-playbook ruff shellcheck yamllint; do
+for tool in actionlint ansible-playbook hadolint ruff shellcheck yamllint; do
   command -v "$tool" > /dev/null 2>&1 || missing="${missing} ${tool}"
 done
 if [[ -n "$missing" ]]; then
-  echo "missing tools:${missing} (pip install -r tests/requirements-lint.txt)"
+  echo "missing tools:${missing} (pip install -r tests/requirements-lint.txt, hadolint on macOS: brew install hadolint)"
   exit 1
 fi
 
@@ -20,8 +20,11 @@ echo "# GitHub workflows"
 actionlint
 
 echo "# python"
-ruff check .
-ruff format --check .
+ruff check --no-cache .
+ruff format --check --no-cache .
+
+echo "# Dockerfile"
+hadolint tests/Dockerfile
 
 echo "# ansible playbooks syntax"
 for playbook in devices.yml mac-devices.yml; do
