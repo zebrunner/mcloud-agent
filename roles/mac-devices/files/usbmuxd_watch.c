@@ -12,6 +12,11 @@
 #include <usbmuxd.h>
 
 static void on_event(const usbmuxd_event_t *event, void *user_data) {
+    // usbmuxd also reports devices reachable over Wi-Fi, with the same udid as over USB:
+    // a Wi-Fi drop of a device still connected by cable must not detach it
+    if (event->device.conn_type != CONNECTION_TYPE_USB) {
+        return;
+    }
     switch (event->event) {
         case UE_DEVICE_ADD:
             printf("ATTACH udid=%s handle=%u\n", event->device.udid, event->device.handle);
