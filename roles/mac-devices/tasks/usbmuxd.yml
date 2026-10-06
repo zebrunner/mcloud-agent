@@ -161,6 +161,15 @@
     group: wheel
   tags: [devices, files]
 
+- name: Copy devices listener log rotation settings
+  template:
+    src: zebrunner-mcloud.newsyslog.conf
+    dest: /etc/newsyslog.d/zebrunner-mcloud.conf
+    mode: '0644'
+    owner: root
+    group: wheel
+  tags: [devices, files]
+
 - name: Check if ZebrunnerDevicesListener agent is loaded
   command: launchctl list com.zebrunner.mcloud
   register: mcloud_agent_loaded

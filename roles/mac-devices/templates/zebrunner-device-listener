@@ -11,6 +11,13 @@ LOCK_STALE_SECONDS=$((ACTION_TIMEOUT_SECONDS + 10))
 LISTENER_STATE_DIR="${TMPDIR:-/tmp}/zebrunner-listener.$$"
 # incremented by on_usb_update only, so events get increasing ids
 event_id=0
+# Messages and zebrunner-farm output are appended per write instead of keeping the file open,
+# so newsyslog can rotate it (/etc/newsyslog.d/zebrunner-mcloud.conf)
+LISTENER_LOG="{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/logs/listener.log"
+
+function log() {
+  echo "[$(date -Iseconds)] - $*" >> "$LISTENER_LOG"
+}
 
 # Pure bash replacement for coreutils `timeout`, which is not shipped with macOS
 function run_with_timeout() {
@@ -25,7 +32,7 @@ function run_with_timeout() {
   local waited=0
   while kill -0 "$pid" 2>/dev/null; do
     if (( waited >= seconds )); then
-      echo "[$(date -Iseconds)] - [ERROR] '$*' timed out after ${seconds}s"
+      log "[ERROR] '$*' timed out after ${seconds}s"
       kill -TERM -- "-${pid}" 2>/dev/null
       break
     fi
@@ -51,7 +58,7 @@ function run_serialized() {
     [[ "$(cat "$latest" 2>/dev/null)" == "$id" ]] || return 0
     lock_time="$(stat -f %m "$lock" 2>/dev/null)"
     if [[ -n "$lock_time" ]] && (( $(date +%s) - lock_time > LOCK_STALE_SECONDS )); then
-      echo "[$(date -Iseconds)] - [WARN] removing stale lock of ${udid}"
+      log "[WARN] removing stale lock of ${udid}"
       rm -rf "$lock"
       continue
     fi
@@ -61,7 +68,7 @@ function run_serialized() {
   # lock may be taken over as stale, and the job must not remove the lock of its successor
   echo "$id" > "${lock}/owner"
   if [[ "$(cat "$latest" 2>/dev/null)" == "$id" ]]; then
-    run_with_timeout "$ACTION_TIMEOUT_SECONDS" zebrunner-farm "$action" "$udid"
+    run_with_timeout "$ACTION_TIMEOUT_SECONDS" zebrunner-farm "$action" "$udid" >> "$LISTENER_LOG" 2>&1
   fi
   if [[ "$(cat "${lock}/owner" 2>/dev/null)" == "$id" ]]; then
     rm -rf "$lock"
@@ -109,4 +116,4 @@ trap 'kill "$pipeline_pid" $(jobs -p) 2>/dev/null; exit 0' TERM INT
 
 wait "$pipeline_pid"
 
-echo "[$(date -Iseconds)] - [ERROR] Device listener fall"
+log "[ERROR] Device listener fall"

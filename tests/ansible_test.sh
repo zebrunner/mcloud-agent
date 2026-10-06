@@ -181,6 +181,23 @@ ACTION=="add", ENV{ID_SERIAL_SHORT}=="R28M1384YQY", RUN+="/usr/local/bin/zebrunn
 EOF
 check "udev rules" "$(cat "${WORK}/expected_rules")" "$(head -3 "${WORK}/rules")"
 
+render "${REPO}/roles/mac-devices/templates/zebrunner-mcloud.newsyslog.conf" "${WORK}/newsyslog.conf" || exit 1
+check "log rotation of the listener log: owner, mode, 7 archives of 10 MB, bzip2, no signal" \
+  "${REPO}/logs/listener.log|${USER}:staff|644|7|10240|*|JN" \
+  "$(grep -v '^#' "${WORK}/newsyslog.conf" | awk '{print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7}')"
+# newsyslog needs root even for a dry run: passwordless sudo is available on CI macOS runners
+if [[ "$(uname)" == "Darwin" ]] && sudo -n true 2> /dev/null; then
+  mkdir -p "${WORK}/agent/logs"
+  echo "line" > "${WORK}/agent/logs/listener.log"
+  ZEBRUNNER_MCLOUD_AGENT_DIR="${WORK}/agent" ansible localhost --connection local --module-name template \
+    --args "src=${REPO}/roles/mac-devices/templates/zebrunner-mcloud.newsyslog.conf dest=${WORK}/agent/newsyslog.conf" > /dev/null 2>&1
+  output="$(sudo -n /usr/sbin/newsyslog -nvF -f "${WORK}/agent/newsyslog.conf" 2>&1)"
+  check "newsyslog accepts the rotation settings" "0" "$?"
+  check_contains "newsyslog would rotate the listener log" "${WORK}/agent/logs/listener.log" "$output"
+else
+  echo "skip - newsyslog dry run needs macOS and passwordless sudo"
+fi
+
 for plist in ZebrunnerDevicesListener ZebrunnerUsbmuxd; do
   render "${REPO}/roles/mac-devices/templates/${plist}.plist" "${WORK}/${plist}.plist" || exit 1
   check_contains "${plist}: runs in the agent dir" "<string>${REPO}</string>" "$(cat "${WORK}/${plist}.plist")"

@@ -131,6 +131,7 @@ check "macOS: containers are removed" "down" "$(calls zebrunner-farm)"
 check "macOS: appium storage is removed" "volume|rm|appium-storage-volume" "$(calls docker | grep '^volume|rm|')"
 check "macOS: deployed files are removed" "rm|-vf|/usr/local/bin/zebrunner-device-listener
 rm|-vf|/usr/local/bin/usbmuxd_watch
+rm|-vf|/etc/newsyslog.d/zebrunner-mcloud.conf
 rm|-vf|/usr/local/bin/zebrunner-farm
 rm|-vf|/usr/local/bin/mcloud-devices.txt" "$(calls sudo | grep '^rm|')"
 check "macOS: settings are removed" "no" "$([[ -f "${AGENT}/roles/mac-devices/vars/main.yml" ]] && echo yes || echo no)"

@@ -136,7 +136,7 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
 
 ## Troubleshooting
 Follow the below algorithm to identify any configuration issues with MCloud agent:
-* macOS: the devices listener logs into `logs/listener.log` and `logs/listener.err.log`, the usbmuxd sharing (socat) into `logs/usbmuxd-socat.log` and `logs/usbmuxd-socat.err.log` of the MCloud agent directory. Loaded agents are shown by `launchctl list | grep zebrunner`.
+* macOS: the devices listener logs into `logs/listener.log` and `logs/listener.err.log`, the usbmuxd sharing (socat) into `logs/usbmuxd-socat.log` and `logs/usbmuxd-socat.err.log` of the MCloud agent directory. `listener.log` is rotated by newsyslog (10 MB, 7 bzip2 archives, `/etc/newsyslog.d/zebrunner-mcloud.conf`). Loaded agents are shown by `launchctl list | grep zebrunner`.
 * Enable the debug log level for udev rules: `sudo udevadm control --log-priority=debug`.
 * Inspect syslog to check if the `zebrunner-farm` shell script executed on every whitelisted device is able to connect/disconnect:
   ```
