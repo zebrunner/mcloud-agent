@@ -3,7 +3,7 @@
 source "$(dirname "$0")/lib.sh"
 source "${REPO}/patch/utility.sh"
 
-echo "# confirm"
+section "confirm"
 # answer <stdin text> <default>: exit code of confirm
 answer() {
   printf '%b' "$1" | confirm "" "question?" "$2" > /dev/null
@@ -19,7 +19,7 @@ check "another answer is asked again" "0" "$(answer 'maybe\ny\n' n)"
 check_contains "another answer is explained" "Please answer y (yes) or n (no)." "$(printf 'maybe\ny\n' | confirm "" "question?" n)"
 check_contains "the message is shown" "the message" "$(printf 'y\n' | confirm "the message" "question?" n)"
 
-echo "# random_string"
+section "random_string"
 check "default length" "48" "$(random_string | tr -d '\n' | wc -c | tr -d ' ')"
 check "custom length" "5" "$(random_string 5 | tr -d '\n' | wc -c | tr -d ' ')"
 check "letters and digits only" "" "$(random_string 200 | tr -d 'a-zA-Z0-9\n')"
@@ -48,7 +48,7 @@ fi
 check "ignored SIGPIPE does not hang" "finished" "$random_state"
 check "ignored SIGPIPE result" "5" "$(tr -d '\n' < "${WORK}/random" | wc -c | tr -d ' ')"
 
-echo "# delimiter"
+section "delimiter"
 width="$(tput cols)"
 line="$(delimiter | grep -v '^$')"
 check "plain delimiter has the terminal width" "$width" "${#line}"
@@ -59,13 +59,13 @@ line="$(delimiter "Title text" | grep -v '^$')"
 check "titled delimiter has the terminal width" "$width" "${#line}"
 check_contains "titled delimiter shows the title" "==== Title text ==" "$line"
 
-echo "# replace"
+section "replace"
 printf 'a=old\nb=old\n' > "${WORK}/file"
 replace "${WORK}/file" "old" "new"
 check "all occurrences are replaced" "a=new
 b=new" "$(cat "${WORK}/file")"
 
-echo "# messages"
+section "messages"
 check "failed is red" $'\033[0;31mtext\033[0m' "$(failed text)"
 check "warn is yellow" $'\033[1;33mtext\033[0m' "$(warn text)"
 check "succeed is green" $'\033[0;32mtext\033[0m' "$(succeed text)"

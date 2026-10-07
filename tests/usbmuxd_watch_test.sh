@@ -6,7 +6,7 @@ require_cmd python3
 
 BINARY="${REPO}/roles/mac-devices/files/usbmuxd_watch"
 
-echo "# binary"
+section "binary"
 check "universal binary" "x86_64 arm64" "$(lipo -archs "$BINARY")"
 for arch in arm64 x86_64; do
   check "${arch} slice runs on macOS 13.0+" "13.0" "$(otool -arch "$arch" -l "$BINARY" | grep -A4 LC_BUILD_VERSION | awk '/minos/ {print $2}')"
@@ -30,7 +30,7 @@ watch() {
   cat "${WORK}/watch.out"
 }
 
-echo "# events"
+section "events"
 check "USB devices are reported, a 24 chars udid with a dash" "ATTACH udid=00008030-001A35E83C38802E handle=5
 ATTACH udid=d6afc6b3a65584ca0813eb8957c6479b9b6ebb11 handle=7
 PAIRED udid=d6afc6b3a65584ca0813eb8957c6479b9b6ebb11

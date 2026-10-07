@@ -51,7 +51,7 @@ for role in devices mac-devices download; do
   make_play "$role"
 done
 
-echo "# registerDevices tag"
+section "registerDevices tag"
 for role in devices mac-devices; do
   tasks="$(playbook "$role" --list-tasks --tags registerDevices)"
   check_contains "${role}: the tag selects the prechecks" "Check OS compatibility" "$tasks"
@@ -59,7 +59,7 @@ for role in devices mac-devices; do
   check_contains "${role}: the tag selects the duplicates check" "Check for duplicate device IDs or names" "$tasks"
 done
 
-echo "# duplicates check"
+section "duplicates check"
 for role in devices mac-devices; do
   while IFS='=' read -r devices expected; do
     output="$(playbook "$role" --tags dedup --extra-vars "{\"devices\": ${devices}}")"
@@ -73,7 +73,7 @@ for role in devices mac-devices; do
 EOF
 done
 
-echo "# devices settings check"
+section "devices settings check"
 for role in devices mac-devices; do
   check_contains "${role}: example settings are valid" "failed=0" "$(playbook "$role" --tags validate)"
   while IFS='=' read -r devices expected; do
@@ -100,7 +100,7 @@ done << 'EOF'
 [{"id": "a", "name": "TV", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "wireless": true, "wda_host": "10.0.0.5"}]=failed=0
 EOF
 
-echo "# prechecks of ${OS_ROLE}"
+section "prechecks of ${OS_ROLE}"
 output="$(playbook "$OS_ROLE" --check --tags precheck)"
 check_contains "OS is compatible" "OS is compatible: $(uname)" "$output"
 check_contains "setup is done" "Setup is ready" "$output"
@@ -114,7 +114,7 @@ mv "${WORK}/play-${OS_ROLE}/roles/${OS_ROLE}/vars/main.yml" "${WORK}/vars.yml"
 check_contains "missing setup fails" "You have to set up services in advance using: ./zebrunner.sh setup!" "$(playbook "$OS_ROLE" --check --tags precheck)"
 mv "${WORK}/vars.yml" "${WORK}/play-${OS_ROLE}/roles/${OS_ROLE}/vars/main.yml"
 
-echo "# file tasks of ${OS_ROLE} (check mode)"
+section "file tasks of ${OS_ROLE} (check mode)"
 output="$(playbook "$OS_ROLE" --check --tags files)"
 check_contains "file tasks pass" "failed=0" "$output"
 check_contains "zebrunner-farm is deployed" "Copy 'zebrunner-farm' script file" "$output"
@@ -122,7 +122,7 @@ if [[ "$OS_ROLE" == "mac-devices" ]]; then
   check_contains "usbmuxd_watch binary is copied, not templated" "Copy 'usbmuxd_watch' binary file" "$output"
 fi
 
-echo "# images download"
+section "images download"
 # docker: pulls fail for images matching $FAIL_PULL, only images matching $LOCAL_IMAGE exist locally
 cat > "${WORK}/bin/docker" << 'EOF'
 #!/bin/bash
@@ -153,7 +153,7 @@ check_contains "missing image stops the deploy" "No such image: public.ecr.aws/z
 check "deploy stops before the network" "0" "$(calls docker | grep -c '^network|')"
 check_contains "check mode skips the pulls" "failed=0" "$(FAIL_PULL=appium playbook download --check)"
 
-echo "# templates"
+section "templates"
 for role in devices mac-devices; do
   render_farm "$role" "${WORK}/farm" || exit 1
   farm="$(cat "${WORK}/farm")"
@@ -202,7 +202,7 @@ if [[ "$(uname)" == "Darwin" ]] && sudo -n true 2> /dev/null; then
   check "newsyslog accepts the rotation settings" "0" "$?"
   check_contains "newsyslog would rotate the listener log" "${WORK}/agent/logs/listener.log" "$output"
 else
-  echo "skip - newsyslog dry run needs macOS and passwordless sudo"
+  skip_check "newsyslog dry run" "needs macOS and passwordless sudo"
 fi
 
 for plist in ZebrunnerDevicesListener ZebrunnerUsbmuxd; do

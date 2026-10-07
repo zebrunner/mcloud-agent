@@ -1,52 +1,64 @@
 #!/bin/bash
-# Static checks of the project files; the tools: pip install -r tests/requirements-lint.txt
-set -eu
+# Static checks of the project files, every linter run is a check (also in JUnit XML with JUNIT_DIR);
+# the tools: pip install -r tests/requirements-lint.txt
 source "$(dirname "$0")/lib.sh"
-cd "$REPO"
+cd "$REPO" || exit 1
+
+# lint <description> <command...>: runs a linter as a check, its output is shown when it fails
+lint() {
+  local output
+  output="$("${@:2}" 2>&1)"
+  local status=$?
+  if [[ "$status" -eq 0 ]]; then
+    pass "$1"
+  else
+    fail "$1" "exit status ${status}" "$output"
+  fi
+}
 
 missing=""
 for tool in actionlint ansible-lint ansible-playbook hadolint pymarkdown ruff shellcheck shfmt yamllint; do
   command -v "$tool" > /dev/null 2>&1 || missing="${missing} ${tool}"
 done
 if [[ -n "$missing" ]]; then
-  echo "missing tools:${missing} (pip install -r tests/requirements-lint.txt, hadolint on macOS: brew install hadolint)"
-  exit 1
+  fail "lint tools are installed" "missing:${missing}" \
+    "missing tools:${missing} (pip install -r tests/requirements-lint.txt, hadolint on macOS: brew install hadolint)"
+  finish
 fi
 
-echo "# yaml"
-yamllint --strict .
+section "yaml"
+lint "yamllint" yamllint --strict .
 
-echo "# GitHub workflows"
-actionlint
+section "GitHub workflows"
+lint "actionlint" actionlint
 
-echo "# python"
-ruff check --no-cache .
-ruff format --check --no-cache .
+section "python"
+lint "ruff check" ruff check --no-cache .
+lint "ruff format" ruff format --check --no-cache .
 
-echo "# Dockerfile"
-hadolint tests/Dockerfile
+section "Dockerfile"
+lint "hadolint" hadolint tests/Dockerfile
 
-echo "# markdown"
-pymarkdown scan README.md
+section "markdown"
+lint "pymarkdown" pymarkdown scan README.md
 
-echo "# ansible"
-ansible-lint --strict
-
-echo "# ansible playbooks syntax"
+section "ansible"
+lint "ansible-lint" ansible-lint --strict
 for playbook in devices.yml mac-devices.yml; do
-  ansible-playbook --syntax-check --inventory hosts "$playbook"
+  lint "syntax of ${playbook}" ansible-playbook --syntax-check --inventory hosts "$playbook"
 done
 
-echo "# shell scripts and rendered zebrunner-farm templates"
+section "shell"
 for role in devices mac-devices; do
-  render_farm "$role" "${WORK}/zebrunner-farm-${role}"
+  lint "render zebrunner-farm of ${role}" render_farm "$role" "${WORK}/zebrunner-farm-${role}"
 done
 scripts=(zebrunner.sh patch/*.sh tests/*.sh roles/mac-devices/templates/zebrunner-device-listener "$WORK"/zebrunner-farm-*)
 for script in "${scripts[@]}"; do
-  bash -n "$script"
+  lint "bash -n ${script#"${WORK}/"}" bash -n "$script"
 done
-shellcheck --severity=warning "${scripts[@]}"
+lint "shellcheck" shellcheck --severity=warning "${scripts[@]}"
 # style of .editorconfig
-shfmt -d zebrunner.sh patch/*.sh tests/*.sh roles/mac-devices/templates/zebrunner-device-listener roles/*/templates/zebrunner-farm
+lint "shfmt" shfmt -d zebrunner.sh patch/*.sh tests/*.sh roles/mac-devices/templates/zebrunner-device-listener roles/*/templates/zebrunner-farm
 
-echo "lint: ok"
+[[ "$FAILED" -eq 0 ]] && echo "lint: ok"
+finish

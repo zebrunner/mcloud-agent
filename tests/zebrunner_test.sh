@@ -34,14 +34,14 @@ exports() {
   grep -c "^export ZEBRUNNER_MCLOUD_AGENT_DIR=${AGENT}\$" "${WORK}/home/$1" 2> /dev/null || true
 }
 
-echo "# help"
+section "help"
 output="$(zbr "")"
 check_contains "help shows the usage" "Usage: ./zebrunner.sh [option]" "$output"
 for command in setup ansible status backup restore shutdown version; do
   check_contains "help lists ${command}" "         ${command} " "$output"
 done
 
-echo "# setup"
+section "setup"
 echo "export ZEBRUNNER_MCLOUD_AGENT_DIR=/old/path" > "${WORK}/home/.bashrc"
 output="$(OS=Linux zbr "" setup)"
 check "the agent dir replaces an old value in .bashrc" "1" "$(exports .bashrc)"
@@ -59,13 +59,13 @@ check "macOS settings are created from the example" "same" \
   "$(cmp -s "${AGENT}/roles/mac-devices/vars/main.yml" "${AGENT}/roles/mac-devices/vars/main.yml.original" && echo same)"
 check_contains "unknown OS is rejected" "Unknown OS" "$(OS=FreeBSD zbr "" setup)"
 
-echo "# version"
+section "version"
 check_contains "versions from the agent dir" "DEVICE_VERSION:" "$(AGENT_DIR="$AGENT" zbr "" version)"
 output="$(zbr "" version)"
 check_contains "missing agent dir variable is reported" "is not set" "$output"
 check_contains "versions from the current dir without the variable" "APPIUM_VERSION:" "$output"
 
-echo "# ansible"
+section "ansible"
 check_contains "ansible needs the agent dir variable" "is not set" "$(zbr "" ansible)"
 reset_calls
 AGENT_DIR="$AGENT" OS=Linux zbr "" ansible > /dev/null
@@ -83,7 +83,7 @@ output="$(ANSIBLE_EXIT=2 AGENT_DIR="$AGENT" zbr "" ansible)"
 check "failed playbook fails" "1" "$?"
 check_contains "failed playbook is reported" "Ansible playbook execution failed!" "$output"
 
-echo "# status"
+section "status"
 output="$(AGENT_DIR="$AGENT" OS=Linux zbr "" status)"
 check_contains "ansible version" "ansible-playbook [core 2.21.5]" "$output"
 check_contains "zebrunner-farm location" "${WORK}/bin/zebrunner-farm" "$output"
@@ -97,7 +97,7 @@ output="$(AGENT_DIR="$AGENT" OS=Darwin zbr "" status)"
 check_contains "macOS deployed launch agents" "${WORK}/home/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" "$output"
 check_contains "macOS settings file" "${AGENT}/roles/mac-devices/vars/main.yml" "$output"
 
-echo "# backup and restore"
+section "backup and restore"
 zbr "n\n" backup > /dev/null
 check "declined backup creates nothing" "0" "$(find "${AGENT}/backup" -name 'bak_*' | wc -l | tr -d ' ')"
 OS=Linux zbr "y\n" backup > /dev/null
@@ -113,7 +113,7 @@ check_contains "restore prints its header" "Restore MCloud Agent" "$output"
 check "restore brings the settings back" "same" "$(cmp -s "${AGENT}/defaults/main.yml" "${WORK}/defaults.yml" && echo same)"
 check_contains "restore asks again for an unknown backup" "does not exist" "$(OS=Linux zbr "y\nbak_none\n${backup}\n" restore)"
 
-echo "# shutdown"
+section "shutdown"
 for profile in .bashrc .zshrc; do
   echo "export ZEBRUNNER_MCLOUD_AGENT_DIR=${AGENT}" > "${WORK}/home/${profile}"
 done

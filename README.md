@@ -224,6 +224,7 @@ The `tests` folder covers zebrunner.sh, the ansible roles and templates, zebrunn
   > The linters of `tests/requirements-lint.txt` are installed into `.venv` automatically. On macOS install hadolint with `brew install hadolint`: the hadolint-py wheel for macOS is broken.
 
 * Run a part of the checks with `make lint`, `make test` or `make docker`, `make` lists the targets.
+* With `JUNIT_DIR` set, `tests/lint.sh` and every test write JUnit XML into it. CI publishes the results as annotations and a job summary, and keeps the XML files as artifacts.
 
 ## Documentation and free support
 

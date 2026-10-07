@@ -79,7 +79,7 @@ setup_case() {
   : > "${WORK}/usb"
 }
 
-echo "# device selection"
+section "device selection"
 for role in devices mac-devices; do
   while IFS='=' read -r query expected; do
     setup_case
@@ -97,7 +97,7 @@ android=Galaxy WiFi
 EOF
 done
 
-echo "# unknown device"
+section "unknown device"
 for role in devices mac-devices; do
   for command in start stop down status; do
     setup_case
@@ -109,7 +109,7 @@ for role in devices mac-devices; do
   done
 done
 
-echo "# Linux container creation"
+section "Linux container creation"
 setup_case
 echo "iSerial R28M1384YQY" > "${WORK}/usb"
 farm devices start Galaxy > /dev/null
@@ -143,7 +143,7 @@ farm devices restart WiFi > /dev/null
 check "restart removes the containers before creating them" "rm run" \
   "$(calls docker | grep -E '^(rm|run)\|' | cut -d '|' -f 1 | uniq | paste -s -d ' ' -)"
 
-echo "# macOS container creation"
+section "macOS container creation"
 setup_case
 echo '"USB Serial Number" = "d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"' > "${WORK}/usb"
 output="$(farm mac-devices start iPhone_8_Plus)"
@@ -183,7 +183,7 @@ farm mac-devices stop iPhone_8_Plus > /dev/null
 check "USB device stop includes the connector" "connector appium stf uploader" \
   "$(calls docker | grep '^stop|' | sed 's/.*-//' | paste -s -d ' ' -)"
 
-echo "# macOS device listener"
+section "macOS device listener"
 for command in start stop down; do
   for filter in "" ios android iPhone_8_Plus; do
     setup_case
@@ -196,14 +196,14 @@ for command in start stop down; do
   done
 done
 
-echo "# status"
+section "status"
 setup_case
 check_contains "Linux: wireless device shows its containers" "| Connector" "$(farm devices status WiFi)"
 check_contains "Linux: USB device without symlink is disconnected" "DISCONNECTED" "$(farm devices status Galaxy)"
 check_contains "macOS: wireless device shows its containers" "| Connector" "$(farm mac-devices status AppleTV)"
 check_contains "macOS: not connected USB device is disconnected" "DISCONNECTED" "$(farm mac-devices status iPhone_8_Plus)"
 
-echo "# uptime"
+section "uptime"
 # iso_ago <seconds>: docker-like UTC timestamp of the given seconds ago
 iso_ago() {
   local epoch=$(($(date +%s) - $1))
@@ -228,7 +228,7 @@ check "uptime above a day shows days" "ok" "$([[ "$uptime" =~ ^1d\ 02:03:0[45]$ 
 uptime="$(DOCKER_STARTED_AT="$(iso_ago 7200)" DOCKER_FINISHED_AT="$(iso_ago 60)" uptime_of)"
 check "stopped container has unknown uptime" "UNKNOWN" "$uptime"
 
-echo "# help"
+section "help"
 check_contains "help describes the device argument" "Device: udid or name of a whitelisted device, or ios/android" "$(farm devices)"
 
 finish

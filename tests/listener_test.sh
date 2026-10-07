@@ -28,7 +28,7 @@ line() {
   grep -n "$1" "${WORK}/farm.log" | head -1 | cut -d ':' -f 1
 }
 
-echo "# debounce, serialization and timeout"
+section "debounce, serialization and timeout"
 cat > "${WORK}/bin/usbmuxd_watch" << 'EOF'
 #!/bin/bash
 echo "ATTACH udid=BURST handle=1"; sleep 0.3
@@ -62,7 +62,7 @@ check "no device locks are left" "0" "$(find "${WORK}/tmp" -name '*.lock' | wc -
 check "no debounce jobs are left" "0" "$(pgrep -f 'usb-debounce:' | wc -l | tr -d ' ')"
 check "no bash job reports in the log" "0" "$(grep -c 'Terminated' "${WORK}/listener.out")"
 
-echo "# stale locks and lock ownership"
+section "stale locks and lock ownership"
 # STALE: a lock left by a killed job; OWN: a live job whose lock looks stale after a sleep of the Mac
 cat > "${WORK}/bin/usbmuxd_watch" << 'EOF'
 #!/bin/bash
@@ -103,7 +103,7 @@ check "a job does not release the lock of its successor" "yes" \
   "$([[ "${last_restart:-0}" -gt "$(line '^END down OWN')" ]] && echo yes || echo no)"
 check "no device locks are left" "0" "$(find "${WORK}/tmp" -name '*.lock' | wc -l | tr -d ' ')"
 
-echo "# log rotation"
+section "log rotation"
 # the log is renamed between two actions, as newsyslog does
 cat > "${WORK}/bin/usbmuxd_watch" << 'EOF'
 #!/bin/bash
