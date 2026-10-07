@@ -1,0 +1,82 @@
+---
+name: CI
+
+on:
+  push:
+    branches: [develop, main, master]
+  pull_request:
+    branches: [develop, main, master]
+  workflow_dispatch:
+# a new push to a pull request cancels its outdated run, runs of the branches themselves are kept
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install linters
+        run: pip install -r tests/requirements-lint.txt
+      - name: Lint playbooks, scripts and rendered templates
+        run: tests/lint.sh
+        env:
+          JUNIT_DIR: ${{ runner.temp }}/junit
+      - name: Lint report
+        if: ${{ !cancelled() }}
+        uses: mikepenz/action-junit-report@b7b80d7ac5b1da46d6aaff9fb57ad50d8453bcb3 # v6.6.0
+        with:
+          report_paths: ${{ runner.temp }}/junit/*.xml
+          check_name: lint report
+          # annotations and the job summary only: no check run, so a read-only token is enough
+          annotate_only: true
+          detailed_summary: true
+          require_tests: true
+      - name: Upload lint JUnit XML
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-lint
+          path: ${{ runner.temp }}/junit/
+
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install ansible
+        run: pip install ansible-core
+      - name: Run tests
+        run: tests/run_all.sh
+        env:
+          JUNIT_DIR: ${{ runner.temp }}/junit
+      - name: Tests report
+        if: ${{ !cancelled() }}
+        uses: mikepenz/action-junit-report@b7b80d7ac5b1da46d6aaff9fb57ad50d8453bcb3 # v6.6.0
+        with:
+          report_paths: ${{ runner.temp }}/junit/*.xml
+          check_name: tests report (${{ matrix.os }})
+          annotate_only: true
+          detailed_summary: true
+          require_tests: true
+      - name: Upload tests JUnit XML
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-${{ matrix.os }}
+          path: ${{ runner.temp }}/junit/

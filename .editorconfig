@@ -1,0 +1,13 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+
+# shell scripts and templates, also the style of shfmt
+[{*.sh,zebrunner-farm,zebrunner-device-listener}]
+indent_style = space
+indent_size = 2
+shell_variant = bash
+space_redirects = true
