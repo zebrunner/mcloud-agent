@@ -10,20 +10,20 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 |                           | Requirements                                                                                      |
 |:-------------------------:|---------------------------------------------------------------------------------------------------|
-|  <b>Operating System</b>  | Ubuntu 16.04, 18.04, 20.04, 21.04, 22.04 <br>Linux CentOS 7+<br>Amazon Linux2<br> MacOS (Ventura) |
+|  <b>Operating System</b>  | Ubuntu 16.04, 18.04, 20.04, 21.04, 22.04 <br>Linux CentOS 7+<br>Amazon Linux2<br> macOS 13 (Ventura)+, Apple Silicon or Intel |
 |  <b>       CPU      </b>  | 8+ Cores                                                                                          |
 |  <b>      Memory    </b>  | 32 Gb RAM                                                                                         |
 |  <b>    Free space  </b>  | SSD 128Gb+ of free space                                                                          |
 
 ## Software prerequisites
 
-* Install docker ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-use-docker-on-ubuntu-20-04), [Amazon Linux 2](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/docker-basics.html), [Redhat/Cent OS](https://www.cyberciti.biz/faq/install-use-setup-docker-on-rhel7-centos7-linux/)).
-* Install 2.9.6+ ansible ([Ubuntu 16.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-16-04), [Ubuntu 18.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-18-04), [Ubuntu 20.04](https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-ansible-on-ubuntu-20-04)).
-* macOS: install and authorize [go-ios](https://github.com/danielpaulus/go-ios) utility 1.0.121+
+* Install docker: [Docker Engine](https://docs.docker.com/engine/install/) on Linux ([Amazon Linux 2](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/docker-basics.html)), [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) on macOS.
+* Install [ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html) 2.10+ (the playbooks use `ansible.builtin` module names, tested with ansible-core 2.21), e.g. `pip install ansible-core`.
+* macOS: install and authorize [go-ios](https://github.com/danielpaulus/go-ios) utility 1.0.121+, it installs WebDriverAgent on the devices (see [Build WebDriverAgent.ipa](#build-webdriveragentipa))
 * macOS: install socat utility to share usbmuxd websocket into the device containers
   > valid path to socat binary should be `/usr/local/bin/socat`
   > on Apple Silicon Homebrew installs it to `/opt/homebrew/bin/socat`, link it: `sudo ln -s /opt/homebrew/bin/socat /usr/local/bin/socat`
-* MacOS: install jq utility
+* macOS: install jq utility
 
 ## Clone and setup
 
@@ -49,6 +49,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 * update `roles/devices/vars/main.yml` file according to the obligatory/optional comments inside.
   > Register all whitelisted Android and iOS devices with their udids!
+  > The deploy validates the devices: obligatory settings, unique ids and names, and host ports (`appium_port`, `min_port`-`max_port`) not shared by devices.
 * Run ansible-playbook script to download the required components and set up udev rules:
 
   ```bash
@@ -80,6 +81,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * update `roles/mac-devices/vars/main.yml` file according to the obligatory/optional comments inside.
   > Register all whitelisted iOS devices (phones, tablets or TVes) with their udids!
   > Important! Only iOS devices supported on macOS!
+  > The deploy validates the devices: obligatory settings, unique ids and names, host ports (`appium_port`, `min_port`-`max_port`) not shared by devices, and `wda_host` of wireless devices.
 * Run ansible-playbook script to download the required components and set up launchd agents:
 
   ```bash
@@ -101,8 +103,20 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 * Devices management script is deployed to /usr/local/bin/zebrunner-farm.
 * Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
 * Deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist to share usbmuxd into the device containers
-* Deployed $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist to load and manage iOS devices connect/disconnect automatically
+* Deployed $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist to load and manage iOS devices connect/disconnect automatically: the devices listener (/usr/local/bin/zebrunner-device-listener and usbmuxd_watch) restarts the containers of a connected USB device and removes them on disconnect, devices reachable over Wi-Fi only are not handled by it.
+* Log rotation of the devices listener log is set up in /etc/newsyslog.d/zebrunner-mcloud.conf.
 * Run `zebrunner-farm start` to create the containers of the connected devices and to load the devices listener (otherwise it is loaded on the next login only).
+
+## Agent management
+
+`./zebrunner.sh` without arguments lists its commands:
+
+* `setup` - prepares the agent: the `ZEBRUNNER_MCLOUD_AGENT_DIR` variable in the shell profiles and the devices settings from the example.
+* `ansible [devices]` - deploys the agent, `devices` registers the devices only.
+* `status` - shows the state of the agent components: tools, deployed files, launch agents.
+* `backup` and `restore` - save the settings into the `backup` folder and restore them from it.
+* `shutdown` - removes the devices containers, the launch agents or udev rules, the deployed files, the settings and the environment variable (asks for confirmation).
+* `version` - shows the versions of the agent components.
 
 ## Usage
 
@@ -148,6 +162,11 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
    > Make sure to specify relative `./Payload` to archive only Payload folder content
 9. Share built ipa via WDA_FILE variable in roles/devices/vars/main.yml (Linux) or roles/mac-devices/vars/main.yml (macOS) file.
    > to override WDA_FILE artifacts per each device use `wda_file` and `wda_bundleid` iOS device properties and re-execute ansible playbook.
+10. macOS: the device connector does not install WebDriverAgent there, install it on every device in advance with go-ios:
+
+    ```bash
+    ios install --path=WebDriverAgent.ipa --udid=<udid>
+    ```
 
 ### SmartTestFarm
 
@@ -162,8 +181,8 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
 Follow the below algorithm to identify any configuration issues with MCloud agent:
 
 * macOS: the devices listener logs into `logs/listener.log` and `logs/listener.err.log`, the usbmuxd sharing (socat) into `logs/usbmuxd-socat.log` and `logs/usbmuxd-socat.err.log` of the MCloud agent directory. `listener.log` is rotated by newsyslog (10 MB, 7 bzip2 archives, `/etc/newsyslog.d/zebrunner-mcloud.conf`). Loaded agents are shown by `launchctl list | grep zebrunner`.
-* Enable the debug log level for udev rules: `sudo udevadm control --log-priority=debug`.
-* Inspect syslog to check if the `zebrunner-farm` shell script executed on every whitelisted device is able to connect/disconnect:
+* Linux: enable the debug log level for udev rules: `sudo udevadm control --log-priority=debug`.
+* Linux: inspect syslog to check if the `zebrunner-farm` shell script executed on every whitelisted device is able to connect/disconnect:
 
   ```bash
   tail -f /var/log/syslog | grep zebrunner-farm
