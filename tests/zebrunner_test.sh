@@ -88,7 +88,9 @@ output="$(AGENT_DIR="$AGENT" OS=Linux zbr "" status)"
 check_contains "ansible version" "ansible-playbook [core 2.21.5]" "$output"
 check_contains "zebrunner-farm location" "${WORK}/bin/zebrunner-farm" "$output"
 check_contains "Linux settings file" "${AGENT}/roles/devices/vars/main.yml" "$output"
-mv "${WORK}/bin/ansible-playbook" "${WORK}/ansible-playbook"
+# a stub that behaves as a missing command, removing the stub would expose an ansible-playbook of the system
+cp "${WORK}/bin/ansible-playbook" "${WORK}/ansible-playbook"
+stub ansible-playbook 'echo "ansible-playbook: command not found" >&2; exit 127'
 check_contains "missing ansible-playbook is reported" "'ansible-playbook' not found" "$(AGENT_DIR="$AGENT" zbr "" status)"
 mv "${WORK}/ansible-playbook" "${WORK}/bin/ansible-playbook"
 mkdir -p "${WORK}/home/Library/LaunchAgents"
