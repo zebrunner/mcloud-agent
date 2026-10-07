@@ -215,20 +215,15 @@ Follow the below algorithm to identify any configuration issues with MCloud agen
 
 The `tests` folder covers zebrunner.sh, the ansible roles and templates, zebrunner-farm, the macOS devices listener and the usbmuxd_watch binary. docker, sudo, launchctl, usbmuxd and other host tools are replaced by stubs, so the tests change nothing on the host.
 
-* Run them with the tools of `tests/requirements-lint.txt` installed (`pip install -r tests/requirements-lint.txt`), macOS specific tests are skipped on Linux:
-  > the hadolint-py wheel for macOS is broken, install hadolint with `brew install hadolint` or run the linters with docker
+* Run all linters and tests on this machine, then in the Linux docker image of `tests/Dockerfile` (macOS specific tests are skipped on Linux):
 
   ```bash
-  tests/lint.sh
-  tests/run_all.sh
+  make check
   ```
 
-* Run the Linux tests on macOS with docker:
+  > The linters of `tests/requirements-lint.txt` are installed into `.venv` automatically. On macOS install hadolint with `brew install hadolint`: the hadolint-py wheel for macOS is broken.
 
-  ```bash
-  docker build -t mcloud-agent-tests tests
-  docker run --rm -v "$PWD":/repo:ro mcloud-agent-tests bash -c '/repo/tests/lint.sh && /repo/tests/run_all.sh'
-  ```
+* Run a part of the checks with `make lint`, `make test` or `make docker`, `make` lists the targets.
 
 ## Documentation and free support
 

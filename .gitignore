@@ -8,3 +8,4 @@ roles/mac-devices/vars/main.yml
 DeveloperDiskImages
 .idea/
 become.yml
+.venv/
