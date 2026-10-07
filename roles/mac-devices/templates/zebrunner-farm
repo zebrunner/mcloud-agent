@@ -402,7 +402,7 @@ function detect_uptime() {
   fi
 
   local uptime="UNKNOWN"
-  if [[ "$started_at_epoch" -gt "$finished_at_epoch" ]]; then
+  if [[ "$started_at_epoch" -ge "$finished_at_epoch" ]]; then
     local current_time="UNKNOWN"
     current_time="$(TZ=UTC date "+%s")"
     local elapsed=$((current_time - started_at_epoch))
