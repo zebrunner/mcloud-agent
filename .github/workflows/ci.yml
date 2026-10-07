@@ -43,10 +43,5 @@ jobs:
           python-version: "3.13"
       - name: Install ansible
         run: pip install ansible-core
-      # Temporary: diagnostics of the slow fact gathering on the macOS runner (about 70 seconds per playbook)
-      - name: Diagnose fact gathering
-        run: tests/diagnose_facts.sh
-        continue-on-error: true
-        timeout-minutes: 12
       - name: Run tests
         run: tests/run_all.sh
