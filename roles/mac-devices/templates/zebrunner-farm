@@ -12,7 +12,7 @@ source "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/utility.sh"
 
 MCLOUD_DEVICES="/usr/local/bin/mcloud-devices.txt"
 
-function get_device_fields() {
+get_device_fields() {
   local filter="$1"
 
   local -a fields
@@ -88,7 +88,7 @@ function get_device_fields() {
   dev_container="device-${dev_device_name}-${dev_udid}"
 }
 
-function create_containers() {
+create_containers() {
   local ps_out
   ps_out="$(docker ps -a)"
   if grep -q "${dev_container}-stf" <<< "$ps_out" &&
@@ -281,7 +281,7 @@ function create_containers() {
   fi
 }
 
-function start() {
+start() {
   local net="{{ STF_DOCKER_NETWORK }}"
   echo -e "\nInspecting network ${net}:"
   if docker network inspect "$net" > /dev/null 2>&1; then
@@ -310,7 +310,7 @@ function start() {
   fi
 }
 
-function start_containers() {
+start_containers() {
   echo -e "\n\tStarting '${dev_container}' containers:\n"
   # a wireless device has no connector container
   [[ "$dev_wireless" == "true" ]] || docker start "${dev_container}-connector"
@@ -319,7 +319,7 @@ function start_containers() {
   docker start "${dev_container}-uploader"
 }
 
-function stop() {
+stop() {
   local filter_device="$1"
 
   if [[ -n "$filter_device" && "$filter_device" != "ios" && "$filter_device" != "android" ]]; then
@@ -339,7 +339,7 @@ function stop() {
   fi
 }
 
-function stop_containers() {
+stop_containers() {
   echo -e "\n\tStopping '${dev_container}' containers:\n"
   # a wireless device has no connector container
   [[ "$dev_wireless" == "true" ]] || docker stop "${dev_container}-connector"
@@ -348,7 +348,7 @@ function stop_containers() {
   docker stop "${dev_container}-uploader"
 }
 
-function down() {
+down() {
   local filter_device="$1"
 
   if [[ -n "$filter_device" && "$filter_device" != "ios" && "$filter_device" != "android" ]]; then
@@ -368,7 +368,7 @@ function down() {
   fi
 }
 
-function remove_containers() {
+remove_containers() {
   echo -e "\n\tRemoving '${dev_container}' containers:\n"
   echo -n "Connector:  "
   docker rm -f "${dev_container}-connector" || failed "container not found"
@@ -386,7 +386,7 @@ function remove_containers() {
   docker volume rm "$dev_container" || failed "volume not found"
 }
 
-function detect_uptime() {
+detect_uptime() {
   local started_at
   started_at="$(docker inspect --format='{{ '{{' }}.State.StartedAt{{ '}}' }}' "$1" | cut -d '.' -f 1)"
   local finished_at
@@ -415,25 +415,25 @@ function detect_uptime() {
   echo "$uptime"
 }
 
-function detect_state() {
+detect_state() {
   local device_state="UNKNOWN"
   device_state="$(docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' "$1" 2> /dev/null)"
   echo "${device_state:-UNKNOWN}"
 }
 
-function detect_status() {
+detect_status() {
   local device_status="UNKNOWN"
   device_status="$(docker inspect --format='{{ '{{' }}.State.Status{{ '}}' }}' "$1" 2> /dev/null)"
   echo "${device_status:-UNKNOWN}"
 }
 
-function detect_restarts() {
+detect_restarts() {
   local device_restarts="UNKNOWN"
   device_restarts="$(docker inspect --format='{{ '{{' }}.RestartCount{{ '}}' }}' "$1" 2> /dev/null)"
   echo "${device_restarts:-UNKNOWN}"
 }
 
-function verify_containers() {
+verify_containers() {
   local ps_out
   ps_out="$(docker ps -a)"
 
@@ -498,7 +498,7 @@ function verify_containers() {
   echo -e "==============================================================\n"
 }
 
-function status() {
+status() {
   local filter_device="$1"
 
   if [[ -n "$filter_device" && "$filter_device" != "ios" && "$filter_device" != "android" ]]; then
@@ -513,7 +513,7 @@ function status() {
   fi
 }
 
-function echo_help() {
+echo_help() {
   echo "
       Usage: zebrunner-farm [option]
       Arguments:
@@ -530,7 +530,7 @@ function echo_help() {
   exit 0
 }
 
-function main() {
+main() {
   case "$1" in
   status)
     status "$2"
