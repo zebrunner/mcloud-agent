@@ -1,18 +1,23 @@
 #!/bin/bash
-# Shared helpers of the test scripts: workspace, command stubs, assertions, JUnit XML and template rendering.
+# Shared helpers of the test scripts: workspace, command stubs, assertions and JUnit XML.
 # A test script sources it first: source "$(dirname "$0")/lib.sh"
 # With JUNIT_DIR set, the results are also written into ${JUNIT_DIR}/<test script name>.xml (JUnit XML).
-# Keep it compatible with the macOS system bash 3.2.
+# Keep it compatible with the macOS system bash 3.2 and identical in all the repositories (CONVENTIONS.md).
 
+# REPO, WORK and the helpers below are used by the scripts sourcing this file
+# shellcheck disable=SC2034
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$(mktemp -d)"
 SUITE="$(basename "$0" .sh)"
 SECTION=""
 FAILED=0
-trap 'junit_write $?; rm -rf "$WORK"' EXIT
+trap 'junit_write $?; cleanup; rm -rf "$WORK"' EXIT
 mkdir -p "${WORK}/bin"
-# tput (used by delimiter) needs a terminal type
-export TERM=dumb
+
+# cleanup: redefined by a test script to free its resources (containers, ...) on exit
+cleanup() {
+  :
+}
 
 # xml_escape: stdin escaped for XML text and attributes, control characters (e.g. colors) dropped
 xml_escape() {
@@ -116,6 +121,18 @@ check_not_contains() {
   fi
 }
 
+# run_check <description> <command...>: runs a command as a check, its output is shown when it fails
+run_check() {
+  local output
+  output="$("${@:2}" 2>&1)"
+  local status=$?
+  if [[ "$status" -eq 0 ]]; then
+    pass "$1"
+  else
+    fail "$1" "exit status ${status}" "$output"
+  fi
+}
+
 # stub <command> <script body>: creates ${WORK}/bin/<command>, put ${WORK}/bin first in PATH to use it
 stub() {
   printf '#!/bin/bash\n%s\n' "$2" > "${WORK}/bin/$1"
@@ -132,40 +149,28 @@ calls() {
   grep "^$1|" "${WORK}/calls.log" 2> /dev/null | cut -d '|' -f 2-
 }
 
+# reset_calls: forgets the recorded calls
 reset_calls() {
   : > "${WORK}/calls.log"
 }
 
+# require_os <uname>: skips the whole test script on another OS
 require_os() {
   [[ "$(uname)" == "$1" ]] || skip "requires $1"
 }
 
+# require_cmd <command>: skips the whole test script without the command
 require_cmd() {
   command -v "$1" > /dev/null 2>&1 || skip "requires $1"
 }
 
-# render <template> <destination> [ansible arguments...]: renders a template as the playbooks do
-render() {
-  local src="$1"
-  local dest="$2"
-  shift 2
-  local output
-  output="$(ZEBRUNNER_MCLOUD_AGENT_DIR="$REPO" ansible localhost --connection local --module-name template \
-    --args "src=${src} dest=${dest}" "$@" 2>&1)" || {
-    echo "$output"
-    return 1
-  }
-}
-
-# render_farm <devices|mac-devices> <destination> [ansible arguments...]: zebrunner-farm with the example settings
-render_farm() {
-  local role="$1"
-  local dest="$2"
-  shift 2
-  render "${REPO}/roles/${role}/templates/zebrunner-farm" "$dest" \
-    --extra-vars "@${REPO}/defaults/main.yml" --extra-vars "@${REPO}/roles/${role}/vars/main.yml.original" "$@"
-}
-
+# finish: ends the test script, it fails when a check failed
 finish() {
   exit "$FAILED"
 }
+
+# the helpers of the project, kept apart so that this file stays the same in all the repositories
+if [[ -f "${REPO}/tests/project_lib.sh" ]]; then
+  # shellcheck source=/dev/null
+  source "${REPO}/tests/project_lib.sh"
+fi

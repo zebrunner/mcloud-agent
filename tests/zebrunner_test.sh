@@ -9,12 +9,22 @@ mkdir -p "$AGENT" "${WORK}/home"
 (cd "$REPO" && tar --exclude=.git -cf - .) | (cd "$AGENT" && tar -xf -)
 rm -rf "${AGENT}/backup/"bak_* "${AGENT}/roles/devices/vars/main.yml" "${AGENT}/roles/mac-devices/vars/main.yml"
 
+# the stub body is expanded when the stub runs
+# shellcheck disable=SC2016
 stub uname 'echo "$FAKE_UNAME"'
+# the stub body is expanded when the stub runs
+# shellcheck disable=SC2016
 stub ansible-playbook '(IFS="|"; echo "ansible-playbook|$*") >> "${STUB_DIR}/calls.log"
 [[ "$1" == "--version" ]] && echo "ansible-playbook [core 2.21.5]"
 exit "${ANSIBLE_EXIT:-0}"'
+# the stub body is expanded when the stub runs
+# shellcheck disable=SC2016
 stub sudo '(IFS="|"; echo "sudo|$*") >> "${STUB_DIR}/calls.log"'
+# the stub body is expanded when the stub runs
+# shellcheck disable=SC2016
 stub launchctl '(IFS="|"; echo "launchctl|$*") >> "${STUB_DIR}/calls.log"'
+# the stub body is expanded when the stub runs
+# shellcheck disable=SC2016
 stub docker '(IFS="|"; echo "docker|$*") >> "${STUB_DIR}/calls.log"
 [[ "$1 $2" == "volume ls" ]] && echo "local     appium-storage-volume"
 exit 0'

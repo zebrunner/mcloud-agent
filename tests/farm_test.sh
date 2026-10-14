@@ -45,7 +45,11 @@ exit 0
 EOF
 chmod +x "${WORK}/bin/docker"
 # USB connected devices are listed in ${STUB_DIR}/usb
+# the stub body is expanded when the stub runs
+# shellcheck disable=SC2016
 stub lsusb 'cat "${STUB_DIR}/usb" 2> /dev/null'
+# the stub body is expanded when the stub runs
+# shellcheck disable=SC2016
 stub ioreg 'cat "${STUB_DIR}/usb" 2> /dev/null'
 record_stub launchctl
 
