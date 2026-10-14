@@ -15,8 +15,7 @@
 
     <key>ProgramArguments</key>
       <array>
-        <string>/usr/local/bin/zebrunner-farm</string>
-        <string>listen</string>
+        <string>/usr/local/bin/zebrunner-device-listener</string>
       </array>
 
     <key>WorkingDirectory</key>
@@ -31,14 +30,11 @@
     <key>RunAtLoad</key>
       <true/>
 
-    <key>StartInterval</key>
-      <integer>0</integer>
-
     <key>StandardErrorPath</key>
-      <string>logs/agents.log</string>
+      <string>{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/logs/listener.err.log</string>
 
     <key>StandardOutPath</key>
-      <string>logs/agents.log</string>
+      <string>{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/logs/listener.log</string>
 
   </dict>
 </plist>

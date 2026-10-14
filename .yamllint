@@ -1,0 +1,28 @@
+---
+extends: default
+
+yaml-files:
+  - "*.yaml"
+  - "*.yml"
+  - "*.yml.original"
+  - ".yamllint"
+
+# roles/*/vars/main.yml are the local settings of a farm
+ignore-from-file: .gitignore
+
+rules:
+  line-length:
+    max: 160
+  truthy:
+    allowed-values: ["true", "false"]
+    # the `on:` key of GitHub workflows
+    check-keys: false
+  # required by the ansible-lint yaml rules
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: false
+  braces:
+    max-spaces-inside: 1
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true

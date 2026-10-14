@@ -1,0 +1,4 @@
+---
+ignored:
+  # apt package versions of ubuntu:24.04 change with the security updates, so pinned versions disappear
+  - DL3008

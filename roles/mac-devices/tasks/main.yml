@@ -1,5 +1,4 @@
 ---
-
 - name: Configure device on MacOS
-  include_tasks: usbmuxd.yml
+  ansible.builtin.import_tasks: usbmuxd.yml
   tags: registerDevices

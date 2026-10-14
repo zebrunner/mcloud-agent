@@ -1,0 +1,8 @@
+---
+skip_list:
+  # DEVICE_IMAGE, PUBLIC_IP etc. are set in roles/*/vars/main.yml of the existing farms
+  - var-naming[pattern]
+  # devices: is the list of the devices in roles/*/vars/main.yml of the existing farms
+  - var-naming[no-role-prefix]
+  # roles/mac-devices/vars/main.yml is the settings path of the existing macOS farms
+  - role-name

@@ -1,139 +1,264 @@
 ---
-
 - name: Check OS compatibility
-  assert:
+  ansible.builtin.assert:
     that:
-      - ansible_system == "Darwin"
+      - ansible_facts['system'] == "Darwin"
     fail_msg: "OS version is not compatible! This playbook supports macOS (Darwin) only."
-    success_msg: "OS is compatible: {{ ansible_system }}"
+    success_msg: "OS is compatible: {{ ansible_facts['system'] }}"
+  tags: [devices, precheck]
 
 - name: Get current user id
-  command: id -u
-  register: user_uid
+  ansible.builtin.command: id -u
+  register: mac_devices_user_uid
   changed_when: false
-  become: no
+  become: false
+  tags: [devices, usbmuxd, listener]
 
 - name: Check setup completion
-  assert:
+  ansible.builtin.assert:
     that:
       - lookup('file', 'roles/mac-devices/vars/main.yml', errors='ignore') is not none
-    fail_msg: "You have to setup services in advance using: ./zebrunner.sh setup!"
+    fail_msg: "You have to set up services in advance using: ./zebrunner.sh setup!"
     success_msg: "Setup is ready: 'roles/mac-devices/vars/main.yml' exists."
+  tags: [devices, precheck]
 
 - name: Check 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable
-  assert:
+  ansible.builtin.assert:
     that:
-      - lookup('env','ZEBRUNNER_MCLOUD_AGENT_DIR') is not none
-    fail_msg: "You have to setup 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable in advance!"
+      - lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') | length > 0
+    fail_msg: "You have to set up 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable in advance!"
     success_msg: "'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable is defined."
+  tags: [devices, precheck]
 
 - name: Collect all device IDs and names
-  set_fact:
-    all_ids: "{{ devices | map(attribute='id') | list }}"
-    all_names: "{{ devices | map(attribute='name') | list }}"
-    dup_ids: []
-    dup_names: []
+  ansible.builtin.set_fact:
+    mac_devices_all_ids: "{{ devices | map(attribute='id') | map('trim') | list }}"
+    mac_devices_all_names: "{{ devices | map(attribute='name') | map('trim') | map('regex_replace', '\\s+', '_') | list }}"
+  tags: [devices, precheck, dedup]
 
-- name: Find duplicate device IDs
-  set_fact:
-    dup_ids: "{{ dup_ids + [item] }}"
-  loop: "{{ all_ids | unique }}"
-  when: all_ids | select('equalto', item) | list | length > 1
+- name: Count occurrences of each device id
+  ansible.builtin.set_fact:
+    mac_devices_id_counts: "{{ mac_devices_id_counts | default({}) | combine({item: (mac_devices_id_counts | default({}))[item] | default(0) + 1}) }}"
+  loop: "{{ mac_devices_all_ids }}"
+  tags: [devices, precheck, dedup]
 
-- name: Find duplicate device names
-  set_fact:
-    dup_names: "{{ dup_names + [item] }}"
-  loop: "{{ all_names | unique }}"
-  when: all_names | select('equalto', item) | list | length > 1
+- name: Count occurrences of each device name
+  ansible.builtin.set_fact:
+    mac_devices_name_counts: "{{ mac_devices_name_counts | default({}) | combine({item: (mac_devices_name_counts | default({}))[item] | default(0) + 1}) }}"
+  loop: "{{ mac_devices_all_names }}"
+  tags: [devices, precheck, dedup]
+
+- name: Determine duplicate ids
+  ansible.builtin.set_fact:
+    mac_devices_dup_ids: "{{ mac_devices_id_counts | dict2items | selectattr('value', '>', 1) | map(attribute='key') | list }}"
+  tags: [devices, precheck, dedup]
+
+- name: Determine duplicate names
+  ansible.builtin.set_fact:
+    mac_devices_dup_names: "{{ mac_devices_name_counts | dict2items | selectattr('value', '>', 1) | map(attribute='key') | list }}"
+  tags: [devices, precheck, dedup]
 
 - name: Check for duplicate device IDs or names
-  assert:
+  ansible.builtin.assert:
     that:
-      - dup_ids | length == 0
-      - dup_names | length == 0
-    fail_msg: "Duplicate devices found! Duplicate IDs: {{ dup_ids }} Duplicate Names: {{ dup_names }}"
+      - mac_devices_dup_ids | length == 0
+      - mac_devices_dup_names | length == 0
+    fail_msg: "Duplicate devices found! Duplicate IDs: {{ mac_devices_dup_ids }} Duplicate Names: {{ mac_devices_dup_names }}"
     success_msg: "All device IDs and names are unique."
+  tags: [devices, precheck, dedup]
+
+- name: Check obligatory settings of each device
+  ansible.builtin.assert:
+    that:
+      - item.id is defined and item.name is defined
+      - item.os is defined and item.os in ['android', 'ios']
+      - item.appium_port is defined and item.adb_port is defined and item.min_port is defined and item.max_port is defined
+      - 0 < (item.appium_port | int) < 65536
+      - 0 < (item.min_port | int) <= (item.max_port | int) < 65536
+    fail_msg: >-
+      Invalid settings of device '{{ item.name | default(item.id) | default('?') }}':
+      id, name, os (android or ios), appium_port, adb_port, min_port and max_port are obligatory,
+      ports are 1-65535 and min_port is not greater than max_port.
+    success_msg: "Device '{{ item.name | default(item.id) | default('?') }}' settings are valid."
+    quiet: true
+  loop: "{{ devices }}"
+  loop_control:
+    label: "{{ item.name | default(item.id) | default('?') }}"
+  tags: [devices, precheck, validate]
+
+# appium_port and the min_port-max_port range are published on the host, other ports stay in the containers
+- name: Collect host ports published by each device
+  ansible.builtin.set_fact:
+    mac_devices_ports: "{{ (mac_devices_ports | default([])) + [[item.appium_port | int] + range(item.min_port | int, (item.max_port | int) + 1) | list] }}"
+  loop: "{{ devices }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: [devices, precheck, validate]
+
+- name: Check that devices do not share host ports
+  vars:
+    other_ports: "{{ (mac_devices_ports[:idx] + mac_devices_ports[idx + 1 :]) | flatten }}"
+    own_range: "{{ range(item.min_port | int, (item.max_port | int) + 1) | list }}"
+    shared_ports: "{{ mac_devices_ports[idx] | intersect(other_ports) | union([item.appium_port | int] | intersect(own_range)) }}"
+  ansible.builtin.assert:
+    that: shared_ports | length == 0
+    fail_msg: >-
+      Host ports {{ shared_ports }} of device '{{ item.name }}' are used by another device
+      or by both its appium_port and min_port-max_port range.
+    success_msg: "Host ports of device '{{ item.name }}' are not shared."
+    quiet: true
+  loop: "{{ devices }}"
+  loop_control:
+    index_var: idx
+    label: "{{ item.name }}"
+  tags: [devices, precheck, validate]
+
+- name: Check WebDriverAgent address of wireless devices
+  ansible.builtin.assert:
+    that: (item.wireless | default(false) | string | lower) != 'true' or (item.wda_host | default('') | string | length) > 0
+    fail_msg: "Wireless device '{{ item.name }}' needs wda_host where its WebDriverAgent is published."
+    success_msg: "Device '{{ item.name }}' WebDriverAgent address is set."
+    quiet: true
+  loop: "{{ devices }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: [devices, precheck, validate]
 
 - name: Copy 'zebrunner-farm' script file
-  template:
+  ansible.builtin.template:
     src: zebrunner-farm
     dest: /usr/local/bin/zebrunner-farm
-    mode: '0755'
+    mode: "0755"
     owner: root
     group: wheel
-  changed_when: false
+  tags: [devices, files]
+
+- name: Copy 'zebrunner-device-listener' script file
+  ansible.builtin.template:
+    src: zebrunner-device-listener
+    dest: /usr/local/bin/zebrunner-device-listener
+    mode: "0755"
+    owner: root
+    group: wheel
+  tags: [devices, files]
+
+- name: Copy 'usbmuxd_watch' binary file
+  ansible.builtin.copy:
+    src: usbmuxd_watch
+    dest: /usr/local/bin/usbmuxd_watch
+    mode: "0755"
+    owner: root
+    group: wheel
+  tags: [devices, files]
 
 - name: Copy devices details file
-  template:
+  ansible.builtin.template:
     src: mcloud-devices.txt
     dest: /usr/local/bin/mcloud-devices.txt
-    mode: '0644'
+    mode: "0644"
     owner: root
     group: wheel
-  changed_when: false
+  tags: [devices, files]
+
+- name: Copy devices listener log rotation settings
+  ansible.builtin.template:
+    src: zebrunner-mcloud.newsyslog.conf
+    dest: /etc/newsyslog.d/zebrunner-mcloud.conf
+    mode: "0644"
+    owner: root
+    group: wheel
+  tags: [devices, files]
 
 - name: Check if ZebrunnerDevicesListener agent is loaded
-  command: launchctl list com.zebrunner.mcloud
-  register: mcloud_agent_loaded
+  ansible.builtin.command: launchctl list com.zebrunner.mcloud
+  register: mac_devices_mcloud_agent_loaded
   failed_when: false
   changed_when: false
-  become: no
+  become: false
+  tags: [devices, precheck, listener]
 
 - name: Unload ZebrunnerDevicesListener agent if loaded
-  command: launchctl bootout gui/{{ user_uid.stdout }} "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
-  when: mcloud_agent_loaded.rc == 0
+  ansible.builtin.command:
+    argv:
+      - launchctl
+      - bootout
+      - "gui/{{ mac_devices_user_uid.stdout }}"
+      - "{{ lookup('env', 'HOME') }}/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
+  when: mac_devices_mcloud_agent_loaded.rc == 0
   changed_when: false
-  become: no
+  become: false
+  tags: [devices, listener]
 
 - name: Check if ZebrunnerUsbmuxd agent is loaded
-  command: launchctl list com.zebrunner.usbmuxd
-  register: usbmuxd_agent_loaded
+  ansible.builtin.command: launchctl list com.zebrunner.usbmuxd
+  register: mac_devices_usbmuxd_agent_loaded
   failed_when: false
   changed_when: false
-  become: no
+  become: false
+  tags: [devices, precheck, usbmuxd]
 
 - name: Unload ZebrunnerUsbmuxd agent if loaded
-  command: launchctl bootout gui/{{ user_uid.stdout }} "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
-  when: usbmuxd_agent_loaded.rc == 0
+  ansible.builtin.command:
+    argv:
+      - launchctl
+      - bootout
+      - "gui/{{ mac_devices_user_uid.stdout }}"
+      - "{{ lookup('env', 'HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
+  when: mac_devices_usbmuxd_agent_loaded.rc == 0
   changed_when: false
-  become: no
+  become: false
+  tags: [devices, usbmuxd]
 
 - name: Copy ZebrunnerDevicesListener.plist into LaunchAgents
-  template:
+  ansible.builtin.template:
     src: roles/mac-devices/templates/ZebrunnerDevicesListener.plist
-    dest: "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
-    mode: '0644'
-    owner: "{{ lookup('env','USER') }}"
+    dest: "{{ lookup('env', 'HOME') }}/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
+    mode: "0644"
+    owner: "{{ lookup('env', 'USER') }}"
     group: staff
-  changed_when: false
+  tags: [devices, listener]
 
 - name: Copy ZebrunnerUsbmuxd.plist into LaunchAgents
-  template:
+  ansible.builtin.template:
     src: roles/mac-devices/templates/ZebrunnerUsbmuxd.plist
-    dest: "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
-    mode: '0644'
-    owner: "{{ lookup('env','USER') }}"
+    dest: "{{ lookup('env', 'HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
+    mode: "0644"
+    owner: "{{ lookup('env', 'USER') }}"
     group: staff
-  changed_when: false
+  tags: [devices, usbmuxd]
 
 - name: Load ZebrunnerDevicesListener agent if it was loaded earlier
-  command: launchctl bootstrap gui/{{ user_uid.stdout }} "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
-  when: mcloud_agent_loaded.rc == 0
+  ansible.builtin.command:
+    argv:
+      - launchctl
+      - bootstrap
+      - "gui/{{ mac_devices_user_uid.stdout }}"
+      - "{{ lookup('env', 'HOME') }}/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
+  when: mac_devices_mcloud_agent_loaded.rc == 0
   changed_when: false
-  become: no
+  become: false
+  tags: [devices, listener]
 
 - name: Enable ZebrunnerDevicesListener agent via launchctl if it was loaded earlier
-  command: launchctl enable gui/{{ user_uid.stdout }}/com.zebrunner.mcloud
-  when: mcloud_agent_loaded.rc == 0
+  ansible.builtin.command: launchctl enable gui/{{ mac_devices_user_uid.stdout }}/com.zebrunner.mcloud
+  when: mac_devices_mcloud_agent_loaded.rc == 0
   changed_when: false
-  become: no
+  become: false
+  tags: [devices, listener]
 
 - name: Load ZebrunnerUsbmuxd agent via launchctl
-  command: launchctl bootstrap gui/{{ user_uid.stdout }} "{{ lookup('env','HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
+  ansible.builtin.command:
+    argv:
+      - launchctl
+      - bootstrap
+      - "gui/{{ mac_devices_user_uid.stdout }}"
+      - "{{ lookup('env', 'HOME') }}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
   changed_when: false
-  become: no
+  become: false
+  tags: [devices, usbmuxd]
 
 - name: Enable ZebrunnerUsbmuxd agent via launchctl
-  command: launchctl enable gui/{{ user_uid.stdout }}/com.zebrunner.usbmuxd
+  ansible.builtin.command: launchctl enable gui/{{ mac_devices_user_uid.stdout }}/com.zebrunner.usbmuxd
   changed_when: false
-  become: no
+  become: false
+  tags: [devices, usbmuxd]
