@@ -4,10 +4,34 @@ root = true
 charset = utf-8
 end_of_line = lf
 insert_final_newline = true
+trim_trailing_whitespace = true
 
-# shell scripts and templates, also the style of shfmt
-[{*.sh,zebrunner-farm,zebrunner-device-listener}]
+[Makefile]
+indent_style = tab
+
+[*.{yml,yaml,json}]
+indent_style = space
+indent_size = 2
+
+[*.{js,mjs}]
+indent_style = space
+indent_size = 2
+
+# shell scripts, also the style of shfmt
+[*.sh]
 indent_style = space
 indent_size = 2
 shell_variant = bash
 space_redirects = true
+
+# the shell script templates of the roles
+[{zebrunner-farm,zebrunner-device-listener}]
+indent_style = space
+indent_size = 2
+shell_variant = bash
+space_redirects = true
+
+# Python, also the style of ruff
+[*.py]
+indent_style = space
+indent_size = 4
