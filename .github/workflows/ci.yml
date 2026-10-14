@@ -26,7 +26,7 @@ jobs:
           python-version: "3.13"
       - name: Install linters
         run: pip install -r tests/requirements-lint.txt
-      - name: Lint playbooks, scripts and rendered templates
+      - name: Lint the project files (tests/lint.sh)
         run: tests/lint.sh
         env:
           JUNIT_DIR: ${{ runner.temp }}/junit

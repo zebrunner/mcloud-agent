@@ -1,4 +1,4 @@
-# Project checks; `make check` runs the linters and all tests on this machine, then in the Linux docker image
+# Project checks; `make check` runs the linters and all tests on this machine, then in the Linux docker image (CONVENTIONS.md)
 SHELL := /bin/bash
 VENV := .venv
 export PATH := $(CURDIR)/$(VENV)/bin:$(PATH)
@@ -7,9 +7,10 @@ export PATH := $(CURDIR)/$(VENV)/bin:$(PATH)
 .PHONY: help check lint test docker
 
 help: ## this list
-	@grep -E '^[a-z]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/'
+	@grep -E '^[a-z0-9-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/'
 
-check: lint test docker ## the linters and all tests on this machine, then in the Linux docker image
+check: ## the linters and all tests on this machine, then in the Linux docker image; every step runs, the failed ones fail the target
+	@status=0; for target in lint test docker; do $(MAKE) --no-print-directory $$target || status=1; done; exit $$status
 
 lint: $(VENV)/.installed ## the linters (tests/lint.sh)
 	tests/lint.sh

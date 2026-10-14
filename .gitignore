@@ -1,3 +1,11 @@
+# IDE
+.idea/
+*.iml
+# the lint tools of `make lint`
+.venv/
+# macOS
+.DS_Store
+# the project: the local settings and data of a farm
 *.bak
 backup/*
 variables.env
@@ -6,6 +14,4 @@ logs/*.log
 roles/devices/vars/main.yml
 roles/mac-devices/vars/main.yml
 DeveloperDiskImages
-.idea/
 become.yml
-.venv/

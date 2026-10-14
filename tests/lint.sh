@@ -1,20 +1,18 @@
 #!/bin/bash
 # Static checks of the project files, every linter run is a check (also in JUnit XML with JUNIT_DIR);
-# the tools: pip install -r tests/requirements-lint.txt
+# the tools: pip install -r tests/requirements-lint.txt (hadolint on macOS: brew install hadolint)
+# The shared part is the same in all the repositories, see CONVENTIONS.md.
 source "$(dirname "$0")/lib.sh"
 cd "$REPO" || exit 1
 
-# lint <description> <command...>: runs a linter as a check, its output is shown when it fails
-lint() {
-  local output
-  output="$("${@:2}" 2>&1)"
-  local status=$?
-  if [[ "$status" -eq 0 ]]; then
-    pass "$1"
-  else
-    fail "$1" "exit status ${status}" "$output"
-  fi
-}
+# the shell scripts of the project
+scripts=(zebrunner.sh patch/*.sh tests/*.sh roles/mac-devices/templates/zebrunner-device-listener)
+# the sources of shfmt: the zebrunner-farm templates are formatted before rendering
+sources=("${scripts[@]}" roles/*/templates/zebrunner-farm)
+# the generated files and the local data of a farm: no text file checks
+generated=(backup logs DeveloperDiskImages)
+# the files indented with tabs
+tab_files=(Makefile)
 
 missing=""
 for tool in actionlint ansible-lint ansible-playbook hadolint pymarkdown ruff shellcheck shfmt yamllint; do
@@ -27,38 +25,72 @@ if [[ -n "$missing" ]]; then
 fi
 
 section "yaml"
-lint "yamllint" yamllint --strict .
+run_check "yamllint" yamllint --strict .
 
 section "GitHub workflows"
-lint "actionlint" actionlint
-
-section "python"
-lint "ruff check" ruff check --no-cache .
-lint "ruff format" ruff format --check --no-cache .
+# the files are listed: actionlint looks for the project by .git otherwise, and the sources may come without it
+run_check "actionlint" actionlint .github/workflows/*.yml
 
 section "Dockerfile"
-lint "hadolint" hadolint tests/Dockerfile
+run_check "hadolint" hadolint tests/Dockerfile
 
 section "markdown"
-lint "pymarkdown" pymarkdown scan README.md
+run_check "pymarkdown" pymarkdown scan ./*.md
+
+section "README"
+# the license of CONVENTIONS.md: LICENSE and the README section (no image, no label)
+check_contains "LICENSE is the Apache License 2.0" "Apache License" "$(head -3 LICENSE 2> /dev/null)"
+check_contains "README links LICENSE" "[Apache License 2.0](LICENSE)" "$(cat README.md)"
+
+section "python"
+run_check "ruff check" ruff check --no-cache .
+run_check "ruff format" ruff format --check --no-cache .
 
 section "ansible"
-lint "ansible-lint" ansible-lint --strict
+run_check "ansible-lint" ansible-lint --strict
 for playbook in devices.yml mac-devices.yml; do
-  lint "syntax of ${playbook}" ansible-playbook --syntax-check --inventory hosts "$playbook"
+  run_check "syntax of ${playbook}" ansible-playbook --syntax-check --inventory hosts "$playbook"
 done
 
-section "shell"
+section "templates"
+# the zebrunner-farm templates are checked as scripts after rendering with the example settings
 for role in devices mac-devices; do
-  lint "render zebrunner-farm of ${role}" render_farm "$role" "${WORK}/zebrunner-farm-${role}"
+  run_check "render zebrunner-farm of ${role}" render_farm "$role" "${WORK}/zebrunner-farm-${role}"
 done
-scripts=(zebrunner.sh patch/*.sh tests/*.sh roles/mac-devices/templates/zebrunner-device-listener "$WORK"/zebrunner-farm-*)
+scripts+=("$WORK"/zebrunner-farm-*)
+
+section "shell"
 for script in "${scripts[@]}"; do
-  lint "bash -n ${script#"${WORK}/"}" bash -n "$script"
+  run_check "bash -n ${script#"${WORK}/"}" bash -n "$script"
 done
-lint "shellcheck" shellcheck --severity=warning "${scripts[@]}"
+run_check "shellcheck" shellcheck --severity=info "${scripts[@]}"
 # style of .editorconfig
-lint "shfmt" shfmt -d zebrunner.sh patch/*.sh tests/*.sh roles/mac-devices/templates/zebrunner-device-listener roles/*/templates/zebrunner-farm
+run_check "shfmt" shfmt -d "${sources[@]}"
+# the rules of CONVENTIONS.md that shfmt and shellcheck do not check, the comment lines are skipped
+check "tests use [[ ]] only" "" \
+  "$(grep -nE '(^|[[:space:];&|(!])\[[[:space:]]' "${scripts[@]}" | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#')"
+check "functions are defined without the function keyword" "" \
+  "$(grep -nE '^[[:space:]]*function[[:space:]]' "${scripts[@]}")"
+
+section "text files"
+# every text file of the project but the generated ones
+prune=(-name .git -o -name .venv -o -name .idea)
+for path in "${generated[@]}"; do
+  prune+=(-o -path "./${path}")
+done
+text_files=()
+while IFS= read -r file; do
+  grep -Iq '' "$file" 2> /dev/null && text_files+=("$file")
+done < <(find . \( "${prune[@]}" \) -prune -o -type f -print | sort)
+check "ASCII characters only" "" "$(LC_ALL=C grep -n '[^[:print:][:space:]]' "${text_files[@]}")"
+check "LF line ends" "" "$(grep -l $'\r' "${text_files[@]}")"
+check "no trailing whitespace" "" "$(grep -nE '[[:blank:]]+$' "${text_files[@]}")"
+check "a final newline" "" "$(for file in "${text_files[@]}"; do [[ -z "$(tail -c 1 "$file")" ]] || echo "$file"; done)"
+tabbed="$(grep -l $'\t' "${text_files[@]}")"
+for file in "${tab_files[@]}"; do
+  tabbed="$(grep -vxF "./${file}" <<< "$tabbed")"
+done
+check "tabs only in ${tab_files[*]}" "" "$tabbed"
 
 [[ "$FAILED" -eq 0 ]] && echo "lint: ok"
 finish
