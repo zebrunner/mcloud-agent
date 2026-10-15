@@ -1,7 +1,7 @@
 # Linux environment of the tests and linters, e.g. to run them on macOS:
 #   docker build -t mcloud-agent-tests tests
 #   docker run --rm -v "$PWD":/repo:ro mcloud-agent-tests bash -c '/repo/tests/lint.sh && /repo/tests/run_all.sh'
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 COPY requirements-lint.txt /tmp/requirements-lint.txt
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3 python3-venv bsdextrautils procps ca-certificates \
