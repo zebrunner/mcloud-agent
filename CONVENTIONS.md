@@ -5,6 +5,7 @@ The conventions of the style, the formatting and the tooling of the Zebrunner MC
 - [appium](https://github.com/zebrunner/appium)
 - [mcloud-android-connector](https://github.com/zebrunner/mcloud-android-connector)
 - [mcloud-ios-connector](https://github.com/zebrunner/mcloud-ios-connector)
+- [mcloud-device](https://github.com/zebrunner/mcloud-device)
 - [mcloud-grid](https://github.com/zebrunner/mcloud-grid)
 - [mcloud-agent](https://github.com/zebrunner/mcloud-agent)
 
@@ -303,7 +304,7 @@ The rules above are the same for every repository; these ones come from the kind
 
 | Repository | Kind | Its own rules |
 | --- | --- | --- |
-| appium, mcloud-android-connector, mcloud-ios-connector | a docker image of shell scripts | `make test` runs `tests/*_test.sh` but `DOCKER_TESTS`, `make docker` the image tests |
+| appium, mcloud-android-connector, mcloud-ios-connector, mcloud-device | a docker image of shell scripts | `make test` runs `tests/*_test.sh` but `DOCKER_TESTS`, `make docker` the image tests |
 | mcloud-grid | a docker image of a Java 11 application (Maven, Selenium 3 hub) | see [Java](#java) |
 | mcloud-agent | Ansible playbooks and the scripts of the farm hosts (Linux and macOS), no image | see [Ansible and host scripts](#ansible-and-host-scripts) |
 
