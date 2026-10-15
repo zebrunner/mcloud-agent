@@ -6,11 +6,18 @@ updates:
     directory: /
     schedule:
       interval: weekly
-  # the linters and ansible of tests/requirements-lint.txt
+  # ansible and ruff of tests/requirements-lint.txt, the shared linters are updated in mcloud-conventions
   - package-ecosystem: pip
     directory: /tests
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: actionlint-py
+      - dependency-name: hadolint-py
+      - dependency-name: pymarkdownlnt
+      - dependency-name: shellcheck-py
+      - dependency-name: shfmt-py
+      - dependency-name: yamllint
   # the base image of tests/Dockerfile, the Linux environment of the tests
   - package-ecosystem: docker
     directory: /tests
