@@ -1,3 +1,4 @@
+# >>> mcloud-conventions: the shared part, changed in https://github.com/zebrunner/mcloud-conventions
 # IDE
 .idea/
 *.iml
@@ -5,6 +6,7 @@
 .venv/
 # macOS
 .DS_Store
+# <<< mcloud-conventions
 # the project: the local settings and data of a farm
 *.bak
 backup/*

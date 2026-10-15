@@ -34,7 +34,7 @@ This file is the same in all of them: a change of a convention is made in every 
 | `Dockerfile` | the image (mcloud-agent has none) |
 | `entrypoint.sh`, `util/`, `bin/` | the scripts and binaries of the image (`files/` in appium, `src/` in mcloud-grid, `roles/` in mcloud-agent) |
 | `tests/lib.sh` | the shared helpers of the test scripts; `tests/project_lib.sh` the helpers of the project |
-| `tests/lint.sh` | the static checks of `make lint` |
+| `tests/lint.sh` | the static checks of `make lint`; `tests/lint_project.sh` the settings and the checks of the project |
 | `tests/<subject>_test.sh` | a test script; the docker ones are listed in `DOCKER_TESTS` of the `Makefile` |
 | `tests/requirements-lint.txt` | the pinned linters, installed into `.venv` by `make lint` |
 | `Makefile` | the entry point of all the checks: `make help` |
@@ -45,31 +45,34 @@ This file is the same in all of them: a change of a convention is made in every 
 | `.hadolint.yaml`, `.shellcheckrc`, `.yamllint`, `.pymarkdown` | the configuration of the linters |
 | `README.md` | the user documentation of the image |
 | `CONVENTIONS.md` | this file |
+| `.mcloud-conventions` | the checksums of the shared files, written by the sync of mcloud-conventions |
 | `LICENSE` | the Apache License 2.0, see [License](#license) |
 
 ## Shared files
 
-These files are kept identical in all the repositories, a change goes to every one of them:
+The shared files live in [mcloud-conventions](https://github.com/zebrunner/mcloud-conventions) and are changed there only:
 
-- `CONVENTIONS.md`, `LICENSE`
-- `.shellcheckrc`, `.pymarkdown`
-- `tests/lib.sh`: the helpers of a project go to `tests/project_lib.sh`, which `tests/lib.sh` sources when it exists
-- in the images of shell scripts: the debug mode `util/debug.sh` and the logger `util/logger.sh` (`files/util/` in appium) with their tests `tests/debug_test.sh` and `tests/logger_test.sh` (the path of the script is the only difference)
+- the whole files, the same in every repository: `CONVENTIONS.md`, `LICENSE`, `.shellcheckrc`, `.pymarkdown`, `tests/lib.sh`, `tests/lint.sh`; in the images of shell scripts also the debug mode `util/debug.sh` and the logger `util/logger.sh` (`files/util/` in appium) with their tests `tests/debug_test.sh` and `tests/logger_test.sh`;
+- the shared blocks of `.editorconfig`, `.gitignore` and `tests/requirements-lint.txt`: the lines between `# >>> mcloud-conventions` and `# <<< mcloud-conventions`, the lines after them are the project part.
 
-These files have a shared part and a project part, the shared part is the same everywhere:
+A merge into mcloud-conventions syncs them: its workflow opens (or updates) the pull request `mcloud-conventions-sync` into `develop` of every repository it changes, which is reviewed and merged like any other one. The sync also writes `.mcloud-conventions`, the checksums of the shared files and blocks, and `make lint` fails when one of them is changed in the repository.
+
+The project parts of the shared files:
+
+- `tests/lint.sh`: the settings and the checks of the project are in `tests/lint_project.sh`: `scripts`, `sources`, `generated`, `tab_files`, `dockerfiles`, `tools`, and the function `project_checks` for the project sections, which run after `markdown`;
+- `tests/lib.sh`: the helpers of the project tests are in `tests/project_lib.sh`, which `tests/lib.sh` sources when it exists;
+- `.github/workflows/ci.yml`: the `lint` job is the reusable workflow `zebrunner/mcloud-conventions/.github/workflows/lint.yml@v1`.
+
+These files have a shared part and a project part kept by review:
 
 | File | Project part |
 | --- | --- |
-| `.editorconfig` | the sections after the shared ones: shell scripts without the `.sh` extension, other languages, generated files |
-| `.gitignore` | the lines after the shared ones |
 | `.yamllint` | the rules after the shared ones (mcloud-agent) |
-| `tests/requirements-lint.txt` | the linters after the shared ones, the shared ones at the same versions |
 | `.dockerignore` | the comment with the paths the image build needs |
 | `.hadolint.yaml` | the ignored rules, each one with its reason |
-| `tests/lint.sh` | `scripts`, `generated`, `tab_files` and the project sections between `markdown` and `shell` |
 | `Makefile` | what `test` and `docker` run, the targets after `docker` |
-| `.github/workflows/ci.yml` | the steps of the jobs, the jobs after `docker`, the timeouts, the OS matrix |
-| `.github/dependabot.yml` | the ecosystems of the project (e.g. `maven`); `docker` only when the base image can be updated without a manual change |
+| `.github/workflows/ci.yml` | the jobs after `lint`, the timeouts, the OS matrix |
+| `.github/dependabot.yml` | the ecosystems of the project (e.g. `maven`); `docker` only when the base image can be updated without a manual change; `pip` only for the project linters |
 
 ## Checks
 
@@ -81,7 +84,8 @@ These files have a shared part and a project part, the shared part is the same e
 | `make test` | the tests without docker and devices, the tools are stubs (see [Project rules](#project-rules)) | bash, the tools of the project |
 | `make docker` | the tests of the image: its build, contents and startup | Docker |
 
-- The linters are pinned in `tests/requirements-lint.txt` as `name==version` and updated by Dependabot.
+- The linters are pinned in `tests/requirements-lint.txt` as `name==version` and updated by Dependabot: the shared ones in mcloud-conventions, the project ones in the repository.
+- The `shared files` section checks the shared files and blocks against `.mcloud-conventions`, see [Shared files](#shared-files).
 - shellcheck runs with `--severity=info`: every finding is fixed, or disabled on the line above with the reason (see [Shell scripts](#shell-scripts)).
 - shfmt takes its style from `.editorconfig`, it has no flags of its own.
 - The text file checks of `tests/lint.sh` cover every text file but `.git`, `.venv`, `.idea` and the `generated` paths: no non-ASCII and control characters, no CR, no trailing whitespace, a final newline, tabs only in `tab_files`.
@@ -240,10 +244,11 @@ HEALTHCHECK --interval=20s --timeout=5s --start-period=120s --retries=3 \
 - Every YAML file starts with `---`, 2 spaces, lines up to 160 characters, booleans only `true` and `false`, strings in double quotes when they need quotes (yamllint `--strict` with `.yamllint`).
 - A comment is `#` and a space, at least one space after the content.
 - The workflow is `.github/workflows/ci.yml`: `push` and `pull_request` on `develop`, `main`, `master` and `workflow_dispatch`; `concurrency` cancels the outdated runs of a pull request; `permissions: contents: read`.
-- The jobs are `lint`, `tests`, `docker` (those that apply, plus the project ones), each with `timeout-minutes` (10 unless the project needs more) and a JUnit report step `mikepenz/action-junit-report` with `annotate_only: true`, `detailed_summary: true`, `require_tests: true`.
+- The `lint` job is the reusable workflow of mcloud-conventions: `uses: zebrunner/mcloud-conventions/.github/workflows/lint.yml@v1` (`with: java-version` for the Maven checks).
+- The other jobs are `tests`, `docker` (those that apply, plus the project ones), each with `timeout-minutes` (10 unless the project needs more) and a JUnit report step `mikepenz/action-junit-report` with `annotate_only: true`, `detailed_summary: true`, `require_tests: true`.
 - The `tests` job runs the tests of `make test`; the jobs upload their JUnit XML as artifacts (`junit-docker` of the `docker` job).
 - The `actions/*` are referenced by their major version tag, the other actions by the full commit SHA with the version in a comment: `uses: mikepenz/action-junit-report@<sha> # v6.6.0`.
-- `.github/dependabot.yml` updates `github-actions`, `pip` (`directory: /tests`), `docker` and the ecosystem of the project weekly, each with a comment of what it covers.
+- `.github/dependabot.yml` updates `github-actions`, `docker` and the ecosystem of the project weekly, `pip` (`directory: /tests`) only for the project linters, each with a comment of what it covers.
 
 ## Markdown
 
@@ -318,8 +323,9 @@ The rules above are the same for every repository; these ones come from the kind
 
 ## New repository checklist
 
-1. Copy the [shared files](#shared-files) and the shared parts of the others from one of the repositories.
-2. Set the project parts: `.dockerignore` comment, `.hadolint.yaml`, `DOCKER_TESTS`, the `scripts` and `generated` of `tests/lint.sh`, the docker job of the workflow.
-3. Write `tests/<subject>_test.sh` for the scripts of the image and `tests/image_test.sh` for the image.
-4. Write the README with the sections above.
-5. `make check`.
+1. Create `.editorconfig`, `.gitignore` and `tests/requirements-lint.txt` with the markers of the shared block and the project part after it.
+2. Add the repository to `sync/targets.yml` of mcloud-conventions: its sync brings the [shared files](#shared-files) and `.mcloud-conventions`.
+3. Set the project parts: `tests/lint_project.sh`, `.dockerignore` comment, `.hadolint.yaml`, `DOCKER_TESTS`, the `lint` job of the reusable workflow and the other jobs.
+4. Write `tests/<subject>_test.sh` for the scripts of the image and `tests/image_test.sh` for the image.
+5. Write the README with the sections above.
+6. `make check`.
