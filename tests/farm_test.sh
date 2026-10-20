@@ -147,6 +147,48 @@ farm devices restart WiFi > /dev/null
 check "restart removes the containers before creating them" "rm run" \
   "$(calls docker | grep -E '^(rm|run)\|' | cut -d '|' -f 1 | uniq | paste -s -d ' ' -)"
 
+section "Linux iOS container creation"
+# The stf container shares the network namespace of the connector (the go-ios tunnel of iOS 17+),
+# which a network holder keeps over the restarts of the connector
+setup_case
+echo "iSerial d6afc6b3a65584ca0813eb8957c6479b9b6ebb11" > "${WORK}/usb"
+farm devices start iPhone_8_Plus > /dev/null
+check "USB iPhone gets the network holder first" "net connector stf appium uploader" \
+  "$(calls docker | grep '^run|' | grep -o -- "--name|${IPHONE}-[a-z]*" | sed 's/.*-//' | paste -s -d ' ' -)"
+network="$(run_args "${IPHONE}-net")"
+check_contains "network holder is on the docker network" "|--net=infra|" "$network"
+check_contains "network holder publishes the ports of STF" "|-p|7445-7450:7445-7450|" "$network"
+check_contains "network holder enables IPv6 for the tunnel" "|--sysctl|net.ipv6.conf.all.disable_ipv6=0|" "$network"
+check_contains "network holder outlives the restarts" "|--restart|unless-stopped|" "$network"
+check_contains "network holder has no healthcheck of the connector image" "|--no-healthcheck|" "$network"
+connector="$(run_args "${IPHONE}-connector")"
+check_contains "connector joins the network holder" "|--network|container:${IPHONE}-net|" "$connector"
+check_not_contains "connector sets no network sysctl of its own" "--sysctl" "$connector"
+check_not_contains "connector publishes no ports" "|-p|" "$connector"
+stf="$(run_args "${IPHONE}-stf")"
+check_contains "stf joins the network holder" "|--network|container:${IPHONE}-net|" "$stf"
+check_contains "stf reaches WDA and usbmuxd of the connector locally" \
+  "|WDA_HOST=127.0.0.1|-e|USBMUXD_SOCKET_ADDRESS=127.0.0.1:2222|" "$stf"
+check_not_contains "stf has no links" "--link" "$stf"
+check_not_contains "stf publishes no ports" "|-p|" "$stf"
+appium="$(run_args "${IPHONE}-appium")"
+check_contains "appium reaches WDA on the network holder" "|--link|${IPHONE}-net:connector|" "$appium"
+check_contains "appium reaches the screen broadcast on the network holder" "|--link|${IPHONE}-net:device|" "$appium"
+check "the network holder starts first" "net" "$(calls docker | grep '^start|' | head -1 | sed 's/.*-//')"
+
+setup_case
+farm devices stop iPhone_8_Plus > /dev/null
+check "USB iPhone stop ends with the network holder" "connector appium stf uploader net" \
+  "$(calls docker | grep '^stop|' | sed 's/.*-//' | paste -s -d ' ' -)"
+setup_case
+farm devices down iPhone_8_Plus > /dev/null
+check "USB iPhone down removes the network holder" "connector appium stf uploader net" \
+  "$(calls docker | grep '^rm|' | sed 's/.*-//' | paste -s -d ' ' -)"
+setup_case
+farm devices stop Galaxy > /dev/null
+check "android stop has no network holder" "connector appium stf uploader" \
+  "$(calls docker | grep '^stop|' | sed 's/.*-//' | paste -s -d ' ' -)"
+
 section "macOS container creation"
 setup_case
 echo '"USB Serial Number" = "d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"' > "${WORK}/usb"

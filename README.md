@@ -203,6 +203,8 @@ Follow the below algorithm to identify any configuration issues with MCloud agen
   docker logs -f device-<Name>-<udid>-uploader
   ```
 
+  On Linux an iOS device has one more container, `device-<Name>-<udid>-net`: it only holds the network namespace that the connector and the STF provider share, like the pause container of a Kubernetes pod, and publishes the STF ports. The STF provider reaches WebDriverAgent, usbmuxd and the go-ios tunnel of iOS 17+ of the connector on `127.0.0.1`; the holder outlives the restarts of the connector, so the STF provider can join the namespace again after them. Remove it together with the other containers (`zebrunner-farm down`), not alone.
+
 - If you have any problems running ansible:
   - Make sure you have sudo access and try to run ansible with sudo permissions.
   - Try to rub ansible commands manually (`<devices_file>` name is `mac-devices` on macOS  or `devices` on Linux servers)

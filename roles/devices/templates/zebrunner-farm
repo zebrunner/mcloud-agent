@@ -235,14 +235,31 @@ create_containers() {
     echo "WDA *.ipa file path: ${dev_device_wda_ipa_path}"
     echo -e "WDA bundle ID: ${dev_device_wda_bundle_id}\n"
 
+    # The network namespace of the connector and the stf container, like the pause container of a
+    # Kubernetes pod: it outlives the restarts of the connector, so the stf container can always join
+    # it again. It holds the published ports of STF and the IPv6 setting of the iOS 17+ tunnel
+    grep -q "${dev_container}-net" <<< "$ps_out" || {
+      echo -n "${dev_container}-net:        "
+      docker run -d --name "${dev_container}-net" \
+        --log-driver=local \
+        --log-opt max-size=1m \
+        --net="$net" \
+        --restart unless-stopped \
+        --init \
+        --no-healthcheck \
+        --sysctl net.ipv6.conf.all.disable_ipv6=0 \
+        -p "${dev_stf_min_port}-${dev_stf_max_port}":"${dev_stf_min_port}-${dev_stf_max_port}" \
+        --entrypoint tail \
+        "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}" -f /dev/null || failed "Error. Not created"
+    }
+
     grep -q "${dev_container}-connector" <<< "$ps_out" || {
       echo -n "${dev_container}-connector:  "
       docker run -itd --name "${dev_container}-connector" \
         --log-driver=local \
         --log-opt max-size=256m \
         --log-opt max-file=2 \
-        --net="$net" \
-        --sysctl net.ipv6.conf.all.disable_ipv6=0 \
+        --network "container:${dev_container}-net" \
         --restart "on-failure:{{ RESTARTS_LIMIT }}" \
         "${DEVICE_ARGS[@]}" \
         --cap-add=NET_ADMIN \
@@ -259,17 +276,19 @@ create_containers() {
         "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}" || failed "Error. Not created"
     }
 
-    # Linking with appium required to share usbmuxd via socat
+    # The stf container shares the network namespace of the connector: go-ios of STF reaches the
+    # iOS 17+ tunnel of the connector (a TUN interface, its API on 127.0.0.1:60105), usbmuxd and
+    # WebDriverAgent on 127.0.0.1
     grep -q "${dev_container}-stf" <<< "$ps_out" || {
       echo -n "${dev_container}-stf:        "
       docker run -d --name "${dev_container}-stf" \
         --log-driver=local \
         --log-opt max-size=256m \
         --log-opt max-file=2 \
-        --net="$net" \
+        --network "container:${dev_container}-net" \
         --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-        --link "${dev_container}-connector":connector \
-        -e WDA_HOST=connector \
+        -e WDA_HOST=127.0.0.1 \
+        -e USBMUXD_SOCKET_ADDRESS=127.0.0.1:2222 \
         -e WDA_WAIT_TIMEOUT=60 \
         -e PLATFORM_NAME="$dev_platform_name" \
         -e STF_PROVIDER_DEVICE_NAME="$dev_device_name" \
@@ -278,7 +297,6 @@ create_containers() {
         -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}${dev_location:+_$dev_location}" \
         -e STF_PROVIDER_MIN_PORT="$dev_stf_min_port" \
         -e STF_PROVIDER_MAX_PORT="$dev_stf_max_port" \
-        -p "${dev_stf_min_port}-${dev_stf_max_port}":"${dev_stf_min_port}-${dev_stf_max_port}" \
         -e STF_PROVIDER_PUBLIC_IP="{{ PUBLIC_IP }}" \
         -e PUBLIC_IP_PORT="{{ PUBLIC_IP_PORT }}" \
         -e PUBLIC_IP_PROTOCOL="{{ PUBLIC_IP_PROTOCOL }}" \
@@ -302,8 +320,8 @@ create_containers() {
         --net="$net" \
         --restart "on-failure:{{ RESTARTS_LIMIT }}" \
         "${DEVICE_ARGS[@]}" \
-        --link "${dev_container}-stf":device \
-        --link "${dev_container}-connector":connector \
+        --link "${dev_container}-net":connector \
+        --link "${dev_container}-net":device \
         -e WDA_HOST=connector \
         -v appium-storage-volume:/opt/appium-storage \
         -v "${dev_container}":/tmp/log \
@@ -389,6 +407,9 @@ start_containers() {
   ps_out="$(docker ps)"
 
   echo -e "\n\tStarting '${dev_container}' containers:\n"
+  if [[ "$dev_platform_name" == "ios" ]]; then
+    grep -q "${dev_container}-net" <<< "$ps_out" || docker start "${dev_container}-net"
+  fi
   grep -q "${dev_container}-connector" <<< "$ps_out" || docker start "${dev_container}-connector"
   grep -q "${dev_container}-stf" <<< "$ps_out" || docker start "${dev_container}-stf"
   grep -q "${dev_container}-appium" <<< "$ps_out" || docker start "${dev_container}-appium"
@@ -418,6 +439,9 @@ stop_containers() {
   docker stop "${dev_container}-appium"
   docker stop "${dev_container}-stf"
   docker stop "${dev_container}-uploader"
+  if [[ "$dev_platform_name" == "ios" ]]; then
+    docker stop "${dev_container}-net"
+  fi
 }
 
 down() {
@@ -473,6 +497,17 @@ remove_containers() {
     failed "container not found"
   else
     echo "$uploader"
+  fi
+
+  if [[ "$dev_platform_name" == "ios" ]]; then
+    echo -n "Network:    "
+    local network
+    network="$(docker rm -f "${dev_container}-net")"
+    if [[ -z "$network" ]]; then
+      failed "container not found"
+    else
+      echo "$network"
+    fi
   fi
 
   echo -ne "---\nVolume:     "
@@ -570,6 +605,22 @@ verify_containers() {
       connector_restarts="$(detect_restarts "${dev_container}-connector")"
     fi
 
+    local network_row=""
+    if [[ "$dev_platform_name" == "ios" ]]; then
+      local network_state="UNKNOWN"
+      local network_status="UNKNOWN"
+      local network_uptime="UNKNOWN"
+      local network_restarts="UNKNOWN"
+      if grep -q "${dev_container}-net" <<< "$ps_out"; then
+        network_state="$(detect_state "${dev_container}-net")"
+        network_status="$(detect_status "${dev_container}-net")"
+        network_uptime="$(detect_uptime "${dev_container}-net")"
+        network_restarts="$(detect_restarts "${dev_container}-net")"
+      fi
+      network_row="
+,| Network,| ${network_state},| ${network_status},| ${network_uptime},| ${network_restarts},|"
+    fi
+
     local uploader_state="UNKNOWN"
     local uploader_status="UNKNOWN"
     local uploader_uptime="UNKNOWN"
@@ -586,7 +637,7 @@ verify_containers() {
 ,| Connector,| ${connector_state},| ${connector_status},| ${connector_uptime},| ${connector_restarts},|
 ,| Appium,| ${appium_state},| ${appium_status},| ${appium_uptime},| ${appium_restarts},|
 ,| STF,| ${stf_state},| ${stf_status},| ${stf_uptime},| ${stf_restarts},|
-,| Uploader,| ${uploader_state},| ${uploader_status},| ${uploader_uptime},| ${uploader_restarts},|" | column -t -s ','
+,| Uploader,| ${uploader_state},| ${uploader_status},| ${uploader_uptime},| ${uploader_restarts},|${network_row}" | column -t -s ','
 
   fi
   echo -e "==============================================================\n"
