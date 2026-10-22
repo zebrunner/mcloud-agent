@@ -113,15 +113,70 @@
     label: "{{ item.name }}"
   tags: [devices, precheck, validate]
 
-- name: Check WebDriverAgent address of wireless devices
-  ansible.builtin.assert:
-    that: (item.wireless | default(false) | string | lower) != 'true' or (item.wda_host | default('') | string | length) > 0
-    fail_msg: "Wireless device '{{ item.name }}' needs wda_host where its WebDriverAgent is published."
-    success_msg: "Device '{{ item.name }}' WebDriverAgent address is set."
-    quiet: true
+# connection: usb (default), wireless (the earlier wireless: true), redroid (Android), simulator and proxy (iOS);
+# the earlier wireless iOS device with wda_host is a proxy
+- name: Collect the connection of each device
+  ansible.builtin.set_fact:
+    mac_devices_connections: >-
+      {{ (mac_devices_connections | default([])) + [
+           'proxy' if (mac_devices_connection == 'wireless' and item.os == 'ios' and (item.wda_host | default('') | string | length) > 0)
+           else mac_devices_connection] }}
+  vars:
+    mac_devices_wireless: "{{ (item.wireless | default(false) | string | lower) == 'true' }}"
+    mac_devices_connection: "{{ (item.connection | default('wireless' if mac_devices_wireless | bool else 'usb')) | string | lower }}"
   loop: "{{ devices }}"
   loop_control:
     label: "{{ item.name }}"
+  tags: [devices, precheck, validate, adb, simulators]
+
+- name: Check the connection of each device
+  vars:
+    mac_devices_connection: "{{ mac_devices_connections[idx] }}"
+  ansible.builtin.assert:
+    that:
+      - mac_devices_connection in ['usb', 'wireless', 'redroid', 'simulator', 'proxy']
+      - mac_devices_connection != 'redroid' or item.os == 'android'
+      - mac_devices_connection not in ['simulator', 'proxy'] or item.os == 'ios'
+      - mac_devices_connection != 'simulator' or (item.wda_port | default('') | string | length) > 0
+      - mac_devices_connection != 'proxy' or (item.address | default(item.wda_host | default('')) | string | length) > 0
+    fail_msg: >-
+      Invalid connection '{{ mac_devices_connection }}' of device '{{ item.name }}': usb, wireless, redroid (Android), simulator
+      (iOS, needs wda_port: the unique port of its WebDriverAgent on the host) or proxy (iOS, needs address or wda_host
+      where its WebDriverAgent is published).
+    success_msg: "Device '{{ item.name }}' connection '{{ mac_devices_connection }}' is valid."
+    quiet: true
+  loop: "{{ devices }}"
+  loop_control:
+    index_var: idx
+    label: "{{ item.name }}"
+  tags: [devices, precheck, validate]
+
+# the WebDriverAgent ports of the simulators and the adb forwards of the USB Android devices are on the host too
+- name: Collect host ports used by the simulators and the USB Android devices
+  vars:
+    mac_devices_connection: "{{ mac_devices_connections[idx] }}"
+    mac_devices_wda_port: "{{ item.wda_port | default(0) | int }}"
+  ansible.builtin.set_fact:
+    mac_devices_host_ports: >-
+      {{ (mac_devices_host_ports | default([])) + (
+           [mac_devices_wda_port | int, (item.mjpeg_port | default((mac_devices_wda_port | int) + 1)) | int]
+           if mac_devices_connection == 'simulator'
+           else ([item.adb_port | int] if (mac_devices_connection == 'usb' and item.os == 'android') else [])) }}
+  loop: "{{ devices }}"
+  loop_control:
+    index_var: idx
+    label: "{{ item.name }}"
+  tags: [devices, precheck, validate]
+
+- name: Check that the host ports of the simulators and the USB Android devices are unique
+  ansible.builtin.assert:
+    that:
+      - mac_devices_host_ports | length == mac_devices_host_ports | unique | length
+      - mac_devices_host_ports | intersect(mac_devices_ports | flatten) | length == 0
+    fail_msg: >-
+      The host ports {{ mac_devices_host_ports }} of the simulators (wda_port, mjpeg_port) and of the USB Android
+      devices (adb_port) must be unique and not used by appium_port or min_port-max_port of the devices.
+    success_msg: "The host ports of the simulators and the USB Android devices are unique."
   tags: [devices, precheck, validate]
 
 - name: Copy 'zebrunner-farm' script file
@@ -262,3 +317,122 @@
   changed_when: false
   become: false
   tags: [devices, usbmuxd]
+
+# The USB Android devices stay on the adb server of the host (Docker of macOS has no USB), their connectors take them
+# from it. Only the adb server runs on the host, every device command comes from the containers.
+- name: USB Android devices
+  when: mac_devices_connections | zip(devices | map(attribute='os')) | map('join', ':') | select('equalto', 'usb:android') | list | length > 0
+  tags: [devices, adb]
+  block:
+    - name: Find adb of the host
+      ansible.builtin.shell: PATH="/opt/homebrew/bin:/usr/local/bin:$PATH" command -v adb
+      register: mac_devices_adb
+      changed_when: false
+      failed_when: false
+      become: false
+
+    - name: Check adb of the host
+      ansible.builtin.assert:
+        that: mac_devices_adb.rc == 0
+        fail_msg: "adb is required for the USB Android devices: brew install android-platform-tools"
+        success_msg: "adb of the host: {{ mac_devices_adb.stdout }}"
+
+    - name: Check if ZebrunnerAdb agent is loaded
+      ansible.builtin.command: launchctl list com.zebrunner.adb
+      register: mac_devices_adb_agent_loaded
+      failed_when: false
+      changed_when: false
+      become: false
+
+    - name: Unload ZebrunnerAdb agent if loaded
+      ansible.builtin.command:
+        argv:
+          - launchctl
+          - bootout
+          - "gui/{{ mac_devices_user_uid.stdout }}"
+          - "{{ lookup('env', 'HOME') }}/Library/LaunchAgents/ZebrunnerAdb.plist"
+      when: mac_devices_adb_agent_loaded.rc == 0
+      changed_when: false
+      become: false
+
+    - name: Copy ZebrunnerAdb.plist into LaunchAgents
+      ansible.builtin.template:
+        src: roles/mac-devices/templates/ZebrunnerAdb.plist
+        dest: "{{ lookup('env', 'HOME') }}/Library/LaunchAgents/ZebrunnerAdb.plist"
+        mode: "0644"
+        owner: "{{ lookup('env', 'USER') }}"
+        group: staff
+      vars:
+        mac_devices_adb_path: "{{ mac_devices_adb.stdout }}"
+
+    - name: Load ZebrunnerAdb agent via launchctl
+      ansible.builtin.command:
+        argv:
+          - launchctl
+          - bootstrap
+          - "gui/{{ mac_devices_user_uid.stdout }}"
+          - "{{ lookup('env', 'HOME') }}/Library/LaunchAgents/ZebrunnerAdb.plist"
+      changed_when: false
+      become: false
+
+# The simulators run on the host: their connector and Appium containers run xcrun of the host over ssh with a key of
+# the agent, Remote Login (System Settings, General, Sharing) must be on for the user.
+- name: Simulators
+  when: "'simulator' in mac_devices_connections"
+  tags: [devices, simulators]
+  block:
+    - name: Create the ssh folder of the agent
+      ansible.builtin.file:
+        path: "{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/ssh"
+        state: directory
+        mode: "0700"
+        owner: "{{ lookup('env', 'USER') }}"
+      become: false
+
+    - name: Generate the ssh key of the simulators
+      ansible.builtin.command:
+        argv:
+          - ssh-keygen
+          - -q
+          - -t
+          - ed25519
+          - -N
+          - ""
+          - -C
+          - zebrunner-mcloud-simulators
+          - -f
+          - "{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/ssh/id_ed25519"
+        creates: "{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/ssh/id_ed25519"
+      become: false
+
+    - name: Read the public ssh key of the simulators
+      ansible.builtin.slurp:
+        src: "{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/ssh/id_ed25519.pub"
+      register: mac_devices_ssh_public_key
+      become: false
+
+    # restrict: no forwarding and no pty, the containers only run commands of the host
+    - name: Authorize the ssh key of the simulators
+      ansible.builtin.lineinfile:
+        path: "{{ lookup('env', 'HOME') }}/.ssh/authorized_keys"
+        line: "restrict {{ mac_devices_ssh_public_key.content | b64decode | trim }}"
+        regexp: "zebrunner-mcloud-simulators$"
+        create: true
+        mode: "0600"
+        owner: "{{ lookup('env', 'USER') }}"
+      become: false
+
+    - name: Check Remote Login of the host
+      ansible.builtin.command: nc -z -G 3 127.0.0.1 22
+      register: mac_devices_remote_login
+      failed_when: false
+      changed_when: false
+      become: false
+
+    # a missing Remote Login is reported but does not stop the deploy: it can be turned on later
+    - name: Report Remote Login of the host  # noqa: ignore-errors
+      ansible.builtin.assert:
+        that: mac_devices_remote_login.rc == 0
+        fail_msg: "Remote Login is off: turn it on in System Settings, General, Sharing for the simulators."
+        success_msg: "Remote Login is on."
+      ignore_errors: true

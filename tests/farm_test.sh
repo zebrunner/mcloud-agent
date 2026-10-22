@@ -5,12 +5,16 @@
 source "$(dirname "$0")/lib.sh"
 require_cmd ansible
 
-# udid|platform|name|location|appium|adb|proxy|server proxy|min|max|wireless|wda file|wda bundle id|wda host|wda port
+# udid|platform|name|location|appium|adb|proxy|server proxy|min|max|connection|wda file|wda bundle id|address|wda port|
+# mjpeg port
 cat > "${WORK}/devices.txt" << 'EOF'
-R28M1384YQY|android|Galaxy|loc|7421|7422|7423|7424|7425|7430|false|/dev/null|x||
-192.168.1.50|android|WiFi|loc|7431|7432|7433|7434|7435|7440|true|/dev/null|x||
-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11|ios|iPhone_8_Plus|loc|7441|7442|7443|7444|7445|7450|false|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||
-aaaa1111|ios|AppleTV|loc|7451|7452|7453|7454|7455|7460|true|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.5|8100
+R28M1384YQY|android|Galaxy|loc|7421|7422|7423|7424|7425|7430|usb|/dev/null|x|||
+192.168.1.50|android|WiFi|loc|7431|7432|7433|7434|7435|7440|wireless|/dev/null|x|||
+d6afc6b3a65584ca0813eb8957c6479b9b6ebb11|ios|iPhone_8_Plus|loc|7441|7442|7443|7444|7445|7450|usb|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
+aaaa1111|ios|AppleTV|loc|7451|7452|7453|7454|7455|7460|proxy|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.5|8100|
+bbbb2222|ios|iPhoneWiFi|loc|7461|7462|7463|7464|7465|7470|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|192.168.1.60||
+redroid1|android|Emu|loc|7471|7472|7473|7474|7475|7480|redroid|/dev/null|x|||
+B1B07E76|ios|Sim|loc|7481|7482|7483|7484|7485|7490|simulator|/tmp/wda-sim.zip|com.facebook.WebDriverAgentRunner.xctrunner||8110|
 EOF
 IPHONE="device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"
 
@@ -32,6 +36,8 @@ case "$1" in
       echo "docker: simulated failure" >&2
       exit 125
     fi
+    # the binder check of Redroid: DOCKER_NO_BINDER=1 is a kernel without binder
+    [[ "$*" == *"/proc/filesystems"* && -n "$DOCKER_NO_BINDER" ]] && exit 1
     echo "id-${name}"
     ;;
   inspect)
@@ -63,7 +69,7 @@ farm() {
   local role="$1"
   shift
   env -i HOME="${WORK}" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
-    DOCKER_FAIL_RUN="${DOCKER_FAIL_RUN:-}" DOCKER_STARTED_AT="${DOCKER_STARTED_AT:-}" DOCKER_FINISHED_AT="${DOCKER_FINISHED_AT:-}" \
+    DOCKER_FAIL_RUN="${DOCKER_FAIL_RUN:-}" DOCKER_NO_BINDER="${DOCKER_NO_BINDER:-}" DOCKER_STARTED_AT="${DOCKER_STARTED_AT:-}" DOCKER_FINISHED_AT="${DOCKER_FINISHED_AT:-}" \
     /bin/bash "${WORK}/zebrunner-farm-${role}" "$@" 2>&1
 }
 
@@ -95,9 +101,9 @@ Galaxy=Galaxy
 iPhone_8_Plus=iPhone_8_Plus
 R28=
 7421=
-ios=iPhone_8_Plus AppleTV
-android=Galaxy WiFi
-=Galaxy WiFi iPhone_8_Plus AppleTV
+ios=iPhone_8_Plus AppleTV iPhoneWiFi Sim
+android=Galaxy WiFi Emu
+=Galaxy WiFi iPhone_8_Plus AppleTV iPhoneWiFi Emu Sim
 EOF
 done
 
@@ -139,13 +145,52 @@ check "disconnected USB device gets no containers" "" "$(calls docker | grep '^r
 
 setup_case
 farm devices start > /dev/null
-check "start of all devices creates wireless ones only without USB symlinks" \
-  "WiFi AppleTV" "$(calls docker | grep '^run|' | grep -o -- '--name|device-[^|]*-stf' | sed 's/.*|device-//; s/-.*//' | paste -s -d ' ' -)"
+check "start of all devices creates the non-usb ones only without USB symlinks" \
+  "WiFi AppleTV iPhoneWiFi Emu" "$(calls docker | grep '^run|' | grep -o -- '--name|device-[^|]*-stf' | sed 's/.*|device-//; s/-.*//' | paste -s -d ' ' -)"
 
 setup_case
 farm devices restart WiFi > /dev/null
 check "restart removes the containers before creating them" "rm run" \
   "$(calls docker | grep -E '^(rm|run)\|' | cut -d '|' -f 1 | uniq | paste -s -d ' ' -)"
+
+setup_case
+farm devices start iPhoneWiFi > /dev/null
+connector="$(run_args device-iPhoneWiFi-bbbb2222-connector)"
+check_not_contains "wireless iPhone connector gets no device" "--device=/dev/device-" "$connector"
+check_contains "wireless iPhone connector reaches the device by its address" "|DEVICE_CONNECTION=wireless|-e|DEVICE_ADDRESS=192.168.1.60|" "$connector"
+stf="$(run_args device-iPhoneWiFi-bbbb2222-stf)"
+check_contains "STF of an iPhone uses the shared tunnel of the connector" "|GO_IOS_AGENT_HOST=connector|" "$stf"
+check_contains "STF of a wireless iPhone uses usbmuxd of the connector" "|WIRELESS=false|" "$stf"
+
+setup_case
+farm devices start AppleTV > /dev/null
+connector="$(run_args device-AppleTV-aaaa1111-connector)"
+check_contains "proxied WDA is relayed by the connector" "|DEVICE_CONNECTION=proxy|-e|DEVICE_ADDRESS=10.0.0.5|-e|DEVICE_WDA_PORT=8100|" "$connector"
+check_contains "proxied WDA has no usbmuxd for appium" "|WIRELESS=true|" "$(run_args device-AppleTV-aaaa1111-appium)"
+
+setup_case
+farm devices start Emu > /dev/null
+check "Redroid gets the emulator and all containers" "redroid connector stf appium uploader" \
+  "$(calls docker | grep '^run|' | grep -o -- '--name|device-Emu-redroid1-[a-z]*' | sed 's/.*-//' | paste -s -d ' ' -)"
+check_contains "Redroid emulator is privileged" "|--privileged|" "$(run_args device-Emu-redroid1-redroid)"
+check_contains "Redroid emulator is connected by the connector" "|ANDROID_DEVICE=device-Emu-redroid1-redroid:5555|" \
+  "$(run_args device-Emu-redroid1-connector)"
+check_contains "Redroid is the device of STF" "|DEVICE_UDID=device-Emu-redroid1-redroid:5555|" "$(run_args device-Emu-redroid1-stf)"
+
+setup_case
+output="$(DOCKER_NO_BINDER=1 farm devices start Emu)"
+check_contains "Redroid without binder is reported" "has no binder for Redroid" "$output"
+check "Redroid without binder gets no containers" "" "$(calls docker | grep '^run|' | grep -- '--name')"
+
+setup_case
+farm devices stop Emu > /dev/null
+check "Redroid stop includes the emulator" "connector appium stf uploader redroid" \
+  "$(calls docker | grep '^stop|' | sed 's/.*-//' | paste -s -d ' ' -)"
+
+setup_case
+output="$(farm devices start Sim)"
+check_contains "simulator on Linux is reported" "Simulators run on a macOS host only" "$output"
+check "simulator on Linux gets no containers" "" "$(calls docker | grep '^run|')"
 
 section "macOS container creation"
 setup_case
@@ -171,21 +216,64 @@ check_contains "failed container creation is reported" "Error. Not created" "$ou
 
 setup_case
 farm mac-devices start AppleTV > /dev/null
-check "wireless device gets no connector" "stf appium uploader" \
+check "proxied device gets a connector too" "connector stf appium uploader" \
   "$(calls docker | grep '^run|' | grep -o -- '--name|device-AppleTV-aaaa1111-[a-z]*' | sed 's/.*-//' | paste -s -d ' ' -)"
+check_contains "proxied WDA is relayed by the connector on macOS" \
+  "|DEVICE_CONNECTION=proxy|-e|DEVICE_ADDRESS=10.0.0.5|-e|DEVICE_WDA_PORT=8100|-e|DEVICE_MJPEG_PORT=8101|" \
+  "$(run_args device-AppleTV-aaaa1111-connector)"
 appium="$(run_args device-AppleTV-aaaa1111-appium)"
-check_contains "wireless device reaches WDA on its host" "|WDA_HOST=10.0.0.5|-e|WDA_PORT=8100|-e|WIRELESS=true|" "$appium"
-check_not_contains "wireless device does not link a connector" ":connector" "$appium"
-check_not_contains "wireless device does not start a connector" "aaaa1111-connector" "$(calls docker | grep '^start|')"
+check_contains "proxied device reaches WDA through the connector" "|WDA_HOST=connector|-e|WDA_PORT=8100|-e|WIRELESS=true|" "$appium"
+check_contains "proxied device links the connector" "|--link|device-AppleTV-aaaa1111-connector:connector|" "$appium"
 
 setup_case
 farm mac-devices stop AppleTV > /dev/null
-check "wireless device stop skips the connector" "appium stf uploader" \
+check "proxied device stop includes the connector" "connector appium stf uploader" \
   "$(calls docker | grep '^stop|' | sed 's/.*-//' | paste -s -d ' ' -)"
 setup_case
 farm mac-devices stop iPhone_8_Plus > /dev/null
 check "USB device stop includes the connector" "connector appium stf uploader" \
   "$(calls docker | grep '^stop|' | sed 's/.*-//' | paste -s -d ' ' -)"
+
+setup_case
+output="$(farm mac-devices start iPhoneWiFi)"
+check_contains "wireless iPhone skips the USB check" "is connected as 'wireless', skipping USB presence check." "$output"
+connector="$(run_args device-iPhoneWiFi-bbbb2222-connector)"
+check_contains "wireless iPhone uses usbmuxd of the host" "|USBMUXD_SOCKET_ADDRESS=host.docker.internal:2222|-e|DEVICE_CONNECTION=wireless|" "$connector"
+check_contains "the connector of macOS starts WDA itself" "|HOST_OS=DARWIN|" "$connector"
+check_contains "STF of macOS uses the shared tunnel of the connector" "|GO_IOS_AGENT_HOST=connector|" \
+  "$(run_args device-iPhoneWiFi-bbbb2222-stf)"
+
+setup_case
+farm mac-devices start Sim > /dev/null
+connector="$(run_args device-Sim-B1B07E76-connector)"
+check_contains "simulator connector runs simctl of the host" "|DEVICE_CONNECTION=simulator|-e|HOST_SSH_USER=${USER}|-e|DEVICE_WDA_PORT=8110|-e|DEVICE_MJPEG_PORT=8111|" "$connector"
+check_contains "simulator connector gets the ssh key of the agent" "/ssh/id_ed25519:/opt/zebrunner/ssh/id_ed25519:ro|" "$connector"
+check_contains "simulator connector gets the simulator build of WDA" "|/tmp/wda-sim.zip:/tmp/zebrunner/wda-sim.zip|" "$connector"
+check_contains "simulator connector gets the path of the build" "|WDA_FILE=/tmp/zebrunner/wda-sim.zip|" "$connector"
+appium="$(run_args device-Sim-B1B07E76-appium)"
+check_contains "simulator appium has no usbmuxd" "|WIRELESS=true|" "$appium"
+check_contains "simulator appium runs xcrun of the host" "|DEVICE_CONNECTION=simulator|-e|HOST_SSH_USER=${USER}|" "$appium"
+
+setup_case
+echo '"USB Serial Number" = "R28M1384YQY"' > "${WORK}/usb"
+farm mac-devices start Galaxy > /dev/null
+connector="$(run_args device-Galaxy-R28M1384YQY-connector)"
+check_contains "USB android of macOS stays on the adb server of the host" \
+  "|ADB_TRANSPORT_SERVER=host.docker.internal:5037|-e|ADB_TRANSPORT_SERIAL=R28M1384YQY|-e|ADB_TRANSPORT_PORT=7422|" "$connector"
+check_contains "USB android of macOS is the forwarded device of the connector" "|DEVICE_UDID=host.docker.internal:7422|" \
+  "$(run_args device-Galaxy-R28M1384YQY-stf)"
+check_contains "appium of macOS android uses the adb server of the connector" "|ADB_SERVER_SOCKET=tcp:connector:5037|" \
+  "$(run_args device-Galaxy-R28M1384YQY-appium)"
+
+setup_case
+farm mac-devices start WiFi > /dev/null
+check_contains "wireless android of macOS is connected over adb tcp" "|ANDROID_DEVICE=192.168.1.50:5555|" \
+  "$(run_args device-WiFi-192.168.1.50-connector)"
+
+setup_case
+output="$(DOCKER_NO_BINDER=1 farm mac-devices start Emu)"
+check_contains "Redroid without binder (Docker Desktop) is reported" "has no binder for Redroid (Docker Desktop)" "$output"
+check "Redroid without binder gets no containers on macOS" "" "$(calls docker | grep '^run|' | grep -- '--name')"
 
 section "macOS device listener"
 for command in start stop down; do

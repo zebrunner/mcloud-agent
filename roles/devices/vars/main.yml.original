@@ -68,7 +68,17 @@ WDA_BUNDLEID:
 #   min_port and max_port: unique range of 7 ports per device for system STF purposes.
 #     These ports on STF_PROVIDER_HOST should be accessible from client's browser otherwise gray screen, no remote adb connect etc.
 #   server_proxy_port: [optional] port passed to the appium container as SERVER_PROXY_PORT, 0 by default
-#   wireless: [optional] true for an Android device connected over the network instead of USB: id is the device IP and adb connects to its 5555 port
+#   connection: [optional] how the connector container reaches the device, usb by default:
+#     usb      - plugged into the server (udev starts and removes its containers)
+#     wireless - over the network: Android over adb connect to address (the id by default, port 5555 unless given),
+#                iOS / Apple TV over lockdown of Wi-Fi (netmuxd of the connector) at address, its IP; pair the iOS device
+#                over USB first and allow it: docker exec <connector> mcloud-ios wifi-connections <udid> on
+#     redroid  - Android: the Redroid emulator container of the device (REDROID_IMAGE), the kernel needs binder:
+#                sudo modprobe binder_linux devices=binder,hwbinder,vndbinder
+#     proxy    - iOS: WebDriverAgent started by another tool and published on address (wda_port, mjpeg_port: 8100, 8101)
+#     The non-usb devices are started by `zebrunner-farm start`, they have no udev rules.
+#   wireless: [optional] true is the same as connection: wireless
+#   address, wda_port and mjpeg_port: [optional] see connection
 #   wda_file and wda_bundleid: [optional] iOS device specific overrides of WDA_FILE and WDA_BUNDLEID
 
 # TODO: convert adb_port to connect_port to support iOS as well

@@ -26,11 +26,12 @@ get_device_fields() {
   dev_server_proxy_port=""
   dev_stf_min_port=""
   dev_stf_max_port=""
-  dev_wireless=""
+  dev_connection=""
   dev_device_wda_ipa_path=""
   dev_device_wda_bundle_id=""
-  dev_wda_host=""
+  dev_address=""
   dev_wda_port=""
+  dev_mjpeg_port=""
 
   local line
   # exact match of udid (field 1) or name (field 3)
@@ -56,17 +57,23 @@ get_device_fields() {
   dev_stf_min_port="${fields[8]}"
   dev_stf_max_port="${fields[9]}"
 
-  # Field 11 - 'wireless'.
-  # Marks a device with NO usb path, reached over a network tunnel maintained
-  # outside this script (for example an Apple TV 4K, which has no diagnostic port at
-  # all, reached over Apple's RemoteXPC tunnel).
-  dev_wireless="${fields[10]}"
+  # Field 11 - 'connection': how the connector container reaches the device. Docker of macOS has no USB, so the
+  # connector takes a USB device from the host: usbmuxd (iOS) or the adb server (Android) of the host.
+  #   usb       - plugged into the host: iOS over usbmuxd of the host, Android over the adb server of the host
+  #   wireless  - over the network: iOS paired with the Mac (usbmuxd of the host), Android over adb connect
+  #   redroid   - the Redroid emulator container of the device (Android, the kernel of docker needs binder)
+  #   simulator - an iOS / tvOS simulator of the host, the connector runs xcrun simctl of the host over ssh
+  #   proxy     - WebDriverAgent published by another tool, the connector relays it (iOS)
+  dev_connection="${fields[10]:-usb}"
 
   # Fields 12 / 13 - 'device_wda_ipa_path' and 'device_wda_bundle_id'.
-  # Device specific WebDriverAgent path and bundle ID.
+  # Device specific WebDriverAgent path (the simulator build for a simulator) and bundle ID.
   dev_device_wda_ipa_path="${fields[11]}"
   if [[ "$dev_device_wda_ipa_path" == "/dev/null" || -z "$dev_device_wda_ipa_path" ]]; then
     dev_device_wda_ipa_path="{{ WDA_FILE }}"
+    if [[ "$dev_connection" == "simulator" ]]; then
+      dev_device_wda_ipa_path="{{ WDA_SIMULATOR_FILE | default('') }}"
+    fi
   fi
   : "${dev_device_wda_ipa_path:='/dev/null'}"
 
@@ -76,13 +83,13 @@ get_device_fields() {
   fi
   : "${dev_device_wda_bundle_id:='com.facebook.WebDriverAgentRunner.xctrunner'}"
 
-  # Fields 14 / 15 - 'wda_host' and 'wda_port'.
-  # Where WebDriverAgent is reachable for a WIRELESS device. The tunnel owner on the
-  # host publishes WDA on a routable TCP endpoint and these point at it. For a usb
-  # device both stay empty: the connector container owns WDA and is reached over a
-  # docker --link instead.
-  dev_wda_host="${fields[13]}"
+  # Fields 14 - 16 - 'address', 'wda_port' and 'mjpeg_port'.
+  # address: the IP of a wireless Android device (its id by default) or the host of the proxied WebDriverAgent;
+  # wda_port and mjpeg_port: the ports of WebDriverAgent on the host for a simulator (unique, a simulator shares the
+  # network of the host) or on the address for the proxy
+  dev_address="${fields[13]}"
   dev_wda_port="${fields[14]}"
+  dev_mjpeg_port="${fields[15]}"
 
   # Common name prefix for all containers
   dev_container="device-${dev_device_name}-${dev_udid}"
@@ -99,9 +106,7 @@ create_containers() {
     return 0
   fi
 
-  if [[ "$dev_wireless" == "true" ]]; then
-    echo -e "\nDevice with udid: '${dev_udid}' is wireless, skipping USB presence check."
-  else
+  if [[ "$dev_connection" == "usb" ]]; then
     local connected_devices
     connected_devices="$(ioreg -p IOUSB -w0 -l 2> /dev/null)"
     if grep -q "${dev_udid//-/}" <<< "$connected_devices"; then
@@ -110,6 +115,8 @@ create_containers() {
       echo -e "\nDevice with udid: '${dev_udid//-/}' was NOT detected as connected. The containers will not be created."
       return 1
     fi
+  else
+    echo -e "\nDevice with udid: '${dev_udid}' is connected as '${dev_connection}', skipping USB presence check."
   fi
 
   echo -e "\n\tCreating '${dev_container}' containers:\n"
@@ -121,69 +128,212 @@ create_containers() {
     S3_KEY_PATTERN="s3://${BUCKET}${TENANT:+/${TENANT}}/artifacts/test-sessions"
   fi
 
-  if [[ "$dev_platform_name" == "ios" ]]; then
+  # The connector is the only point of contact with the device: the STF and Appium containers --link to it and take
+  # adb (Android), usbmuxd, WebDriverAgent and the shared tunnel (iOS) from it whatever the connection is.
+  # NOTE on the expansion form used below: macOS ships bash 3.2, where "${arr[@]}" on an EMPTY array is an
+  # unbound-variable error under `set -u`. "${arr[@]+"${arr[@]}"}" is the portable form and preserves element quoting.
+  local connector_args=()
+  local device_args=()
+  local appium_args=()
+  local STF_DEVICE_UDID="$dev_udid"
 
-    echo "WDA *.ipa file path: ${dev_device_wda_ipa_path}"
-    echo -e "WDA bundle ID: ${dev_device_wda_bundle_id}\n"
-
-    # How the device and appium containers reach WebDriverAgent is the only thing
-    # that differs for a wireless device:
-    #
-    #   usb      - the connector container owns WDA. Containers --link to it and
-    #              address it as host 'connector' (the historical behaviour).
-    #   wireless - WDA is published by the tunnel owner on the host. There is no
-    #              connector container to link, so WDA_HOST/WDA_PORT address it
-    #              directly. WIRELESS=true additionally tells the device and appium
-    #              containers to skip their usbmuxd clients, which cannot work here.
-    #
-    # No change is needed in the appium image: it already builds
-    # 'appium:webDriverAgentUrl' as "http://${WDA_HOST}:${WDA_PORT}" (see
-    # zbr-default-caps-gen.sh), so pointing those two variables elsewhere is enough.
-    #
-    # NOTE on the expansion form used below: macOS ships bash 3.2, where
-    # "${arr[@]}" on an EMPTY array is an unbound-variable error under `set -u`.
-    # "${arr[@]+"${arr[@]}"}" is the portable form and preserves element quoting.
-    local wda_link_args=()
-    local wda_env_args=(-e WDA_HOST=connector -e WDA_PORT=8100)
-    if [[ "$dev_wireless" == "true" ]]; then
-      if [[ -z "$dev_wda_host" ]]; then
-        echo "ERROR! device ${dev_container} has wireless=true but no wda_host in field 14 of mcloud-devices.txt"
-        echo "       A wireless device cannot be reached without a published WebDriverAgent endpoint."
+  if [[ "$dev_platform_name" == "android" ]]; then
+    case "$dev_connection" in
+    usb)
+      # the device stays on the adb server of the host, the connector forwards it to its own adb server
+      local adb_host="{{ ADB_SERVER_SOCKET_ADDRESS | default('host.docker.internal:5037') }}"
+      adb_host="${adb_host%:*}"
+      connector_args=(-e ADB_TRANSPORT_SERVER="{{ ADB_SERVER_SOCKET_ADDRESS | default('host.docker.internal:5037') }}"
+        -e ADB_TRANSPORT_SERIAL="$dev_udid" -e ADB_TRANSPORT_PORT="$dev_adb_port")
+      STF_DEVICE_UDID="${adb_host}:${dev_adb_port}"
+      ;;
+    wireless)
+      local address="${dev_address:-$dev_udid}"
+      [[ "$address" == *:* ]] || address="${address}:5555"
+      connector_args=(-e ANDROID_DEVICE="$address")
+      STF_DEVICE_UDID="$address"
+      ;;
+    redroid)
+      # /proc/filesystems of a container is the one of the kernel: binderfs is there once binder is available
+      if ! docker run --rm --entrypoint grep "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}" -qw binder /proc/filesystems; then
+        failed "\nThe kernel of docker has no binder for Redroid (Docker Desktop): use a Linux VM with binder_linux (Colima, Lima) or a Linux host."
         return 1
       fi
-      if [[ -z "$dev_wda_port" ]]; then
-        dev_wda_port=8100
-      fi
-      echo "wireless device: WDA at ${dev_wda_host}:${dev_wda_port} (no connector container)"
-      wda_env_args=(-e WDA_HOST="$dev_wda_host" -e WDA_PORT="$dev_wda_port" -e WIRELESS=true)
-    else
-      wda_link_args=(--link "${dev_container}-connector:connector")
-    fi
-
-    # The connector exists purely to share usbmuxd into the other containers. A
-    # wireless device has no usbmuxd path, so it is skipped entirely rather than
-    # started and left failing.
-    if [[ "$dev_wireless" != "true" ]]; then
-      grep -q "${dev_container}-connector" <<< "$ps_out" || {
-        echo -n "${dev_container}-connector:  "
-        docker run -itd --name "${dev_container}-connector" \
+      connector_args=(-e ANDROID_DEVICE="${dev_container}-redroid:5555")
+      STF_DEVICE_UDID="${dev_container}-redroid:5555"
+      grep -q "${dev_container}-redroid" <<< "$ps_out" || {
+        echo -n "${dev_container}-redroid:    "
+        docker run -d --name "${dev_container}-redroid" \
           --log-driver=local \
           --log-opt max-size=256m \
           --log-opt max-file=2 \
           --net="$net" \
+          --privileged \
           --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-          -e USBMUXD_SOCKET_ADDRESS="{{ USBMUXD_SOCKET_ADDRESS }}" \
-          -e HOST_OS=DARWIN \
-          -e WDA_BUNDLEID="$dev_device_wda_bundle_id" \
-          -e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
-          -v devimages_cache:/opt/zebrunner/devimages \
-          -v "${dev_device_wda_ipa_path}":/tmp/zebrunner/WebDriverAgent.ipa \
-          -v "${dev_container}-lockdown":/var/lib/lockdown \
-          -v "${dev_container}":/tmp/log \
-          -e DEVICE_UDID="$dev_udid" \
-          "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}" || failed "Error. Not created"
+          -v "${dev_container}-redroid":/data \
+          "{{ REDROID_IMAGE }}:{{ REDROID_VERSION }}" \
+          androidboot.use_memfd=1 || failed "Error. Not created"
       }
-    fi
+      ;;
+    *)
+      failed "\nUnsupported connection of an Android device: ${dev_connection}. The containers will not be created."
+      return 1
+      ;;
+    esac
+
+    grep -q "${dev_container}-connector" <<< "$ps_out" || {
+      echo -n "${dev_container}-connector:  "
+      docker run -itd --name "${dev_container}-connector" \
+        --log-driver=local \
+        --log-opt max-size=256m \
+        --log-opt max-file=2 \
+        --net="$net" \
+        --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+        -v mcloud-key-volume:/root/.android \
+        -v "${dev_container}":/tmp/log \
+        -e PLATFORM_NAME="$dev_platform_name" \
+        -e DEVICE_UDID="$STF_DEVICE_UDID" \
+        "${connector_args[@]+"${connector_args[@]}"}" \
+        "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}" || failed "Error. Not created"
+    }
+
+    grep -q "${dev_container}-stf" <<< "$ps_out" || {
+      echo -n "${dev_container}-stf:        "
+      docker run -d --name "${dev_container}-stf" \
+        --log-driver=local \
+        --log-opt max-size=256m \
+        --log-opt max-file=2 \
+        --net="$net" \
+        --link "${dev_container}-connector":connector \
+        -e STF_PROVIDER_ADB_HOST=connector \
+        -e STF_PROVIDER_ADB_PORT=5037 \
+        --health-start-period 60s \
+        --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+        -e PLATFORM_NAME="$dev_platform_name" \
+        -e STF_PROVIDER_DEVICE_NAME="$dev_device_name" \
+        -e DEVICE_UDID="$STF_DEVICE_UDID" \
+        -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
+        -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}${dev_location:+_$dev_location}" \
+        -e STF_PROVIDER_MIN_PORT="$dev_stf_min_port" \
+        -e STF_PROVIDER_MAX_PORT="$dev_stf_max_port" \
+        -p "${dev_stf_min_port}-${dev_stf_max_port}":"${dev_stf_min_port}-${dev_stf_max_port}" \
+        -e STF_PROVIDER_PUBLIC_IP="{{ PUBLIC_IP }}" \
+        -e PUBLIC_IP_PORT="{{ PUBLIC_IP_PORT }}" \
+        -e PUBLIC_IP_PROTOCOL="{{ PUBLIC_IP_PROTOCOL }}" \
+        -e STF_PROVIDER_CONNECT_SUB="{{ STF_PROVIDER_CONNECT_SUB }}" \
+        -e STF_PROVIDER_CONNECT_PUSH="{{ STF_PROVIDER_CONNECT_PUSH }}" \
+        -e RETHINKDB_PORT_28015_TCP="{{ STF_RETHINKDB }}" \
+        -e STF_STORAGE_TOKEN="{{ STF_STORAGE_TOKEN }}" \
+        "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}" || failed "Error. Not created"
+    }
+
+    grep -q "${dev_container}-appium" <<< "$ps_out" || {
+      echo -n "${dev_container}-appium:     "
+      docker run -itd --name "${dev_container}-appium" \
+        -m 1g \
+        --log-driver=local \
+        --log-opt max-size=256m \
+        --log-opt max-file=2 \
+        --net="$net" \
+        --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+        --link "${dev_container}-stf":device \
+        --link "${dev_container}-connector":connector \
+        -v appium-storage-volume:/opt/appium-storage \
+        -v "${dev_container}":/tmp/log \
+        -e TASK_LOG=/tmp/log/appium.log \
+        -e PLATFORM_NAME="$dev_platform_name" \
+        -e RETAIN_TASK=true \
+        -e CONNECT_TO_GRID=true \
+        -e RECORD_ARTIFACTS=true \
+        -e CUSTOM_NODE_CONFIG=true \
+        -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
+        -e APPIUM_APP_SIZE_DISABLE="{{ APPIUM_APP_SIZE_DISABLE | string | lower }}" \
+        -e APPIUM_APP_FETCH_RETRIES="{{ APPIUM_APP_FETCH_RETRIES }}" \
+        -e APPIUM_MAX_LOCK_FILE_LIFETIME="{{ APPIUM_MAX_LOCK_FILE_LIFETIME }}" \
+        -e APPIUM_APP_WAITING_TIMEOUT="{{ APPIUM_APP_WAITING_TIMEOUT }}" \
+        -e SELENIUM_HOST="{{ SELENIUM_HUB_HOST }}" \
+        -e SELENIUM_PORT="{{ SELENIUM_HUB_PORT }}" \
+        -e DEFAULT_CAPABILITIES=true \
+        -e DEVICE_NAME="$dev_device_name" \
+        -e DEVICE_UDID="$STF_DEVICE_UDID" \
+        -e ADB_PORT="$dev_adb_port" \
+        -e PROXY_PORT="$dev_proxy_port" \
+        -e SERVER_PROXY_PORT="$dev_server_proxy_port" \
+        -e APPIUM_PORT="$dev_appium_port" \
+        -p "$dev_appium_port":"$dev_appium_port" \
+        -e RELAXED_SECURITY="{{ APPIUM_RELAXED_SECURITY | string | lower }}" \
+        -e ADB_SERVER_SOCKET=tcp:connector:5037 \
+        -e REMOTE_ADB_HOST=connector \
+        -e STF_API_URL="{{ STF_API_URL }}" \
+        -e STF_AUTH_TOKEN="{{ STF_AUTH_TOKEN }}" \
+        "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}" || failed "Error. Not created"
+    }
+
+  elif [[ "$dev_platform_name" == "ios" ]]; then
+
+    echo "WDA *.ipa file path: ${dev_device_wda_ipa_path}"
+    echo -e "WDA bundle ID: ${dev_device_wda_bundle_id}\n"
+
+    # WIRELESS=true: the device has no usbmuxd (a simulator or a proxied WebDriverAgent), the connector relays WDA
+    local wireless="false"
+    local wda_file_path="/tmp/zebrunner/WebDriverAgent.ipa"
+    case "$dev_connection" in
+    usb | wireless)
+      # usbmuxd of the host knows the USB devices and the network ones paired with the Mac; the connector installs
+      # and starts WebDriverAgent over it
+      connector_args=(-e USBMUXD_SOCKET_ADDRESS="{{ USBMUXD_SOCKET_ADDRESS }}" -e DEVICE_CONNECTION="$dev_connection")
+      ;;
+    proxy)
+      if [[ -z "$dev_address" ]]; then
+        echo "ERROR! device ${dev_container} has connection proxy but no address (wda_host) of its WebDriverAgent"
+        return 1
+      fi
+      connector_args=(-e DEVICE_CONNECTION=proxy -e DEVICE_ADDRESS="$dev_address"
+        -e DEVICE_WDA_PORT="${dev_wda_port:-8100}" -e DEVICE_MJPEG_PORT="${dev_mjpeg_port:-8101}")
+      wireless="true"
+      ;;
+    simulator)
+      if [[ -z "$dev_wda_port" ]]; then
+        echo "ERROR! simulator ${dev_container} needs wda_port: the unique port of its WebDriverAgent on the host"
+        return 1
+      fi
+      # the simulator build of WDA: a .app folder or its .zip, mounted with its own name
+      wda_file_path="/tmp/zebrunner/$(basename "$dev_device_wda_ipa_path")"
+      local ssh_key="${ZEBRUNNER_MCLOUD_AGENT_DIR}/ssh/id_ed25519"
+      connector_args=(-e DEVICE_CONNECTION=simulator -e HOST_SSH_USER="{{ lookup('env', 'USER') }}"
+        -e DEVICE_WDA_PORT="$dev_wda_port" -e DEVICE_MJPEG_PORT="${dev_mjpeg_port:-$((dev_wda_port + 1))}"
+        -v "${ssh_key}:/opt/zebrunner/ssh/id_ed25519:ro")
+      # xcrun of the host for XCUITest, over ssh through the connector
+      appium_args=(-e DEVICE_CONNECTION=simulator -e HOST_SSH_USER="{{ lookup('env', 'USER') }}"
+        -v "${ssh_key}:/opt/zebrunner/ssh/id_ed25519:ro")
+      wireless="true"
+      ;;
+    *)
+      failed "\nUnsupported connection of an iOS device: ${dev_connection}. The containers will not be created."
+      return 1
+      ;;
+    esac
+    device_args=(-e WDA_HOST=connector -e WDA_PORT=8100 -e WIRELESS="$wireless")
+
+    grep -q "${dev_container}-connector" <<< "$ps_out" || {
+      echo -n "${dev_container}-connector:  "
+      docker run -itd --name "${dev_container}-connector" \
+        --log-driver=local \
+        --log-opt max-size=256m \
+        --log-opt max-file=2 \
+        --net="$net" \
+        --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+        -e HOST_OS=DARWIN \
+        -e WDA_BUNDLEID="$dev_device_wda_bundle_id" \
+        -e WDA_FILE="$wda_file_path" \
+        -v devimages_cache:/opt/zebrunner/devimages \
+        -v "${dev_device_wda_ipa_path}":"$wda_file_path" \
+        -v "${dev_container}-lockdown":/var/lib/lockdown \
+        -v "${dev_container}":/tmp/log \
+        -e DEVICE_UDID="$dev_udid" \
+        "${connector_args[@]+"${connector_args[@]}"}" \
+        "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}" || failed "Error. Not created"
+    }
 
     # Linking with appium required to share usbmuxd via socat
     grep -q "${dev_container}-stf" <<< "$ps_out" || {
@@ -194,8 +344,9 @@ create_containers() {
         --log-opt max-file=2 \
         --net="$net" \
         --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-        "${wda_link_args[@]+"${wda_link_args[@]}"}" \
-        "${wda_env_args[@]+"${wda_env_args[@]}"}" \
+        --link "${dev_container}-connector:connector" \
+        "${device_args[@]}" \
+        -e GO_IOS_AGENT_HOST=connector \
         -e WDA_WAIT_TIMEOUT=60 \
         -e PLATFORM_NAME="$dev_platform_name" \
         -e STF_PROVIDER_DEVICE_NAME="$dev_device_name" \
@@ -228,8 +379,9 @@ create_containers() {
         --net="$net" \
         --restart "on-failure:{{ RESTARTS_LIMIT }}" \
         --link "${dev_container}-stf":device \
-        "${wda_link_args[@]+"${wda_link_args[@]}"}" \
-        "${wda_env_args[@]+"${wda_env_args[@]}"}" \
+        --link "${dev_container}-connector:connector" \
+        "${device_args[@]}" \
+        "${appium_args[@]+"${appium_args[@]}"}" \
         -v appium-storage-volume:/opt/appium-storage \
         -v "${dev_container}":/tmp/log \
         -e TASK_LOG=/tmp/log/appium.log \
@@ -258,27 +410,27 @@ create_containers() {
         "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}" || failed "Error. Not created"
     }
 
-    grep -q "${dev_container}-uploader" <<< "$ps_out" || {
-      echo -n "${dev_container}-uploader:   "
-      docker run -d --name "${dev_container}-uploader" \
-        --log-driver=local \
-        --log-opt max-size=256m \
-        --log-opt max-file=2 \
-        --net="$net" \
-        --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-        -v "${dev_container}":/tmp/log \
-        -e ENDPOINT_URL="{{ S3_ENDPOINT }}" \
-        -e S3_KEY_PATTERN="$S3_KEY_PATTERN" \
-        -e AWS_ACCESS_KEY_ID="{{ S3_ACCESS_KEY_ID }}" \
-        -e AWS_SECRET_ACCESS_KEY="{{ S3_SECRET }}" \
-        -e AWS_DEFAULT_REGION="{{ S3_REGION }}" \
-        "{{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }}" || failed "Error. Not created"
-    }
-
   else
     echo "ERROR! Unsupported platform: ${dev_platform_name}"
     return 1
   fi
+
+  grep -q "${dev_container}-uploader" <<< "$ps_out" || {
+    echo -n "${dev_container}-uploader:   "
+    docker run -d --name "${dev_container}-uploader" \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net="$net" \
+      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+      -v "${dev_container}":/tmp/log \
+      -e ENDPOINT_URL="{{ S3_ENDPOINT }}" \
+      -e S3_KEY_PATTERN="$S3_KEY_PATTERN" \
+      -e AWS_ACCESS_KEY_ID="{{ S3_ACCESS_KEY_ID }}" \
+      -e AWS_SECRET_ACCESS_KEY="{{ S3_SECRET }}" \
+      -e AWS_DEFAULT_REGION="{{ S3_REGION }}" \
+      "{{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }}" || failed "Error. Not created"
+  }
 }
 
 start() {
@@ -312,8 +464,8 @@ start() {
 
 start_containers() {
   echo -e "\n\tStarting '${dev_container}' containers:\n"
-  # a wireless device has no connector container
-  [[ "$dev_wireless" == "true" ]] || docker start "${dev_container}-connector"
+  [[ "$dev_connection" != "redroid" ]] || docker start "${dev_container}-redroid"
+  docker start "${dev_container}-connector"
   docker start "${dev_container}-stf"
   docker start "${dev_container}-appium"
   docker start "${dev_container}-uploader"
@@ -341,11 +493,11 @@ stop() {
 
 stop_containers() {
   echo -e "\n\tStopping '${dev_container}' containers:\n"
-  # a wireless device has no connector container
-  [[ "$dev_wireless" == "true" ]] || docker stop "${dev_container}-connector"
+  docker stop "${dev_container}-connector"
   docker stop "${dev_container}-appium"
   docker stop "${dev_container}-stf"
   docker stop "${dev_container}-uploader"
+  [[ "$dev_connection" != "redroid" ]] || docker stop "${dev_container}-redroid"
 }
 
 down() {
@@ -381,6 +533,12 @@ remove_containers() {
 
   echo -n "Uploader:   "
   docker rm -f "${dev_container}-uploader" || failed "container not found"
+
+  if [[ "$dev_connection" == "redroid" ]]; then
+    # the data volume of the emulator is kept: its apps and settings survive the recreation
+    echo -n "Redroid:    "
+    docker rm -f "${dev_container}-redroid" || failed "container not found"
+  fi
 
   echo -ne "--\nVolume:     "
   docker volume rm "$dev_container" || failed "volume not found"
@@ -439,7 +597,7 @@ verify_containers() {
 
   echo -e "\n\tVerify ${dev_container} containers:\n"
 
-  if [[ "$dev_wireless" != "true" ]] && ! ioreg -p IOUSB -w0 -l | grep -q "${dev_udid//-/}"; then
+  if [[ "$dev_connection" == "usb" ]] && ! ioreg -p IOUSB -w0 -l | grep -q "${dev_udid//-/}"; then
     failed "\n--- DISCONNECTED ---\n"
   else
     local stf_state="UNKNOWN"

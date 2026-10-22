@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+
+    <key>EnvironmentVariables</key>
+      <dict>
+        <key>PATH</key>
+        <string>/bin:/usr/bin:/usr/local/bin:/opt/homebrew/bin:/usr/sbin:/sbin</string>
+      </dict>
+
+    <key>Label</key>
+      <string>com.zebrunner.adb</string>
+
+    <!-- The adb server of the USB Android devices: Docker of macOS has no USB, the connector containers take the
+         devices from it (host.docker.internal:5037). It listens on localhost only, the connectors reach it through
+         host.docker.internal; it runs no device commands itself. -->
+    <key>ProgramArguments</key>
+      <array>
+        <string>{{ mac_devices_adb_path }}</string>
+        <string>-P</string>
+        <string>5037</string>
+        <string>nodaemon</string>
+        <string>server</string>
+      </array>
+
+    <key>WorkingDirectory</key>
+      <string>{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}</string>
+
+    <key>UserName</key>
+      <string>{{ lookup('env', 'USER') }}</string>
+
+    <key>KeepAlive</key>
+      <true/>
+
+    <key>RunAtLoad</key>
+      <true/>
+
+    <key>StandardErrorPath</key>
+      <string>{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/logs/adb.err.log</string>
+
+    <key>StandardOutPath</key>
+      <string>{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/logs/adb.log</string>
+
+  </dict>
+</plist>

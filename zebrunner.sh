@@ -292,6 +292,15 @@ shutdown() {
     else
       failed "ZebrunnerUsbmuxd.plist file not found"
     fi
+
+    # the adb server of the USB Android devices, deployed for them only
+    if [[ -f "${HOME}/Library/LaunchAgents/ZebrunnerAdb.plist" ]]; then
+      delimiter "*"
+      echo "Unloading and removing ZebrunnerAdb.plist launchctl file:"
+      launchctl bootout gui/"$(id -u)" "${HOME}/Library/LaunchAgents/ZebrunnerAdb.plist" 2> /dev/null ||
+        failed "Failed to unload 'ZebrunnerAdb.plist', it might be not loaded"
+      rm -vf "${HOME}/Library/LaunchAgents/ZebrunnerAdb.plist"
+    fi
   fi
 
   ### Remove environment variable from shell profiles

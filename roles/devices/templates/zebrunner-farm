@@ -21,9 +21,12 @@ get_device_fields() {
   dev_server_proxy_port=""
   dev_stf_min_port=""
   dev_stf_max_port=""
-  dev_wireless=""
+  dev_connection=""
   dev_device_wda_ipa_path=""
   dev_device_wda_bundle_id=""
+  dev_address=""
+  dev_wda_port=""
+  dev_mjpeg_port=""
 
   local line
   # exact match of udid (field 1) or name (field 3)
@@ -49,11 +52,13 @@ get_device_fields() {
   dev_stf_min_port="${fields[8]}"
   dev_stf_max_port="${fields[9]}"
 
-  # Field 11 - 'wireless'.
-  # Marks a device with NO usb path, reached over a network tunnel maintained
-  # outside this script (for example an Apple TV 4K, which has no diagnostic port at
-  # all, reached over Apple's RemoteXPC tunnel).
-  dev_wireless="${fields[10]}"
+  # Field 11 - 'connection': how the connector container reaches the device.
+  #   usb      - plugged into the host (udev starts and removes its containers)
+  #   wireless - over the network: adb connect for Android, netmuxd of the connector for iOS
+  #   redroid  - the Redroid emulator container of the device (Android)
+  #   proxy    - WebDriverAgent published by another tool, the connector relays it (iOS)
+  # The non-usb devices have no udev rules, `zebrunner-farm start` creates their containers.
+  dev_connection="${fields[10]:-usb}"
 
   # Fields 12 / 13 - 'device_wda_ipa_path' and 'device_wda_bundle_id'.
   # Device specific WebDriverAgent path and bundle ID.
@@ -68,6 +73,13 @@ get_device_fields() {
     dev_device_wda_bundle_id="{{ WDA_BUNDLEID }}"
   fi
   : "${dev_device_wda_bundle_id:='com.facebook.WebDriverAgentRunner.xctrunner'}"
+
+  # Fields 14 - 16 - 'address', 'wda_port' and 'mjpeg_port'.
+  # address: the IP of a wireless device (the id of an Android one by default) or the host of the proxied WebDriverAgent;
+  # wda_port and mjpeg_port: the ports of the proxied WebDriverAgent
+  dev_address="${fields[13]}"
+  dev_wda_port="${fields[14]}"
+  dev_mjpeg_port="${fields[15]}"
 
   # Common name prefix for all containers
   dev_container="device-${dev_device_name}-${dev_udid}"
@@ -86,12 +98,32 @@ create_containers() {
   # array, so an empty value expands to no argument at all instead of an empty "" one
   local DEVICE_ARGS=(--device="/dev/${dev_container}:${usb_bus}")
 
-  if [[ "$dev_wireless" == "true" ]]; then
-    # provide ANDROID_DEVICE with 5555 port to trigger remote adb connect on appium startup
-    ANDROID_DEVICE="${dev_udid}:5555"
-    # append 5555 port to be able to rename device in STF
-    STF_DEVICE_UDID="${dev_udid}:5555"
+  if [[ "$dev_connection" == "redroid" ]]; then
+    if [[ "$dev_platform_name" != "android" ]]; then
+      failed "\nThe redroid connection is for Android devices only. The containers will not be created."
+      return 1
+    fi
+    # /proc/filesystems of a container is the one of the kernel: binderfs is there once binder_linux is loaded
+    if ! docker run --rm --entrypoint grep "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}" -qw binder /proc/filesystems; then
+      failed "\nThe kernel of docker has no binder for Redroid: sudo modprobe binder_linux devices=binder,hwbinder,vndbinder"
+      return 1
+    fi
+    # the emulator container is reached by its name on the docker network, the serial is unique in STF
+    ANDROID_DEVICE="${dev_container}-redroid:5555"
+    STF_DEVICE_UDID="$ANDROID_DEVICE"
+    DEVICE_ARGS=()
+  elif [[ "$dev_connection" == "wireless" && "$dev_platform_name" == "android" ]]; then
+    # the address of the device (the id by default), with the 5555 port of adb unless it has a port
+    local address="${dev_address:-$dev_udid}"
+    [[ "$address" == *:* ]] || address="${address}:5555"
+    # provide ANDROID_DEVICE with the port to trigger remote adb connect on appium startup
+    ANDROID_DEVICE="$address"
+    # the port is appended to be able to rename device in STF
+    STF_DEVICE_UDID="$address"
     # reset device arg as no symlink generated for the wireless device
+    DEVICE_ARGS=()
+  elif [[ "$dev_connection" != "usb" ]]; then
+    # the iOS device of the network or of another tool has no usb path
     DEVICE_ARGS=()
   else
     local connected_devices
@@ -114,6 +146,22 @@ create_containers() {
   echo -e "\n\tCreating '${dev_container}' containers:\n"
 
   if [[ "$dev_platform_name" == "android" ]]; then
+
+    if [[ "$dev_connection" == "redroid" ]]; then
+      grep -q "${dev_container}-redroid" <<< "$ps_out" || {
+        echo -n "${dev_container}-redroid:    "
+        docker run -d --name "${dev_container}-redroid" \
+          --log-driver=local \
+          --log-opt max-size=256m \
+          --log-opt max-file=2 \
+          --net="$net" \
+          --privileged \
+          --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+          -v "${dev_container}-redroid":/data \
+          "{{ REDROID_IMAGE }}:{{ REDROID_VERSION }}" \
+          androidboot.use_memfd=1 || failed "Error. Not created"
+      }
+    fi
 
     grep -q "${dev_container}-connector" <<< "$ps_out" || {
       echo -n "${dev_container}-connector:  "
@@ -235,6 +283,23 @@ create_containers() {
     echo "WDA *.ipa file path: ${dev_device_wda_ipa_path}"
     echo -e "WDA bundle ID: ${dev_device_wda_bundle_id}\n"
 
+    if [[ "$dev_connection" == "simulator" ]]; then
+      failed "\nSimulators run on a macOS host only. The containers will not be created."
+      return 1
+    fi
+    if [[ "$dev_connection" =~ ^(wireless|proxy)$ && -z "$dev_address" ]]; then
+      failed "\nThe ${dev_connection} iOS device needs its address in mcloud-devices.txt. The containers will not be created."
+      return 1
+    fi
+
+    # The connector is the only point of contact with the device: the other containers take usbmuxd, WebDriverAgent
+    # and the shared tunnel from it (GO_IOS_AGENT_HOST). A proxied WebDriverAgent has no usbmuxd (WIRELESS=true).
+    local connection_args=(-e DEVICE_CONNECTION="$dev_connection" -e DEVICE_ADDRESS="$dev_address")
+    [[ -n "$dev_wda_port" ]] && connection_args+=(-e DEVICE_WDA_PORT="$dev_wda_port")
+    [[ -n "$dev_mjpeg_port" ]] && connection_args+=(-e DEVICE_MJPEG_PORT="$dev_mjpeg_port")
+    local wireless="false"
+    [[ "$dev_connection" == "proxy" ]] && wireless="true"
+
     grep -q "${dev_container}-connector" <<< "$ps_out" || {
       echo -n "${dev_container}-connector:  "
       docker run -itd --name "${dev_container}-connector" \
@@ -248,6 +313,7 @@ create_containers() {
         --cap-add=NET_ADMIN \
         --device=/dev/net/tun \
         -e HOST_OS=LINUX \
+        "${connection_args[@]}" \
         -e DEVICE_BUS="$usb_bus" \
         -e WDA_BUNDLEID="$dev_device_wda_bundle_id" \
         -e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
@@ -270,6 +336,8 @@ create_containers() {
         --restart "on-failure:{{ RESTARTS_LIMIT }}" \
         --link "${dev_container}-connector":connector \
         -e WDA_HOST=connector \
+        -e GO_IOS_AGENT_HOST=connector \
+        -e WIRELESS="$wireless" \
         -e WDA_WAIT_TIMEOUT=60 \
         -e PLATFORM_NAME="$dev_platform_name" \
         -e STF_PROVIDER_DEVICE_NAME="$dev_device_name" \
@@ -305,6 +373,7 @@ create_containers() {
         --link "${dev_container}-stf":device \
         --link "${dev_container}-connector":connector \
         -e WDA_HOST=connector \
+        -e WIRELESS="$wireless" \
         -v appium-storage-volume:/opt/appium-storage \
         -v "${dev_container}":/tmp/log \
         -e TASK_LOG=/tmp/log/appium.log \
@@ -376,7 +445,7 @@ start() {
     while read -r line; do
       get_device_fields "${line%%|*}" || continue
       [[ -z "$filter_device" || "$dev_platform_name" == "$filter_device" ]] || continue
-      if [[ -L "/dev/${dev_container}" || "$dev_wireless" == "true" ]]; then
+      if [[ -L "/dev/${dev_container}" || "$dev_connection" != "usb" ]]; then
         create_containers && start_containers
         echo -e "\n-----------------------------------------------------------------"
       fi
@@ -389,6 +458,9 @@ start_containers() {
   ps_out="$(docker ps)"
 
   echo -e "\n\tStarting '${dev_container}' containers:\n"
+  if [[ "$dev_connection" == "redroid" ]]; then
+    grep -q "${dev_container}-redroid" <<< "$ps_out" || docker start "${dev_container}-redroid"
+  fi
   grep -q "${dev_container}-connector" <<< "$ps_out" || docker start "${dev_container}-connector"
   grep -q "${dev_container}-stf" <<< "$ps_out" || docker start "${dev_container}-stf"
   grep -q "${dev_container}-appium" <<< "$ps_out" || docker start "${dev_container}-appium"
@@ -418,6 +490,9 @@ stop_containers() {
   docker stop "${dev_container}-appium"
   docker stop "${dev_container}-stf"
   docker stop "${dev_container}-uploader"
+  if [[ "$dev_connection" == "redroid" ]]; then
+    docker stop "${dev_container}-redroid"
+  fi
 }
 
 down() {
@@ -473,6 +548,18 @@ remove_containers() {
     failed "container not found"
   else
     echo "$uploader"
+  fi
+
+  if [[ "$dev_connection" == "redroid" ]]; then
+    # the data volume of the emulator is kept: its apps and settings survive the recreation
+    echo -n "Redroid:    "
+    local redroid
+    redroid="$(docker rm -f "${dev_container}-redroid")"
+    if [[ -z "$redroid" ]]; then
+      failed "container not found"
+    else
+      echo "$redroid"
+    fi
   fi
 
   echo -ne "---\nVolume:     "
@@ -533,7 +620,7 @@ verify_containers() {
 
   echo -e "\n\tVerify ${dev_container} containers:\n"
 
-  if [[ ! -L "/dev/${dev_container}" && "$dev_wireless" != "true" ]]; then
+  if [[ ! -L "/dev/${dev_container}" && "$dev_connection" == "usb" ]]; then
     failed "\n--- DISCONNECTED ---\n"
   else
     local stf_state="UNKNOWN"
