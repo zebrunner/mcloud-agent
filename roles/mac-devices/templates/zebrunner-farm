@@ -59,11 +59,12 @@ get_device_fields() {
 
   # Field 11 - 'connection': how the connector container reaches the device. Docker of macOS has no USB, so the
   # connector takes a USB device from the host: usbmuxd (iOS) or the adb server (Android) of the host.
-  #   usb       - plugged into the host: iOS over usbmuxd of the host, Android over the adb server of the host
-  #   wireless  - over the network: iOS paired with the Mac (usbmuxd of the host), Android over adb connect
-  #   redroid   - the Redroid emulator container of the device (Android, the kernel of docker needs binder)
-  #   simulator - an iOS / tvOS simulator of the host, the connector runs xcrun simctl of the host over ssh
-  #   proxy     - WebDriverAgent published by another tool, the connector relays it (iOS)
+  #   usb         - plugged into the host: iOS over usbmuxd of the host, Android over the adb server of the host
+  #   wireless    - over the network: iOS paired with the Mac (usbmuxd of the host), Android over adb connect
+  #   android-sim - an Android emulator started outside the farm (AVD of the host: host.docker.internal:5555,
+  #                 Redroid, Genymotion), adb connect to its address
+  #   ios-sim     - an iOS / tvOS simulator of the host, the connector runs xcrun simctl of the host over ssh
+  #   proxy       - WebDriverAgent published by another tool, the connector relays it (iOS)
   dev_connection="${fields[10]:-usb}"
 
   # Fields 12 / 13 - 'device_wda_ipa_path' and 'device_wda_bundle_id'.
@@ -71,7 +72,7 @@ get_device_fields() {
   dev_device_wda_ipa_path="${fields[11]}"
   if [[ "$dev_device_wda_ipa_path" == "/dev/null" || -z "$dev_device_wda_ipa_path" ]]; then
     dev_device_wda_ipa_path="{{ WDA_FILE }}"
-    if [[ "$dev_connection" == "simulator" ]]; then
+    if [[ "$dev_connection" == "ios-sim" ]]; then
       dev_device_wda_ipa_path="{{ WDA_SIMULATOR_FILE | default('') }}"
     fi
   fi
@@ -84,7 +85,8 @@ get_device_fields() {
   : "${dev_device_wda_bundle_id:='com.facebook.WebDriverAgentRunner.xctrunner'}"
 
   # Fields 14 - 16 - 'address', 'wda_port' and 'mjpeg_port'.
-  # address: the IP of a wireless Android device (its id by default) or the host of the proxied WebDriverAgent;
+  # address: the adb address of a wireless Android device or of an emulator (the id by default) or the host of the
+  # proxied WebDriverAgent;
   # wda_port and mjpeg_port: the ports of WebDriverAgent on the host for a simulator (unique, a simulator shares the
   # network of the host) or on the address for the proxy
   dev_address="${fields[13]}"
@@ -147,33 +149,12 @@ create_containers() {
         -e ADB_TRANSPORT_SERIAL="$dev_udid" -e ADB_TRANSPORT_PORT="$dev_adb_port")
       STF_DEVICE_UDID="${adb_host}:${dev_adb_port}"
       ;;
-    wireless)
+    wireless | android-sim)
+      # the adb address of the device or of the emulator (the id by default), with the 5555 port unless it has a port
       local address="${dev_address:-$dev_udid}"
       [[ "$address" == *:* ]] || address="${address}:5555"
       connector_args=(-e ANDROID_DEVICE="$address")
       STF_DEVICE_UDID="$address"
-      ;;
-    redroid)
-      # /proc/filesystems of a container is the one of the kernel: binderfs is there once binder is available
-      if ! docker run --rm --entrypoint grep "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}" -qw binder /proc/filesystems; then
-        failed "\nThe kernel of docker has no binder for Redroid (Docker Desktop): use a Linux VM with binder_linux (Colima, Lima) or a Linux host."
-        return 1
-      fi
-      connector_args=(-e ANDROID_DEVICE="${dev_container}-redroid:5555")
-      STF_DEVICE_UDID="${dev_container}-redroid:5555"
-      grep -q "${dev_container}-redroid" <<< "$ps_out" || {
-        echo -n "${dev_container}-redroid:    "
-        docker run -d --name "${dev_container}-redroid" \
-          --log-driver=local \
-          --log-opt max-size=256m \
-          --log-opt max-file=2 \
-          --net="$net" \
-          --privileged \
-          --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-          -v "${dev_container}-redroid":/data \
-          "{{ REDROID_IMAGE }}:{{ REDROID_VERSION }}" \
-          androidboot.use_memfd=1 || failed "Error. Not created"
-      }
       ;;
     *)
       failed "\nUnsupported connection of an Android device: ${dev_connection}. The containers will not be created."
@@ -292,7 +273,7 @@ create_containers() {
         -e DEVICE_WDA_PORT="${dev_wda_port:-8100}" -e DEVICE_MJPEG_PORT="${dev_mjpeg_port:-8101}")
       wireless="true"
       ;;
-    simulator)
+    ios-sim)
       if [[ -z "$dev_wda_port" ]]; then
         echo "ERROR! simulator ${dev_container} needs wda_port: the unique port of its WebDriverAgent on the host"
         return 1
@@ -300,11 +281,11 @@ create_containers() {
       # the simulator build of WDA: a .app folder or its .zip, mounted with its own name
       wda_file_path="/tmp/zebrunner/$(basename "$dev_device_wda_ipa_path")"
       local ssh_key="${ZEBRUNNER_MCLOUD_AGENT_DIR}/ssh/id_ed25519"
-      connector_args=(-e DEVICE_CONNECTION=simulator -e HOST_SSH_USER="{{ lookup('env', 'USER') }}"
+      connector_args=(-e DEVICE_CONNECTION=ios-sim -e HOST_SSH_USER="{{ lookup('env', 'USER') }}"
         -e DEVICE_WDA_PORT="$dev_wda_port" -e DEVICE_MJPEG_PORT="${dev_mjpeg_port:-$((dev_wda_port + 1))}"
         -v "${ssh_key}:/opt/zebrunner/ssh/id_ed25519:ro")
       # xcrun of the host for XCUITest, over ssh through the connector
-      appium_args=(-e DEVICE_CONNECTION=simulator -e HOST_SSH_USER="{{ lookup('env', 'USER') }}"
+      appium_args=(-e DEVICE_CONNECTION=ios-sim -e HOST_SSH_USER="{{ lookup('env', 'USER') }}"
         -v "${ssh_key}:/opt/zebrunner/ssh/id_ed25519:ro")
       wireless="true"
       ;;
@@ -464,7 +445,6 @@ start() {
 
 start_containers() {
   echo -e "\n\tStarting '${dev_container}' containers:\n"
-  [[ "$dev_connection" != "redroid" ]] || docker start "${dev_container}-redroid"
   docker start "${dev_container}-connector"
   docker start "${dev_container}-stf"
   docker start "${dev_container}-appium"
@@ -497,7 +477,6 @@ stop_containers() {
   docker stop "${dev_container}-appium"
   docker stop "${dev_container}-stf"
   docker stop "${dev_container}-uploader"
-  [[ "$dev_connection" != "redroid" ]] || docker stop "${dev_container}-redroid"
 }
 
 down() {
@@ -533,12 +512,6 @@ remove_containers() {
 
   echo -n "Uploader:   "
   docker rm -f "${dev_container}-uploader" || failed "container not found"
-
-  if [[ "$dev_connection" == "redroid" ]]; then
-    # the data volume of the emulator is kept: its apps and settings survive the recreation
-    echo -n "Redroid:    "
-    docker rm -f "${dev_container}-redroid" || failed "container not found"
-  fi
 
   echo -ne "--\nVolume:     "
   docker volume rm "$dev_container" || failed "volume not found"

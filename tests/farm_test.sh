@@ -13,8 +13,8 @@ R28M1384YQY|android|Galaxy|loc|7421|7422|7423|7424|7425|7430|usb|/dev/null|x|||
 d6afc6b3a65584ca0813eb8957c6479b9b6ebb11|ios|iPhone_8_Plus|loc|7441|7442|7443|7444|7445|7450|usb|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
 aaaa1111|ios|AppleTV|loc|7451|7452|7453|7454|7455|7460|proxy|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.5|8100|
 bbbb2222|ios|iPhoneWiFi|loc|7461|7462|7463|7464|7465|7470|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|192.168.1.60||
-redroid1|android|Emu|loc|7471|7472|7473|7474|7475|7480|redroid|/dev/null|x|||
-B1B07E76|ios|Sim|loc|7481|7482|7483|7484|7485|7490|simulator|/tmp/wda-sim.zip|com.facebook.WebDriverAgentRunner.xctrunner||8110|
+emu1|android|Emu|loc|7471|7472|7473|7474|7475|7480|android-sim|/dev/null|x|host.docker.internal:5557||
+B1B07E76|ios|Sim|loc|7481|7482|7483|7484|7485|7490|ios-sim|/tmp/wda-sim.zip|com.facebook.WebDriverAgentRunner.xctrunner||8110|
 EOF
 IPHONE="device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"
 
@@ -36,8 +36,6 @@ case "$1" in
       echo "docker: simulated failure" >&2
       exit 125
     fi
-    # the binder check of Redroid: DOCKER_NO_BINDER=1 is a kernel without binder
-    [[ "$*" == *"/proc/filesystems"* && -n "$DOCKER_NO_BINDER" ]] && exit 1
     echo "id-${name}"
     ;;
   inspect)
@@ -69,7 +67,7 @@ farm() {
   local role="$1"
   shift
   env -i HOME="${WORK}" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
-    DOCKER_FAIL_RUN="${DOCKER_FAIL_RUN:-}" DOCKER_NO_BINDER="${DOCKER_NO_BINDER:-}" DOCKER_STARTED_AT="${DOCKER_STARTED_AT:-}" DOCKER_FINISHED_AT="${DOCKER_FINISHED_AT:-}" \
+    DOCKER_FAIL_RUN="${DOCKER_FAIL_RUN:-}" DOCKER_STARTED_AT="${DOCKER_STARTED_AT:-}" DOCKER_FINISHED_AT="${DOCKER_FINISHED_AT:-}" \
     /bin/bash "${WORK}/zebrunner-farm-${role}" "$@" 2>&1
 }
 
@@ -170,27 +168,17 @@ check_contains "proxied WDA has no usbmuxd for appium" "|WIRELESS=true|" "$(run_
 
 setup_case
 farm devices start Emu > /dev/null
-check "Redroid gets the emulator and all containers" "redroid connector stf appium uploader" \
-  "$(calls docker | grep '^run|' | grep -o -- '--name|device-Emu-redroid1-[a-z]*' | sed 's/.*-//' | paste -s -d ' ' -)"
-check_contains "Redroid emulator is privileged" "|--privileged|" "$(run_args device-Emu-redroid1-redroid)"
-check_contains "Redroid emulator is connected by the connector" "|ANDROID_DEVICE=device-Emu-redroid1-redroid:5555|" \
-  "$(run_args device-Emu-redroid1-connector)"
-check_contains "Redroid is the device of STF" "|DEVICE_UDID=device-Emu-redroid1-redroid:5555|" "$(run_args device-Emu-redroid1-stf)"
-
-setup_case
-output="$(DOCKER_NO_BINDER=1 farm devices start Emu)"
-check_contains "Redroid without binder is reported" "has no binder for Redroid" "$output"
-check "Redroid without binder gets no containers" "" "$(calls docker | grep '^run|' | grep -- '--name')"
-
-setup_case
-farm devices stop Emu > /dev/null
-check "Redroid stop includes the emulator" "connector appium stf uploader redroid" \
-  "$(calls docker | grep '^stop|' | sed 's/.*-//' | paste -s -d ' ' -)"
+check "Android emulator gets the containers of a device, the farm does not create it" "connector stf appium uploader" \
+  "$(calls docker | grep '^run|' | grep -o -- '--name|device-Emu-emu1-[a-z]*' | sed 's/.*-//' | paste -s -d ' ' -)"
+connector="$(run_args device-Emu-emu1-connector)"
+check_contains "Android emulator is connected by its adb address" "|ANDROID_DEVICE=host.docker.internal:5557|" "$connector"
+check_not_contains "Android emulator connector gets no device" "--device=" "$connector"
+check_contains "Android emulator is the device of STF" "|DEVICE_UDID=host.docker.internal:5557|" "$(run_args device-Emu-emu1-stf)"
 
 setup_case
 output="$(farm devices start Sim)"
-check_contains "simulator on Linux is reported" "Simulators run on a macOS host only" "$output"
-check "simulator on Linux gets no containers" "" "$(calls docker | grep '^run|')"
+check_contains "iOS simulator on Linux is reported" "The iOS simulators run on a macOS host only" "$output"
+check "iOS simulator on Linux gets no containers" "" "$(calls docker | grep '^run|')"
 
 section "macOS container creation"
 setup_case
@@ -246,13 +234,13 @@ check_contains "STF of macOS uses the shared tunnel of the connector" "|GO_IOS_A
 setup_case
 farm mac-devices start Sim > /dev/null
 connector="$(run_args device-Sim-B1B07E76-connector)"
-check_contains "simulator connector runs simctl of the host" "|DEVICE_CONNECTION=simulator|-e|HOST_SSH_USER=${USER}|-e|DEVICE_WDA_PORT=8110|-e|DEVICE_MJPEG_PORT=8111|" "$connector"
+check_contains "simulator connector runs simctl of the host" "|DEVICE_CONNECTION=ios-sim|-e|HOST_SSH_USER=${USER}|-e|DEVICE_WDA_PORT=8110|-e|DEVICE_MJPEG_PORT=8111|" "$connector"
 check_contains "simulator connector gets the ssh key of the agent" "/ssh/id_ed25519:/opt/zebrunner/ssh/id_ed25519:ro|" "$connector"
 check_contains "simulator connector gets the simulator build of WDA" "|/tmp/wda-sim.zip:/tmp/zebrunner/wda-sim.zip|" "$connector"
 check_contains "simulator connector gets the path of the build" "|WDA_FILE=/tmp/zebrunner/wda-sim.zip|" "$connector"
 appium="$(run_args device-Sim-B1B07E76-appium)"
 check_contains "simulator appium has no usbmuxd" "|WIRELESS=true|" "$appium"
-check_contains "simulator appium runs xcrun of the host" "|DEVICE_CONNECTION=simulator|-e|HOST_SSH_USER=${USER}|" "$appium"
+check_contains "simulator appium runs xcrun of the host" "|DEVICE_CONNECTION=ios-sim|-e|HOST_SSH_USER=${USER}|" "$appium"
 
 setup_case
 echo '"USB Serial Number" = "R28M1384YQY"' > "${WORK}/usb"
@@ -271,9 +259,11 @@ check_contains "wireless android of macOS is connected over adb tcp" "|ANDROID_D
   "$(run_args device-WiFi-192.168.1.50-connector)"
 
 setup_case
-output="$(DOCKER_NO_BINDER=1 farm mac-devices start Emu)"
-check_contains "Redroid without binder (Docker Desktop) is reported" "has no binder for Redroid (Docker Desktop)" "$output"
-check "Redroid without binder gets no containers on macOS" "" "$(calls docker | grep '^run|' | grep -- '--name')"
+farm mac-devices start Emu > /dev/null
+check "Android emulator of macOS gets the containers of a device" "connector stf appium uploader" \
+  "$(calls docker | grep '^run|' | grep -o -- '--name|device-Emu-emu1-[a-z]*' | sed 's/.*-//' | paste -s -d ' ' -)"
+check_contains "Android emulator of macOS is connected by its adb address" "|ANDROID_DEVICE=host.docker.internal:5557|" \
+  "$(run_args device-Emu-emu1-connector)"
 
 section "macOS device listener"
 for command in start stop down; do

@@ -67,7 +67,7 @@ WDA_SIMULATOR_FILE:
 WDA_BUNDLEID:
 
 # [OBLIGATORY] Declare valid devices metadata
-# - id: device udid which is shown by `ios list` (`adb devices` for Android, `xcrun simctl list devices` for a simulator)
+# - id: device udid which is shown by `ios list` (`adb devices` for Android, `xcrun simctl list devices` for an iOS simulator)
 #   name: device name as it will be registered in STF (avoid special symbols and spaces!)
 #   location: clarified device location for ease of device management (an underscore will be added automatically before the value)
 #   appium_port: unique port value for sharing appium services from the container to outside selenium hub
@@ -84,9 +84,9 @@ WDA_BUNDLEID:
 #                 adb_port is the port of the host forwarded to the device, unique on the host
 #     wireless  - over the network: iOS / Apple TV paired with the Mac (usbmuxd of the host knows it), Android over
 #                 adb connect to address (the id by default, port 5555 unless given)
-#     redroid   - Android: the Redroid emulator container, needs a docker kernel with binder (not Docker Desktop:
-#                 Colima or Lima with binder_linux)
-#     simulator - an iOS / tvOS simulator of the Mac, id is its UDID (xcrun simctl list devices): the connector
+#     android-sim - Android: an emulator started outside the farm, address is its adb address: an AVD of the Mac
+#                 is host.docker.internal:5555 (5557, ... for the next ones), Redroid or Genymotion of the network
+#     ios-sim   - an iOS / tvOS simulator of the Mac, id is its UDID (xcrun simctl list devices): the connector
 #                 boots it and starts WebDriverAgent over ssh (Remote Login must be on), wda_port (and mjpeg_port,
 #                 wda_port + 1 by default) are its unique ports on the host, wda_file the simulator build of WDA
 #                 (a .app folder or its .zip, WDA_SIMULATOR_FILE by default)

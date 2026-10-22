@@ -73,10 +73,11 @@ WDA_BUNDLEID:
 #     wireless - over the network: Android over adb connect to address (the id by default, port 5555 unless given),
 #                iOS / Apple TV over lockdown of Wi-Fi (netmuxd of the connector) at address, its IP; pair the iOS device
 #                over USB first and allow it: docker exec <connector> mcloud-ios wifi-connections <udid> on
-#     redroid  - Android: the Redroid emulator container of the device (REDROID_IMAGE), the kernel needs binder:
-#                sudo modprobe binder_linux devices=binder,hwbinder,vndbinder
+#     android-sim - Android: an emulator started outside the farm (Redroid, AVD, Genymotion), address is its adb
+#                address reachable from the docker network (host:port, 5555 by default)
 #     proxy    - iOS: WebDriverAgent started by another tool and published on address (wda_port, mjpeg_port: 8100, 8101)
-#     The non-usb devices are started by `zebrunner-farm start`, they have no udev rules.
+#     The iOS simulators (ios-sim) run on a macOS host only. The non-usb devices are started by `zebrunner-farm start`,
+#     they have no udev rules.
 #   wireless: [optional] true is the same as connection: wireless
 #   address, wda_port and mjpeg_port: [optional] see connection
 #   wda_file and wda_bundleid: [optional] iOS device specific overrides of WDA_FILE and WDA_BUNDLEID

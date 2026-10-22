@@ -79,22 +79,22 @@
     label: "{{ item.name | default(item.id) | default('?') }}"
   tags: [devices, precheck, validate]
 
-# connection: usb (default), wireless (the earlier wireless: true), redroid (Android) and proxy (iOS); the simulators
-# run on a macOS host only
+# connection: usb (default), wireless (the earlier wireless: true), android-sim (an Android emulator) and proxy (iOS);
+# the iOS simulators (ios-sim) run on a macOS host only
 - name: Check the connection of each device
   vars:
     devices_wireless: "{{ (item.wireless | default(false) | string | lower) == 'true' }}"
     devices_connection: "{{ (item.connection | default('wireless' if devices_wireless | bool else 'usb')) | string | lower }}"
   ansible.builtin.assert:
     that:
-      - devices_connection in ['usb', 'wireless', 'redroid', 'proxy']
-      - devices_connection != 'redroid' or item.os == 'android'
+      - devices_connection in ['usb', 'wireless', 'android-sim', 'proxy']
+      - devices_connection != 'android-sim' or item.os == 'android'
       - devices_connection != 'proxy' or item.os == 'ios'
       - devices_connection not in ['wireless', 'proxy'] or item.os == 'android' or (item.address | default('') | string | length) > 0
     fail_msg: >-
       Invalid connection '{{ devices_connection }}' of device '{{ item.name }}': usb, wireless (an iOS device needs address,
-      its IP), redroid (Android) or proxy (iOS, needs address where its WebDriverAgent is published); the simulators
-      run on a macOS host only.
+      its IP), android-sim (an Android emulator started outside the farm, address is its adb address) or proxy (iOS,
+      needs address where its WebDriverAgent is published); the iOS simulators (ios-sim) run on a macOS host only.
     success_msg: "Device '{{ item.name }}' connection '{{ devices_connection }}' is valid."
     quiet: true
   loop: "{{ devices }}"

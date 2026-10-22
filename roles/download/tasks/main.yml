@@ -13,15 +13,6 @@
   changed_when: false
   tags: [pull, download]
 
-# the emulator image is large, it is pulled for the Redroid devices only
-- name: Pull Redroid image  # noqa: ignore-errors
-  ansible.builtin.command: docker pull "{{ REDROID_IMAGE }}:{{ REDROID_VERSION }}"
-  when: devices | default([]) | selectattr('connection', 'defined') | selectattr('connection', 'equalto', 'redroid') | list | length > 0
-  register: download_redroid_pull
-  ignore_errors: true
-  changed_when: false
-  tags: [pull, download]
-
 - name: Check that images failed to pull exist locally
   ansible.builtin.command: docker image inspect "{{ item.item }}"
   loop: "{{ download_images_pull.results | select('failed') | list }}"
