@@ -28,6 +28,9 @@ STF_PROVIDER_HOST: macos-agent.zebrunner.farm
 # [OBLIGATORY] Set host address of current STF provider server and 2222 port as default. We start socat listener and share usbmuxd into the containers
 USBMUXD_SOCKET_ADDRESS: host.docker.internal:2222
 
+# [OPTIONAL] The adb server of the host for the USB Android devices (ZebrunnerAdb launch agent)
+ADB_SERVER_SOCKET_ADDRESS: host.docker.internal:5037
+
 # [OPTIONAL] provider/location name for devices. Use short city name like NYC
 STF_PROVIDER_NAME: mcloud-macos
 
@@ -57,11 +60,14 @@ S3_REGION:
 
 # Path to prebuild WebDriverAgent.ipa
 WDA_FILE:
+# Path to the simulator build of WebDriverAgent for the simulators: a .app folder or its .zip, e.g.
+# WebDriverAgentRunner-Build-Sim-arm64.zip of https://github.com/appium/WebDriverAgent/releases
+WDA_SIMULATOR_FILE:
 # Override to use custom WDA bundle id: https://github.com/zebrunner/mcloud-agent#prepare-webdriveragentipa-file
 WDA_BUNDLEID:
 
 # [OBLIGATORY] Declare valid devices metadata
-# - id: device udid which is shown by `ios list`
+# - id: device udid which is shown by `ios list` (`adb devices` for Android, `xcrun simctl list devices` for an iOS simulator)
 #   name: device name as it will be registered in STF (avoid special symbols and spaces!)
 #   location: clarified device location for ease of device management (an underscore will be added automatically before the value)
 #   appium_port: unique port value for sharing appium services from the container to outside selenium hub
@@ -71,8 +77,22 @@ WDA_BUNDLEID:
 #   min_port and max_port: unique range of 7 ports per device for system STF purposes.
 #     These ports on STF_PROVIDER_HOST should be accessible from client's browser otherwise gray screen, no remote adb connect etc.
 #   server_proxy_port: [optional] port passed to the appium container as SERVER_PROXY_PORT, 0 by default
-#   wireless: [optional] true for a device without USB connection reached over a network tunnel maintained outside the agent (e.g. Apple TV)
-#   wda_host and wda_port: [obligatory for a wireless device] address where the tunnel owner publishes WebDriverAgent, wda_port is 8100 by default
+#   connection: [optional] how the connector container reaches the device, usb by default. Docker of macOS has no USB:
+#     the connectors take the devices from the host, but every device command comes from the containers.
+#     usb       - plugged into the Mac: iOS over usbmuxd of the host (the connector installs and starts WebDriverAgent),
+#                 Android over the adb server of the host (a launch agent, brew install android-platform-tools):
+#                 adb_port is the port of the host forwarded to the device, unique on the host
+#     wireless  - over the network: iOS / Apple TV paired with the Mac (usbmuxd of the host knows it), Android over
+#                 adb connect to address (the id by default, port 5555 unless given)
+#     android-sim - Android: an emulator started outside the farm, address is its adb address: an AVD of the Mac
+#                 is host.docker.internal:5555 (5557, ... for the next ones), Redroid or Genymotion of the network
+#     ios-sim   - an iOS / tvOS simulator of the Mac, id is its UDID (xcrun simctl list devices): the connector
+#                 boots it and starts WebDriverAgent over ssh (Remote Login must be on), wda_port (and mjpeg_port,
+#                 wda_port + 1 by default) are its unique ports on the host, wda_file the simulator build of WDA
+#                 (a .app folder or its .zip, WDA_SIMULATOR_FILE by default)
+#     proxy     - iOS: WebDriverAgent started by another tool and published on address (wda_port, mjpeg_port: 8100, 8101)
+#   wireless: [optional] true is the same as connection: wireless; with wda_host it is the proxy connection
+#   address (or wda_host), wda_port and mjpeg_port: [optional] see connection
 #   wda_file and wda_bundleid: [optional] device specific overrides of WDA_FILE and WDA_BUNDLEID
 
 # TODO: convert adb_port to connect_port to support iOS as well

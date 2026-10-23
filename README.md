@@ -1,5 +1,22 @@
 # Zebrunner Device Farm (Android and iOS agent)
 
+The agent runs the containers of every device of a Linux or macOS server: the connector (the only point of contact with
+the device), STF, Appium and the artifacts uploader. The connector takes the device whatever its connection is, the STF and
+Appium containers always take adb, usbmuxd and WebDriverAgent from it.
+
+| Device | Connection | Linux | macOS |
+| --- | --- | --- | --- |
+| Android phone, tablet, TV | `usb` | adb server of the connector (USB passed in) | adb server of the host (a launch agent), the connector forwards the device to its own adb server |
+| Android | `wireless` | adb connect of the connector | adb connect of the connector |
+| Android emulator (Redroid, AVD, Genymotion) started outside the farm | `android-sim` | adb connect of the connector to the `address` of the emulator | the same, an AVD of the Mac is `host.docker.internal:5555` |
+| iPhone, iPad, Apple TV HD | `usb` | usbmuxd of the connector | usbmuxd of the host, the connector installs and starts WebDriverAgent over it |
+| iPhone, iPad, Apple TV over Wi-Fi | `wireless` | netmuxd of the connector at `address` (paired over USB first) | usbmuxd of the host (paired with the Mac) |
+| iOS, iPadOS, tvOS simulator | `ios-sim` | - | the connector runs `xcrun simctl` of the host over ssh |
+| any iOS device whose WebDriverAgent is started by another tool (e.g. Apple TV 4K with tvOS 17+) | `proxy` | the connector relays WebDriverAgent of `address` | the same |
+
+iOS 17.0 - 17.4.0 has a tunnel over the USB of a Linux host only (go-ncm); with the other connections WebDriverAgent of such a
+device must be started outside the containers.
+
 Feel free to support the development with a [**donation**](https://www.paypal.com/donate/?hosted_button_id=MNHYYCYHAKUVA) for the next improvements.
 
 <p style="text-align: center">
@@ -72,6 +89,8 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 - Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules.
 - Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
 - Usbmuxd service is stopped and masked (disabled).
+- Wireless, emulator and proxy devices have no udev rules: `zebrunner-farm start` creates their containers.
+- Android emulators (`android-sim`) are started outside the farm (e.g. [mcloud-redroid](https://github.com/zebrunner/mcloud-redroid), an AVD, Genymotion): set `address` to their adb address reachable from the docker network.
 - [Optional] Register`@reboot /usr/local/bin/zebrunner-farm restart` via crontab to forcibly restart containers on reboot
 - [Optional] Increased `fs.inotify.max_user_instances` to workaround [#328](https://github.com/zebrunner/mcloud-agent/issues/328)
   > `sudo sysctl fs.inotify.max_user_instances=2048`
@@ -79,9 +98,8 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 ### Mac OS
 
 - update `roles/mac-devices/vars/main.yml` file according to the obligatory/optional comments inside.
-  > Register all whitelisted iOS devices (phones, tablets or TVes) with their udids!
-  > Important! Only iOS devices supported on macOS!
-  > The deploy validates the devices: obligatory settings, unique ids and names, host ports (`appium_port`, `min_port`-`max_port`) not shared by devices, and `wda_host` of wireless devices.
+  > Register all whitelisted Android and iOS devices (phones, tablets, TVs or simulators) with their udids and connections!
+  > The deploy validates the devices: obligatory settings, unique ids and names, the connections, host ports (`appium_port`, `min_port`-`max_port`, `wda_port` and `mjpeg_port` of the iOS simulators, `adb_port` of the USB Android devices) not shared by devices.
 - Run ansible-playbook script to download the required components and set up launchd agents:
 
   ```bash
@@ -103,6 +121,8 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 - Devices management script is deployed to /usr/local/bin/zebrunner-farm.
 - Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
 - Deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist to share usbmuxd into the device containers
+- USB Android devices: deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerAdb.plist, the adb server of the host (`brew install android-platform-tools`); the connectors take the devices from it, the containers of a USB Android device are created by `zebrunner-farm start` (the devices listener handles iOS only).
+- iOS simulators (`ios-sim`): the ssh key of the agent is generated into `ssh/id_ed25519` of the agent folder and authorized in `~/.ssh/authorized_keys` (`restrict`), turn on Remote Login (System Settings, General, Sharing) for the user. Set the simulator build of WebDriverAgent (`WDA_SIMULATOR_FILE` or `wda_file` of the device), e.g. `WebDriverAgentRunner-Build-Sim-arm64.zip` of [appium/WebDriverAgent](https://github.com/appium/WebDriverAgent/releases).
 - Deployed $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist to load and manage iOS devices connect/disconnect automatically: the devices listener (/usr/local/bin/zebrunner-device-listener and usbmuxd_watch) restarts the containers of a connected USB device and removes them on disconnect, devices reachable over Wi-Fi only are not handled by it.
 - Log rotation of the devices listener log is set up in /etc/newsyslog.d/zebrunner-mcloud.conf.
 - Run `zebrunner-farm start` to create the containers of the connected devices and to load the devices listener (otherwise it is loaded on the next login only).
@@ -125,6 +145,13 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 - Enable the Developer Option and USB Debugging for each Android device.
 - Connect an Android device physically to a USB direct port or through the hub.
 - For the 1st connection, trust the device by picking "always trust..." on the device.
+
+### Wireless devices
+
+- Android: enable Wireless debugging (or `adb tcpip 5555` over USB), set `connection: wireless` and `address` (the IP, the `id` by default).
+- iOS on Linux: connect the device over USB once with `connection: usb` (it is paired with the farm), allow its lockdown over Wi-Fi: `docker exec device-<name>-<udid>-connector mcloud-ios wifi-connections <udid> on`, then set `connection: wireless` and `address` (its IP, a DHCP reservation is recommended) and re-run `./zebrunner.sh ansible devices`.
+- iOS on macOS: pair the device with the Mac and enable "Connect via network" in Xcode, set `connection: wireless`.
+- Apple TV 4K (tvOS 17+) pairs with a PIN over RemotePairing, which the containers do not support yet: start its WebDriverAgent with another tool and use `connection: proxy` with its `address`.
 
 ### iOS devices
 
@@ -158,11 +185,7 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
    > Make sure to specify relative `./Payload` to archive only Payload folder content
 9. Share built ipa via WDA_FILE variable in roles/devices/vars/main.yml (Linux) or roles/mac-devices/vars/main.yml (macOS) file.
    > to override WDA_FILE artifacts per each device use `wda_file` and `wda_bundleid` iOS device properties and re-execute ansible playbook.
-10. macOS: the device connector does not install WebDriverAgent there, install it on every device in advance with go-ios:
-
-    ```bash
-    ios install --path=WebDriverAgent.ipa --udid=<udid>
-    ```
+10. The device connector installs WebDriverAgent from the ipa on Linux and on macOS (over usbmuxd of the host), a WebDriverAgent started on macOS by the host is used as is.
 
 ### SmartTestFarm
 
