@@ -145,7 +145,7 @@ The STF server of [mcloud](https://github.com/zebrunner/mcloud#authentication-of
 
 1. `./zebrunner.sh curve-key` makes the key of the host and prints its public key.
 2. Add the public key to `STF_ZMQ_CURVE_CLIENT_KEYS` of `variables.env` of the STF server (separated by commas) and restart the server.
-3. Set `STF_ZMQ_CURVE_SERVER_PUBLIC_KEY` of `roles/.../vars/main.yml` to the one of `variables.env` of the server, in quotes, and run `./zebrunner.sh ansible`: the device containers connect over CURVE and without RethinkDB (`STF_RETHINKDB` is not passed then), the prechecks of the playbook validate the keys.
+3. Set `STF_ZMQ_CURVE_SERVER_PUBLIC_KEY` of `roles/.../vars/main.yml` to the one of `variables.env` of the server, in quotes, and run `./zebrunner.sh ansible`: the device containers connect over CURVE and without RethinkDB (`STF_RETHINKDB` is not passed then), the prechecks of the playbook validate the keys; `zebrunner-farm restart` recreates the existing containers with the keys.
 
 The removal of the public key of a host from `STF_ZMQ_CURVE_CLIENT_KEYS` disconnects it. `patch/curve_keygen.py` makes the keys with Python only (X25519 of RFC 7748), the same as `stf curve-keygen`.
 
