@@ -138,6 +138,10 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 - `shutdown` - removes the devices containers, the launch agents or udev rules, the deployed files, the settings and the environment variable (asks for confirmation).
 - `version` - shows the versions of the agent components.
 
+### Grid registration
+
+The Appium node of a device registers in mcloud-grid with `NODE_REGISTRATION_TOKEN` of `roles/.../vars/main.yml`: set it to `NODE_REGISTRATION_TOKEN` of `variables.env` of [mcloud](https://github.com/zebrunner/mcloud#authentication-of-the-device-hosts), in quotes, and run `./zebrunner.sh ansible`; the containers created after it pass the token, `zebrunner-farm restart` recreates the existing ones. A hub with a token (a new deployment of mcloud, or one that turned the authentication on) registers no node without it, see [mcloud-grid](https://github.com/zebrunner/mcloud-grid#node-registration). It needs the appium image that sends the token.
+
 ## Usage
 
 ### Android devices
