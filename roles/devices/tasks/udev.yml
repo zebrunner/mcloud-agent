@@ -147,6 +147,24 @@
     group: root
   tags: [devices, udev, files]
 
+# udev queues the jobs of these units for a connected or disconnected device (90_mcloud.rules)
+- name: Copy the units of the devices
+  ansible.builtin.template:
+    src: "{{ item }}"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: "0644"
+    owner: root
+    group: root
+  loop:
+    - mcloud-device-restart@.service
+    - mcloud-device-down@.service
+  tags: [devices, udev, files]
+
+- name: Load the units of the devices
+  ansible.builtin.systemd:
+    daemon_reload: true
+  tags: [devices, udev]
+
 - name: Copy devices details file
   ansible.builtin.template:
     src: mcloud-devices.txt

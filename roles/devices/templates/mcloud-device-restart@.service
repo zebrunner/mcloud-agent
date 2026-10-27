@@ -1,0 +1,14 @@
+# The containers of a connected USB device (%i: its id), started by the udev rule of 90_mcloud.rules: udev only
+# queues the job, its RUN program must be short. The log: journalctl -u 'mcloud-device-*@<id>'
+[Unit]
+Description=MCloud: the containers of the device %i
+Wants=docker.service
+After=docker.service
+# a disconnection cancels an unfinished restart, a connection an unfinished down
+Conflicts=mcloud-device-down@%i.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/zebrunner-farm restart %i
+# the images may be pulled
+TimeoutStartSec=30min

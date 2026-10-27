@@ -214,12 +214,31 @@ phone|ios|WiFi||23|24|0|0|25|26|wireless|/dev/null|com.facebook.WebDriverAgentRu
 render "${REPO}/roles/devices/templates/90_mcloud.rules" "${WORK}/rules" --extra-vars "@${WORK}/devices.yml" || exit 1
 cat > "${WORK}/expected_rules" << 'EOF'
 SUBSYSTEM=="usb", ENV{ID_SERIAL_SHORT}=="R28M1384YQY", MODE="0666", SYMLINK+="device-Galaxy_S10-R28M-1384YQY"
-ACTION=="remove", ENV{ID_SERIAL_SHORT}=="R28M1384YQY", RUN+="/usr/local/bin/zebrunner-farm down R28M-1384YQY"
-ACTION=="add", ENV{ID_SERIAL_SHORT}=="R28M1384YQY", RUN+="/usr/local/bin/zebrunner-farm restart R28M-1384YQY"
+ACTION=="remove", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{ID_SERIAL_SHORT}=="R28M1384YQY", RUN+="/usr/bin/systemctl --no-block start mcloud-device-down@R28M-1384YQY.service"
+ACTION=="add", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{ID_SERIAL_SHORT}=="R28M1384YQY", RUN+="/usr/bin/systemctl --no-block start mcloud-device-restart@R28M-1384YQY.service"
 EOF
 check "udev rules" "$(cat "${WORK}/expected_rules")" "$(head -3 "${WORK}/rules")"
 check "udev rules of the usb devices only" "R28M1384YQY abc" \
   "$(grep -o 'SUBSYSTEM=="usb", ENV{ID_SERIAL_SHORT}=="[^"]*' "${WORK}/rules" | sed 's/.*"//' | paste -s -d ' ' -)"
+check_not_contains "udev runs no zebrunner-farm itself" "zebrunner-farm" "$(cat "${WORK}/rules")"
+for unit in restart down; do
+  render "${REPO}/roles/devices/templates/mcloud-device-${unit}@.service" "${WORK}/${unit}.service" || exit 1
+  service="$(cat "${WORK}/${unit}.service")"
+  check_contains "the ${unit} unit runs zebrunner-farm ${unit} for the device" "ExecStart=/usr/local/bin/zebrunner-farm ${unit} %i" "$service"
+  check_contains "the ${unit} unit is a oneshot job" "Type=oneshot" "$service"
+done
+check_contains "a disconnection cancels an unfinished restart" "Conflicts=mcloud-device-down@%i.service" \
+  "$(cat "${WORK}/restart.service")"
+check_contains "a connection cancels an unfinished down" "Conflicts=mcloud-device-restart@%i.service" \
+  "$(cat "${WORK}/down.service")"
+if command -v systemd-analyze > /dev/null 2>&1; then
+  cp "${WORK}/restart.service" "${WORK}/mcloud-device-restart@.service"
+  cp "${WORK}/down.service" "${WORK}/mcloud-device-down@.service"
+  run_check "the units are valid (systemd-analyze verify)" \
+    systemd-analyze verify "${WORK}/mcloud-device-restart@.service" "${WORK}/mcloud-device-down@.service"
+else
+  skip_check "the units are valid (systemd-analyze verify)" "no systemd-analyze"
+fi
 
 render "${REPO}/roles/mac-devices/templates/zebrunner-mcloud.newsyslog.conf" "${WORK}/newsyslog.conf" || exit 1
 check "log rotation of the listener log: owner, mode, 7 archives of 10 MB, bzip2, no signal" \

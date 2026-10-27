@@ -1,0 +1,12 @@
+# The removal of the containers of a disconnected USB device (%i: its id), started by the udev rule of
+# 90_mcloud.rules. The log: journalctl -u 'mcloud-device-*@<id>'
+[Unit]
+Description=MCloud: the removal of the containers of the device %i
+Wants=docker.service
+After=docker.service
+Conflicts=mcloud-device-restart@%i.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/zebrunner-farm down %i
+TimeoutStartSec=10min
