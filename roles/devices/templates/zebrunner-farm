@@ -192,7 +192,7 @@ create_containers() {
     #        -e ANDROID_ADB_SERVER_ADDRESS=connector \
     #        -e ANDROID_ADB_SERVER_PORT=5037 \
 
-    #TODO: make APPIUM_RELAXED_SECURITY false by default!
+    # APPIUM_RELAXED_SECURITY: the insecure features of Appium for every session, README.md#appium-security
     grep -q "${dev_container}-appium" <<< "$ps_out" || {
       echo -n "${dev_container}-appium:     "
       docker run -itd --name "${dev_container}-appium" \
