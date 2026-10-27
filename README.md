@@ -137,6 +137,17 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 - `backup` and `restore` - save the settings into the `backup` folder and restore them from it.
 - `shutdown` - removes the devices containers, the launch agents or udev rules, the deployed files, the settings and the environment variable (asks for confirmation).
 - `version` - shows the versions of the agent components.
+- `curve-key` - makes the CURVE key of this host for the ZeroMQ security of STF (`STF_ZMQ_CURVE_SECRET_KEY` of `roles/.../vars/main.yml`, kept when it is set) and prints its public key, see [ZeroMQ security](#zeromq-security).
+
+### ZeroMQ security
+
+The STF server of [mcloud](https://github.com/zebrunner/mcloud#authentication-of-the-device-hosts) accepts on its ZeroMQ ports only the device hosts with a known CURVE key (a new deployment, or one that turned the authentication on). Its device containers need the mcloud-device image of the current STF; for every device host:
+
+1. `./zebrunner.sh curve-key` makes the key of the host and prints its public key.
+2. Add the public key to `STF_ZMQ_CURVE_CLIENT_KEYS` of `variables.env` of the STF server (separated by commas) and restart the server.
+3. Set `STF_ZMQ_CURVE_SERVER_PUBLIC_KEY` of `roles/.../vars/main.yml` to the one of `variables.env` of the server, in quotes, and run `./zebrunner.sh ansible`: the device containers connect over CURVE and without RethinkDB (`STF_RETHINKDB` is not passed then), the prechecks of the playbook validate the keys.
+
+The removal of the public key of a host from `STF_ZMQ_CURVE_CLIENT_KEYS` disconnects it. `patch/curve_keygen.py` makes the keys with Python only (X25519 of RFC 7748), the same as `stf curve-keygen`.
 
 ## Usage
 

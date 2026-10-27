@@ -203,8 +203,10 @@ create_containers() {
         -e PUBLIC_IP_PROTOCOL="{{ PUBLIC_IP_PROTOCOL }}" \
         -e STF_PROVIDER_CONNECT_SUB="{{ STF_PROVIDER_CONNECT_SUB }}" \
         -e STF_PROVIDER_CONNECT_PUSH="{{ STF_PROVIDER_CONNECT_PUSH }}" \
-        -e RETHINKDB_PORT_28015_TCP="{{ STF_RETHINKDB }}" \
+        -e RETHINKDB_PORT_28015_TCP="{{ '' if STF_ZMQ_CURVE_SERVER_PUBLIC_KEY | default('', true) else STF_RETHINKDB }}" \
         -e STF_STORAGE_TOKEN="{{ STF_STORAGE_TOKEN }}" \
+        -e STF_ZMQ_CURVE_SERVER_PUBLIC_KEY="{{ STF_ZMQ_CURVE_SERVER_PUBLIC_KEY | default('', true) }}" \
+        -e STF_ZMQ_CURVE_SECRET_KEY="{{ STF_ZMQ_CURVE_SECRET_KEY | default('', true) if STF_ZMQ_CURVE_SERVER_PUBLIC_KEY | default('', true) else '' }}" \
         "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}" || failed "Error. Not created"
     }
 
@@ -344,8 +346,10 @@ create_containers() {
         -e STF_PROVIDER_CONNECT_PUSH="{{ STF_PROVIDER_CONNECT_PUSH }}" \
         -e STF_PROVIDER_CONNECT_APP_DEALER="{{ STF_PROVIDER_CONNECT_APP_DEALER }}" \
         -e STF_PROVIDER_CONNECT_DEV_DEALER="{{ STF_PROVIDER_CONNECT_DEV_DEALER }}" \
-        -e RETHINKDB_PORT_28015_TCP="{{ STF_RETHINKDB }}" \
+        -e RETHINKDB_PORT_28015_TCP="{{ '' if STF_ZMQ_CURVE_SERVER_PUBLIC_KEY | default('', true) else STF_RETHINKDB }}" \
         -e STF_STORAGE_TOKEN="{{ STF_STORAGE_TOKEN }}" \
+        -e STF_ZMQ_CURVE_SERVER_PUBLIC_KEY="{{ STF_ZMQ_CURVE_SERVER_PUBLIC_KEY | default('', true) }}" \
+        -e STF_ZMQ_CURVE_SECRET_KEY="{{ STF_ZMQ_CURVE_SECRET_KEY | default('', true) if STF_ZMQ_CURVE_SERVER_PUBLIC_KEY | default('', true) else '' }}" \
         "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}" || failed "Error. Not created"
     }
 

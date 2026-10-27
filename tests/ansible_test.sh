@@ -135,6 +135,18 @@ check_contains "empty agent dir env variable fails" "You have to set up 'ZEBRUNN
 mv "${WORK}/play-${OS_ROLE}/roles/${OS_ROLE}/vars/main.yml" "${WORK}/vars.yml"
 check_contains "missing setup fails" "You have to set up services in advance using: ./zebrunner.sh setup!" "$(playbook "$OS_ROLE" --check --tags precheck)"
 mv "${WORK}/vars.yml" "${WORK}/play-${OS_ROLE}/roles/${OS_ROLE}/vars/main.yml"
+check_contains "ZeroMQ without CURVE by default" "ZeroMQ of STF without CURVE." "$(playbook "$OS_ROLE" --check --tags precheck)"
+server_key="$(printf '%064d' 0 | tr 0 a)"
+secret_key="$(printf '%064d' 0 | tr 0 b)"
+output="$(playbook "$OS_ROLE" --check --tags precheck \
+  --extra-vars "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=${server_key} STF_ZMQ_CURVE_SECRET_KEY=${secret_key}")"
+check_contains "the CURVE keys pass" "ZeroMQ of STF with CURVE." "$output"
+check_contains "the CURVE keys pass the prechecks" "failed=0" "$output"
+check_contains "the key of the server needs the key of the host" "run ./zebrunner.sh curve-key" \
+  "$(playbook "$OS_ROLE" --check --tags precheck --extra-vars "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=${server_key}")"
+check_contains "an invalid key of the server fails" "must be the 64 hex characters" \
+  "$(playbook "$OS_ROLE" --check --tags precheck \
+    --extra-vars "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=abc STF_ZMQ_CURVE_SECRET_KEY=${secret_key}")"
 
 section "file tasks of ${OS_ROLE} (check mode)"
 output="$(playbook "$OS_ROLE" --check --tags files)"
