@@ -2,7 +2,7 @@
 # shellcheck disable=SC2034
 # The settings and the checks of the project for tests/lint.sh (CONVENTIONS.md): mcloud-agent.
 
-scripts=(zebrunner.sh patch/*.sh tests/*.sh roles/mac-devices/templates/zebrunner-device-listener)
+scripts=(zebrunner.sh patch/*.sh scripts/*.sh tests/*.sh roles/mac-devices/templates/zebrunner-device-listener)
 # shfmt formats the zebrunner-farm templates before rendering, the rendered ones are checked as scripts
 sources=("${scripts[@]}" roles/*/templates/zebrunner-farm)
 # the local data of a farm

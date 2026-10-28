@@ -285,6 +285,11 @@ The `tests` folder covers zebrunner.sh, the ansible roles and templates, zebrunn
 
 - Run a part of the checks with `make lint`, `make test` or `make docker`, `make` lists the targets.
 - With `JUNIT_DIR` set, `tests/lint.sh` and every test write JUnit XML into it. CI publishes the results as annotations and a job summary, and keeps the XML files as artifacts.
+- The `usbmuxd_watch` binary of the `mac-devices` role is built from `roles/mac-devices/files/usbmuxd_watch.c` and the pinned release tarballs (sha256) of libplist, libimobiledevice-glue and libusbmuxd. After a change of the source or of a library version, rebuild it on macOS with the Xcode command line tools and commit it; the same Xcode builds the same binary byte for byte. CI builds it the same way and runs `tests/usbmuxd_watch_test.sh` on the result:
+
+  ```bash
+  scripts/build_usbmuxd_watch.sh
+  ```
 
 The conventions of the style, the formatting and the tooling of this repository are in [CONVENTIONS.md](CONVENTIONS.md), the same in all the MCloud repositories.
 

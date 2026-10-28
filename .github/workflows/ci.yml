@@ -53,3 +53,16 @@ jobs:
         with:
           name: junit-${{ matrix.os }}
           path: ${{ runner.temp }}/junit/
+
+  # the usbmuxd_watch binary built from the source passes the tests of the committed one
+  usbmuxd-watch:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build usbmuxd_watch
+        run: scripts/build_usbmuxd_watch.sh "${RUNNER_TEMP}/usbmuxd_watch"
+      - name: Test usbmuxd_watch
+        run: tests/usbmuxd_watch_test.sh
+        env:
+          USBMUXD_WATCH: ${{ runner.temp }}/usbmuxd_watch
