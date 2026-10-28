@@ -244,8 +244,12 @@ check_contains "a disconnection cancels an unfinished restart" "Conflicts=mcloud
 check_contains "a connection cancels an unfinished down" "Conflicts=mcloud-device-restart@%i.service" \
   "$(cat "${WORK}/down.service")"
 if command -v systemd-analyze > /dev/null 2>&1; then
-  cp "${WORK}/restart.service" "${WORK}/mcloud-device-restart@.service"
-  cp "${WORK}/down.service" "${WORK}/mcloud-device-down@.service"
+  # verify needs an executable ExecStart: zebrunner-farm is not installed on the test host, a stub replaces it
+  stub zebrunner-farm "exit 0"
+  for unit in restart down; do
+    sed "s|/usr/local/bin/zebrunner-farm|${WORK}/bin/zebrunner-farm|" "${WORK}/${unit}.service" \
+      > "${WORK}/mcloud-device-${unit}@.service"
+  done
   run_check "the units are valid (systemd-analyze verify)" \
     systemd-analyze verify "${WORK}/mcloud-device-restart@.service" "${WORK}/mcloud-device-down@.service"
 else
