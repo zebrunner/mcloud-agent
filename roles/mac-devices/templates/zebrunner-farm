@@ -236,6 +236,7 @@ create_containers() {
         -e APPIUM_APP_WAITING_TIMEOUT="{{ APPIUM_APP_WAITING_TIMEOUT }}" \
         -e SELENIUM_HOST="{{ SELENIUM_HUB_HOST }}" \
         -e SELENIUM_PORT="{{ SELENIUM_HUB_PORT }}" \
+        -e NODE_REGISTRATION_TOKEN="{{ NODE_REGISTRATION_TOKEN | default('', true) }}" \
         -e DEFAULT_CAPABILITIES=true \
         -e DEVICE_NAME="$dev_device_name" \
         -e DEVICE_UDID="$STF_DEVICE_UDID" \
@@ -383,6 +384,7 @@ create_containers() {
         -e APPIUM_APP_WAITING_TIMEOUT="{{ APPIUM_APP_WAITING_TIMEOUT }}" \
         -e SELENIUM_HOST="{{ SELENIUM_HUB_HOST }}" \
         -e SELENIUM_PORT="{{ SELENIUM_HUB_PORT }}" \
+        -e NODE_REGISTRATION_TOKEN="{{ NODE_REGISTRATION_TOKEN | default('', true) }}" \
         -e DEFAULT_CAPABILITIES=true \
         -e DEVICE_NAME="$dev_device_name" \
         -e DEVICE_UDID="$dev_udid" \

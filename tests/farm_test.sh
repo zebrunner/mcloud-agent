@@ -297,6 +297,26 @@ check "Android emulator of macOS gets the containers of a device" "connector stf
 check_contains "Android emulator of macOS is connected by its adb address" "|ANDROID_DEVICE=host.docker.internal:5557|" \
   "$(run_args device-Emu-emu1-connector)"
 
+section "grid registration"
+for role in devices mac-devices; do
+  setup_case
+  farm "$role" start WiFi > /dev/null
+  check_contains "${role}: no registration token by default" "|NODE_REGISTRATION_TOKEN=|" "$(run_args device-WiFi-192.168.1.50-appium)"
+
+  render_farm "$role" "${WORK}/zebrunner-farm-${role}" --extra-vars "NODE_REGISTRATION_TOKEN=grid-token" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
+  setup_case
+  farm "$role" start WiFi > /dev/null
+  check_contains "${role}: android appium gets the registration token" "|NODE_REGISTRATION_TOKEN=grid-token|" \
+    "$(run_args device-WiFi-192.168.1.50-appium)"
+  farm "$role" start AppleTV > /dev/null
+  check_contains "${role}: iOS appium gets the registration token" "|NODE_REGISTRATION_TOKEN=grid-token|" \
+    "$(run_args device-AppleTV-aaaa1111-appium)"
+
+  render_farm "$role" "${WORK}/zebrunner-farm-${role}" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
+done
+
 section "macOS device listener"
 for command in start stop down; do
   for filter in "" ios android iPhone_8_Plus; do
