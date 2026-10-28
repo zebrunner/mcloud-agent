@@ -4,7 +4,8 @@ source "$(dirname "$0")/lib.sh"
 require_os Darwin
 require_cmd python3
 
-BINARY="${REPO}/roles/mac-devices/files/usbmuxd_watch"
+# USBMUXD_WATCH: another binary to test, CI tests the one built by scripts/build_usbmuxd_watch.sh
+BINARY="${USBMUXD_WATCH:-${REPO}/roles/mac-devices/files/usbmuxd_watch}"
 
 section "binary"
 check "universal binary" "x86_64 arm64" "$(lipo -archs "$BINARY")"
