@@ -178,6 +178,8 @@ reset_calls
 OS=Linux zbr "y\n" shutdown > /dev/null
 check "Linux: no launch agents" "" "$(calls launchctl)"
 check "Linux: udev rules and deployed files are removed" "rm|-vf|/etc/udev/rules.d/90_mcloud.rules
+rm|-vf|/etc/systemd/system/mcloud-device-restart@.service
+rm|-vf|/etc/systemd/system/mcloud-device-down@.service
 rm|-vf|/usr/local/bin/zebrunner-farm
 rm|-vf|/usr/local/bin/mcloud-devices.txt" "$(calls sudo | grep '^rm|')"
 check "Linux: settings are removed" "no" "$([[ -f "${AGENT}/roles/devices/vars/main.yml" ]] && echo yes || echo no)"

@@ -260,6 +260,10 @@ status() {
     echo ""
     echo "90_mcloud.rules:                  $(ls /etc/udev/rules.d/90_mcloud.rules 2> /dev/null || failed "File not found")"
     echo ""
+    echo "mcloud-device-restart@.service:   $(ls /etc/systemd/system/mcloud-device-restart@.service 2> /dev/null || failed "File not found")"
+    echo ""
+    echo "mcloud-device-down@.service:      $(ls /etc/systemd/system/mcloud-device-down@.service 2> /dev/null || failed "File not found")"
+    echo ""
   fi
   echo "mcloud-devices.txt:               $(ls "/usr/local/bin/mcloud-devices.txt" 2> /dev/null || failed "File not found")"
   echo ""
@@ -391,6 +395,8 @@ shutdown() {
   else
     rm -vf roles/devices/vars/main.yml
     sudo rm -vf /etc/udev/rules.d/90_mcloud.rules
+    sudo rm -vf /etc/systemd/system/mcloud-device-restart@.service
+    sudo rm -vf /etc/systemd/system/mcloud-device-down@.service
   fi
   sudo rm -vf /usr/local/bin/zebrunner-farm
   sudo rm -vf /usr/local/bin/mcloud-devices.txt

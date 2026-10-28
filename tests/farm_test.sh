@@ -68,6 +68,7 @@ farm() {
   shift
   env -i HOME="${WORK}" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
     DOCKER_FAIL_RUN="${DOCKER_FAIL_RUN:-}" DOCKER_STARTED_AT="${DOCKER_STARTED_AT:-}" DOCKER_FINISHED_AT="${DOCKER_FINISHED_AT:-}" \
+    MCLOUD_LOCK_DIR="$WORK" MCLOUD_LOCK_TIMEOUT="${MCLOUD_LOCK_TIMEOUT:-}" \
     /bin/bash "${WORK}/zebrunner-farm-${role}" "$@" 2>&1
 }
 
@@ -336,6 +337,33 @@ check_contains "Linux: wireless device shows its containers" "| Connector" "$(fa
 check_contains "Linux: USB device without symlink is disconnected" "DISCONNECTED" "$(farm devices status Galaxy)"
 check_contains "macOS: wireless device shows its containers" "| Connector" "$(farm mac-devices status AppleTV)"
 check_contains "macOS: not connected USB device is disconnected" "DISCONNECTED" "$(farm mac-devices status iPhone_8_Plus)"
+
+section "device lock"
+if command -v flock > /dev/null 2>&1; then
+  lock="${WORK}/mcloud-device-R28M1384YQY.lock"
+  : > "$lock"
+  # another zebrunner-farm (e.g. the restart of udev) keeps the device
+  flock "$lock" sleep 4 &
+  holder=$!
+  sleep 0.5
+  setup_case
+  output="$(MCLOUD_LOCK_TIMEOUT=1 farm devices restart Galaxy)"
+  check_contains "a command of a kept device (called by its name, locked by its id) waits, then gives up" \
+    "another zebrunner-farm keeps the device Galaxy for too long" "$output"
+  check "a command of a kept device changes no container" "" "$(calls docker)"
+  setup_case
+  farm devices stop android > /dev/null
+  check_contains "the commands of a platform do not wait for a device" "stop|device-Galaxy-R28M1384YQY-appium" "$(calls docker)"
+  wait "$holder"
+  setup_case
+  echo "iSerial R28M1384YQY" > "${WORK}/usb"
+  farm devices restart R28M1384YQY > /dev/null
+  check_contains "the device runs its command when it is free" "rm|-f|device-Galaxy-R28M1384YQY-appium" "$(calls docker)"
+  check_contains "the device runs its command when it is free (the containers)" "--name|device-Galaxy-R28M1384YQY-appium|" \
+    "$(calls docker)"
+else
+  skip_check "the lock of a device" "no flock (util-linux)"
+fi
 
 section "uptime"
 # iso_ago <seconds>: docker-like UTC timestamp of the given seconds ago

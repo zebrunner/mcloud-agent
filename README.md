@@ -86,7 +86,8 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
   ```
 
 - Devices management script is deployed to /usr/local/bin/zebrunner-farm.
-- Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules.
+- Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules: a connection of a USB device starts the systemd unit `mcloud-device-restart@<id>`, a disconnection `mcloud-device-down@<id>` (`/etc/systemd/system`), which run `zebrunner-farm restart` or `down` for it. udev only queues the job: its programs are killed after the event (180 s), the containers may need longer (the images are pulled). A disconnection cancels an unfinished restart and the other way round.
+- The commands of one device (`zebrunner-farm start`, `stop`, `restart`, `down <device>`, the units of udev) run one at a time (`flock`, `/run/lock/mcloud-device-<id>.lock`): one waits for up to 30 minutes for another.
 - Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
 - Usbmuxd service is stopped and masked (disabled).
 - Wireless, emulator and proxy devices have no udev rules: `zebrunner-farm start` creates their containers.
@@ -222,10 +223,10 @@ Follow the below algorithm to identify any configuration issues with MCloud agen
 
 - macOS: the devices listener logs into `logs/listener.log` and `logs/listener.err.log`, the usbmuxd sharing (socat) into `logs/usbmuxd-socat.log` and `logs/usbmuxd-socat.err.log` of the MCloud agent directory. `listener.log` is rotated by newsyslog (10 MB, 7 bzip2 archives, `/etc/newsyslog.d/zebrunner-mcloud.conf`). Loaded agents are shown by `launchctl list | grep zebrunner`.
 - Linux: enable the debug log level for udev rules: `sudo udevadm control --log-priority=debug`.
-- Linux: inspect syslog to check if the `zebrunner-farm` shell script executed on every whitelisted device is able to connect/disconnect:
+- Linux: the connections and disconnections of a USB device and the output of `zebrunner-farm` for them are in the journal of its units:
 
   ```bash
-  tail -f /var/log/syslog | grep zebrunner-farm
+  journalctl -f -u 'mcloud-device-*@<id>'
   ```
 
 - If there are no updates during connection/disconnection, please, verify the correctness of:

@@ -7,6 +7,42 @@ source "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/utility.sh"
 
 MCLOUD_DEVICES="/usr/local/bin/mcloud-devices.txt"
 
+# with_device_lock <device> <command...>: the commands of one device run one at a time: the jobs of udev
+# (mcloud-device-restart@, mcloud-device-down@) and the manual calls do not change its containers together; all the
+# devices or a platform (no device, ios, android) and a host without flock run without it
+with_device_lock() {
+  local device="$1"
+  shift
+  if [[ -z "$device" || "$device" == "ios" || "$device" == "android" ]] || ! command -v flock > /dev/null 2>&1; then
+    "$@"
+    return
+  fi
+  # the device by its id: udev names it by the id, a user may name it by its name
+  local id="$device"
+  if get_device_fields "$device" > /dev/null 2>&1; then
+    id="$dev_udid"
+  fi
+  local lock="${MCLOUD_LOCK_DIR:-/run/lock}/mcloud-device-${id//[^A-Za-z0-9._-]/_}.lock"
+  # the file is shared by root (udev) and the users of docker
+  [[ -e "$lock" ]] || (umask 000 && : >> "$lock") 2> /dev/null
+  if [[ ! -r "$lock" ]]; then
+    "$@"
+    return
+  fi
+  (
+    if ! flock -w "${MCLOUD_LOCK_TIMEOUT:-1800}" 9; then
+      failed "another zebrunner-farm keeps the device ${device} for too long"
+      exit 1
+    fi
+    "$@"
+  ) 9< "$lock"
+}
+
+restart() {
+  down "$1"
+  start "$1"
+}
+
 get_device_fields() {
   local filter="$1"
 
@@ -680,17 +716,16 @@ main() {
     status "$2"
     ;;
   start)
-    start "$2"
+    with_device_lock "$2" start "$2"
     ;;
   stop)
-    stop "$2"
+    with_device_lock "$2" stop "$2"
     ;;
   restart)
-    down "$2"
-    start "$2"
+    with_device_lock "$2" restart "$2"
     ;;
   down)
-    down "$2"
+    with_device_lock "$2" down "$2"
     ;;
   ansible)
     "${ZEBRUNNER_MCLOUD_AGENT_DIR}"/zebrunner.sh ansible "${@:2}"
