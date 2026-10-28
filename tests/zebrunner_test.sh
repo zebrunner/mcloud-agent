@@ -47,7 +47,7 @@ exports() {
 section "help"
 output="$(zbr "")"
 check_contains "help shows the usage" "Usage: ./zebrunner.sh [option]" "$output"
-for command in setup ansible status backup restore shutdown version; do
+for command in setup ansible status backup restore shutdown version curve-key; do
   check_contains "help lists ${command}" "         ${command} " "$output"
 done
 
@@ -68,6 +68,32 @@ OS=Darwin zbr "" setup > /dev/null
 check "macOS settings are created from the example" "same" \
   "$(cmp -s "${AGENT}/roles/mac-devices/vars/main.yml" "${AGENT}/roles/mac-devices/vars/main.yml.original" && echo same)"
 check_contains "unknown OS is rejected" "Unknown OS" "$(OS=FreeBSD zbr "" setup)"
+
+section "curve-key"
+for os in Linux Darwin; do
+  vars="${AGENT}/roles/$([[ "$os" == Linux ]] && echo devices || echo mac-devices)/vars/main.yml"
+  output="$(OS="$os" zbr "" curve-key)"
+  secret="$(sed -n 's/^STF_ZMQ_CURVE_SECRET_KEY: "\([0-9a-f]*\)"$/\1/p' "$vars")"
+  check "${os}: the key of the host is written" "64" "${#secret}"
+  public="$(python3 "${REPO}/patch/curve_keygen.py" "$secret" | sed -n 's/^public=//p')"
+  check_contains "${os}: its public key is printed" "The public key of this host: ${public}" "$output"
+  check_not_contains "${os}: the secret key is not printed" "$secret" "$output"
+  OS="$os" zbr "" curve-key > /dev/null
+  check "${os}: the key is kept" "$secret" "$(sed -n 's/^STF_ZMQ_CURVE_SECRET_KEY: "\(.*\)"$/\1/p' "$vars")"
+done
+vars="${AGENT}/roles/devices/vars/main.yml"
+cp "$vars" "${WORK}/vars.saved"
+grep -v '^STF_ZMQ_CURVE_' "${WORK}/vars.saved" > "$vars"
+printf 'LAST: value' >> "$vars"
+OS=Linux zbr "" curve-key > /dev/null
+check "the key is added to the settings of an earlier agent" "1" "$(grep -c '^STF_ZMQ_CURVE_SECRET_KEY: "[0-9a-f]\{64\}"$' "$vars")"
+check "the last line of the settings is kept" "1" "$(grep -cx 'LAST: value' "$vars")"
+cp "${WORK}/vars.saved" "$vars"
+check_contains "the settings are needed" "run './zebrunner.sh setup' first" \
+  "$(rm -f "${AGENT}/roles/devices/vars/main.yml" && OS=Linux zbr "" curve-key)"
+cp "${WORK}/vars.saved" "$vars"
+check "the script makes the public key of RFC 7748" "public=8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a" \
+  "$(python3 "${REPO}/patch/curve_keygen.py" 77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a | head -1)"
 
 section "version"
 check_contains "versions from the agent dir" "DEVICE_VERSION:" "$(AGENT_DIR="$AGENT" zbr "" version)"

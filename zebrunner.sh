@@ -164,6 +164,51 @@ ansible() {
   delimiter "Deploying MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished successfully"
 }
 
+# curve_key: the CURVE key of this host for the ZeroMQ security of STF (README.md#zeromq-security): STF_ZMQ_CURVE_SECRET_KEY
+# of roles/.../vars/main.yml is made when it is empty, its public key goes to STF_ZMQ_CURVE_CLIENT_KEYS of the server
+curve_key() {
+  local vars
+  local secret
+  local public
+  case "$(uname)" in
+  Linux) vars="roles/devices/vars/main.yml" ;;
+  Darwin) vars="roles/mac-devices/vars/main.yml" ;;
+  *)
+    echo_warning "Unknown OS. Supported OS are Linux and macOS."
+    exit 1
+    ;;
+  esac
+  if [[ ! -f "$vars" ]]; then
+    echo_warning "'${vars}' does not exist, run './zebrunner.sh setup' first."
+    exit 1
+  fi
+
+  secret="$(sed -n 's/^STF_ZMQ_CURVE_SECRET_KEY:[[:space:]]*//p' "$vars" | tr -d "\"' ")"
+  if [[ -z "$secret" ]]; then
+    secret="$(python3 patch/curve_keygen.py | sed -n 's/^secret=//p')"
+    if [[ ! "$secret" =~ ^[0-9a-f]{64}$ ]]; then
+      echo_warning "Unable to make the key with python3 patch/curve_keygen.py."
+      exit 1
+    fi
+    if grep -q '^STF_ZMQ_CURVE_SECRET_KEY:' "$vars"; then
+      sed -i.bak "s/^STF_ZMQ_CURVE_SECRET_KEY:.*/STF_ZMQ_CURVE_SECRET_KEY: \"${secret}\"/" "$vars" && rm -f "${vars}.bak"
+    else
+      # the last line of the file may have no newline
+      [[ -n "$(tail -c 1 "$vars")" ]] && echo >> "$vars"
+      printf '%s\n' "# the CURVE key of this host, ./zebrunner.sh curve-key" "STF_ZMQ_CURVE_SECRET_KEY: \"${secret}\"" >> "$vars"
+    fi
+    echo "The key of this host is written to STF_ZMQ_CURVE_SECRET_KEY of '${vars}'."
+  fi
+  if ! public="$(python3 patch/curve_keygen.py "$secret" | sed -n 's/^public=//p')" || [[ -z "$public" ]]; then
+    echo_warning "STF_ZMQ_CURVE_SECRET_KEY of '${vars}' is not a key of 64 hex characters."
+    exit 1
+  fi
+  echo "
+      The public key of this host: ${public}
+      Add it to STF_ZMQ_CURVE_CLIENT_KEYS of variables.env of the STF server (separated by commas) and restart it, set
+      STF_ZMQ_CURVE_SERVER_PUBLIC_KEY of '${vars}' and run './zebrunner.sh ansible'."
+}
+
 status() {
   delimiter "Status of MCloud Agent components"
 
@@ -382,7 +427,8 @@ echo_help() {
          backup               Backup MCloud Agent setup
          restore              Restore MCloud Agent setup
          shutdown             Stop and remove MCloud Agent containers, clear volumes and environment
-         version              Version of MCloud Agent components"
+         version              Version of MCloud Agent components
+         curve-key            Make the CURVE key of this host for STF and print its public key"
   echo_telegram
   delimiter
 }
@@ -408,6 +454,9 @@ shutdown)
   ;;
 version)
   version
+  ;;
+curve-key)
+  curve_key
   ;;
 *)
   echo_help

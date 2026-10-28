@@ -180,6 +180,38 @@ output="$(farm devices start Sim)"
 check_contains "iOS simulator on Linux is reported" "The iOS simulators run on a macOS host only" "$output"
 check "iOS simulator on Linux gets no containers" "" "$(calls docker | grep '^run|')"
 
+section "ZeroMQ security"
+server_key="$(printf '%064d' 0 | tr 0 a)"
+secret_key="$(printf '%064d' 0 | tr 0 b)"
+for role in devices mac-devices; do
+  setup_case
+  farm "$role" start WiFi > /dev/null
+  stf="$(run_args device-WiFi-192.168.1.50-stf)"
+  check_contains "${role}: RethinkDB is passed without CURVE" "|RETHINKDB_PORT_28015_TCP=tcp://rethinkdb:28015|" "$stf"
+  check_contains "${role}: no CURVE keys by default" \
+    "|STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=|-e|STF_ZMQ_CURVE_SECRET_KEY=|" "$stf"
+
+  render_farm "$role" "${WORK}/zebrunner-farm-${role}" \
+    --extra-vars "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=${server_key} STF_ZMQ_CURVE_SECRET_KEY=${secret_key}" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
+  setup_case
+  farm "$role" start WiFi > /dev/null
+  stf="$(run_args device-WiFi-192.168.1.50-stf)"
+  check_contains "${role}: the CURVE keys are passed" \
+    "|STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=${server_key}|-e|STF_ZMQ_CURVE_SECRET_KEY=${secret_key}|" "$stf"
+  check_contains "${role}: no RethinkDB with CURVE" "|RETHINKDB_PORT_28015_TCP=|" "$stf"
+
+  render_farm "$role" "${WORK}/zebrunner-farm-${role}" --extra-vars "STF_ZMQ_CURVE_SECRET_KEY=${secret_key}" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
+  setup_case
+  farm "$role" start WiFi > /dev/null
+  check_contains "${role}: the key of the host is not passed without the key of the server" \
+    "|STF_ZMQ_CURVE_SECRET_KEY=|" "$(run_args device-WiFi-192.168.1.50-stf)"
+
+  render_farm "$role" "${WORK}/zebrunner-farm-${role}" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
+done
+
 section "macOS container creation"
 setup_case
 echo '"USB Serial Number" = "d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"' > "${WORK}/usb"

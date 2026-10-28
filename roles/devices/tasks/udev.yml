@@ -60,6 +60,21 @@
     success_msg: "All device IDs and names are unique."
   tags: [devices, precheck, dedup]
 
+# the ZeroMQ security of STF: the key of this host with the key of the server (README.md#zeromq-security)
+- name: Check the CURVE keys of ZeroMQ
+  vars:
+    curve_server_key: "{{ STF_ZMQ_CURVE_SERVER_PUBLIC_KEY | default('', true) | string }}"
+    curve_secret_key: "{{ STF_ZMQ_CURVE_SECRET_KEY | default('', true) | string }}"
+  ansible.builtin.assert:
+    that:
+      - curve_server_key | length == 0 or curve_server_key is match('^[0-9a-fA-F]{64}$')
+      - curve_server_key | length == 0 or curve_secret_key is match('^[0-9a-fA-F]{64}$')
+    fail_msg: >-
+      STF_ZMQ_CURVE_SERVER_PUBLIC_KEY must be the 64 hex characters of the STF server (in quotes) and it needs
+      STF_ZMQ_CURVE_SECRET_KEY, the key of this host: run ./zebrunner.sh curve-key.
+    success_msg: "{{ 'ZeroMQ of STF with CURVE.' if curve_server_key else 'ZeroMQ of STF without CURVE.' }}"
+  tags: [devices, precheck, validate]
+
 - name: Check obligatory settings of each device
   ansible.builtin.assert:
     that:
