@@ -151,6 +151,42 @@ output="$(ANSIBLE_EXIT=2 AGENT_DIR="$AGENT" zbr "" ansible)"
 check "failed playbook fails" "1" "$?"
 check_contains "failed playbook is reported" "Ansible playbook execution failed!" "$output"
 
+section "rosetta"
+# the stub bodies are expanded when the stubs run: FAKE_ARM64=1 an Apple Silicon Mac, FAKE_ROSETTA=1 Rosetta 2 installed
+# shellcheck disable=SC2016
+stub sysctl '[[ "$*" == "-n hw.optional.arm64" ]] && echo "${FAKE_ARM64:-0}"'
+# shellcheck disable=SC2016
+stub arch '[[ "$1" == "-x86_64" && "$FAKE_ROSETTA" == "1" ]]'
+# rosetta <arm64> <rosetta> <zebrunner.sh args...>: the output of zebrunner.sh on a Mac with these
+rosetta() {
+  local arm64="$1" installed="$2"
+  shift 2
+  printf '' | env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
+    FAKE_UNAME=Darwin FAKE_ARM64="$arm64" FAKE_ROSETTA="$installed" ZEBRUNNER_MCLOUD_AGENT_DIR="$AGENT" \
+    /bin/bash "${AGENT}/zebrunner.sh" "$@" 2>&1
+}
+settings_dir="${WORK}/home/Library/Group Containers/group.com.docker"
+mkdir -p "$settings_dir"
+output="$(rosetta 1 0 setup)"
+check_contains "setup: missing Rosetta 2 is reported" "Rosetta 2 is not installed" "$output"
+check_contains "setup: the install command is advised" "softwareupdate --install-rosetta --agree-to-license" "$output"
+check_contains "status: missing Rosetta 2" "not installed: softwareupdate --install-rosetta --agree-to-license" "$(rosetta 1 0 status)"
+output="$(rosetta 1 1 setup)"
+check_contains "setup: Rosetta 2 used by Docker Desktop is reported" "Rosetta 2 is installed: Docker Desktop runs" "$output"
+check_contains "status: Rosetta 2 used by Docker Desktop" "installed, used by Docker Desktop" "$(rosetta 1 1 status)"
+echo '{"UseVirtualizationFrameworkRosetta": false}' > "${settings_dir}/settings-store.json"
+check_contains "setup: Rosetta 2 not used by Docker Desktop is reported" "Docker Desktop runs the linux/amd64 images under" "$(rosetta 1 1 setup)"
+check_contains "status: Rosetta 2 not used by Docker Desktop" "installed, not used by Docker Desktop" "$(rosetta 1 1 status)"
+rm -f "${settings_dir}/settings-store.json"
+echo '{"useVirtualizationFrameworkRosetta": false}' > "${settings_dir}/settings.json"
+check_contains "the settings of an earlier Docker Desktop" "installed, not used by Docker Desktop" "$(rosetta 1 1 status)"
+rm -rf "${WORK}/home/Library"
+check_not_contains "setup of an Intel Mac says nothing about Rosetta 2" "Rosetta" "$(rosetta 0 0 setup)"
+check_contains "status of an Intel Mac" "not needed (Intel Mac)" "$(rosetta 0 0 status)"
+check_not_contains "setup of Linux says nothing about Rosetta 2" "Rosetta" "$(OS=Linux zbr "" setup)"
+check_not_contains "status of Linux says nothing about Rosetta 2" "Rosetta" "$(AGENT_DIR="$AGENT" OS=Linux zbr "" status)"
+rm -f "${WORK}/bin/sysctl" "${WORK}/bin/arch"
+
 section "status"
 output="$(AGENT_DIR="$AGENT" OS=Linux zbr "" status)"
 check_contains "ansible version" "ansible-playbook [core 2.21.5]" "$output"

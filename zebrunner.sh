@@ -113,6 +113,12 @@ setup() {
   echo ""
   warn ">>> Changes in other shells will be applied automatically <<<"
 
+  ### Rosetta 2 of an Apple Silicon Mac
+  if [[ "$os" == "Darwin" ]]; then
+    delimiter "*"
+    rosetta_report
+  fi
+
   ### Final message
   delimiter "*"
   echo "Set the settings of the MCloud server in '${vars}' (https://github.com/zebrunner/mcloud-agent#connect-to-mcloud)"
@@ -226,6 +232,46 @@ curve_key() {
       STF_ZMQ_CURVE_SERVER_PUBLIC_KEY of '${vars}' and run './zebrunner.sh ansible'."
 }
 
+# rosetta_state: Rosetta 2 of the Mac for the linux/amd64 images (appium, the connectors, the uploader): 'intel' (not
+# needed), 'missing', 'docker-off' (installed, Docker Desktop does not use it) or 'ok'
+rosetta_state() {
+  local settings="${HOME}/Library/Group Containers/group.com.docker/settings-store.json"
+  if [[ "$(sysctl -n hw.optional.arm64 2> /dev/null)" != "1" ]]; then
+    echo "intel"
+  elif ! arch -x86_64 /usr/bin/true > /dev/null 2>&1; then
+    echo "missing"
+  else
+    # the settings of Docker Desktop 4.35+, settings.json of the earlier ones; without the setting it is on
+    [[ -f "$settings" ]] || settings="${HOME}/Library/Group Containers/group.com.docker/settings.json"
+    if [[ -f "$settings" ]] && grep -qiE '"useVirtualizationFrameworkRosetta" *: *false' "$settings"; then
+      echo "docker-off"
+    else
+      echo "ok"
+    fi
+  fi
+}
+
+# rosetta_report: the state of Rosetta 2 and the advice when it is not used
+rosetta_report() {
+  case "$(rosetta_state)" in
+  ok)
+    succeed "Rosetta 2 is installed: Docker Desktop runs the linux/amd64 images (appium, the connectors, the uploader) with it."
+    ;;
+  missing)
+    warn "Rosetta 2 is not installed: Docker Desktop runs the linux/amd64 images (appium, the connectors, the uploader)"
+    warn "under the much slower QEMU emulation. Install it and let Docker Desktop use it:"
+    warn ">\tsoftwareupdate --install-rosetta --agree-to-license"
+    warn "then turn on 'Use Rosetta for x86_64/amd64 emulation on Apple Silicon' in Docker Desktop (Settings, General)"
+    warn "and restart Docker Desktop."
+    ;;
+  docker-off)
+    warn "Rosetta 2 is installed, but Docker Desktop runs the linux/amd64 images under the much slower QEMU emulation:"
+    warn "turn on 'Use Rosetta for x86_64/amd64 emulation on Apple Silicon' in Docker Desktop (Settings, General) and"
+    warn "restart Docker Desktop."
+    ;;
+  esac
+}
+
 status() {
   delimiter "Status of MCloud Agent components"
 
@@ -246,6 +292,13 @@ status() {
   echo ""
   if [[ "$os" == "Darwin" ]]; then
     echo "Socat tool:                       $(which socat 2> /dev/null || failed "'socat' not found")"
+    echo ""
+    case "$(rosetta_state)" in
+    ok) echo "Rosetta 2:                        installed, used by Docker Desktop" ;;
+    missing) echo "Rosetta 2:                        $(failed "not installed: softwareupdate --install-rosetta --agree-to-license")" ;;
+    docker-off) echo "Rosetta 2:                        $(failed "installed, not used by Docker Desktop (Settings, General)")" ;;
+    *) echo "Rosetta 2:                        not needed (Intel Mac)" ;;
+    esac
     echo ""
     echo "Deployed launchctl Zebrunner files:"
     shopt -s nullglob nocaseglob
