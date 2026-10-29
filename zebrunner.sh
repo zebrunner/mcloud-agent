@@ -155,6 +155,16 @@ ansible() {
     args=("$@" "$file")
   fi
 
+  ### sudo-rs (the sudo of Ubuntu 25.10+) wraps the password prompt, ansible does not recognize it and times out
+  if [[ "$(uname)" == "Linux" && "$*" != *ansible_become_exe* ]] && sudo --version 2> /dev/null | grep -q '^sudo-rs'; then
+    if command -v sudo.ws > /dev/null 2>&1; then
+      echo "sudo is sudo-rs: ansible becomes root with sudo.ws, the original sudo"
+      args=(--extra-vars ansible_become_exe=sudo.ws "${args[@]}")
+    else
+      echo_warning "sudo is sudo-rs, whose password prompt ansible does not recognize: install the original sudo (sudo apt install sudo), it provides sudo.ws."
+    fi
+  fi
+
   ### Run ansible with arguments
   echo_warning "Sudo permissions are required to run this script!"
   echo "ansible-playbook --ask-become-pass --inventory hosts ${args[*]}"
