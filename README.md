@@ -54,13 +54,17 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 ## Run ansible playbook
 
-- [Optional] To enable opencv support append `-opencv5.6.0` postfix to the `APPIUM_VERSION` in the ./defaults/main.yml:
+- The images of the devices are pinned in `defaults/main.yml`: `DEVICE_VERSION` (mcloud-device), `APPIUM_VERSION`,
+  `IOS_CONNECTOR_VERSION`, `ANDROID_CONNECTOR_VERSION` and `UPLOADER_VERSION`. mcloud-device must be the one of the STF
+  of [mcloud](https://github.com/zebrunner/mcloud) (`TAG_STF` of its `.env`).
+- [Optional] To compare images in the tests (the Appium images plugin) append the `-img` postfix to `APPIUM_VERSION`,
+  the `appium-image` stage of [appium](https://github.com/zebrunner/appium#build):
 
   ```yaml
-  APPIUM_VERSION: 2.1-opencv5.6.0
+  APPIUM_VERSION: 3.0-img
   ```
 
-  > Full list of supported appium+opencv images can be found here: <https://gallery.ecr.aws/zebrunner/appium>
+  > The published appium images: <https://gallery.ecr.aws/zebrunner/appium>
 
 ### Linux OS
 
