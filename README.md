@@ -250,19 +250,23 @@ Follow the below algorithm to identify any configuration issues with MCloud agen
 
 - If you have any problems running ansible:
   - Make sure you have sudo access and try to run ansible with sudo permissions.
-  - Try to rub ansible commands manually (`<devices_file>` name is `mac-devices` on macOS  or `devices` on Linux servers)
+  - Try to run ansible commands manually (`<devices_file>` name is `mac-devices` on macOS  or `devices` on Linux servers)
 
   > To download the required components and register the devices:
 
   ```bash
-  ansible-playbook -vvv -i hosts <devices_file>.yml
+  ansible-playbook -vvv --ask-become-pass -i hosts <devices_file>.yml
   ```
 
   > To reregister the devices list only, you can use the following command:
 
   ```bash
-  ansible-playbook -vvv -i hosts <devices_file>.yml --tag registerDevices
+  ansible-playbook -vvv --ask-become-pass -i hosts <devices_file>.yml --tag registerDevices
   ```
+
+  Ubuntu 25.10+ has sudo-rs as `sudo`: ansible does not recognize its password prompt and stops with "Timed out
+  waiting for become success or become password prompt". `./zebrunner.sh ansible` uses `sudo.ws` (the original sudo,
+  `sudo apt install sudo`) then, add `--extra-vars ansible_become_exe=sudo.ws` to the commands above.
 
   > To run it non-interactively, keep the sudo password in an ansible-vault encrypted file instead of the command line (use `--vault-password-file` instead of `--ask-vault-pass` for automation):
 

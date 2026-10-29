@@ -115,6 +115,34 @@ check "devices registration only" "--ask-become-pass|--inventory|hosts|${AGENT}/
 reset_calls
 AGENT_DIR="$AGENT" OS=Linux zbr "" ansible --user=bob --extra-vars "app_name=a b" > /dev/null
 check "custom arguments keep their words" "--ask-become-pass|--inventory|hosts|--user=bob|--extra-vars|app_name=a b|${AGENT}/devices.yml" "$(calls ansible-playbook)"
+# sudo-rs of Ubuntu 25.10+: ansible does not recognize its password prompt, sudo.ws is the original sudo
+cp "${WORK}/bin/sudo" "${WORK}/sudo"
+# the stub body is expanded when the stub runs
+# shellcheck disable=SC2016
+stub sudo '(IFS="|"; echo "sudo|$*") >> "${STUB_DIR}/calls.log"
+[[ "$1" == "--version" ]] && echo "sudo-rs 0.2.13"
+exit 0'
+record_stub sudo.ws
+reset_calls
+output="$(AGENT_DIR="$AGENT" OS=Linux zbr "" ansible)"
+check "sudo-rs: ansible becomes root with sudo.ws" "--ask-become-pass|--inventory|hosts|--extra-vars|ansible_become_exe=sudo.ws|${AGENT}/devices.yml" "$(calls ansible-playbook)"
+check_contains "sudo-rs: sudo.ws is reported" "sudo is sudo-rs: ansible becomes root with sudo.ws" "$output"
+reset_calls
+AGENT_DIR="$AGENT" OS=Linux zbr "" ansible --extra-vars ansible_become_exe=/usr/local/bin/sudo > /dev/null
+check "sudo-rs: the become_exe of the arguments is kept" "--ask-become-pass|--inventory|hosts|--extra-vars|ansible_become_exe=/usr/local/bin/sudo|${AGENT}/devices.yml" "$(calls ansible-playbook)"
+reset_calls
+AGENT_DIR="$AGENT" OS=Darwin zbr "" ansible > /dev/null
+check "sudo-rs: macOS is not changed" "--ask-become-pass|--inventory|hosts|${AGENT}/mac-devices.yml" "$(calls ansible-playbook)"
+rm -f "${WORK}/bin/sudo.ws"
+if ! command -v sudo.ws > /dev/null 2>&1; then
+  reset_calls
+  output="$(AGENT_DIR="$AGENT" OS=Linux zbr "" ansible)"
+  check "sudo-rs without sudo.ws: the playbook is run as is" "--ask-become-pass|--inventory|hosts|${AGENT}/devices.yml" "$(calls ansible-playbook)"
+  check_contains "sudo-rs without sudo.ws: the original sudo is asked" "install the original sudo (sudo apt install sudo)" "$output"
+else
+  skip_check "sudo-rs without sudo.ws" "sudo.ws of the system"
+fi
+mv "${WORK}/sudo" "${WORK}/bin/sudo"
 output="$(ANSIBLE_EXIT=2 AGENT_DIR="$AGENT" zbr "" ansible)"
 check "failed playbook fails" "1" "$?"
 check_contains "failed playbook is reported" "Ansible playbook execution failed!" "$output"
