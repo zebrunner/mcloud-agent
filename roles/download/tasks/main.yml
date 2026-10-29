@@ -1,23 +1,26 @@
 ---
-# A failed pull is reported but does not stop the deploy: the image may exist locally only
+# A failed pull is reported but does not stop the deploy: the image may exist locally only.
+# mcloud-device is pulled for the platform of the host (arm64 on Apple Silicon), the other images are linux/amd64 only.
 - name: Pull Zebrunner images
-  ansible.builtin.command: docker pull "{{ item }}"
+  ansible.builtin.command: docker pull {{ '--platform linux/amd64 ' if item.amd64 else '' }}"{{ item.image }}"
   loop:
-    - "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}"
-    - "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}"
-    - "{{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }}"
-    - "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}"
-    - "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}"
+    - {image: "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}", amd64: false}
+    - {image: "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}", amd64: true}
+    - {image: "{{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }}", amd64: true}
+    - {image: "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}", amd64: true}
+    - {image: "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}", amd64: true}
+  loop_control:
+    label: "{{ item.image }}"
   register: download_images_pull
   ignore_errors: true
   changed_when: false
   tags: [pull, download]
 
 - name: Check that images failed to pull exist locally
-  ansible.builtin.command: docker image inspect "{{ item.item }}"
+  ansible.builtin.command: docker image inspect "{{ item.item.image }}"
   loop: "{{ download_images_pull.results | select('failed') | list }}"
   loop_control:
-    label: "{{ item.item }}"
+    label: "{{ item.item.image }}"
   changed_when: false
   tags: [pull, download]
 

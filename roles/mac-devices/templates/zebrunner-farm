@@ -3,7 +3,9 @@
 # Export docker env variables to avoid issues on macOS
 export DOCKER_BUILDKIT=0
 export COMPOSE_DOCKER_CLI_BUILD=0
-export DOCKER_DEFAULT_PLATFORM=linux/amd64
+# mcloud-device runs on the platform of the Mac (arm64 on Apple Silicon: the STF provider of an iOS simulator hangs
+# under emulation), the images of the connectors, appium and the uploader are linux/amd64 only
+unset DOCKER_DEFAULT_PLATFORM
 
 # Rendered at deploy time: launchd runs this script without the user's env variables
 export ZEBRUNNER_MCLOUD_AGENT_DIR="{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}"
@@ -165,6 +167,7 @@ create_containers() {
     grep -q "${dev_container}-connector" <<< "$ps_out" || {
       echo -n "${dev_container}-connector:  "
       docker run -itd --name "${dev_container}-connector" \
+        --platform linux/amd64 \
         --log-driver=local \
         --log-opt max-size=256m \
         --log-opt max-file=2 \
@@ -213,6 +216,7 @@ create_containers() {
     grep -q "${dev_container}-appium" <<< "$ps_out" || {
       echo -n "${dev_container}-appium:     "
       docker run -itd --name "${dev_container}-appium" \
+        --platform linux/amd64 \
         -m 1g \
         --log-driver=local \
         --log-opt max-size=256m \
@@ -302,6 +306,7 @@ create_containers() {
     grep -q "${dev_container}-connector" <<< "$ps_out" || {
       echo -n "${dev_container}-connector:  "
       docker run -itd --name "${dev_container}-connector" \
+        --platform linux/amd64 \
         --log-driver=local \
         --log-opt max-size=256m \
         --log-opt max-file=2 \
@@ -358,6 +363,7 @@ create_containers() {
     grep -q "${dev_container}-appium" <<< "$ps_out" || {
       echo -n "${dev_container}-appium:     "
       docker run -itd --name "${dev_container}-appium" \
+        --platform linux/amd64 \
         -m 1g \
         --log-driver=local \
         --log-opt max-size=256m \
@@ -405,6 +411,7 @@ create_containers() {
   grep -q "${dev_container}-uploader" <<< "$ps_out" || {
     echo -n "${dev_container}-uploader:   "
     docker run -d --name "${dev_container}-uploader" \
+      --platform linux/amd64 \
       --log-driver=local \
       --log-opt max-size=256m \
       --log-opt max-file=2 \

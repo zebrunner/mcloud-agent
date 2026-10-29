@@ -163,7 +163,7 @@ cat > "${WORK}/bin/docker" << 'EOF'
 (IFS='|'; echo "docker|$*") >> "${STUB_DIR}/calls.log"
 case "$1 $2" in
   "pull "*)
-    if [[ -n "$FAIL_PULL" && "$2" == *"$FAIL_PULL"* ]]; then echo "simulated pull failure" >&2; exit 1; fi ;;
+    if [[ -n "$FAIL_PULL" && "$*" == *"$FAIL_PULL"* ]]; then echo "simulated pull failure" >&2; exit 1; fi ;;
   "image inspect")
     if [[ -n "$LOCAL_IMAGE" && "$3" == *"$LOCAL_IMAGE"* ]]; then echo "[{}]"; exit 0; fi
     echo "Error: No such image: $3" >&2; exit 1 ;;
@@ -176,6 +176,9 @@ reset_calls
 output="$(playbook download)"
 check_contains "all images pulled" "failed=0" "$output"
 check "network is created after pulling" "1" "$(calls docker | grep -c '^network|')"
+check "mcloud-device is pulled for the platform of the host" "pull|public.ecr.aws/zebrunner/mcloud-device:" \
+  "$(calls docker | grep '^pull|.*mcloud-device:' | sed 's/:[^:]*$/:/')"
+check "the other images are pulled for linux/amd64" "4" "$(calls docker | grep -c '^pull|--platform|linux/amd64|')"
 reset_calls
 output="$(FAIL_PULL=appium LOCAL_IMAGE=appium playbook download)"
 check_contains "failed pull of a local image is reported" "ignoring" "$output"
