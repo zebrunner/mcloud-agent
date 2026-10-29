@@ -36,6 +36,15 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 - Install docker: [Docker Engine](https://docs.docker.com/engine/install/) on Linux ([Amazon Linux 2](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/docker-basics.html)), [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) on macOS.
 - Install [ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html) 2.10+ (the playbooks use `ansible.builtin` module names, tested with ansible-core 2.21), e.g. `pip install ansible-core`.
+- macOS on Apple Silicon: install Rosetta 2 and let Docker Desktop use it, the images of appium, the connectors and the
+  uploader are `linux/amd64` and run much slower under the QEMU emulation of Docker Desktop without it:
+
+  ```bash
+  softwareupdate --install-rosetta --agree-to-license
+  ```
+
+  then turn on *Use Rosetta for x86_64/amd64 emulation on Apple Silicon* in Docker Desktop (Settings, General) and
+  restart it. `./zebrunner.sh setup` and `./zebrunner.sh status` report it.
 - macOS: install socat utility to share usbmuxd websocket into the device containers
   > valid path to socat binary should be `/usr/local/bin/socat`
   > on Apple Silicon Homebrew installs it to `/opt/homebrew/bin/socat`, link it: `sudo ln -s /opt/homebrew/bin/socat /usr/local/bin/socat`
@@ -155,7 +164,7 @@ Set the settings of the MCloud server in `roles/devices/vars/main.yml` (Linux) o
 
 - `setup` - prepares the agent: the `ZEBRUNNER_MCLOUD_AGENT_DIR` variable in the shell profiles and the devices settings from the example.
 - `ansible [devices]` - deploys the agent, `devices` registers the devices only.
-- `status` - shows the state of the agent components: tools, deployed files, launch agents.
+- `status` - shows the state of the agent components: tools, Rosetta 2 of an Apple Silicon Mac, deployed files, launch agents.
 - `backup` and `restore` - save the settings into the `backup` folder and restore them from it.
 - `shutdown` - removes the devices containers, the launch agents or udev rules, the deployed files, the settings and the environment variable (asks for confirmation).
 - `version` - shows the versions of the agent components.
