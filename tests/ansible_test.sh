@@ -118,7 +118,7 @@ done << 'EOF'
 [{"id": "a", "name": "Sim", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "ios-sim", "wda_port": 8110}]=Invalid connection 'ios-sim' of device 'Sim'
 [{"id": "a", "name": "Emu", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "android-sim", "address": "10.0.0.9:5555"}]=failed=0
 [{"id": "a", "name": "Emu", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "android-sim"}]=Invalid connection 'android-sim' of device 'Emu'
-[{"id": "a", "name": "Emu", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "redroid"}]=Invalid connection 'redroid' of device 'Emu'
+[{"id": "a", "name": "Emu", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "emulator"}]=Invalid connection 'emulator' of device 'Emu'
 [{"id": "a", "name": "TV", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "proxy", "address": "10.0.0.5"}]=failed=0
 EOF
 

@@ -64,7 +64,7 @@ get_device_fields() {
   #   usb         - plugged into the host: iOS over usbmuxd of the host, Android over the adb server of the host
   #   wireless    - over the network: iOS paired with the Mac (usbmuxd of the host), Android over adb connect
   #   android-sim - an Android emulator started outside the farm (AVD of the host: host.docker.internal:5555,
-  #                 Redroid, Genymotion), adb connect to its address
+  #                 a container Android, Genymotion), adb connect to its address
   #   ios-sim     - an iOS / tvOS simulator of the host, the connector runs xcrun simctl of the host over ssh
   #   proxy       - WebDriverAgent published by another tool, the connector relays it (iOS)
   dev_connection="${fields[10]:-usb}"
@@ -229,6 +229,7 @@ create_containers() {
         -v "${dev_container}":/tmp/log \
         -e TASK_LOG=/tmp/log/appium.log \
         -e PLATFORM_NAME="$dev_platform_name" \
+        -e DEVICE_CONNECTION="$dev_connection" \
         -e RETAIN_TASK=true \
         -e CONNECT_TO_GRID=true \
         -e RECORD_ARTIFACTS=true \
