@@ -138,6 +138,9 @@ Set the settings of the MCloud server in `roles/devices/vars/main.yml` (Linux) o
   ```
 
 - Devices management script is deployed to /usr/local/bin/zebrunner-farm.
+- The mcloud-device containers run on the platform of the Mac, arm64 on Apple Silicon (the STF provider of an iOS
+  simulator hangs under emulation); the connectors, appium and the uploader are `linux/amd64` images, emulated by Docker
+  Desktop on Apple Silicon.
 - Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
 - Deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist to share usbmuxd into the device containers
 - USB Android devices: deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerAdb.plist, the adb server of the host (`brew install android-platform-tools`); the connectors take the devices from it, the containers of a USB Android device are created by `zebrunner-farm start` (the devices listener handles iOS only).
