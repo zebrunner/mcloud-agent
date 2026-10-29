@@ -27,7 +27,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 | | Requirements |
 | --- | --- |
-| <b>Operating System</b> | Ubuntu 22.04+ (on 25.10+ see [sudo-rs](#troubleshooting))<br>Linux CentOS 7+<br>Amazon Linux2<br> macOS 13 (Ventura)+, Apple Silicon or Intel |
+| <b>Operating System</b> | Ubuntu 22.04+ (on 25.10+ see [sudo-rs](#troubleshooting))<br>Amazon Linux2<br> macOS 13 (Ventura)+, Apple Silicon or Intel |
 | <b>       CPU      </b> | 8+ Cores |
 | <b>      Memory    </b> | 32 Gb RAM |
 | <b>    Free space  </b> | SSD 128Gb+ of free space |
