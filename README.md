@@ -240,6 +240,17 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
 
 ## Troubleshooting
 
+| Symptom | Cause and fix |
+| --- | --- |
+| `./zebrunner.sh ansible` fails on `Pull Zebrunner images` and `Check that images failed to pull exist locally` with `denied: Your authorization token has expired` or `403 Forbidden` | an expired login to public.ecr.aws in `~/.docker/config.json` of the user: the images are public, `docker logout public.ecr.aws` (or log in again) |
+| the pull fails with `manifest unknown` | the tag of `defaults/main.yml` is not published, see the images of the current [mcloud](https://github.com/zebrunner/mcloud) |
+| Linux: the deploy passed, the devices plugged in before it have no containers | udev starts them on the next connection only: `zebrunner-farm start` |
+| the containers are healthy, the devices are not in STF | the public key of this host is not in `STF_ZMQ_CURVE_CLIENT_KEYS` of mcloud, or `STF_ZMQ_CURVE_SERVER_PUBLIC_KEY` is not the one of mcloud: the STF triproxies log `Refused the ZeroMQ client ... with the unknown key`, see [ZeroMQ security](#zeromq-security) |
+| the devices are in STF, not in the grid | the Appium log of the device (`device-<name>-<udid>-appium`) and the log of `mcloud-grid`: `STF_TOKEN` of mcloud, `NODE_REGISTRATION_TOKEN`, the reachability of `STF_PROVIDER_HOST` from the hub, see [Troubleshooting of mcloud](https://github.com/zebrunner/mcloud#troubleshooting) |
+| the screenshots or the app installs of the devices fail | `STF_STORAGE_TOKEN` is not the one of mcloud, or `PUBLIC_IP` is not reachable from this host (e.g. the public address of a server of the same network behind a NAT without hairpin: use its address in the network) |
+| the uploader container exits with `Required S3 arguments are missed! Integration with S3 will be disabled.` | no `S3_*` settings: the videos and logs stay on the host, set them to upload the artifacts |
+| macOS: an iOS simulator is not in STF, the log of its `-stf` container stops after `connecting to WdaMjpeg` | the amd64 mcloud-device under emulation: the arm64 one of a multi-platform mcloud-device image is needed on Apple Silicon (`docker image inspect <image> --format '{{.Architecture}}'`) |
+
 Follow the below algorithm to identify any configuration issues with MCloud agent:
 
 - macOS: the devices listener logs into `logs/listener.log` and `logs/listener.err.log`, the usbmuxd sharing (socat) into `logs/usbmuxd-socat.log` and `logs/usbmuxd-socat.err.log` of the MCloud agent directory. `listener.log` is rotated by newsyslog (10 MB, 7 bzip2 archives, `/etc/newsyslog.d/zebrunner-mcloud.conf`). Loaded agents are shown by `launchctl list | grep zebrunner`.
