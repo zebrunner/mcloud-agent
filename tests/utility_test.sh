@@ -58,6 +58,8 @@ check "custom delimiter character" "" "$(echo "$line" | tr -d '*')"
 line="$(delimiter "Title text" | grep -v '^$')"
 check "titled delimiter has the terminal width" "$width" "${#line}"
 check_contains "titled delimiter shows the title" "==== Title text ==" "$line"
+output="$(env -u TERM bash -c "source '${REPO}/patch/utility.sh'; delimiter Title" 2>&1 | grep -v '^$')"
+check "without a terminal type the delimiter has the default width, no error" "80" "${#output}"
 
 section "replace"
 printf 'a=old\nb=old\n' > "${WORK}/file"

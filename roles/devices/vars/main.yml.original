@@ -63,7 +63,7 @@ S3_REGION:
 
 # Path to prebuild WebDriverAgent.ipa
 WDA_FILE:
-# Override to use custom WDA bundle id: https://github.com/zebrunner/mcloud-agent#prepare-webdriveragentipa-file
+# Override to use custom WDA bundle id: https://github.com/zebrunner/mcloud-agent#build-webdriveragentipa
 WDA_BUNDLEID:
 
 # [OBLIGATORY] Declare valid devices metadata

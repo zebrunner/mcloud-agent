@@ -27,7 +27,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 | | Requirements |
 | --- | --- |
-| <b>Operating System</b> | Ubuntu 16.04, 18.04, 20.04, 21.04, 22.04 <br>Linux CentOS 7+<br>Amazon Linux2<br> macOS 13 (Ventura)+, Apple Silicon or Intel |
+| <b>Operating System</b> | Ubuntu 22.04+ (on 25.10+ see [sudo-rs](#troubleshooting))<br>Linux CentOS 7+<br>Amazon Linux2<br> macOS 13 (Ventura)+, Apple Silicon or Intel |
 | <b>       CPU      </b> | 8+ Cores |
 | <b>      Memory    </b> | 32 Gb RAM |
 | <b>    Free space  </b> | SSD 128Gb+ of free space |
@@ -36,11 +36,10 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 - Install docker: [Docker Engine](https://docs.docker.com/engine/install/) on Linux ([Amazon Linux 2](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/docker-basics.html)), [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) on macOS.
 - Install [ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html) 2.10+ (the playbooks use `ansible.builtin` module names, tested with ansible-core 2.21), e.g. `pip install ansible-core`.
-- macOS: install and authorize [go-ios](https://github.com/danielpaulus/go-ios) utility 1.0.121+, it installs WebDriverAgent on the devices (see [Build WebDriverAgent.ipa](#build-webdriveragentipa))
 - macOS: install socat utility to share usbmuxd websocket into the device containers
   > valid path to socat binary should be `/usr/local/bin/socat`
   > on Apple Silicon Homebrew installs it to `/opt/homebrew/bin/socat`, link it: `sudo ln -s /opt/homebrew/bin/socat /usr/local/bin/socat`
-- macOS: install jq utility
+- The server of [mcloud](https://github.com/zebrunner/mcloud) is set up and started: the devices connect to it.
 
 ## Clone and setup
 
@@ -51,6 +50,19 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
   cd mcloud-agent
   ./zebrunner.sh setup
   ```
+
+## Connect to MCloud
+
+Set the settings of the MCloud server in `roles/devices/vars/main.yml` (Linux) or `roles/mac-devices/vars/main.yml`
+(macOS), which `./zebrunner.sh setup` made; the secrets in quotes:
+
+| Setting | Value |
+| --- | --- |
+| `PUBLIC_IP`, `PUBLIC_IP_PORT`, `PUBLIC_IP_PROTOCOL` | the host, port and protocol of the setup of mcloud (`STF_URL` of its `.env`), reachable from this host: the devices upload the screenshots and download the apps there |
+| `STF_PROVIDER_HOST` | the address of this host the users and the MCloud server reach: add it to `AGENT_HOSTS` of `.env` of mcloud and run `./zebrunner.sh restart` there, stf-proxy serves the screens of its devices then |
+| `STF_STORAGE_TOKEN`, `STF_ZMQ_CURVE_SERVER_PUBLIC_KEY`, `NODE_REGISTRATION_TOKEN` | the same variables of `variables.env` of mcloud, its setup prints them |
+| `STF_ZMQ_CURVE_SECRET_KEY` | `./zebrunner.sh curve-key` makes it and prints its public key: add the public key to `STF_ZMQ_CURVE_CLIENT_KEYS` of `variables.env` of mcloud and run `./zebrunner.sh restart` there, see [ZeroMQ security](#zeromq-security) |
+| `STF_PROVIDER_CONNECT_*`, `SELENIUM_HUB_HOST`, `SELENIUM_HUB_PORT` | the defaults are the containers of mcloud in the `infra` network of the same host; for an MCloud server on another host: `tcp://<server>:7250`, `tcp://<server>:7270`, `tcp://<server>:7160`, `tcp://<server>:7260`, `<server>` and `4446` (see [Firewall of mcloud](https://github.com/zebrunner/mcloud#firewall)) |
 
 ## Run ansible playbook
 
@@ -89,6 +101,8 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
   ./zebrunner.sh ansible --user=USERNAME
   ```
 
+- Run `zebrunner-farm start` to create the containers of the devices connected before the deploy and of the wireless,
+  emulator and proxy devices: udev starts the containers of a USB device on its next connection only.
 - Devices management script is deployed to /usr/local/bin/zebrunner-farm.
 - Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules: a connection of a USB device starts the systemd unit `mcloud-device-restart@<id>`, a disconnection `mcloud-device-down@<id>` (`/etc/systemd/system`), which run `zebrunner-farm restart` or `down` for it. udev only queues the job: its programs are killed after the event (180 s), the containers may need longer (the images are pulled). A disconnection cancels an unfinished restart and the other way round.
 - The commands of one device (`zebrunner-farm start`, `stop`, `restart`, `down <device>`, the units of udev) run one at a time (`flock`, `/run/lock/mcloud-device-<id>.lock`): one waits for up to 30 minutes for another.
