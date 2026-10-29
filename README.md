@@ -27,14 +27,14 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 | | Requirements |
 | --- | --- |
-| <b>Operating System</b> | Ubuntu 22.04+ (on 25.10+ see [sudo-rs](#troubleshooting))<br>Linux CentOS 7+<br>Amazon Linux2<br> macOS 13 (Ventura)+, Apple Silicon or Intel |
+| <b>Operating System</b> | Ubuntu 22.04+ (on 25.10+ see [sudo-rs](#troubleshooting))<br> macOS 13 (Ventura)+, Apple Silicon or Intel |
 | <b>       CPU      </b> | 8+ Cores |
 | <b>      Memory    </b> | 32 Gb RAM |
 | <b>    Free space  </b> | SSD 128Gb+ of free space |
 
 ## Software prerequisites
 
-- Install docker: [Docker Engine](https://docs.docker.com/engine/install/) on Linux ([Amazon Linux 2](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/docker-basics.html)), [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) on macOS.
+- Install docker: [Docker Engine](https://docs.docker.com/engine/install/) on Linux, [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) on macOS.
 - Install [ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html) 2.10+ (the playbooks use `ansible.builtin` module names, tested with ansible-core 2.21), e.g. `pip install ansible-core`.
 - macOS on Apple Silicon: install Rosetta 2 and let Docker Desktop use it: the image of appium is `linux/amd64` only and
   runs much slower under the QEMU emulation of Docker Desktop without it:
