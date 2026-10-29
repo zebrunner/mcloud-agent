@@ -116,7 +116,9 @@ delimiter() {
   text="$*"
 
   local width
-  width=$(tput cols)
+  width=$(tput cols 2> /dev/null)
+  # no terminal (ssh without a tty, CI): the default width
+  [[ "$width" =~ ^[0-9]+$ ]] || width=80
   printf "\n"
   if [[ -z "$text" ]]; then
     # Simple delimiter line

@@ -58,6 +58,10 @@ setup() {
   echo "Current OS: ${os}"
   echo ""
   echo "Setting up 'roles/.../vars/main.yml' according to OS:"
+  local vars="roles/devices/vars/main.yml"
+  if [[ "$os" == "Darwin" ]]; then
+    vars="roles/mac-devices/vars/main.yml"
+  fi
   if [[ "$os" == "Linux" ]]; then
     if [[ -f roles/devices/vars/main.yml ]]; then
       echo "'roles/devices/vars/main.yml' already exists, making a backup 'roles/devices/vars/main.yml.bak'"
@@ -111,8 +115,8 @@ setup() {
 
   ### Final message
   delimiter "*"
-  #TODO: switch to master branch after official release and merge
-  echo "Follow https://github.com/zebrunner/mcloud-agent/tree/master#run-ansible-playbook to deploy MCloud agent services!"
+  echo "Set the settings of the MCloud server in '${vars}' (https://github.com/zebrunner/mcloud-agent#connect-to-mcloud)"
+  echo "and the devices, then run './zebrunner.sh ansible' (https://github.com/zebrunner/mcloud-agent#run-ansible-playbook)."
 
   delimiter "Setting up MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished successfully"
 }
@@ -161,6 +165,9 @@ ansible() {
     exit 1
   }
 
+  if [[ "$1" != "devices" ]]; then
+    echo "Run 'zebrunner-farm start' to create the containers of the connected devices."
+  fi
   delimiter "Deploying MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished successfully"
 }
 
@@ -229,10 +236,6 @@ status() {
   echo ""
   if [[ "$os" == "Darwin" ]]; then
     echo "Socat tool:                       $(which socat 2> /dev/null || failed "'socat' not found")"
-    echo ""
-    echo "Jq tool:                          $(which jq 2> /dev/null || failed "'jq' not found")"
-    echo ""
-    echo "Go-ios tool:                      $(which ios 2> /dev/null || failed "'ios' not found")"
     echo ""
     echo "Deployed launchctl Zebrunner files:"
     shopt -s nullglob nocaseglob

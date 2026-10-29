@@ -60,6 +60,7 @@ check "the agent dir is added to .bash_profile" "1" "$(exports .bash_profile)"
 check "Linux settings are created from the example" "same" \
   "$(cmp -s "${AGENT}/roles/devices/vars/main.yml" "${AGENT}/roles/devices/vars/main.yml.original" && echo same)"
 check_contains "the reload of the shell is suggested" "To apply the changes" "$output"
+check_contains "the settings of the server are the next step" "Set the settings of the MCloud server in 'roles/devices/vars/main.yml'" "$output"
 output="$(OS=Linux zbr "" setup)"
 check "a second setup does not duplicate the variable" "1" "$(exports .bashrc)"
 check_contains "a second setup backs up existing settings" "making a backup" "$output"
@@ -115,6 +116,9 @@ check "devices registration only" "--ask-become-pass|--inventory|hosts|${AGENT}/
 reset_calls
 AGENT_DIR="$AGENT" OS=Linux zbr "" ansible --user=bob --extra-vars "app_name=a b" > /dev/null
 check "custom arguments keep their words" "--ask-become-pass|--inventory|hosts|--user=bob|--extra-vars|app_name=a b|${AGENT}/devices.yml" "$(calls ansible-playbook)"
+output="$(AGENT_DIR="$AGENT" OS=Linux zbr "" ansible)"
+check_contains "the deploy suggests zebrunner-farm start" "Run 'zebrunner-farm start'" "$output"
+check_not_contains "the registration of the devices does not" "zebrunner-farm start" "$(AGENT_DIR="$AGENT" OS=Linux zbr "" ansible devices)"
 output="$(ANSIBLE_EXIT=2 AGENT_DIR="$AGENT" zbr "" ansible)"
 check "failed playbook fails" "1" "$?"
 check_contains "failed playbook is reported" "Ansible playbook execution failed!" "$output"
