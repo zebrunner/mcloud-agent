@@ -250,12 +250,13 @@ check_contains "proxied WDA is relayed by the connector on macOS" \
 appium="$(run_args device-AppleTV-aaaa1111-appium)"
 check_contains "proxied device reaches WDA through the connector" "|WDA_HOST=connector|-e|WDA_PORT=8100|-e|WIRELESS=true|" "$appium"
 check_contains "proxied device links the connector" "|--link|device-AppleTV-aaaa1111-connector:connector|" "$appium"
-# mcloud-device runs on the platform of the Mac (arm64 on Apple Silicon), the other images are linux/amd64 only
-for container in connector appium uploader; do
-  check_contains "macOS: the ${container} is linux/amd64" "|--name|device-AppleTV-aaaa1111-${container}|--platform|linux/amd64|" \
+# the images run on the platform of the Mac (arm64 on Apple Silicon), but appium: it is linux/amd64 only
+check_contains "macOS: appium is linux/amd64" "|--name|device-AppleTV-aaaa1111-appium|--platform|linux/amd64|" \
+  "$(run_args device-AppleTV-aaaa1111-appium)"
+for container in connector stf uploader; do
+  check_not_contains "macOS: the ${container} runs on the platform of the host" "--platform" \
     "$(run_args "device-AppleTV-aaaa1111-${container}")"
 done
-check_not_contains "macOS: mcloud-device runs on the platform of the host" "--platform" "$(run_args device-AppleTV-aaaa1111-stf)"
 check_not_contains "macOS: no default platform" "DOCKER_DEFAULT_PLATFORM=" "$(grep -v '^ *#' "${WORK}/zebrunner-farm-mac-devices")"
 
 setup_case

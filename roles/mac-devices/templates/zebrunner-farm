@@ -3,8 +3,8 @@
 # Export docker env variables to avoid issues on macOS
 export DOCKER_BUILDKIT=0
 export COMPOSE_DOCKER_CLI_BUILD=0
-# mcloud-device runs on the platform of the Mac (arm64 on Apple Silicon: the STF provider of an iOS simulator hangs
-# under emulation), the images of the connectors, appium and the uploader are linux/amd64 only
+# the images run on the platform of the Mac (arm64 on Apple Silicon: the STF provider of an iOS simulator hangs under
+# emulation, the other ones are slower), but appium: its image is linux/amd64 only
 unset DOCKER_DEFAULT_PLATFORM
 
 # Rendered at deploy time: launchd runs this script without the user's env variables
@@ -167,7 +167,6 @@ create_containers() {
     grep -q "${dev_container}-connector" <<< "$ps_out" || {
       echo -n "${dev_container}-connector:  "
       docker run -itd --name "${dev_container}-connector" \
-        --platform linux/amd64 \
         --log-driver=local \
         --log-opt max-size=256m \
         --log-opt max-file=2 \
@@ -307,7 +306,6 @@ create_containers() {
     grep -q "${dev_container}-connector" <<< "$ps_out" || {
       echo -n "${dev_container}-connector:  "
       docker run -itd --name "${dev_container}-connector" \
-        --platform linux/amd64 \
         --log-driver=local \
         --log-opt max-size=256m \
         --log-opt max-file=2 \
@@ -412,7 +410,6 @@ create_containers() {
   grep -q "${dev_container}-uploader" <<< "$ps_out" || {
     echo -n "${dev_container}-uploader:   "
     docker run -d --name "${dev_container}-uploader" \
-      --platform linux/amd64 \
       --log-driver=local \
       --log-opt max-size=256m \
       --log-opt max-file=2 \

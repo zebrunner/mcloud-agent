@@ -36,8 +36,8 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 - Install docker: [Docker Engine](https://docs.docker.com/engine/install/) on Linux ([Amazon Linux 2](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/docker-basics.html)), [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) on macOS.
 - Install [ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html) 2.10+ (the playbooks use `ansible.builtin` module names, tested with ansible-core 2.21), e.g. `pip install ansible-core`.
-- macOS on Apple Silicon: install Rosetta 2 and let Docker Desktop use it, the images of appium, the connectors and the
-  uploader are `linux/amd64` and run much slower under the QEMU emulation of Docker Desktop without it:
+- macOS on Apple Silicon: install Rosetta 2 and let Docker Desktop use it: the image of appium is `linux/amd64` only and
+  runs much slower under the QEMU emulation of Docker Desktop without it:
 
   ```bash
   softwareupdate --install-rosetta --agree-to-license
@@ -147,9 +147,9 @@ Set the settings of the MCloud server in `roles/devices/vars/main.yml` (Linux) o
   ```
 
 - Devices management script is deployed to /usr/local/bin/zebrunner-farm.
-- The mcloud-device containers run on the platform of the Mac, arm64 on Apple Silicon (the STF provider of an iOS
-  simulator hangs under emulation); the connectors, appium and the uploader are `linux/amd64` images, emulated by Docker
-  Desktop on Apple Silicon.
+- The containers run on the platform of the Mac, arm64 on Apple Silicon (the STF provider of an iOS simulator hangs
+  under emulation, the other ones are slower), but appium: its image is `linux/amd64` only (see
+  [appium](https://github.com/zebrunner/appium#limitations)), emulated by Docker Desktop with Rosetta 2 on Apple Silicon.
 - Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
 - Deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist to share usbmuxd into the device containers
 - USB Android devices: deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerAdb.plist, the adb server of the host (`brew install android-platform-tools`); the connectors take the devices from it, the containers of a USB Android device are created by `zebrunner-farm start` (the devices listener handles iOS only).

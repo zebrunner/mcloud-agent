@@ -1,14 +1,14 @@
 ---
 # A failed pull is reported but does not stop the deploy: the image may exist locally only.
-# mcloud-device is pulled for the platform of the host (arm64 on Apple Silicon), the other images are linux/amd64 only.
+# The images are pulled for the platform of the host (arm64 on Apple Silicon), appium is linux/amd64 only.
 - name: Pull Zebrunner images
   ansible.builtin.command: docker pull {{ '--platform linux/amd64 ' if item.amd64 else '' }}"{{ item.image }}"
   loop:
     - {image: "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}", amd64: false}
     - {image: "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}", amd64: true}
-    - {image: "{{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }}", amd64: true}
-    - {image: "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}", amd64: true}
-    - {image: "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}", amd64: true}
+    - {image: "{{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }}", amd64: false}
+    - {image: "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}", amd64: false}
+    - {image: "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}", amd64: false}
   loop_control:
     label: "{{ item.image }}"
   register: download_images_pull

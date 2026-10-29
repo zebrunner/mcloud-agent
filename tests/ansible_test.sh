@@ -176,9 +176,9 @@ reset_calls
 output="$(playbook download)"
 check_contains "all images pulled" "failed=0" "$output"
 check "network is created after pulling" "1" "$(calls docker | grep -c '^network|')"
-check "mcloud-device is pulled for the platform of the host" "pull|public.ecr.aws/zebrunner/mcloud-device:" \
-  "$(calls docker | grep '^pull|.*mcloud-device:' | sed 's/:[^:]*$/:/')"
-check "the other images are pulled for linux/amd64" "4" "$(calls docker | grep -c '^pull|--platform|linux/amd64|')"
+check "the images are pulled for the platform of the host" "4" "$(calls docker | grep -c '^pull|public.ecr.aws/')"
+check "appium is pulled for linux/amd64" "pull|--platform|linux/amd64|public.ecr.aws/zebrunner/appium:" \
+  "$(calls docker | grep '^pull|.*appium:' | sed 's/:[^:]*$/:/')"
 reset_calls
 output="$(FAIL_PULL=appium LOCAL_IMAGE=appium playbook download)"
 check_contains "failed pull of a local image is reported" "ignoring" "$output"

@@ -232,7 +232,7 @@ curve_key() {
       STF_ZMQ_CURVE_SERVER_PUBLIC_KEY of '${vars}' and run './zebrunner.sh ansible'."
 }
 
-# rosetta_state: Rosetta 2 of the Mac for the linux/amd64 images (appium, the connectors, the uploader): 'intel' (not
+# rosetta_state: Rosetta 2 of the Mac for the linux/amd64 image of appium: 'intel' (not
 # needed), 'missing', 'docker-off' (installed, Docker Desktop does not use it) or 'ok'
 rosetta_state() {
   local settings="${HOME}/Library/Group Containers/group.com.docker/settings-store.json"
@@ -255,17 +255,18 @@ rosetta_state() {
 rosetta_report() {
   case "$(rosetta_state)" in
   ok)
-    succeed "Rosetta 2 is installed: Docker Desktop runs the linux/amd64 images (appium, the connectors, the uploader) with it."
+    succeed "Rosetta 2 is installed: Docker Desktop runs the linux/amd64 image of appium with it."
     ;;
   missing)
-    warn "Rosetta 2 is not installed: Docker Desktop runs the linux/amd64 images (appium, the connectors, the uploader)"
-    warn "under the much slower QEMU emulation. Install it and let Docker Desktop use it:"
+    warn "Rosetta 2 is not installed: Docker Desktop runs the linux/amd64 image of appium under the much slower QEMU"
+    warn "emulation. Install it and let Docker Desktop use it:"
     warn ">\tsoftwareupdate --install-rosetta --agree-to-license"
     warn "then turn on 'Use Rosetta for x86_64/amd64 emulation on Apple Silicon' in Docker Desktop (Settings, General)"
     warn "and restart Docker Desktop."
     ;;
   docker-off)
-    warn "Rosetta 2 is installed, but Docker Desktop runs the linux/amd64 images under the much slower QEMU emulation:"
+    warn "Rosetta 2 is installed, but Docker Desktop runs the linux/amd64 image of appium under the much slower QEMU"
+    warn "emulation:"
     warn "turn on 'Use Rosetta for x86_64/amd64 emulation on Apple Silicon' in Docker Desktop (Settings, General) and"
     warn "restart Docker Desktop."
     ;;
