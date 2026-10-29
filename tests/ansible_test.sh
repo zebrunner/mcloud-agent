@@ -179,6 +179,17 @@ check "network is created after pulling" "1" "$(calls docker | grep -c '^network
 check "the images are pulled for the platform of the host" "4" "$(calls docker | grep -c '^pull|public.ecr.aws/')"
 check "appium is pulled for linux/amd64" "pull|--platform|linux/amd64|public.ecr.aws/zebrunner/appium:" \
   "$(calls docker | grep '^pull|.*appium:' | sed 's/:[^:]*$/:/')"
+check "both connectors are pulled without a list of devices" "2" "$(calls docker | grep -c '^pull|.*-connector:')"
+reset_calls
+output="$(playbook download --extra-vars '{"devices": [{"id": "a", "os": "android"}, {"id": "b", "os": "android"}]}')"
+check_contains "the pulls for the Android devices" "failed=0" "$output"
+check "the Android devices: the android connector only" "pull|public.ecr.aws/zebrunner/mcloud-android-connector:" \
+  "$(calls docker | grep '^pull|.*-connector:' | sed 's/:[^:]*$/:/')"
+check "the Android devices: the other images" "3" "$(calls docker | grep -c '^pull|public.ecr.aws/')"
+reset_calls
+output="$(playbook download --extra-vars '{"devices": [{"id": "a", "os": "ios"}]}')"
+check "the iOS devices: the ios connector only" "pull|public.ecr.aws/zebrunner/mcloud-ios-connector:" \
+  "$(calls docker | grep '^pull|.*-connector:' | sed 's/:[^:]*$/:/')"
 reset_calls
 output="$(FAIL_PULL=appium LOCAL_IMAGE=appium playbook download)"
 check_contains "failed pull of a local image is reported" "ignoring" "$output"

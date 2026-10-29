@@ -1,16 +1,23 @@
 ---
 # A failed pull is reported but does not stop the deploy: the image may exist locally only.
 # The images are pulled for the platform of the host (arm64 on Apple Silicon), appium is linux/amd64 only.
+# A connector is pulled for the platforms (os) of the registered devices only; without a list of devices, for both.
+- name: Platforms of the devices
+  ansible.builtin.set_fact:
+    download_platforms: "{{ ['android', 'ios'] if devices | default(none) is none else devices | map(attribute='os') | unique | list }}"
+  tags: [pull, download]
+
 - name: Pull Zebrunner images
   ansible.builtin.command: docker pull {{ '--platform linux/amd64 ' if item.amd64 else '' }}"{{ item.image }}"
   loop:
     - {image: "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}", amd64: false}
     - {image: "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}", amd64: true}
     - {image: "{{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }}", amd64: false}
-    - {image: "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}", amd64: false}
-    - {image: "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}", amd64: false}
+    - {image: "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}", amd64: false, os: ios}
+    - {image: "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}", amd64: false, os: android}
   loop_control:
     label: "{{ item.image }}"
+  when: item.os is not defined or item.os in download_platforms
   register: download_images_pull
   ignore_errors: true
   changed_when: false

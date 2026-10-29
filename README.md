@@ -92,7 +92,7 @@ Set the settings of the MCloud server in `roles/devices/vars/main.yml` (Linux) o
 - update `roles/devices/vars/main.yml` file according to the obligatory/optional comments inside.
   > Register all whitelisted Android and iOS devices with their udids!
   > The deploy validates the devices: obligatory settings, unique ids and names, and host ports (`appium_port`, `min_port`-`max_port`) not shared by devices.
-- Run ansible-playbook script to download the required components and set up udev rules:
+- Run ansible-playbook script to download the required components (the connector of the platforms of the registered devices only) and set up udev rules:
 
   ```bash
   ./zebrunner.sh ansible
@@ -128,7 +128,7 @@ Set the settings of the MCloud server in `roles/devices/vars/main.yml` (Linux) o
 - update `roles/mac-devices/vars/main.yml` file according to the obligatory/optional comments inside.
   > Register all whitelisted Android and iOS devices (phones, tablets, TVs or simulators) with their udids and connections!
   > The deploy validates the devices: obligatory settings, unique ids and names, the connections, host ports (`appium_port`, `min_port`-`max_port`, `wda_port` and `mjpeg_port` of the iOS simulators, `adb_port` of the USB Android devices) not shared by devices.
-- Run ansible-playbook script to download the required components and set up launchd agents:
+- Run ansible-playbook script to download the required components (the connector of the platforms of the registered devices only) and set up launchd agents:
 
   ```bash
   ./zebrunner.sh ansible
