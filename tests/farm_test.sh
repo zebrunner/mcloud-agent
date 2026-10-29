@@ -175,6 +175,11 @@ connector="$(run_args device-Emu-emu1-connector)"
 check_contains "Android emulator is connected by its adb address" "|ANDROID_DEVICE=host.docker.internal:5557|" "$connector"
 check_not_contains "Android emulator connector gets no device" "--device=" "$connector"
 check_contains "Android emulator is the device of STF" "|DEVICE_UDID=host.docker.internal:5557|" "$(run_args device-Emu-emu1-stf)"
+check_contains "appium of an Android emulator knows the connection" "|DEVICE_CONNECTION=android-sim|" "$(run_args device-Emu-emu1-appium)"
+setup_case
+farm devices start WiFi > /dev/null
+check_contains "appium of a wireless Android device knows the connection" "|DEVICE_CONNECTION=wireless|" \
+  "$(run_args device-WiFi-192.168.1.50-appium)"
 
 setup_case
 output="$(farm devices start Sim)"
@@ -304,6 +309,8 @@ check "Android emulator of macOS gets the containers of a device" "connector stf
   "$(calls docker | grep '^run|' | grep -o -- '--name|device-Emu-emu1-[a-z]*' | sed 's/.*-//' | paste -s -d ' ' -)"
 check_contains "Android emulator of macOS is connected by its adb address" "|ANDROID_DEVICE=host.docker.internal:5557|" \
   "$(run_args device-Emu-emu1-connector)"
+check_contains "appium of an Android emulator of macOS knows the connection" "|DEVICE_CONNECTION=android-sim|" \
+  "$(run_args device-Emu-emu1-appium)"
 
 section "grid registration"
 for role in devices mac-devices; do

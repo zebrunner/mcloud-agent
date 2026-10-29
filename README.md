@@ -8,7 +8,7 @@ Appium containers always take adb, usbmuxd and WebDriverAgent from it.
 | --- | --- | --- | --- |
 | Android phone, tablet, TV | `usb` | adb server of the connector (USB passed in) | adb server of the host (a launch agent), the connector forwards the device to its own adb server |
 | Android | `wireless` | adb connect of the connector | adb connect of the connector |
-| Android emulator (Redroid, AVD, Genymotion) started outside the farm | `android-sim` | adb connect of the connector to the `address` of the emulator | the same, an AVD of the Mac is `host.docker.internal:5555` |
+| Android emulator (AVD, Genymotion, a container Android) started outside the farm | `android-sim` | adb connect of the connector to the `address` of the emulator | the same, an AVD of the Mac is `host.docker.internal:5555` |
 | iPhone, iPad, Apple TV HD | `usb` | usbmuxd of the connector | usbmuxd of the host, the connector installs and starts WebDriverAgent over it |
 | iPhone, iPad, Apple TV over Wi-Fi | `wireless` | netmuxd of the connector at `address` (paired over USB first) | usbmuxd of the host (paired with the Mac) |
 | iOS, iPadOS, tvOS simulator | `ios-sim` | - | the connector runs `xcrun simctl` of the host over ssh |
@@ -109,7 +109,7 @@ Set the settings of the MCloud server in `roles/devices/vars/main.yml` (Linux) o
 - Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
 - Usbmuxd service is stopped and masked (disabled).
 - Wireless, emulator and proxy devices have no udev rules: `zebrunner-farm start` creates their containers.
-- Android emulators (`android-sim`) are started outside the farm (e.g. [mcloud-redroid](https://github.com/zebrunner/mcloud-redroid), an AVD, Genymotion): set `address` to their adb address reachable from the docker network.
+- Android emulators (`android-sim`) are started outside the farm (e.g. an AVD, Genymotion, a container Android): set `address` to their adb address reachable from the docker network; appium gets `DEVICE_CONNECTION=android-sim` (a `default` device is a phone).
 - [Optional] Register`@reboot /usr/local/bin/zebrunner-farm restart` via crontab to forcibly restart containers on reboot
 - [Optional] Increased `fs.inotify.max_user_instances` to workaround [#328](https://github.com/zebrunner/mcloud-agent/issues/328)
   > `sudo sysctl fs.inotify.max_user_instances=2048`

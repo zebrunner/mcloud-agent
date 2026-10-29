@@ -94,7 +94,7 @@ WDA_BUNDLEID:
 #     wireless  - over the network: iOS / Apple TV paired with the Mac (usbmuxd of the host knows it), Android over
 #                 adb connect to address (the id by default, port 5555 unless given)
 #     android-sim - Android: an emulator started outside the farm, address is its adb address: an AVD of the Mac
-#                 is host.docker.internal:5555 (5557, ... for the next ones), Redroid or Genymotion of the network
+#                 is host.docker.internal:5555 (5557, ... for the next ones), a container Android or Genymotion of the network
 #     ios-sim   - an iOS / tvOS simulator of the Mac, id is its UDID (xcrun simctl list devices): the connector
 #                 boots it and starts WebDriverAgent over ssh (Remote Login must be on), wda_port (and mjpeg_port,
 #                 wda_port + 1 by default) are its unique ports on the host, wda_file the simulator build of WDA

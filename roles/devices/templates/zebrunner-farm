@@ -91,7 +91,7 @@ get_device_fields() {
   # Field 11 - 'connection': how the connector container reaches the device.
   #   usb         - plugged into the host (udev starts and removes its containers)
   #   wireless    - over the network: adb connect for Android, netmuxd of the connector for iOS
-  #   android-sim - an Android emulator started outside the farm (Redroid, AVD, Genymotion), adb connect to its address
+  #   android-sim - an Android emulator started outside the farm (AVD, Genymotion, a container Android), adb connect to its address
   #   ios-sim     - an iOS / tvOS simulator, on a macOS host only
   #   proxy       - WebDriverAgent published by another tool, the connector relays it (iOS)
   # The non-usb devices have no udev rules, `zebrunner-farm start` creates their containers.
@@ -246,6 +246,7 @@ create_containers() {
         -v "${dev_container}":/tmp/log \
         -e TASK_LOG=/tmp/log/appium.log \
         -e PLATFORM_NAME="$dev_platform_name" \
+        -e DEVICE_CONNECTION="$dev_connection" \
         -e ANDROID_DEVICE="$ANDROID_DEVICE" \
         -e RETAIN_TASK=true \
         -e CONNECT_TO_GRID=true \
