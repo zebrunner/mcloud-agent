@@ -61,6 +61,7 @@ check "Linux settings are created from the example" "same" \
   "$(cmp -s "${AGENT}/roles/devices/vars/main.yml" "${AGENT}/roles/devices/vars/main.yml.original" && echo same)"
 check_contains "the reload of the shell is suggested" "To apply the changes" "$output"
 check_contains "the settings of the server are the next step" "Set the settings of the MCloud server in 'roles/devices/vars/main.yml'" "$output"
+check_contains "the key of the host is the next step too" "make the key of this host with './zebrunner.sh curve-key'" "$output"
 output="$(OS=Linux zbr "" setup)"
 check "a second setup does not duplicate the variable" "1" "$(exports .bashrc)"
 check_contains "a second setup backs up existing settings" "making a backup" "$output"
@@ -84,11 +85,10 @@ for os in Linux Darwin; do
 done
 vars="${AGENT}/roles/devices/vars/main.yml"
 cp "$vars" "${WORK}/vars.saved"
-grep -v '^STF_ZMQ_CURVE_' "${WORK}/vars.saved" > "$vars"
-printf 'LAST: value' >> "$vars"
-OS=Linux zbr "" curve-key > /dev/null
-check "the key is added to the settings of an earlier agent" "1" "$(grep -c '^STF_ZMQ_CURVE_SECRET_KEY: "[0-9a-f]\{64\}"$' "$vars")"
-check "the last line of the settings is kept" "1" "$(grep -cx 'LAST: value' "$vars")"
+grep -v '^STF_ZMQ_CURVE_SECRET_KEY:' "${WORK}/vars.saved" > "$vars"
+check_contains "the settings need the line of the key" "has no STF_ZMQ_CURVE_SECRET_KEY line" "$(OS=Linux zbr "" curve-key)"
+check "the settings without the line of the key are not changed" "same" \
+  "$(grep -v '^STF_ZMQ_CURVE_SECRET_KEY:' "${WORK}/vars.saved" | cmp -s - "$vars" && echo same)"
 cp "${WORK}/vars.saved" "$vars"
 check_contains "the settings are needed" "run './zebrunner.sh setup' first" \
   "$(rm -f "${AGENT}/roles/devices/vars/main.yml" && OS=Linux zbr "" curve-key)"

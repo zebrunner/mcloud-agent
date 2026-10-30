@@ -16,7 +16,11 @@ else
   OS_ROLE=devices
 fi
 
-# make_play <role>: a playbook dir using the role from the repo with the example vars as its settings
+server_key="$(printf '%064d' 0 | tr 0 a)"
+secret_key="$(printf '%064d' 0 | tr 0 b)"
+
+# make_play <role>: a playbook dir using the role from the repo with the example vars as its settings, the obligatory
+# settings of the MCloud server set as a deployment sets them
 make_play() {
   local dir="${WORK}/play-$1"
   local part
@@ -25,7 +29,11 @@ make_play() {
     [[ -d "${REPO}/roles/$1/${part}" ]] && ln -s "${REPO}/roles/$1/${part}" "${dir}/roles/$1/${part}"
   done
   if [[ -f "${REPO}/roles/$1/vars/main.yml.original" ]]; then
-    cp "${REPO}/roles/$1/vars/main.yml.original" "${dir}/roles/$1/vars/main.yml"
+    sed -e 's/^STF_STORAGE_TOKEN:.*/STF_STORAGE_TOKEN: "storage-token"/' \
+      -e 's/^NODE_REGISTRATION_TOKEN:.*/NODE_REGISTRATION_TOKEN: "grid-token"/' \
+      -e "s/^STF_ZMQ_CURVE_SERVER_PUBLIC_KEY:.*/STF_ZMQ_CURVE_SERVER_PUBLIC_KEY: \"${server_key}\"/" \
+      -e "s/^STF_ZMQ_CURVE_SECRET_KEY:.*/STF_ZMQ_CURVE_SECRET_KEY: \"${secret_key}\"/" \
+      "${REPO}/roles/$1/vars/main.yml.original" > "${dir}/roles/$1/vars/main.yml"
   fi
   cat > "${dir}/play.yml" << EOF
 - hosts: localhost
@@ -57,6 +65,7 @@ for role in devices mac-devices; do
   check_contains "${role}: the tag selects the prechecks" "Check OS compatibility" "$tasks"
   check_contains "${role}: the tag selects the files" "Copy 'zebrunner-farm' script file" "$tasks"
   check_contains "${role}: the tag selects the duplicates check" "Check for duplicate device IDs or names" "$tasks"
+  check_contains "${role}: the tag selects the obligatory settings check" "Check the obligatory settings of the MCloud server" "$tasks"
 done
 
 section "duplicates check"
@@ -95,8 +104,8 @@ done
 while IFS='=' read -r devices expected; do
   check_contains "mac-devices: ${devices}" "$expected" "$(playbook mac-devices --tags validate --extra-vars "{\"devices\": ${devices}}")"
 done << 'EOF'
-[{"id": "a", "name": "TV", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "wireless": true}]=failed=0
-[{"id": "a", "name": "TV", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "wireless": true, "wda_host": "10.0.0.5"}]=failed=0
+[{"id": "a", "name": "TV", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "wireless"}]=failed=0
+[{"id": "a", "name": "TV", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "proxy", "address": "10.0.0.5"}]=failed=0
 [{"id": "a", "name": "TV", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "proxy"}]=Invalid connection 'proxy' of device 'TV'
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "bluetooth"}]=Invalid connection 'bluetooth' of device 'A'
 [{"id": "a", "name": "Sim", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "ios-sim"}]=Invalid connection 'ios-sim' of device 'Sim'
@@ -114,7 +123,7 @@ while IFS='=' read -r devices expected; do
 done << 'EOF'
 [{"id": "a", "name": "WiFi", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "wireless"}]=Invalid connection 'wireless' of device 'WiFi'
 [{"id": "a", "name": "WiFi", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "wireless", "address": "10.0.0.7"}]=failed=0
-[{"id": "a", "name": "WiFi", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "wireless": true}]=failed=0
+[{"id": "a", "name": "WiFi", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "wireless"}]=failed=0
 [{"id": "a", "name": "Sim", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "ios-sim", "wda_port": 8110}]=Invalid connection 'ios-sim' of device 'Sim'
 [{"id": "a", "name": "Emu", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "android-sim", "address": "10.0.0.9:5555"}]=failed=0
 [{"id": "a", "name": "Emu", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "android-sim"}]=Invalid connection 'android-sim' of device 'Emu'
@@ -128,6 +137,8 @@ check_contains "OS is compatible" "OS is compatible: $(uname)" "$output"
 check_contains "setup is done" "Setup is ready" "$output"
 check_contains "agent dir env variable is set" "env variable is defined" "$output"
 check_contains "prechecks pass" "failed=0" "$output"
+check_contains "the obligatory settings of the MCloud server pass" "The obligatory settings of the MCloud server are set." "$output"
+check_contains "the CURVE keys pass" "The CURVE keys of ZeroMQ are valid." "$output"
 output="$(cd "${WORK}/play-${OS_ROLE}" && env -u ZEBRUNNER_MCLOUD_AGENT_DIR ansible-playbook play.yml --check --tags precheck < /dev/null 2>&1)"
 check_contains "unset agent dir env variable fails" "You have to set up 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable in advance!" "$output"
 output="$(cd "${WORK}/play-${OS_ROLE}" && ZEBRUNNER_MCLOUD_AGENT_DIR="" ansible-playbook play.yml --check --tags precheck < /dev/null 2>&1)"
@@ -135,18 +146,29 @@ check_contains "empty agent dir env variable fails" "You have to set up 'ZEBRUNN
 mv "${WORK}/play-${OS_ROLE}/roles/${OS_ROLE}/vars/main.yml" "${WORK}/vars.yml"
 check_contains "missing setup fails" "You have to set up services in advance using: ./zebrunner.sh setup!" "$(playbook "$OS_ROLE" --check --tags precheck)"
 mv "${WORK}/vars.yml" "${WORK}/play-${OS_ROLE}/roles/${OS_ROLE}/vars/main.yml"
-check_contains "ZeroMQ without CURVE by default" "ZeroMQ of STF without CURVE." "$(playbook "$OS_ROLE" --check --tags precheck)"
-server_key="$(printf '%064d' 0 | tr 0 a)"
-secret_key="$(printf '%064d' 0 | tr 0 b)"
-output="$(playbook "$OS_ROLE" --check --tags precheck \
-  --extra-vars "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=${server_key} STF_ZMQ_CURVE_SECRET_KEY=${secret_key}")"
-check_contains "the CURVE keys pass" "ZeroMQ of STF with CURVE." "$output"
-check_contains "the CURVE keys pass the prechecks" "failed=0" "$output"
-check_contains "the key of the server needs the key of the host" "run ./zebrunner.sh curve-key" \
-  "$(playbook "$OS_ROLE" --check --tags precheck --extra-vars "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=${server_key}")"
-check_contains "an invalid key of the server fails" "must be the 64 hex characters" \
-  "$(playbook "$OS_ROLE" --check --tags precheck \
-    --extra-vars "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=abc STF_ZMQ_CURVE_SECRET_KEY=${secret_key}")"
+output="$(playbook "$OS_ROLE" --check --tags precheck --extra-vars "@${REPO}/roles/${OS_ROLE}/vars/main.yml.original")"
+check_contains "the example settings fail with all the obligatory settings of the server" \
+  "missing: STF_STORAGE_TOKEN, NODE_REGISTRATION_TOKEN, STF_ZMQ_CURVE_SERVER_PUBLIC_KEY, STF_ZMQ_CURVE_SECRET_KEY." "$output"
+check_contains "the tokens and the key of the server come from mcloud" "are the ones of variables.env of mcloud" "$output"
+check_contains "the key of the host comes from curve-key" "run ./zebrunner.sh curve-key" "$output"
+
+section "obligatory settings of the MCloud server"
+for role in devices mac-devices; do
+  for setting in STF_STORAGE_TOKEN NODE_REGISTRATION_TOKEN STF_ZMQ_CURVE_SERVER_PUBLIC_KEY STF_ZMQ_CURVE_SECRET_KEY; do
+    check_contains "${role}: a blank ${setting} fails" "The obligatory settings of the MCloud server are missing: ${setting}." \
+      "$(playbook "$role" --tags validate --extra-vars "{\"${setting}\": \" \"}")"
+  done
+  vars="${WORK}/play-${role}/roles/${role}/vars/main.yml"
+  cp "$vars" "${WORK}/vars.yml"
+  grep -v '^NODE_REGISTRATION_TOKEN:' "${WORK}/vars.yml" > "$vars"
+  check_contains "${role}: settings without the line of a setting fail" "are missing: NODE_REGISTRATION_TOKEN." \
+    "$(playbook "$role" --tags validate)"
+  mv "${WORK}/vars.yml" "$vars"
+  check_contains "${role}: an invalid key of the server fails" "must be the 64 hex characters" \
+    "$(playbook "$role" --tags validate --extra-vars "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=abc")"
+  check_contains "${role}: an invalid key of the host fails" "must be the 64 hex characters" \
+    "$(playbook "$role" --tags validate --extra-vars "STF_ZMQ_CURVE_SECRET_KEY=${server_key}0")"
+done
 
 section "file tasks of ${OS_ROLE} (check mode)"
 output="$(playbook "$OS_ROLE" --check --tags files)"
@@ -217,9 +239,9 @@ done
 cat > "${WORK}/devices.yml" << 'EOF'
 devices:
   - {id: " R28M-1384YQY ", os: android, name: " Galaxy S10 ", appium_port: 1, adb_port: 2, min_port: 3, max_port: 4}
-  - {id: 12345, os: android, name: Numeric, appium_port: 5, adb_port: 6, proxy_port: 7, server_proxy_port: 8, min_port: 9, max_port: 10, wireless: "True"}
-  - {id: abc, os: ios, name: Phone, appium_port: 11, adb_port: 12, min_port: 13, max_port: 14, wireless: false, wda_file: /wda.ipa, wda_bundleid: my.wda, wda_host: 10.0.0.5, wda_port: 8101}
-  - {id: tv, os: ios, name: TV, appium_port: 15, adb_port: 16, min_port: 17, max_port: 18, wireless: true, wda_host: 10.0.0.6}
+  - {id: 12345, os: android, name: Numeric, appium_port: 5, adb_port: 6, proxy_port: 7, server_proxy_port: 8, min_port: 9, max_port: 10, connection: Wireless}
+  - {id: abc, os: ios, name: Phone, appium_port: 11, adb_port: 12, min_port: 13, max_port: 14, wda_file: /wda.ipa, wda_bundleid: my.wda, wda_port: 8101}
+  - {id: tv, os: ios, name: TV, appium_port: 15, adb_port: 16, min_port: 17, max_port: 18, connection: proxy, address: 10.0.0.6}
   - {id: sim, os: ios, name: Sim, appium_port: 19, adb_port: 20, min_port: 21, max_port: 22, connection: iOS-Sim, wda_port: 8110, mjpeg_port: 8111}
   - {id: phone, os: ios, name: WiFi, appium_port: 23, adb_port: 24, min_port: 25, max_port: 26, connection: wireless, address: 10.0.0.7}
 EOF
@@ -227,13 +249,13 @@ render "${REPO}/roles/devices/templates/mcloud-devices.txt" "${WORK}/linux.txt" 
 check "Linux devices list" "R28M-1384YQY|android|Galaxy_S10||1|2|0|0|3|4|usb|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
 12345|android|Numeric||5|6|7|8|9|10|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
 abc|ios|Phone||11|12|0|0|13|14|usb|/wda.ipa|my.wda||8101|
-tv|ios|TV||15|16|0|0|17|18|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
+tv|ios|TV||15|16|0|0|17|18|proxy|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.6||
 sim|ios|Sim||19|20|0|0|21|22|ios-sim|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||8110|8111
 phone|ios|WiFi||23|24|0|0|25|26|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.7||" "$(cat "${WORK}/linux.txt")"
 render "${REPO}/roles/mac-devices/templates/mcloud-devices.txt" "${WORK}/mac.txt" --extra-vars "@${WORK}/devices.yml" || exit 1
 check "macOS devices list" "R28M-1384YQY|android|Galaxy_S10||1|2|0|0|3|4|usb|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
 12345|android|Numeric||5|6|7|8|9|10|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
-abc|ios|Phone||11|12|0|0|13|14|usb|/wda.ipa|my.wda|10.0.0.5|8101|
+abc|ios|Phone||11|12|0|0|13|14|usb|/wda.ipa|my.wda||8101|
 tv|ios|TV||15|16|0|0|17|18|proxy|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.6||
 sim|ios|Sim||19|20|0|0|21|22|ios-sim|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||8110|8111
 phone|ios|WiFi||23|24|0|0|25|26|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.7||" "$(cat "${WORK}/mac.txt")"

@@ -121,8 +121,9 @@ setup() {
 
   ### Final message
   delimiter "*"
-  echo "Set the settings of the MCloud server in '${vars}' (https://github.com/zebrunner/mcloud-agent#connect-to-mcloud)"
-  echo "and the devices, then run './zebrunner.sh ansible' (https://github.com/zebrunner/mcloud-agent#run-ansible-playbook)."
+  echo "Set the settings of the MCloud server in '${vars}' (https://github.com/zebrunner/mcloud-agent#connect-to-mcloud),"
+  echo "make the key of this host with './zebrunner.sh curve-key' and set the devices, then run './zebrunner.sh ansible'"
+  echo "(https://github.com/zebrunner/mcloud-agent#run-ansible-playbook)."
 
   delimiter "Setting up MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished successfully"
 }
@@ -205,6 +206,10 @@ curve_key() {
     echo_warning "'${vars}' does not exist, run './zebrunner.sh setup' first."
     exit 1
   fi
+  if ! grep -q '^STF_ZMQ_CURVE_SECRET_KEY:' "$vars"; then
+    echo_warning "'${vars}' has no STF_ZMQ_CURVE_SECRET_KEY line: add it as in '${vars}.original'."
+    exit 1
+  fi
 
   secret="$(sed -n 's/^STF_ZMQ_CURVE_SECRET_KEY:[[:space:]]*//p' "$vars" | tr -d "\"' ")"
   if [[ -z "$secret" ]]; then
@@ -213,13 +218,7 @@ curve_key() {
       echo_warning "Unable to make the key with python3 patch/curve_keygen.py."
       exit 1
     fi
-    if grep -q '^STF_ZMQ_CURVE_SECRET_KEY:' "$vars"; then
-      sed -i.bak "s/^STF_ZMQ_CURVE_SECRET_KEY:.*/STF_ZMQ_CURVE_SECRET_KEY: \"${secret}\"/" "$vars" && rm -f "${vars}.bak"
-    else
-      # the last line of the file may have no newline
-      [[ -n "$(tail -c 1 "$vars")" ]] && echo >> "$vars"
-      printf '%s\n' "# the CURVE key of this host, ./zebrunner.sh curve-key" "STF_ZMQ_CURVE_SECRET_KEY: \"${secret}\"" >> "$vars"
-    fi
+    sed -i.bak "s/^STF_ZMQ_CURVE_SECRET_KEY:.*/STF_ZMQ_CURVE_SECRET_KEY: \"${secret}\"/" "$vars" && rm -f "${vars}.bak"
     echo "The key of this host is written to STF_ZMQ_CURVE_SECRET_KEY of '${vars}'."
   fi
   if ! public="$(python3 patch/curve_keygen.py "$secret" | sed -n 's/^public=//p')" || [[ -z "$public" ]]; then

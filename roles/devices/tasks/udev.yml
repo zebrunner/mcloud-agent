@@ -60,6 +60,26 @@
     success_msg: "All device IDs and names are unique."
   tags: [devices, precheck, dedup]
 
+# the authentication of the MCloud server: its tokens and the CURVE keys of ZeroMQ (README.md#connect-to-mcloud)
+- name: Check the obligatory settings of the MCloud server
+  vars:
+    devices_server_settings:
+      STF_STORAGE_TOKEN: "{{ STF_STORAGE_TOKEN | default('', true) | string | trim }}"
+      NODE_REGISTRATION_TOKEN: "{{ NODE_REGISTRATION_TOKEN | default('', true) | string | trim }}"
+      STF_ZMQ_CURVE_SERVER_PUBLIC_KEY: "{{ STF_ZMQ_CURVE_SERVER_PUBLIC_KEY | default('', true) | string | trim }}"
+      STF_ZMQ_CURVE_SECRET_KEY: "{{ STF_ZMQ_CURVE_SECRET_KEY | default('', true) | string | trim }}"
+    devices_missing_settings: "{{ devices_server_settings | dict2items | selectattr('value', 'equalto', '') | map(attribute='key') | list }}"
+  ansible.builtin.assert:
+    that: devices_missing_settings | length == 0
+    fail_msg: >-
+      The obligatory settings of the MCloud server are missing: {{ devices_missing_settings | join(', ') }}.
+      Set them in roles/devices/vars/main.yml, in quotes: STF_STORAGE_TOKEN, NODE_REGISTRATION_TOKEN and
+      STF_ZMQ_CURVE_SERVER_PUBLIC_KEY are the ones of variables.env of mcloud; STF_ZMQ_CURVE_SECRET_KEY is the key of
+      this host: run ./zebrunner.sh curve-key and add its public key to STF_ZMQ_CURVE_CLIENT_KEYS of variables.env of
+      mcloud (README.md#connect-to-mcloud).
+    success_msg: "The obligatory settings of the MCloud server are set."
+  tags: [devices, precheck, validate]
+
 # the ZeroMQ security of STF: the key of this host with the key of the server (README.md#zeromq-security)
 - name: Check the CURVE keys of ZeroMQ
   vars:
@@ -67,12 +87,12 @@
     curve_secret_key: "{{ STF_ZMQ_CURVE_SECRET_KEY | default('', true) | string }}"
   ansible.builtin.assert:
     that:
-      - curve_server_key | length == 0 or curve_server_key is match('^[0-9a-fA-F]{64}$')
-      - curve_server_key | length == 0 or curve_secret_key is match('^[0-9a-fA-F]{64}$')
+      - curve_server_key is match('^[0-9a-fA-F]{64}$')
+      - curve_secret_key is match('^[0-9a-fA-F]{64}$')
     fail_msg: >-
-      STF_ZMQ_CURVE_SERVER_PUBLIC_KEY must be the 64 hex characters of the STF server (in quotes) and it needs
-      STF_ZMQ_CURVE_SECRET_KEY, the key of this host: run ./zebrunner.sh curve-key.
-    success_msg: "{{ 'ZeroMQ of STF with CURVE.' if curve_server_key else 'ZeroMQ of STF without CURVE.' }}"
+      STF_ZMQ_CURVE_SERVER_PUBLIC_KEY must be the 64 hex characters of the STF server (in quotes) and
+      STF_ZMQ_CURVE_SECRET_KEY the 64 hex characters of the key of this host: run ./zebrunner.sh curve-key.
+    success_msg: "The CURVE keys of ZeroMQ are valid."
   tags: [devices, precheck, validate]
 
 - name: Check obligatory settings of each device
@@ -94,12 +114,11 @@
     label: "{{ item.name | default(item.id) | default('?') }}"
   tags: [devices, precheck, validate]
 
-# connection: usb (default), wireless (the earlier wireless: true), android-sim (an Android emulator) and proxy (iOS);
-# the iOS simulators (ios-sim) run on a macOS host only
+# connection: usb (default), wireless, android-sim (an Android emulator) and proxy (iOS); the iOS simulators (ios-sim)
+# run on a macOS host only
 - name: Check the connection of each device
   vars:
-    devices_wireless: "{{ (item.wireless | default(false) | string | lower) == 'true' }}"
-    devices_connection: "{{ (item.connection | default('wireless' if devices_wireless | bool else 'usb')) | string | lower }}"
+    devices_connection: "{{ item.connection | default('usb') | string | lower }}"
   ansible.builtin.assert:
     that:
       - devices_connection in ['usb', 'wireless', 'android-sim', 'proxy']

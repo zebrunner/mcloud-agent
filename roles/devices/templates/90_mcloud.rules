@@ -1,7 +1,7 @@
 {% for device in devices %}
 {# only the usb devices are plugged: the wireless devices and the emulators are started by zebrunner-farm start #}
 {# udev only queues the jobs of the systemd units (mcloud-device-restart@, mcloud-device-down@): a RUN program is killed after the event (180 s), the containers may need longer; the event of the device only, not of its interfaces #}
-{% if (device.connection | default('wireless' if (device.wireless | default(false) | string | lower) == 'true' else 'usb')) | string | lower == 'usb' %}
+{% if device.connection | default('usb') | string | lower == 'usb' %}
 SUBSYSTEM=="usb", ENV{ID_SERIAL_SHORT}=="{{ device.id | trim | replace('-','') }}", MODE="0666", SYMLINK+="device-{{ device.name | trim | regex_replace('\\s+', '_') }}-{{ device.id | trim }}"
 ACTION=="remove", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{ID_SERIAL_SHORT}=="{{ device.id | trim | replace('-','') }}", RUN+="/usr/bin/systemctl --no-block start mcloud-device-down@{{ device.id | trim }}.service"
 ACTION=="add", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{ID_SERIAL_SHORT}=="{{ device.id | trim | replace('-','') }}", RUN+="/usr/bin/systemctl --no-block start mcloud-device-restart@{{ device.id | trim }}.service"
