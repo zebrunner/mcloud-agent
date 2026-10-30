@@ -62,8 +62,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 ## Connect to MCloud
 
-Set the settings of the MCloud server in `roles/devices/vars/main.yml` (Linux) or `roles/mac-devices/vars/main.yml`
-(macOS), which `./zebrunner.sh setup` made; the secrets in quotes:
+Set the settings of the MCloud server in `roles/devices/vars/main.yml` (Linux) or `roles/mac-devices/vars/main.yml` (macOS), which `./zebrunner.sh setup` made; the secrets in quotes. `STF_STORAGE_TOKEN`, `NODE_REGISTRATION_TOKEN`, `STF_ZMQ_CURVE_SERVER_PUBLIC_KEY` and `STF_ZMQ_CURVE_SECRET_KEY` are obligatory: the prechecks of `./zebrunner.sh ansible` fail without them.
 
 | Setting | Value |
 | --- | --- |
@@ -172,21 +171,21 @@ Set the settings of the MCloud server in `roles/devices/vars/main.yml` (Linux) o
 
 ### ZeroMQ security
 
-The STF server of [mcloud](https://github.com/zebrunner/mcloud#authentication-of-the-device-hosts) accepts on its ZeroMQ ports only the device hosts with a known CURVE key (a new deployment, or one that turned the authentication on). Its device containers need the mcloud-device image of the current STF; for every device host:
+The STF server of [mcloud](https://github.com/zebrunner/mcloud#authentication-of-the-device-hosts) accepts on its ZeroMQ ports only the device hosts with a known CURVE key; for every device host:
 
 1. `./zebrunner.sh curve-key` makes the key of the host and prints its public key.
 2. Add the public key to `STF_ZMQ_CURVE_CLIENT_KEYS` of `variables.env` of the STF server (separated by commas) and restart the server.
-3. Set `STF_ZMQ_CURVE_SERVER_PUBLIC_KEY` of `roles/.../vars/main.yml` to the one of `variables.env` of the server, in quotes, and run `./zebrunner.sh ansible`: the device containers connect over CURVE and without RethinkDB (`STF_RETHINKDB` is not passed then), the prechecks of the playbook validate the keys; `zebrunner-farm restart` recreates the existing containers with the keys.
+3. Set `STF_ZMQ_CURVE_SERVER_PUBLIC_KEY` of `roles/.../vars/main.yml` to the one of `variables.env` of the server, in quotes, and run `./zebrunner.sh ansible`: the prechecks of the playbook validate the keys; `zebrunner-farm restart` recreates the existing containers with the keys.
 
 The removal of the public key of a host from `STF_ZMQ_CURVE_CLIENT_KEYS` disconnects it. `patch/curve_keygen.py` makes the keys with Python only (X25519 of RFC 7748), the same as `stf curve-keygen`.
 
 ### Grid registration
 
-The Appium node of a device registers in mcloud-grid with `NODE_REGISTRATION_TOKEN` of `roles/.../vars/main.yml`: set it to `NODE_REGISTRATION_TOKEN` of `variables.env` of [mcloud](https://github.com/zebrunner/mcloud#authentication-of-the-device-hosts), in quotes, and run `./zebrunner.sh ansible`; the containers created after it pass the token, `zebrunner-farm restart` recreates the existing ones. A hub with a token (a new deployment of mcloud, or one that turned the authentication on) registers no node without it, see [mcloud-grid](https://github.com/zebrunner/mcloud-grid#node-registration). It needs the appium image that sends the token.
+The Appium node of a device registers in mcloud-grid with `NODE_REGISTRATION_TOKEN` of `roles/.../vars/main.yml`: set it to `NODE_REGISTRATION_TOKEN` of `variables.env` of [mcloud](https://github.com/zebrunner/mcloud#authentication-of-the-device-hosts), in quotes, and run `./zebrunner.sh ansible`; the containers created after it pass the token, `zebrunner-farm restart` recreates the existing ones. The hub registers no node without it, see [mcloud-grid](https://github.com/zebrunner/mcloud-grid#node-registration).
 
 ### Appium security
 
-The Appium port of a device (`appium_port`) is published on the host for mcloud-grid. With `NODE_REGISTRATION_TOKEN` Appium of the device answers only the requests of the grid, which carry the token, and the ones of its own container: the others get `401` (also Appium Inspector and the WebSockets of the sessions, e.g. the logcat broadcast; use the grid, `/mcloud/wd/hub` of mcloud). Without the token anyone who reaches the host uses the device bypassing the grid and its reservation in STF. It needs the appium image that checks the token.
+The Appium port of a device (`appium_port`) is published on the host for mcloud-grid. Appium of the device answers only the requests of the grid, which carry `NODE_REGISTRATION_TOKEN`, and the ones of its own container: the others get `401` (also Appium Inspector and the WebSockets of the sessions, e.g. the logcat broadcast; use the grid, `/mcloud/wd/hub` of mcloud).
 
 `APPIUM_RELAXED_SECURITY` of `defaults/main.yml` is `true`: every session, also through the grid, gets the insecure features of Appium: `mobile: shell` (adb shell of the device), the Appium log of the earlier sessions of the device (`get_server_logs`), the emulator console, the screen streaming, the download of chromedriver. Set it to `false` when the tests do not need them.
 

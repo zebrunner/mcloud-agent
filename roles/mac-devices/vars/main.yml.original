@@ -7,10 +7,8 @@ PUBLIC_IP: demo.zebrunner.farm
 PUBLIC_IP_PORT: 80
 PUBLIC_IP_PROTOCOL: http
 
-# [OPTIONAL] Set tcp url to rethinkdb and stf-triproxy-dev.
+# [OPTIONAL] Set tcp urls of stf-triproxy-dev and stf-triproxy-app.
 # IMPORTANT! make sure to use valid hostname and port if STF services are located on different host.
-# RethinkDB is used by the mcloud-device images of an earlier STF only: it is not passed with STF_ZMQ_CURVE_SERVER_PUBLIC_KEY.
-STF_RETHINKDB: tcp://rethinkdb:28015
 STF_PROVIDER_CONNECT_SUB: tcp://stf-triproxy-dev:7250
 STF_PROVIDER_CONNECT_PUSH: tcp://stf-triproxy-dev:7270
 
@@ -22,8 +20,8 @@ STF_PROVIDER_CONNECT_DEV_DEALER: tcp://stf-triproxy-dev:7260
 # IMPORTANT! make sure to use valid hostname and port if it is located on different host.
 SELENIUM_HUB_HOST: mcloud-grid
 SELENIUM_HUB_PORT: 4444
-# The secret the Appium nodes of this host register in mcloud-grid with, README.md#grid-registration:
-# NODE_REGISTRATION_TOKEN of the mcloud variables.env (in quotes); a hub with a token registers no node without it.
+# [OBLIGATORY] The secret the Appium nodes of this host register in mcloud-grid with, README.md#grid-registration:
+# NODE_REGISTRATION_TOKEN of the mcloud variables.env (in quotes).
 NODE_REGISTRATION_TOKEN:
 
 # [OBLIGATORY] Set host address of current STF provider server. It should be resolvable and accessible from the PUBLIC_IP!
@@ -41,13 +39,13 @@ STF_PROVIDER_NAME: mcloud-macos
 # [OPTIONAL] STF integration settings to move devices into Unhealthy state
 STF_API_URL:
 STF_AUTH_TOKEN:
-# Shared token the provider sends (x-stf-internal-token) so device screenshot uploads and app-install blob fetches pass
-# the authenticated STF storage routes.
-# MUST match STF_STORAGE_TOKEN in the STF server's variables.env.
+# [OBLIGATORY] Shared token the provider sends (x-stf-internal-token) so device screenshot uploads and app-install blob
+# fetches pass the authenticated STF storage routes.
+# MUST match STF_STORAGE_TOKEN in the STF server's variables.env (in quotes).
 STF_STORAGE_TOKEN:
-# The ZeroMQ security (CURVE) of STF, README.md#zeromq-security: STF_ZMQ_CURVE_SERVER_PUBLIC_KEY of the STF server's
-# variables.env (in quotes) and the key of this host, which `./zebrunner.sh curve-key` makes and whose public key goes to
-# STF_ZMQ_CURVE_CLIENT_KEYS of the server. Needs the mcloud-device image of the current STF.
+# [OBLIGATORY] The ZeroMQ security (CURVE) of STF, README.md#zeromq-security: STF_ZMQ_CURVE_SERVER_PUBLIC_KEY of the STF
+# server's variables.env (in quotes) and the key of this host, which `./zebrunner.sh curve-key` makes and whose public key
+# goes to STF_ZMQ_CURVE_CLIENT_KEYS of the server.
 STF_ZMQ_CURVE_SERVER_PUBLIC_KEY:
 STF_ZMQ_CURVE_SECRET_KEY:
 
@@ -100,8 +98,7 @@ WDA_BUNDLEID:
 #                 wda_port + 1 by default) are its unique ports on the host, wda_file the simulator build of WDA
 #                 (a .app folder or its .zip, WDA_SIMULATOR_FILE by default)
 #     proxy     - iOS: WebDriverAgent started by another tool and published on address (wda_port, mjpeg_port: 8100, 8101)
-#   wireless: [optional] true is the same as connection: wireless; with wda_host it is the proxy connection
-#   address (or wda_host), wda_port and mjpeg_port: [optional] see connection
+#   address, wda_port and mjpeg_port: [optional] see connection
 #   wda_file and wda_bundleid: [optional] device specific overrides of WDA_FILE and WDA_BUNDLEID
 
 # TODO: convert adb_port to connect_port to support iOS as well
