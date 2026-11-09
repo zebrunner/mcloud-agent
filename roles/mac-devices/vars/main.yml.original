@@ -30,7 +30,8 @@ NODE_REGISTRATION_TOKEN:
 STF_PROVIDER_HOST: macos-agent.zebrunner.farm
 # [OPTIONAL] The host STF shows to the users in `adb connect <host>:<port>` (the remote debug), STF_PROVIDER_HOST
 # by default. For a host in a private network: the public name of MCloud with the adb relay of mcloud (ADB_RELAY_HOSTS)
-# forwarding min_port-max_port of the devices of this host (README.md#device-hosts-in-a-private-network).
+# forwarding the remote debug port (min_port + 1) of every Android device of this host; `./zebrunner.sh doctor` prints them
+# (README.md#device-hosts-in-a-private-network).
 REMOTE_CONNECT_HOST:
 
 # [OBLIGATORY] Set host address of current STF provider server and 2222 port as default. We start socat listener and share usbmuxd into the containers

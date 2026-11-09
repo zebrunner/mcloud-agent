@@ -339,9 +339,10 @@ check_contains "the remote debug of a private address is explained" \
   "adb connect of STF (the remote debug) reaches 192.168.30.2 from its network only" "$(doctor_run)"
 sed -i.bak "s/^REMOTE_CONNECT_HOST:.*/REMOTE_CONNECT_HOST: mcloud.example.com/" "$vars"
 check_contains "the adb relay is checked on the port of the devices" \
-  "adb relay of mcloud (REMOTE_CONNECT_HOST): mcloud.example.com:7475 (192.168.50.2) accepts connections" "$(doctor_run)"
-echo "mcloud.example.com:7475" > "${WORK}/net/closed"
-check_contains "a missing relay tells the entry of mcloud" "ADB_RELAY_HOSTS of .env of mcloud with 192.168.30.2:7475-7480" "$(doctor_run)"
+  "adb relay of mcloud (REMOTE_CONNECT_HOST): mcloud.example.com:7476 (192.168.50.2) accepts connections" "$(doctor_run)"
+echo "mcloud.example.com:7476" > "${WORK}/net/closed"
+check_contains "the entries of the relay are the remote debug ports" "the ADB_RELAY_HOSTS entries of this host: 192.168.30.2:7476" "$(doctor_run)"
+check_contains "a missing relay tells the entry of mcloud" "ADB_RELAY_HOSTS of .env of mcloud with 192.168.30.2:7476" "$(doctor_run)"
 : > "${WORK}/net/closed"
 rm -f "${WORK}/devices.txt"
 settings 192.168.30.2

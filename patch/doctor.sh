@@ -289,34 +289,40 @@ doctor_provider_host() {
   fi
 }
 
-# device_ports: <first>-<last> of the ports of the deployed devices (min_port to max_port), nothing without them
-device_ports() {
+# connect_ports: the remote debug (adb connect) ports of the deployed Android devices, min_port + 1 of each (min_port is
+# the screen), separated by spaces
+connect_ports() {
   [[ -f "$DOCTOR_DEVICES" ]] || return 0
-  # the ports are the 7th and 8th fields, the 9th and 10th of a list deployed before the proxy ports were dropped
-  awk -F '|' 'NF >= 16 { lo = $9; hi = $10 } NF < 16 { lo = $7; hi = $8 }
-    lo ~ /^[0-9]+$/ && hi ~ /^[0-9]+$/ { if (min == "" || lo + 0 < min) min = lo + 0; if (hi + 0 > max) max = hi + 0 }
-    END { if (min != "") print min "-" max }' "$DOCTOR_DEVICES"
+  # min_port is the 7th field, the 9th of a list deployed before the proxy ports were dropped (16 fields)
+  awk -F '|' '$2 == "android" { port = (NF >= 16 ? $9 : $7); if (port ~ /^[0-9]+$/) print port + 1 }' "$DOCTOR_DEVICES" |
+    paste -s -d ' ' -
 }
 
-# doctor_remote_connect: the host of `adb connect` of STF (the remote debug) reaches the devices: REMOTE_CONNECT_HOST
-# through the adb relay of mcloud, STF_PROVIDER_HOST directly
+# doctor_remote_connect: `adb connect` of STF (the remote debug of the Android devices) reaches the devices:
+# REMOTE_CONNECT_HOST through the adb relay of mcloud, which forwards their remote debug ports only
 doctor_remote_connect() {
   local remote
   local provider_host
   local ports
+  local port
+  local entries=""
   local relay
   remote="$(setting REMOTE_CONNECT_HOST)"
   provider_host="$(setting STF_PROVIDER_HOST)"
-  ports="$(device_ports)"
-  relay="ADB_RELAY_HOSTS of .env of mcloud with ${provider_host}:${ports:-<min_port>-<max_port of the devices>}, then ./zebrunner.sh restart there"
+  ports="$(connect_ports)"
+  for port in $ports; do
+    entries="${entries:+${entries},}${provider_host}:${port}"
+  done
+  relay="ADB_RELAY_HOSTS of .env of mcloud with ${entries:-<STF_PROVIDER_HOST>:<min_port + 1 of every Android device>}, then ./zebrunner.sh restart there"
   if [[ -z "$remote" || "$remote" == "$provider_host" ]]; then
     if [[ "$(probe kind "$(first_address "$provider_host")" 2> /dev/null)" == "private" ]]; then
       doctor_info "adb connect of STF (the remote debug) reaches ${provider_host} from its network only; for the other users: REMOTE_CONNECT_HOST (the public name of MCloud) and ${relay}"
     fi
   elif [[ -z "$ports" ]]; then
-    doctor_info "adb connect of STF goes to ${remote}: the relay is checked with the deployed devices"
+    doctor_info "adb connect of STF goes to ${remote}: no Android device is deployed to check the relay with"
   else
-    check_endpoint "adb relay of mcloud (REMOTE_CONNECT_HOST)" "$remote" "${ports%-*}" "$relay"
+    check_endpoint "adb relay of mcloud (REMOTE_CONNECT_HOST)" "$remote" "${ports%% *}" "$relay"
+    doctor_info "the ADB_RELAY_HOSTS entries of this host: ${entries}"
   fi
 }
 
