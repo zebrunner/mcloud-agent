@@ -6,10 +6,11 @@ export ZEBRUNNER_MCLOUD_AGENT_DIR="{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR'
 source "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/utility.sh"
 
 MCLOUD_DEVICES="/usr/local/bin/mcloud-devices.txt"
+STF_DOCKER_NETWORK="{{ STF_DOCKER_NETWORK }}"
 
 # with_device_lock <device> <command...>: the commands of one device run one at a time: the jobs of udev
-# (mcloud-device-restart@, mcloud-device-down@) and the manual calls do not change its containers together; all the
-# devices or a platform (no device, ios, android) and a host without flock run without it
+# (mcloud-device-restart@, mcloud-device-down@) and the manual calls do not change its containers together; a group of
+# devices (no device given) and a host without flock run without it
 with_device_lock() {
   local device="$1"
   shift
@@ -38,11 +39,6 @@ with_device_lock() {
   ) 9< "$lock"
 }
 
-restart() {
-  down "$1"
-  start "$1"
-}
-
 get_device_fields() {
   local filter="$1"
 
@@ -53,8 +49,6 @@ get_device_fields() {
   dev_location=""
   dev_appium_port=""
   dev_adb_port=""
-  dev_proxy_port=""
-  dev_server_proxy_port=""
   dev_stf_min_port=""
   dev_stf_max_port=""
   dev_connection=""
@@ -63,6 +57,8 @@ get_device_fields() {
   dev_address=""
   dev_wda_port=""
   dev_mjpeg_port=""
+  dev_connect_port=""
+  dev_remote_port=""
 
   local line
   # exact match of udid (field 1) or name (field 3)
@@ -83,48 +79,51 @@ get_device_fields() {
   dev_location="${fields[3]}"
   dev_appium_port="${fields[4]}"
   dev_adb_port="${fields[5]}"
-  dev_proxy_port="${fields[6]}"
-  dev_server_proxy_port="${fields[7]}"
-  dev_stf_min_port="${fields[8]}"
-  dev_stf_max_port="${fields[9]}"
+  dev_stf_min_port="${fields[6]}"
+  dev_stf_max_port="${fields[7]}"
 
-  # Field 11 - 'connection': how the connector container reaches the device.
+  # Field 9 - 'connection': how the connector container reaches the device.
   #   usb         - plugged into the host (udev starts and removes its containers)
   #   wireless    - over the network: adb connect for Android, netmuxd of the connector for iOS
   #   android-sim - an Android emulator started outside the farm (AVD, Genymotion, a container Android), adb connect to its address
   #   ios-sim     - an iOS / tvOS simulator, on a macOS host only
   #   proxy       - WebDriverAgent published by another tool, the connector relays it (iOS)
   # The non-usb devices have no udev rules, `zebrunner-farm start` creates their containers.
-  dev_connection="${fields[10]:-usb}"
+  dev_connection="${fields[8]:-usb}"
 
-  # Fields 12 / 13 - 'device_wda_ipa_path' and 'device_wda_bundle_id'.
+  # Fields 10 / 11 - 'device_wda_ipa_path' and 'device_wda_bundle_id'.
   # Device specific WebDriverAgent path and bundle ID.
-  dev_device_wda_ipa_path="${fields[11]}"
+  dev_device_wda_ipa_path="${fields[9]}"
   if [[ "$dev_device_wda_ipa_path" == "/dev/null" || -z "$dev_device_wda_ipa_path" ]]; then
     dev_device_wda_ipa_path="{{ WDA_FILE }}"
   fi
   : "${dev_device_wda_ipa_path:='/dev/null'}"
 
-  dev_device_wda_bundle_id="${fields[12]}"
+  dev_device_wda_bundle_id="${fields[10]}"
   if [[ "$dev_device_wda_bundle_id" == "/dev/null" || -z "$dev_device_wda_bundle_id" ]]; then
     dev_device_wda_bundle_id="{{ WDA_BUNDLEID }}"
   fi
   : "${dev_device_wda_bundle_id:='com.facebook.WebDriverAgentRunner.xctrunner'}"
 
-  # Fields 14 - 16 - 'address', 'wda_port' and 'mjpeg_port'.
+  # Fields 12 - 14 - 'address', 'wda_port' and 'mjpeg_port'.
   # address: the IP of a wireless device (the id of an Android one by default) or the host of the proxied WebDriverAgent;
   # wda_port and mjpeg_port: the ports of the proxied WebDriverAgent
-  dev_address="${fields[13]}"
-  dev_wda_port="${fields[14]}"
-  dev_mjpeg_port="${fields[15]}"
+  dev_address="${fields[11]}"
+  dev_wda_port="${fields[12]}"
+  dev_mjpeg_port="${fields[13]}"
+
+  # Field 15 - 'connect_port': the remote debug port of STF (adb connect) of an Android device, the second port of
+  # min_port-max_port (STF_PROVIDER_CONNECT_PORT is not set) by default; dev_remote_port is the port of either case
+  dev_connect_port="${fields[14]}"
+  dev_remote_port="${dev_connect_port:-$((dev_stf_min_port + 1))}"
 
   # Common name prefix for all containers
   dev_container="device-${dev_device_name}-${dev_udid}"
 }
 
+# create_containers: the containers of the device of get_device_fields running, one line per container
 create_containers() {
-  local ps_out
-  ps_out="$(docker ps -a)"
+  read_container_states
 
   local usb_bus
   usb_bus="$(readlink -f "/dev/${dev_container}")"
@@ -136,7 +135,7 @@ create_containers() {
   local DEVICE_ARGS=(--device="/dev/${dev_container}:${usb_bus}")
 
   if [[ "$dev_connection" == "android-sim" && "$dev_platform_name" != "android" ]]; then
-    failed "\nThe android-sim connection is for Android devices only. The containers will not be created."
+    failed "  The android-sim connection is for Android devices only. The containers will not be created."
     return 1
   fi
   if [[ "$dev_connection" =~ ^(wireless|android-sim)$ && "$dev_platform_name" == "android" ]]; then
@@ -156,9 +155,9 @@ create_containers() {
     local connected_devices
     connected_devices="$(lsusb -v 2> /dev/null)"
     if grep -q "${dev_udid//-/}" <<< "$connected_devices"; then
-      succeed "\nDevice with udid: '${dev_udid//-/}' was SUCCESSFULLY detected as connected."
+      echo "  connected over USB"
     else
-      failed "\nDevice with udid: '${dev_udid//-/}' was NOT detected as connected. The containers will not be created."
+      failed "  NOT connected over USB (lsusb): the containers are not created."
       return 1
     fi
   fi
@@ -170,58 +169,61 @@ create_containers() {
     S3_KEY_PATTERN="s3://${BUCKET}${TENANT:+/${TENANT}}/artifacts/test-sessions"
   fi
 
-  echo -e "\n\tCreating '${dev_container}' containers:\n"
+  # the fixed remote debug port of an Android device, published when it is out of min_port-max_port
+  local connect_args=()
+  if [[ -n "$dev_connect_port" ]]; then
+    connect_args=(-e STF_PROVIDER_CONNECT_PORT="$dev_connect_port")
+    if ((dev_connect_port < dev_stf_min_port || dev_connect_port > dev_stf_max_port)); then
+      connect_args+=(-p "${dev_connect_port}:${dev_connect_port}")
+    fi
+  fi
 
   if [[ "$dev_platform_name" == "android" ]]; then
 
-    grep -q "${dev_container}-connector" <<< "$ps_out" || {
-      echo -n "${dev_container}-connector:  "
-      docker run -itd --name "${dev_container}-connector" \
-        --log-driver=local \
-        --log-opt max-size=256m \
-        --log-opt max-file=2 \
-        --net="$net" \
-        --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-        "${DEVICE_ARGS[@]}" \
-        -e DEVICE_BUS="$usb_bus" \
-        -v mcloud-key-volume:/root/.android \
-        -v "${dev_container}":/tmp/log \
-        -e PLATFORM_NAME="$dev_platform_name" \
-        -e ANDROID_DEVICE="$ANDROID_DEVICE" \
-        -e DEVICE_UDID="$STF_DEVICE_UDID" \
-        "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}" || failed "Error. Not created"
-    }
+    ensure_container connector -itd \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net="$STF_DOCKER_NETWORK" \
+      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+      "${DEVICE_ARGS[@]}" \
+      -e DEVICE_BUS="$usb_bus" \
+      -v mcloud-key-volume:/root/.android \
+      -v "${dev_container}":/tmp/log \
+      -e PLATFORM_NAME="$dev_platform_name" \
+      -e ANDROID_DEVICE="$ANDROID_DEVICE" \
+      -e DEVICE_UDID="$STF_DEVICE_UDID" \
+      "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}" || return 1
 
-    grep -q "${dev_container}-stf" <<< "$ps_out" || {
-      echo -n "${dev_container}-stf:        "
-      docker run -d --name "${dev_container}-stf" \
-        --log-driver=local \
-        --log-opt max-size=256m \
-        --log-opt max-file=2 \
-        --net="$net" \
-        --link "${dev_container}-connector":connector \
-        -e STF_PROVIDER_ADB_HOST=connector \
-        -e STF_PROVIDER_ADB_PORT=5037 \
-        --health-start-period 60s \
-        --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-        -e PLATFORM_NAME="$dev_platform_name" \
-        -e STF_PROVIDER_DEVICE_NAME="$dev_device_name" \
-        -e DEVICE_UDID="$STF_DEVICE_UDID" \
-        -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
-        -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}${dev_location:+_$dev_location}" \
-        -e STF_PROVIDER_MIN_PORT="$dev_stf_min_port" \
-        -e STF_PROVIDER_MAX_PORT="$dev_stf_max_port" \
-        -p "${dev_stf_min_port}-${dev_stf_max_port}":"${dev_stf_min_port}-${dev_stf_max_port}" \
-        -e STF_PROVIDER_PUBLIC_IP="{{ PUBLIC_IP }}" \
-        -e PUBLIC_IP_PORT="{{ PUBLIC_IP_PORT }}" \
-        -e PUBLIC_IP_PROTOCOL="{{ PUBLIC_IP_PROTOCOL }}" \
-        -e STF_PROVIDER_CONNECT_SUB="{{ STF_PROVIDER_CONNECT_SUB }}" \
-        -e STF_PROVIDER_CONNECT_PUSH="{{ STF_PROVIDER_CONNECT_PUSH }}" \
-        -e STF_STORAGE_TOKEN="{{ STF_STORAGE_TOKEN }}" \
-        -e STF_ZMQ_CURVE_SERVER_PUBLIC_KEY="{{ STF_ZMQ_CURVE_SERVER_PUBLIC_KEY }}" \
-        -e STF_ZMQ_CURVE_SECRET_KEY="{{ STF_ZMQ_CURVE_SECRET_KEY }}" \
-        "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}" || failed "Error. Not created"
-    }
+    ensure_container stf -d \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net="$STF_DOCKER_NETWORK" \
+      --link "${dev_container}-connector":connector \
+      -e STF_PROVIDER_ADB_HOST=connector \
+      -e STF_PROVIDER_ADB_PORT=5037 \
+      --health-start-period 60s \
+      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+      -e PLATFORM_NAME="$dev_platform_name" \
+      -e STF_PROVIDER_DEVICE_NAME="$dev_device_name" \
+      -e DEVICE_UDID="$STF_DEVICE_UDID" \
+      -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
+      -e REMOTE_CONNECT_HOST="{{ REMOTE_CONNECT_HOST | default('', true) }}" \
+      -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}${dev_location:+_$dev_location}" \
+      -e STF_PROVIDER_MIN_PORT="$dev_stf_min_port" \
+      -e STF_PROVIDER_MAX_PORT="$dev_stf_max_port" \
+      "${connect_args[@]+"${connect_args[@]}"}" \
+      -p "${dev_stf_min_port}-${dev_stf_max_port}":"${dev_stf_min_port}-${dev_stf_max_port}" \
+      -e STF_PROVIDER_PUBLIC_IP="{{ PUBLIC_IP }}" \
+      -e PUBLIC_IP_PORT="{{ PUBLIC_IP_PORT }}" \
+      -e PUBLIC_IP_PROTOCOL="{{ PUBLIC_IP_PROTOCOL }}" \
+      -e STF_PROVIDER_CONNECT_SUB="{{ STF_PROVIDER_CONNECT_SUB }}" \
+      -e STF_PROVIDER_CONNECT_PUSH="{{ STF_PROVIDER_CONNECT_PUSH }}" \
+      -e STF_STORAGE_TOKEN="{{ STF_STORAGE_TOKEN }}" \
+      -e STF_ZMQ_CURVE_SERVER_PUBLIC_KEY="{{ STF_ZMQ_CURVE_SERVER_PUBLIC_KEY }}" \
+      -e STF_ZMQ_CURVE_SECRET_KEY="{{ STF_ZMQ_CURVE_SECRET_KEY }}" \
+      "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}" || return 1
 
     #        Adb config env vars
     #        -e ADB_SERVER_SOCKET=tcp:connector:5037 \
@@ -230,79 +232,70 @@ create_containers() {
     #        -e ANDROID_ADB_SERVER_PORT=5037 \
 
     # APPIUM_RELAXED_SECURITY: the insecure features of Appium for every session, README.md#appium-security
-    grep -q "${dev_container}-appium" <<< "$ps_out" || {
-      echo -n "${dev_container}-appium:     "
-      docker run -itd --name "${dev_container}-appium" \
-        -m 1g \
-        --log-driver=local \
-        --log-opt max-size=256m \
-        --log-opt max-file=2 \
-        --net="$net" \
-        --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-        --link "${dev_container}-stf":device \
-        --link "${dev_container}-connector":connector \
-        -v appium-storage-volume:/opt/appium-storage \
-        -v "${dev_container}":/tmp/log \
-        -e TASK_LOG=/tmp/log/appium.log \
-        -e PLATFORM_NAME="$dev_platform_name" \
-        -e DEVICE_CONNECTION="$dev_connection" \
-        -e ANDROID_DEVICE="$ANDROID_DEVICE" \
-        -e RETAIN_TASK=true \
-        -e CONNECT_TO_GRID=true \
-        -e RECORD_ARTIFACTS=true \
-        -e CUSTOM_NODE_CONFIG=true \
-        -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
-        -e APPIUM_APP_SIZE_DISABLE="{{ APPIUM_APP_SIZE_DISABLE | string | lower }}" \
-        -e APPIUM_APP_FETCH_RETRIES="{{ APPIUM_APP_FETCH_RETRIES }}" \
-        -e APPIUM_MAX_LOCK_FILE_LIFETIME="{{ APPIUM_MAX_LOCK_FILE_LIFETIME }}" \
-        -e APPIUM_APP_WAITING_TIMEOUT="{{ APPIUM_APP_WAITING_TIMEOUT }}" \
-        -e SELENIUM_HOST="{{ SELENIUM_HUB_HOST }}" \
-        -e SELENIUM_PORT="{{ SELENIUM_HUB_PORT }}" \
-        -e NODE_REGISTRATION_TOKEN="{{ NODE_REGISTRATION_TOKEN }}" \
-        -e DEFAULT_CAPABILITIES=true \
-        -e DEVICE_NAME="$dev_device_name" \
-        -e DEVICE_UDID="$STF_DEVICE_UDID" \
-        -e ADB_PORT="$dev_adb_port" \
-        -e PROXY_PORT="$dev_proxy_port" \
-        -e SERVER_PROXY_PORT="$dev_server_proxy_port" \
-        -e APPIUM_PORT="$dev_appium_port" \
-        -p "$dev_appium_port":"$dev_appium_port" \
-        -e RELAXED_SECURITY="{{ APPIUM_RELAXED_SECURITY | string | lower }}" \
-        -e ADB_SERVER_SOCKET=tcp:connector:5037 \
-        -e REMOTE_ADB_HOST=connector \
-        -e STF_API_URL="{{ STF_API_URL }}" \
-        -e STF_AUTH_TOKEN="{{ STF_AUTH_TOKEN }}" \
-        "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}" || failed "Error. Not created"
-    }
+    ensure_container appium -itd \
+      -m 1g \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net="$STF_DOCKER_NETWORK" \
+      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+      --link "${dev_container}-stf":device \
+      --link "${dev_container}-connector":connector \
+      -v appium-storage-volume:/opt/appium-storage \
+      -v "${dev_container}":/tmp/log \
+      -e TASK_LOG=/tmp/log/appium.log \
+      -e PLATFORM_NAME="$dev_platform_name" \
+      -e DEVICE_CONNECTION="$dev_connection" \
+      -e ANDROID_DEVICE="$ANDROID_DEVICE" \
+      -e RETAIN_TASK=true \
+      -e CONNECT_TO_GRID=true \
+      -e RECORD_ARTIFACTS=true \
+      -e CUSTOM_NODE_CONFIG=true \
+      -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
+      -e APPIUM_APP_SIZE_DISABLE="{{ APPIUM_APP_SIZE_DISABLE | string | lower }}" \
+      -e APPIUM_APP_FETCH_RETRIES="{{ APPIUM_APP_FETCH_RETRIES }}" \
+      -e APPIUM_MAX_LOCK_FILE_LIFETIME="{{ APPIUM_MAX_LOCK_FILE_LIFETIME }}" \
+      -e APPIUM_APP_WAITING_TIMEOUT="{{ APPIUM_APP_WAITING_TIMEOUT }}" \
+      -e SELENIUM_HOST="{{ SELENIUM_HUB_HOST }}" \
+      -e SELENIUM_PORT="{{ SELENIUM_HUB_PORT }}" \
+      -e NODE_REGISTRATION_TOKEN="{{ NODE_REGISTRATION_TOKEN }}" \
+      -e DEFAULT_CAPABILITIES=true \
+      -e DEVICE_NAME="$dev_device_name" \
+      -e DEVICE_UDID="$STF_DEVICE_UDID" \
+      -e ADB_PORT="$dev_remote_port" \
+      -e APPIUM_PORT="$dev_appium_port" \
+      -p "$dev_appium_port":"$dev_appium_port" \
+      -e RELAXED_SECURITY="{{ APPIUM_RELAXED_SECURITY | string | lower }}" \
+      -e ADB_SERVER_SOCKET=tcp:connector:5037 \
+      -e REMOTE_ADB_HOST=connector \
+      -e STF_API_URL="{{ STF_API_URL }}" \
+      -e STF_AUTH_TOKEN="{{ STF_AUTH_TOKEN }}" \
+      "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}" || return 1
 
-    grep -q "${dev_container}-uploader" <<< "$ps_out" || {
-      echo -n "${dev_container}-uploader:   "
-      docker run -d --name "${dev_container}-uploader" \
-        --log-driver=local \
-        --log-opt max-size=256m \
-        --log-opt max-file=2 \
-        --net="$net" \
-        --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-        -v "${dev_container}":/tmp/log \
-        -e ENDPOINT_URL="{{ S3_ENDPOINT }}" \
-        -e S3_KEY_PATTERN="$S3_KEY_PATTERN" \
-        -e AWS_ACCESS_KEY_ID="{{ S3_ACCESS_KEY_ID }}" \
-        -e AWS_SECRET_ACCESS_KEY="{{ S3_SECRET }}" \
-        -e AWS_DEFAULT_REGION="{{ S3_REGION }}" \
-        "{{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }}" || failed "Error. Not created"
-    }
+    ensure_container uploader -d \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net="$STF_DOCKER_NETWORK" \
+      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+      -v "${dev_container}":/tmp/log \
+      -e ENDPOINT_URL="{{ S3_ENDPOINT }}" \
+      -e S3_KEY_PATTERN="$S3_KEY_PATTERN" \
+      -e AWS_ACCESS_KEY_ID="{{ S3_ACCESS_KEY_ID }}" \
+      -e AWS_SECRET_ACCESS_KEY="{{ S3_SECRET }}" \
+      -e AWS_DEFAULT_REGION="{{ S3_REGION }}" \
+      "{{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }}" || return 1
 
   elif [[ "$dev_platform_name" == "ios" ]]; then
 
-    echo "WDA *.ipa file path: ${dev_device_wda_ipa_path}"
-    echo -e "WDA bundle ID: ${dev_device_wda_bundle_id}\n"
+    echo "  WDA: ${dev_device_wda_ipa_path} (${dev_device_wda_bundle_id})"
 
     if [[ "$dev_connection" == "ios-sim" ]]; then
-      failed "\nThe iOS simulators run on a macOS host only. The containers will not be created."
+      failed "  The iOS simulators run on a macOS host only. The containers will not be created."
       return 1
     fi
     if [[ "$dev_connection" =~ ^(wireless|proxy)$ && -z "$dev_address" ]]; then
-      failed "\nThe ${dev_connection} iOS device needs its address in mcloud-devices.txt. The containers will not be created."
+      failed "  The ${dev_connection} iOS device needs its address in mcloud-devices.txt. The containers will not be created."
       return 1
     fi
 
@@ -314,126 +307,113 @@ create_containers() {
     local wireless="false"
     [[ "$dev_connection" == "proxy" ]] && wireless="true"
 
-    grep -q "${dev_container}-connector" <<< "$ps_out" || {
-      echo -n "${dev_container}-connector:  "
-      docker run -itd --name "${dev_container}-connector" \
-        --log-driver=local \
-        --log-opt max-size=256m \
-        --log-opt max-file=2 \
-        --net="$net" \
-        --sysctl net.ipv6.conf.all.disable_ipv6=0 \
-        --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-        "${DEVICE_ARGS[@]}" \
-        --cap-add=NET_ADMIN \
-        --device=/dev/net/tun \
-        -e HOST_OS=LINUX \
-        "${connection_args[@]}" \
-        -e DEVICE_BUS="$usb_bus" \
-        -e WDA_BUNDLEID="$dev_device_wda_bundle_id" \
-        -e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
-        -v devimages_cache:/opt/zebrunner/devimages \
-        -v "${dev_device_wda_ipa_path}":/tmp/zebrunner/WebDriverAgent.ipa \
-        -v "${dev_container}-lockdown":/var/lib/lockdown \
-        -v "${dev_container}":/tmp/log \
-        -e DEVICE_UDID="$STF_DEVICE_UDID" \
-        "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}" || failed "Error. Not created"
-    }
+    ensure_container connector -itd \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net="$STF_DOCKER_NETWORK" \
+      --sysctl net.ipv6.conf.all.disable_ipv6=0 \
+      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+      "${DEVICE_ARGS[@]}" \
+      --cap-add=NET_ADMIN \
+      --device=/dev/net/tun \
+      -e HOST_OS=LINUX \
+      "${connection_args[@]}" \
+      -e DEVICE_BUS="$usb_bus" \
+      -e WDA_BUNDLEID="$dev_device_wda_bundle_id" \
+      -e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
+      -v devimages_cache:/opt/zebrunner/devimages \
+      -v "${dev_device_wda_ipa_path}":/tmp/zebrunner/WebDriverAgent.ipa \
+      -v "${dev_container}-lockdown":/var/lib/lockdown \
+      -v "${dev_container}":/tmp/log \
+      -e DEVICE_UDID="$STF_DEVICE_UDID" \
+      "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}" || return 1
 
     # Linking with appium required to share usbmuxd via socat
-    grep -q "${dev_container}-stf" <<< "$ps_out" || {
-      echo -n "${dev_container}-stf:        "
-      docker run -d --name "${dev_container}-stf" \
-        --log-driver=local \
-        --log-opt max-size=256m \
-        --log-opt max-file=2 \
-        --net="$net" \
-        --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-        --link "${dev_container}-connector":connector \
-        -e WDA_HOST=connector \
-        -e GO_IOS_AGENT_HOST=connector \
-        -e WIRELESS="$wireless" \
-        -e WDA_WAIT_TIMEOUT=60 \
-        -e PLATFORM_NAME="$dev_platform_name" \
-        -e STF_PROVIDER_DEVICE_NAME="$dev_device_name" \
-        -e DEVICE_UDID="$dev_udid" \
-        -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
-        -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}${dev_location:+_$dev_location}" \
-        -e STF_PROVIDER_MIN_PORT="$dev_stf_min_port" \
-        -e STF_PROVIDER_MAX_PORT="$dev_stf_max_port" \
-        -p "${dev_stf_min_port}-${dev_stf_max_port}":"${dev_stf_min_port}-${dev_stf_max_port}" \
-        -e STF_PROVIDER_PUBLIC_IP="{{ PUBLIC_IP }}" \
-        -e PUBLIC_IP_PORT="{{ PUBLIC_IP_PORT }}" \
-        -e PUBLIC_IP_PROTOCOL="{{ PUBLIC_IP_PROTOCOL }}" \
-        -e STF_PROVIDER_CONNECT_SUB="{{ STF_PROVIDER_CONNECT_SUB }}" \
-        -e STF_PROVIDER_CONNECT_PUSH="{{ STF_PROVIDER_CONNECT_PUSH }}" \
-        -e STF_PROVIDER_CONNECT_APP_DEALER="{{ STF_PROVIDER_CONNECT_APP_DEALER }}" \
-        -e STF_PROVIDER_CONNECT_DEV_DEALER="{{ STF_PROVIDER_CONNECT_DEV_DEALER }}" \
-        -e STF_STORAGE_TOKEN="{{ STF_STORAGE_TOKEN }}" \
-        -e STF_ZMQ_CURVE_SERVER_PUBLIC_KEY="{{ STF_ZMQ_CURVE_SERVER_PUBLIC_KEY }}" \
-        -e STF_ZMQ_CURVE_SECRET_KEY="{{ STF_ZMQ_CURVE_SECRET_KEY }}" \
-        "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}" || failed "Error. Not created"
-    }
+    ensure_container stf -d \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net="$STF_DOCKER_NETWORK" \
+      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+      --link "${dev_container}-connector":connector \
+      -e WDA_HOST=connector \
+      -e GO_IOS_AGENT_HOST=connector \
+      -e WIRELESS="$wireless" \
+      -e WDA_WAIT_TIMEOUT=60 \
+      -e PLATFORM_NAME="$dev_platform_name" \
+      -e STF_PROVIDER_DEVICE_NAME="$dev_device_name" \
+      -e DEVICE_UDID="$dev_udid" \
+      -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
+      -e REMOTE_CONNECT_HOST="{{ REMOTE_CONNECT_HOST | default('', true) }}" \
+      -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}${dev_location:+_$dev_location}" \
+      -e STF_PROVIDER_MIN_PORT="$dev_stf_min_port" \
+      -e STF_PROVIDER_MAX_PORT="$dev_stf_max_port" \
+      -p "${dev_stf_min_port}-${dev_stf_max_port}":"${dev_stf_min_port}-${dev_stf_max_port}" \
+      -e STF_PROVIDER_PUBLIC_IP="{{ PUBLIC_IP }}" \
+      -e PUBLIC_IP_PORT="{{ PUBLIC_IP_PORT }}" \
+      -e PUBLIC_IP_PROTOCOL="{{ PUBLIC_IP_PROTOCOL }}" \
+      -e STF_PROVIDER_CONNECT_SUB="{{ STF_PROVIDER_CONNECT_SUB }}" \
+      -e STF_PROVIDER_CONNECT_PUSH="{{ STF_PROVIDER_CONNECT_PUSH }}" \
+      -e STF_PROVIDER_CONNECT_APP_DEALER="{{ STF_PROVIDER_CONNECT_APP_DEALER }}" \
+      -e STF_PROVIDER_CONNECT_DEV_DEALER="{{ STF_PROVIDER_CONNECT_DEV_DEALER }}" \
+      -e STF_STORAGE_TOKEN="{{ STF_STORAGE_TOKEN }}" \
+      -e STF_ZMQ_CURVE_SERVER_PUBLIC_KEY="{{ STF_ZMQ_CURVE_SERVER_PUBLIC_KEY }}" \
+      -e STF_ZMQ_CURVE_SECRET_KEY="{{ STF_ZMQ_CURVE_SECRET_KEY }}" \
+      "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}" || return 1
 
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
-    grep -q "${dev_container}-appium" <<< "$ps_out" || {
-      echo -n "${dev_container}-appium:     "
-      docker run -itd --name "${dev_container}-appium" \
-        -m 1g \
-        --log-driver=local \
-        --log-opt max-size=256m \
-        --log-opt max-file=2 \
-        --net="$net" \
-        --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-        "${DEVICE_ARGS[@]}" \
-        --link "${dev_container}-stf":device \
-        --link "${dev_container}-connector":connector \
-        -e WDA_HOST=connector \
-        -e WIRELESS="$wireless" \
-        -v appium-storage-volume:/opt/appium-storage \
-        -v "${dev_container}":/tmp/log \
-        -e TASK_LOG=/tmp/log/appium.log \
-        -e APPIUM_CLI="--session-override" \
-        -e PLATFORM_NAME="$dev_platform_name" \
-        -e RETAIN_TASK=true \
-        -e CONNECT_TO_GRID=true \
-        -e RECORD_ARTIFACTS=true \
-        -e CUSTOM_NODE_CONFIG=true \
-        -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
-        -e APPIUM_APP_SIZE_DISABLE="{{ APPIUM_APP_SIZE_DISABLE | string | lower }}" \
-        -e APPIUM_APP_FETCH_RETRIES="{{ APPIUM_APP_FETCH_RETRIES }}" \
-        -e APPIUM_MAX_LOCK_FILE_LIFETIME="{{ APPIUM_MAX_LOCK_FILE_LIFETIME }}" \
-        -e APPIUM_APP_WAITING_TIMEOUT="{{ APPIUM_APP_WAITING_TIMEOUT }}" \
-        -e SELENIUM_HOST="{{ SELENIUM_HUB_HOST }}" \
-        -e SELENIUM_PORT="{{ SELENIUM_HUB_PORT }}" \
-        -e NODE_REGISTRATION_TOKEN="{{ NODE_REGISTRATION_TOKEN }}" \
-        -e DEFAULT_CAPABILITIES=true \
-        -e DEVICE_NAME="$dev_device_name" \
-        -e DEVICE_UDID="$dev_udid" \
-        -e ADB_PORT="$dev_adb_port" \
-        -e PROXY_PORT="$dev_proxy_port" \
-        -e SERVER_PROXY_PORT="$dev_server_proxy_port" \
-        -e APPIUM_PORT="$dev_appium_port" \
-        -p "$dev_appium_port":"$dev_appium_port" \
-        -e RELAXED_SECURITY="{{ APPIUM_RELAXED_SECURITY | string | lower }}" \
-        "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}" || failed "Error. Not created"
-    }
+    ensure_container appium -itd \
+      -m 1g \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net="$STF_DOCKER_NETWORK" \
+      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+      "${DEVICE_ARGS[@]}" \
+      --link "${dev_container}-stf":device \
+      --link "${dev_container}-connector":connector \
+      -e WDA_HOST=connector \
+      -e WIRELESS="$wireless" \
+      -v appium-storage-volume:/opt/appium-storage \
+      -v "${dev_container}":/tmp/log \
+      -e TASK_LOG=/tmp/log/appium.log \
+      -e APPIUM_CLI="--session-override" \
+      -e PLATFORM_NAME="$dev_platform_name" \
+      -e RETAIN_TASK=true \
+      -e CONNECT_TO_GRID=true \
+      -e RECORD_ARTIFACTS=true \
+      -e CUSTOM_NODE_CONFIG=true \
+      -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
+      -e APPIUM_APP_SIZE_DISABLE="{{ APPIUM_APP_SIZE_DISABLE | string | lower }}" \
+      -e APPIUM_APP_FETCH_RETRIES="{{ APPIUM_APP_FETCH_RETRIES }}" \
+      -e APPIUM_MAX_LOCK_FILE_LIFETIME="{{ APPIUM_MAX_LOCK_FILE_LIFETIME }}" \
+      -e APPIUM_APP_WAITING_TIMEOUT="{{ APPIUM_APP_WAITING_TIMEOUT }}" \
+      -e SELENIUM_HOST="{{ SELENIUM_HUB_HOST }}" \
+      -e SELENIUM_PORT="{{ SELENIUM_HUB_PORT }}" \
+      -e NODE_REGISTRATION_TOKEN="{{ NODE_REGISTRATION_TOKEN }}" \
+      -e DEFAULT_CAPABILITIES=true \
+      -e DEVICE_NAME="$dev_device_name" \
+      -e DEVICE_UDID="$dev_udid" \
+      -e ADB_PORT="${dev_adb_port:-5037}" \
+      -e APPIUM_PORT="$dev_appium_port" \
+      -p "$dev_appium_port":"$dev_appium_port" \
+      -e RELAXED_SECURITY="{{ APPIUM_RELAXED_SECURITY | string | lower }}" \
+      "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}" || return 1
 
-    grep -q "${dev_container}-uploader" <<< "$ps_out" || {
-      echo -n "${dev_container}-uploader:   "
-      docker run -d --name "${dev_container}-uploader" \
-        --log-driver=local \
-        --log-opt max-size=256m \
-        --log-opt max-file=2 \
-        --net="$net" \
-        --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-        -v "${dev_container}":/tmp/log \
-        -e ENDPOINT_URL="{{ S3_ENDPOINT }}" \
-        -e S3_KEY_PATTERN="$S3_KEY_PATTERN" \
-        -e AWS_ACCESS_KEY_ID="{{ S3_ACCESS_KEY_ID }}" \
-        -e AWS_SECRET_ACCESS_KEY="{{ S3_SECRET }}" \
-        -e AWS_DEFAULT_REGION="{{ S3_REGION }}" \
-        "{{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }}" || failed "Error. Not created"
-    }
+    ensure_container uploader -d \
+      --log-driver=local \
+      --log-opt max-size=256m \
+      --log-opt max-file=2 \
+      --net="$STF_DOCKER_NETWORK" \
+      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+      -v "${dev_container}":/tmp/log \
+      -e ENDPOINT_URL="{{ S3_ENDPOINT }}" \
+      -e S3_KEY_PATTERN="$S3_KEY_PATTERN" \
+      -e AWS_ACCESS_KEY_ID="{{ S3_ACCESS_KEY_ID }}" \
+      -e AWS_SECRET_ACCESS_KEY="{{ S3_SECRET }}" \
+      -e AWS_DEFAULT_REGION="{{ S3_REGION }}" \
+      "{{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }}" || return 1
 
   else
     echo "ERROR! Unsupported platform: ${dev_platform_name}"
@@ -441,132 +421,438 @@ create_containers() {
   fi
 }
 
-start() {
-  local net="{{ STF_DOCKER_NETWORK }}"
-  echo -e "\nInspecting network ${net}:"
-  if docker network inspect "$net" > /dev/null 2>&1; then
-    echo "Network '${net}' already exists"
-  else
-    echo "Network '${net}' does not exist. Creating..."
-    docker network create "$net"
-  fi
-  echo -e "\n-----------------------------------------------------------------"
+#### Containers
 
-  local filter_device="$1"
-  if [[ -n "$filter_device" && "$filter_device" != "ios" && "$filter_device" != "android" ]]; then
-    get_device_fields "$filter_device" || return 1
-    create_containers && start_containers
-    echo -e "\n-----------------------------------------------------------------"
-  else
-    while read -r line; do
-      get_device_fields "${line%%|*}" || continue
-      [[ -z "$filter_device" || "$dev_platform_name" == "$filter_device" ]] || continue
-      if [[ -L "/dev/${dev_container}" || "$dev_connection" != "usb" ]]; then
-        create_containers && start_containers
-        echo -e "\n-----------------------------------------------------------------"
-      fi
-    done < "$MCLOUD_DEVICES"
-  fi
+# the states of the containers of the host (`<name> <state>` lines), read before the containers of a device change
+CONTAINER_STATES=""
+
+# read_container_states: CONTAINER_STATES of `docker ps -a`
+read_container_states() {
+  CONTAINER_STATES="$(docker ps -a --format '{{ '{{' }}.Names{{ '}}' }} {{ '{{' }}.State{{ '}}' }}' 2> /dev/null)"
 }
 
-start_containers() {
-  local ps_out
-  ps_out="$(docker ps)"
-
-  echo -e "\n\tStarting '${dev_container}' containers:\n"
-  grep -q "${dev_container}-connector" <<< "$ps_out" || docker start "${dev_container}-connector"
-  grep -q "${dev_container}-stf" <<< "$ps_out" || docker start "${dev_container}-stf"
-  grep -q "${dev_container}-appium" <<< "$ps_out" || docker start "${dev_container}-appium"
-  grep -q "${dev_container}-uploader" <<< "$ps_out" || docker start "${dev_container}-uploader"
+# container_state <name>: the state of the container (running, exited, ...), exists when docker gives none, nothing
+# when there is no such container
+container_state() {
+  awk -v name="$1" '$1 == name { print ($2 == "" ? "exists" : $2); exit }' <<< "$CONTAINER_STATES"
 }
 
-stop() {
-  local filter_device="$1"
-
-  if [[ -n "$filter_device" && "$filter_device" != "ios" && "$filter_device" != "android" ]]; then
-    get_device_fields "$filter_device" || return 1
-    stop_containers
-    echo -e "\n-----------------------------------------------------------------"
-  else
-    while read -r line; do
-      get_device_fields "${line%%|*}" || continue
-      [[ -z "$filter_device" || "$dev_platform_name" == "$filter_device" ]] || continue
-      stop_containers
-      echo -e "\n-----------------------------------------------------------------"
-    done < "$MCLOUD_DEVICES"
-  fi
+# ensure_container <name suffix> <-d|-itd> <docker run arguments...>: the container of the device running: kept when it
+# runs, started when it exists, created otherwise; one line of what was done, fails when the container does not run
+ensure_container() {
+  local role="$1"
+  local mode="$2"
+  shift 2
+  local name="${dev_container}-${role}"
+  local output
+  printf '  %-10s ' "$role"
+  case "$(container_state "$name")" in
+  running)
+    echo "running"
+    ;;
+  "")
+    if output="$(docker run "$mode" --name "$name" "$@" 2>&1)"; then
+      succeed "created $(tail -n 1 <<< "$output" | cut -c 1-12)"
+    else
+      failed "NOT created: $(tail -n 1 <<< "$output")"
+      return 1
+    fi
+    ;;
+  *)
+    if output="$(docker start "$name" 2>&1)"; then
+      succeed "started"
+    else
+      failed "NOT started: $(tail -n 1 <<< "$output")"
+      return 1
+    fi
+    ;;
+  esac
 }
 
+# stop_containers: the containers of the device stopped and kept, one line per container
 stop_containers() {
-  echo -e "\n\tStopping '${dev_container}' containers:\n"
-  docker stop "${dev_container}-connector"
-  docker stop "${dev_container}-appium"
-  docker stop "${dev_container}-stf"
-  docker stop "${dev_container}-uploader"
+  local role
+  local output
+  for role in connector appium stf uploader; do
+    printf '  %-10s ' "$role"
+    if output="$(docker stop "${dev_container}-${role}" 2>&1)"; then
+      echo "stopped"
+    elif grep -qi "no such container" <<< "$output"; then
+      echo "no container"
+    else
+      failed "$(tail -n 1 <<< "$output")"
+    fi
+  done
 }
 
-down() {
-  local filter_device="$1"
-
-  if [[ -n "$filter_device" && "$filter_device" != "ios" && "$filter_device" != "android" ]]; then
-    get_device_fields "$filter_device" || return 1
-    remove_containers
-    echo -e "\n-----------------------------------------------------------------"
-  else
-    while read -r line; do
-      get_device_fields "${line%%|*}" || continue
-      [[ -z "$filter_device" || "$dev_platform_name" == "$filter_device" ]] || continue
-      remove_containers
-      echo -e "\n-----------------------------------------------------------------"
-    done < "$MCLOUD_DEVICES"
-  fi
-}
-
+# remove_containers: the containers of the device and the volume of its logs removed, one line per container
 remove_containers() {
-  echo -e "\n\tRemoving '${dev_container}' containers:\n"
-  echo -n "Connector:  "
-  local connector
-  connector="$(docker rm -f "${dev_container}-connector")"
-  if [[ -z "$connector" ]]; then
-    failed "container not found"
+  local role
+  local output
+  for role in connector appium stf uploader; do
+    printf '  %-10s ' "$role"
+    # `docker rm -f` of no container succeeds without output (an error of the older docker versions)
+    if output="$(docker rm -f "${dev_container}-${role}" 2>&1)" && [[ -n "$output" ]]; then
+      echo "removed"
+    elif [[ -z "$output" ]] || grep -qi "no such container" <<< "$output"; then
+      echo "no container"
+    else
+      failed "$(tail -n 1 <<< "$output")"
+    fi
+  done
+  printf '  %-10s ' "logs"
+  if output="$(docker volume rm "$dev_container" 2>&1)"; then
+    echo "volume removed"
+  elif grep -qi "no such volume" <<< "$output"; then
+    echo "no volume"
   else
-    echo "$connector"
+    failed "$(tail -n 1 <<< "$output")"
   fi
+}
 
-  echo -n "Appium:     "
-  local appium
-  appium="$(docker rm -f "${dev_container}-appium")"
-  if [[ -z "$appium" ]]; then
-    failed "container not found"
-  else
-    echo "$appium"
+# ensure_network: the docker network of the containers, created when it is missing
+ensure_network() {
+  if ! docker network inspect "$STF_DOCKER_NETWORK" > /dev/null 2>&1; then
+    echo "Creating the docker network '${STF_DOCKER_NETWORK}'"
+    docker network create "$STF_DOCKER_NETWORK" > /dev/null
   fi
+}
 
-  echo -n "STF:        "
-  local stf
-  stf="$(docker rm -f "${dev_container}-stf")"
-  if [[ -z "$stf" ]]; then
-    failed "container not found"
-  else
-    echo "$stf"
-  fi
+#### Device selection
 
-  echo -n "Uploader:   "
-  local uploader
-  uploader="$(docker rm -f "${dev_container}-uploader")"
-  if [[ -z "$uploader" ]]; then
-    failed "container not found"
-  else
-    echo "$uploader"
-  fi
+# The devices of a command: the SELECTORS of its arguments (all the devices without them) but the EXCLUDES of -x; QUIET
+# (-q) skips the question. SELECTED are their udids in the order of mcloud-devices.txt. RESTART_STRATEGY of restart:
+# batch removes the containers of all the devices, then creates them; rolling removes and creates them device by device.
+SELECTORS=()
+EXCLUDES=()
+QUIET=""
+SELECTED=()
+RESTART_STRATEGY="batch"
 
-  echo -ne "---\nVolume:     "
-  local volume
-  if volume="$(docker volume rm "$dev_container" 2>&1)"; then
-    echo "$volume"
-  else
-    failed "$volume"
+# count <values...>: the number of the values; the length expansion of bash cannot be used, a template comment starts
+# with its characters
+count() {
+  echo "$#"
+}
+
+# add_selectors <selectors|excludes> <list>: the selectors of a list separated by commas or spaces
+add_selectors() {
+  local -a items
+  local item
+  IFS=', ' read -r -a items <<< "$2"
+  for item in "${items[@]}"; do
+    [[ -n "$item" ]] || continue
+    if [[ "$1" == "excludes" ]]; then
+      EXCLUDES+=("$item")
+    else
+      SELECTORS+=("$item")
+    fi
+  done
+}
+
+# parse_selection <arguments...>: SELECTORS, EXCLUDES and QUIET of the arguments of a command
+parse_selection() {
+  SELECTORS=()
+  EXCLUDES=()
+  QUIET=""
+  RESTART_STRATEGY="batch"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    -q | --quiet | -y | --yes)
+      QUIET="true"
+      ;;
+    --batch | --rolling)
+      RESTART_STRATEGY="${1#--}"
+      ;;
+    --strategy | --strategy=*)
+      if [[ "$1" == "--strategy" ]]; then
+        RESTART_STRATEGY="$2"
+        shift
+      else
+        RESTART_STRATEGY="${1#--strategy=}"
+      fi
+      if [[ "$RESTART_STRATEGY" != "batch" && "$RESTART_STRATEGY" != "rolling" ]]; then
+        failed "--strategy is batch or rolling"
+        return 1
+      fi
+      ;;
+    -x | -e | --exclude)
+      if [[ -z "$2" ]]; then
+        failed "$1 needs the devices to skip"
+        return 1
+      fi
+      add_selectors excludes "$2"
+      shift
+      ;;
+    -x=* | -e=* | --exclude=*)
+      add_selectors excludes "${1#*=}"
+      ;;
+    -*)
+      failed "unknown option: $1"
+      return 1
+      ;;
+    *)
+      add_selectors selectors "$1"
+      ;;
+    esac
+    shift
+  done
+}
+
+# is_exact <selector>: 0 for the udid or the name of a device, 1 for a group or a pattern
+is_exact() {
+  case "$1" in
+  ios | android | usb | wireless | android-sim | ios-sim | proxy | *[*?]*) return 1 ;;
+  esac
+  return 0
+}
+
+# device_matches <selector>: 0 when the device of get_device_fields is the selector: its udid or name, its platform
+# (ios, android), its connection (usb, wireless, android-sim, ios-sim, proxy) or a pattern (* and ?) of its udid, name
+# or location
+device_matches() {
+  case "$1" in
+  ios | android)
+    [[ "$dev_platform_name" == "$1" ]]
+    ;;
+  usb | wireless | android-sim | ios-sim | proxy)
+    [[ "$dev_connection" == "$1" ]]
+    ;;
+  *[*?]*)
+    # the selector is a pattern
+    # shellcheck disable=SC2053
+    [[ "$dev_udid" == $1 || "$dev_device_name" == $1 || "$dev_location" == $1 ]]
+    ;;
+  *)
+    [[ "$dev_udid" == "$1" || "$dev_device_name" == "$1" ]]
+    ;;
+  esac
+}
+
+# in_selection: 0 when the device of get_device_fields is one of SELECTORS (any device without them) and none of
+# EXCLUDES
+in_selection() {
+  local selector
+  local included="true"
+  if [[ "$(count "${SELECTORS[@]}")" -gt 0 ]]; then
+    included=""
+    for selector in "${SELECTORS[@]}"; do
+      if device_matches "$selector"; then
+        included="true"
+        break
+      fi
+    done
   fi
+  [[ -n "$included" ]] || return 1
+  for selector in "${EXCLUDES[@]}"; do
+    if device_matches "$selector"; then
+      return 1
+    fi
+  done
+  return 0
+}
+
+# single_device: the udid or the name of the arguments when they select one device exactly, nothing otherwise
+single_device() {
+  if [[ "$(count "${SELECTORS[@]}")" -eq 1 && "$(count "${EXCLUDES[@]}")" -eq 0 ]] && is_exact "${SELECTORS[0]}"; then
+    echo "${SELECTORS[0]}"
+  fi
+}
+
+# select_devices: SELECTED of SELECTORS and EXCLUDES; an udid or a name of no device fails, so does an empty selection
+select_devices() {
+  local selector
+  local line
+  SELECTED=()
+  for selector in "${SELECTORS[@]}" "${EXCLUDES[@]}"; do
+    if is_exact "$selector"; then
+      get_device_fields "$selector" || return 1
+    fi
+  done
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    get_device_fields "${line%%|*}" > /dev/null || continue
+    if in_selection; then
+      SELECTED+=("$dev_udid")
+    fi
+  done < "$MCLOUD_DEVICES"
+  if [[ "$(count "${SELECTED[@]}")" -eq 0 ]]; then
+    warn "No device matches: ${SELECTORS[*]:-all devices}${EXCLUDES[*]:+ without ${EXCLUDES[*]}}"
+    return 1
+  fi
+}
+
+# refine_selection <keep|drop> <list>: SELECTED with only the devices of the list or without them; the list has the
+# numbers of print_selection and the selectors, separated by commas or spaces
+refine_selection() {
+  local mode="$1"
+  local -a items
+  local -a kept=()
+  local item
+  local udid
+  local hit
+  local number=0
+  [[ -n "${2//[ ,]/}" ]] || return 0
+  IFS=', ' read -r -a items <<< "$2"
+  for udid in "${SELECTED[@]}"; do
+    number=$((number + 1))
+    get_device_fields "$udid" > /dev/null || continue
+    hit=""
+    for item in "${items[@]}"; do
+      if [[ -n "$item" ]] && { [[ "$item" == "$number" ]] || device_matches "$item"; }; then
+        hit="true"
+        break
+      fi
+    done
+    if [[ "$mode" == "keep" && -n "$hit" ]] || [[ "$mode" == "drop" && -z "$hit" ]]; then
+      kept+=("$udid")
+    fi
+  done
+  SELECTED=("${kept[@]}")
+}
+
+# containers_summary: the state of the containers of the device of get_device_fields in CONTAINER_STATES
+containers_summary() {
+  awk -v prefix="${dev_container}-" '
+    index($1, prefix) == 1 && substr($1, length(prefix) + 1) ~ /^(connector|stf|appium|uploader)$/ {
+      total++
+      if ($2 == "running") running++
+    }
+    END {
+      if (!total) print "none"
+      else if (running == total) print "running"
+      else if (!running) print "stopped"
+      else print running " of " total " running"
+    }' <<< "$CONTAINER_STATES"
+}
+
+# print_selection: the numbered list of SELECTED with the state of their containers
+print_selection() {
+  local udid
+  local number=0
+  read_container_states
+  {
+    echo "No|Name|UDID|Platform|Connection|Location|Containers"
+    for udid in "${SELECTED[@]}"; do
+      number=$((number + 1))
+      get_device_fields "$udid" > /dev/null || continue
+      echo "${number}|${dev_device_name}|${dev_udid}|${dev_platform_name}|${dev_connection}|${dev_location:--}|$(containers_summary)"
+    done
+  } | column -t -s '|' | sed 's/^/  /'
+}
+
+# confirm_selection <command>: shows SELECTED to a person at the terminal, who runs the command for them, filters or
+# excludes devices first, or cancels; no question with QUIET, for a single device named exactly or without a terminal
+# (udev, launchd, scripts; MCLOUD_FARM_INTERACTIVE=true asks anyway)
+confirm_selection() {
+  local command="$1"
+  local answer
+  local value
+  if [[ -n "$QUIET" || -n "$(single_device)" ]] || [[ ! -t 0 && "$MCLOUD_FARM_INTERACTIVE" != "true" ]]; then
+    return 0
+  fi
+  local switch=""
+  while true; do
+    echo -e "\nThe devices to ${command} ($(count "${SELECTED[@]}")):"
+    print_selection
+    echo ""
+    if [[ "$command" == "restart" ]]; then
+      echo "Strategy: $(strategy_description)"
+      switch=", [s]trategy"
+    fi
+    read -r -p "Run '${command}' for them? [Y]es, [n]o, [f]ilter the list, e[x]clude devices${switch}: " answer || return 1
+    case "$answer" in
+    [sS])
+      if [[ "$RESTART_STRATEGY" == "batch" ]]; then
+        RESTART_STRATEGY="rolling"
+      else
+        RESTART_STRATEGY="batch"
+      fi
+      ;;
+    "" | [yY] | [yY][eE][sS])
+      return 0
+      ;;
+    [nN] | [nN][oO])
+      return 1
+      ;;
+    [fF] | [fF]" "*)
+      value="${answer#?}"
+      [[ -n "${value// /}" ]] || read -r -p "Keep the devices (numbers, udids, names, patterns, groups): " value
+      refine_selection keep "$value"
+      ;;
+    [xX] | [xX]" "*)
+      value="${answer#?}"
+      [[ -n "${value// /}" ]] || read -r -p "Exclude the devices (numbers, udids, names, patterns, groups): " value
+      refine_selection drop "$value"
+      ;;
+    *)
+      echo "Answer y (run), n (cancel), f (keep only some devices) or x (exclude devices)."
+      ;;
+    esac
+    if [[ "$(count "${SELECTED[@]}")" -eq 0 ]]; then
+      warn "No device is left."
+      return 1
+    fi
+  done
+}
+
+# strategy_description: RESTART_STRATEGY for a person
+strategy_description() {
+  if [[ "$RESTART_STRATEGY" == "rolling" ]]; then
+    echo "rolling - device by device: its containers are removed and created again at once"
+  else
+    echo "batch - the containers of all the devices are removed, then all of them are created"
+  fi
+}
+
+# restart_selected: restart of SELECTED by RESTART_STRATEGY
+restart_selected() {
+  if [[ "$RESTART_STRATEGY" == "rolling" || "$(count "${SELECTED[@]}")" -eq 1 ]]; then
+    run_selected restart
+    return
+  fi
+  echo -e "\nRemoving the containers of $(count "${SELECTED[@]}") devices (batch restart)"
+  run_selected down
+  echo -e "\nCreating the containers of $(count "${SELECTED[@]}") devices again"
+  run_selected start
+}
+
+# run_selected <command>: the command (start, stop, restart, down, status) for every device of SELECTED
+run_selected() {
+  local command="$1"
+  local udid
+  for udid in "${SELECTED[@]}"; do
+    get_device_fields "$udid" || continue
+    echo -e "\n==> ${dev_device_name} (${dev_udid}, ${dev_platform_name}, ${dev_connection})"
+    "${command}_device"
+  done
+}
+
+stop_device() {
+  stop_containers
+}
+
+down_device() {
+  remove_containers
+}
+
+restart_device() {
+  remove_containers
+  start_device
+}
+
+status_device() {
+  verify_containers
+}
+
+# start_device: the containers of the device of get_device_fields created and running; the USB devices that are not
+# plugged in (no symlink of udev) are skipped unless the device is named exactly
+start_device() {
+  if [[ -z "$(single_device)" && "$dev_connection" == "usb" && ! -L "/dev/${dev_container}" ]]; then
+    echo "  not plugged in: skipped, udev starts it when it is connected"
+    return 0
+  fi
+  create_containers
 }
 
 detect_uptime() {
@@ -615,8 +901,6 @@ detect_restarts() {
 verify_containers() {
   local ps_out
   ps_out="$(docker ps -a)"
-
-  echo -e "\n\tVerify ${dev_container} containers:\n"
 
   if [[ ! -L "/dev/${dev_container}" && "$dev_connection" == "usb" ]]; then
     failed "\n--- DISCONNECTED ---\n"
@@ -674,57 +958,65 @@ verify_containers() {
 ,| Uploader,| ${uploader_state},| ${uploader_status},| ${uploader_uptime},| ${uploader_restarts},|" | column -t -s ','
 
   fi
-  echo -e "==============================================================\n"
-}
-
-status() {
-  local filter_device="$1"
-
-  if [[ -n "$filter_device" && "$filter_device" != "ios" && "$filter_device" != "android" ]]; then
-    get_device_fields "$filter_device" || return 1
-    verify_containers
-  else
-    while read -r line; do
-      get_device_fields "${line%%|*}" || continue
-      [[ -z "$filter_device" || "$dev_platform_name" == "$filter_device" ]] || continue
-      verify_containers
-    done < "$MCLOUD_DEVICES"
-  fi
 }
 
 echo_help() {
   echo "
-      Usage: zebrunner-farm [option]
-      Arguments:
-          status [device]      Status of MCloud Agent and each whitelisted device
-          start [device]       Start devices containers
-          stop [device]        Stop and keep devices containers
-          restart [device]     Restart devices containers
-          down [device]        Stop and remove devices containers
+      Usage: zebrunner-farm <command> [devices...] [-x|--exclude <devices>]... [-q|--quiet] [--batch|--rolling]
+      Commands:
+          status [devices]     The containers of the devices
+          start [devices]      Create (or start) and run the containers of the devices
+          stop [devices]       Stop and keep the containers of the devices
+          restart [devices]    Remove and create again the containers of the devices: --batch (default) removes
+                               the containers of all of them, then creates them; --rolling device by device
+          down [devices]       Stop and remove the containers of the devices
           ansible ['devices']  Run ansible-playbook script with custom or predefined args
           version              Show version of MCloud Agent components
-      Device: udid or name of a whitelisted device, or ios/android for all devices of the platform.
-      All whitelisted devices are used if the device is omitted."
+      Devices: udid or name of a whitelisted device, a group: ios, android, usb, wireless, android-sim, ios-sim,
+      proxy, or a pattern of the udids, names and locations in quotes ('Samsung_*'); several ones separated by spaces
+      or commas. All whitelisted devices are used if the devices are omitted.
+          -x, -e, --exclude <devices>  Skip these devices, may be repeated (also -x=<devices>)
+          -q, --quiet              No list of the devices and no question
+      In a terminal start, stop, restart and down of a group of devices show the devices first and ask to run the
+      command, to cancel, to filter the list (f) or to exclude devices (x) by their numbers, udids, names, groups or
+      patterns."
   echo_telegram
   exit 0
 }
 
+# farm_command <command> <arguments...>: the command for the devices of the arguments
+farm_command() {
+  local command="$1"
+  shift
+  parse_selection "$@" || return 1
+  select_devices || return 1
+  if [[ "$command" == "status" ]]; then
+    run_selected status
+    return
+  fi
+  if ! confirm_selection "$command"; then
+    echo "Cancelled."
+    return 0
+  fi
+  with_device_lock "$(single_device)" run_command "$command"
+}
+
+# run_command <command>: the command for SELECTED, the docker network first for the new containers
+run_command() {
+  if [[ "$1" == "start" || "$1" == "restart" ]]; then
+    ensure_network
+  fi
+  if [[ "$1" == "restart" ]]; then
+    restart_selected
+  else
+    run_selected "$1"
+  fi
+}
+
 main() {
   case "$1" in
-  status)
-    status "$2"
-    ;;
-  start)
-    with_device_lock "$2" start "$2"
-    ;;
-  stop)
-    with_device_lock "$2" stop "$2"
-    ;;
-  restart)
-    with_device_lock "$2" restart "$2"
-    ;;
-  down)
-    with_device_lock "$2" down "$2"
+  status | start | stop | restart | down)
+    farm_command "$@"
     ;;
   ansible)
     "${ZEBRUNNER_MCLOUD_AGENT_DIR}"/zebrunner.sh ansible "${@:2}"

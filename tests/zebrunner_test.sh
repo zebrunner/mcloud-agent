@@ -47,7 +47,7 @@ exports() {
 section "help"
 output="$(zbr "")"
 check_contains "help shows the usage" "Usage: ./zebrunner.sh [option]" "$output"
-for command in setup ansible status backup restore shutdown version curve-key; do
+for command in setup ansible status backup restore shutdown version curve-key doctor; do
   check_contains "help lists ${command}" "         ${command} " "$output"
 done
 
@@ -60,8 +60,11 @@ check "the agent dir is added to .bash_profile" "1" "$(exports .bash_profile)"
 check "Linux settings are created from the example" "same" \
   "$(cmp -s "${AGENT}/roles/devices/vars/main.yml" "${AGENT}/roles/devices/vars/main.yml.original" && echo same)"
 check_contains "the reload of the shell is suggested" "To apply the changes" "$output"
-check_contains "the settings of the server are the next step" "Set the settings of the MCloud server in 'roles/devices/vars/main.yml'" "$output"
-check_contains "the key of the host is the next step too" "make the key of this host with './zebrunner.sh curve-key'" "$output"
+check_contains "the settings of the server are the next step" "2. Set the settings of the MCloud server in 'roles/devices/vars/main.yml'" "$output"
+check_contains "the address of the host is a step" "3. Set STF_PROVIDER_HOST" "$output"
+check_contains "the key of the host is a step" "4. Make the key of this host: ./zebrunner.sh curve-key" "$output"
+check_contains "the doctor is a step" "6. Check the settings and the network to the MCloud server: ./zebrunner.sh doctor" "$output"
+check_contains "the deploy is a step" "7. Deploy the agent: ./zebrunner.sh ansible" "$output"
 output="$(OS=Linux zbr "" setup)"
 check "a second setup does not duplicate the variable" "1" "$(exports .bashrc)"
 check_contains "a second setup backs up existing settings" "making a backup" "$output"
@@ -79,6 +82,7 @@ for os in Linux Darwin; do
   check "${os}: the key of the host is written" "64" "${#secret}"
   public="$(python3 "${REPO}/patch/curve_keygen.py" "$secret" | sed -n 's/^public=//p')"
   check_contains "${os}: its public key is printed" "The public key of this host: ${public}" "$output"
+  check_contains "${os}: the line of variables.env of mcloud is printed" "STF_ZMQ_CURVE_CLIENT_KEY_$(hostname | sed 's/\..*//' | tr '[:lower:]' '[:upper:]' | tr -c 'A-Z0-9\n' '_')=${public}" "$output"
   check_not_contains "${os}: the secret key is not printed" "$secret" "$output"
   OS="$os" zbr "" curve-key > /dev/null
   check "${os}: the key is kept" "$secret" "$(sed -n 's/^STF_ZMQ_CURVE_SECRET_KEY: "\(.*\)"$/\1/p' "$vars")"
@@ -147,6 +151,28 @@ else
   skip_check "sudo-rs without sudo.ws" "sudo.ws of the system"
 fi
 mv "${WORK}/sudo" "${WORK}/bin/sudo"
+# the running containers of the devices keep the old settings: the deploy offers to remove them first
+cp "${WORK}/bin/docker" "${WORK}/docker"
+# the stub body is expanded when the stub runs
+# shellcheck disable=SC2016
+stub docker '(IFS="|"; echo "docker|$*") >> "${STUB_DIR}/calls.log"
+[[ "$1" == "ps" ]] && printf "%s\n" device-Galaxy-R28-connector device-Galaxy-R28-stf device-Pixel-45-appium node_exporter
+exit 0'
+reset_calls
+output="$(AGENT_DIR="$AGENT" OS=Linux zbr "\n" ansible)"
+check_contains "running containers are reported" "3 containers of the devices are running" "$output"
+check_contains "the devices of the running containers are listed" "device-Galaxy-R28" "$output"
+check "the default answer removes them with zebrunner-farm" "down" "$(calls zebrunner-farm)"
+check_contains "then the playbook runs" "${AGENT}/devices.yml" "$(calls ansible-playbook)"
+reset_calls
+output="$(AGENT_DIR="$AGENT" OS=Linux zbr "n\n" ansible)"
+check "a declined removal keeps them" "" "$(calls zebrunner-farm)"
+check_contains "a declined removal suggests the restart" "run 'zebrunner-farm restart' after the deploy" "$output"
+check_contains "a declined removal deploys anyway" "${AGENT}/devices.yml" "$(calls ansible-playbook)"
+reset_calls
+AGENT_DIR="$AGENT" OS=Linux zbr "" ansible devices > /dev/null
+check "the registration of the devices keeps the containers" "" "$(calls zebrunner-farm)"
+mv "${WORK}/docker" "${WORK}/bin/docker"
 output="$(ANSIBLE_EXIT=2 AGENT_DIR="$AGENT" zbr "" ansible)"
 check "failed playbook fails" "1" "$?"
 check_contains "failed playbook is reported" "Ansible playbook execution failed!" "$output"
@@ -202,6 +228,155 @@ touch "${WORK}/home/Library/LaunchAgents/ZebrunnerDevicesListener.plist" "${WORK
 output="$(AGENT_DIR="$AGENT" OS=Darwin zbr "" status)"
 check_contains "macOS deployed launch agents" "${WORK}/home/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" "$output"
 check_contains "macOS settings file" "${AGENT}/roles/mac-devices/vars/main.yml" "$output"
+
+section "doctor"
+# a fake network of ${WORK}/net: `hosts` (<name> <address>), `closed` (<host>:<port>), `local` and `source` (addresses)
+mkdir -p "${WORK}/net"
+cp "${AGENT}/patch/netcheck.py" "${WORK}/netcheck.py"
+cat > "${AGENT}/patch/netcheck.py" << 'PYTHON'
+import ipaddress
+import os
+import sys
+
+net = os.path.join(os.environ["STUB_DIR"], "net")
+
+
+def lines(name):
+    path = os.path.join(net, name)
+    return open(path).read().split("\n") if os.path.exists(path) else []
+
+
+def address(host):
+    try:
+        return str(ipaddress.ip_address(host))
+    except ValueError:
+        return next((line.split()[1] for line in lines("hosts") if line.split()[:1] == [host]), "")
+
+
+command, args = sys.argv[1], sys.argv[2:]
+if command == "resolve":
+    print(address(args[0]))
+    sys.exit(0 if address(args[0]) else 1)
+if command == "tcp":
+    if "%s:%s" % (args[0], args[1]) in lines("closed"):
+        print("Connection refused", file=sys.stderr)
+        sys.exit(1)
+elif command == "source":
+    print(lines("source")[0])
+elif command == "local":
+    sys.exit(0 if args[0] in lines("local") else 1)
+elif command == "kind":
+    ip = ipaddress.ip_address(args[0])
+    print("loopback" if ip.is_loopback else "private" if ip.is_private else "public")
+PYTHON
+# the stub body is expanded when the stub runs
+# shellcheck disable=SC2016
+stub curl 'cat "${STUB_DIR}/net/curl_code"'
+cp "${WORK}/bin/docker" "${WORK}/docker"
+# docker of no container (inspect fails) and no device
+# the stub body is expanded when the stub runs
+# shellcheck disable=SC2016
+stub docker '[[ "$1" == "inspect" ]] && exit 1
+exit 0'
+echo "mcloud.example.com 192.168.50.2" > "${WORK}/net/hosts"
+echo "192.168.30.2" > "${WORK}/net/local"
+echo "192.168.30.2" > "${WORK}/net/source"
+echo "403" > "${WORK}/net/curl_code"
+: > "${WORK}/net/closed"
+server_key="$(printf '%064d' 0 | tr 0 a)"
+secret_key="77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"
+vars="${AGENT}/roles/devices/vars/main.yml"
+cp "$vars" "${WORK}/vars.doctor"
+# settings <STF_PROVIDER_HOST>: the settings of an agent in the network of the MCloud server mcloud.example.com
+settings() {
+  sed -e "s/^PUBLIC_IP: .*/PUBLIC_IP: mcloud.example.com/" -e "s/^PUBLIC_IP_PORT: .*/PUBLIC_IP_PORT: 443/" \
+    -e "s|^STF_PROVIDER_CONNECT_\([A-Z_]*\): tcp://[^:]*:|STF_PROVIDER_CONNECT_\1: tcp://mcloud.example.com:|" \
+    -e "s/^SELENIUM_HUB_HOST: .*/SELENIUM_HUB_HOST: mcloud.example.com/" -e "s/^SELENIUM_HUB_PORT: .*/SELENIUM_HUB_PORT: 4446/" \
+    -e "s/^STF_PROVIDER_HOST: .*/STF_PROVIDER_HOST: $1/" -e 's/^NODE_REGISTRATION_TOKEN:.*/NODE_REGISTRATION_TOKEN: "grid-secret"/' \
+    -e 's/^STF_STORAGE_TOKEN:.*/STF_STORAGE_TOKEN: "storage-secret"/' \
+    -e "s/^STF_ZMQ_CURVE_SERVER_PUBLIC_KEY:.*/STF_ZMQ_CURVE_SERVER_PUBLIC_KEY: \"${server_key}\"/" \
+    -e "s/^STF_ZMQ_CURVE_SECRET_KEY:.*/STF_ZMQ_CURVE_SECRET_KEY: \"${secret_key}\" # the key of this host/" \
+    "${AGENT}/roles/devices/vars/main.yml.original" > "$vars"
+  printf '%s\n' "  - id: R28M1384YQY" "    os: android" >> "$vars"
+}
+# doctor_run: ./zebrunner.sh doctor of a Linux host without the deployed files
+doctor_run() {
+  printf '' | env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
+    FAKE_UNAME=Linux ZEBRUNNER_MCLOUD_AGENT_DIR="$AGENT" DOCTOR_FARM="${WORK}/farm" DOCTOR_DEVICES="${WORK}/devices.txt" \
+    /bin/bash "${AGENT}/zebrunner.sh" doctor 2>&1
+}
+rm -f "${WORK}/farm" "${WORK}/devices.txt"
+
+settings 185.237.20.136
+output="$(doctor_run)"
+check "a broken agent fails" "1" "$?"
+check_contains "the endpoints of the server are checked" "mcloud-grid (SELENIUM_HUB_HOST): mcloud.example.com:4446 (192.168.50.2) accepts connections" "$output"
+check_contains "the public address of a NAT in the network of the server is a problem" \
+  "STF_PROVIDER_HOST 185.237.20.136 (185.237.20.136) is a public address of a NAT" "$output"
+check_contains "the address of this host in that network is the fix" "fix: STF_PROVIDER_HOST: 192.168.30.2 in roles/devices/vars/main.yml" "$output"
+check_contains "a host out of AGENT_HOSTS is a problem" "stf-proxy of mcloud refuses the screens of 185.237.20.136: it is not in AGENT_HOSTS" "$output"
+check_contains "the public key of the host is shown as the line of mcloud" "variables.env of mcloud as STF_ZMQ_CURVE_CLIENT_KEY_" "$output"
+check_contains "the public key is the one of the secret key" "=8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a" "$output"
+for secret in grid-secret storage-secret "$secret_key"; do
+  check_not_contains "a secret is not printed" "$secret" "$output"
+done
+check_contains "not deployed agent" "zebrunner-farm is not deployed" "$output"
+check_contains "the problems are counted" "2 problems" "$output"
+
+settings 192.168.30.2
+echo "401" > "${WORK}/net/curl_code"
+output="$(doctor_run)"
+check "a working agent passes" "0" "$?"
+check_contains "an address of this host" "STF_PROVIDER_HOST 192.168.30.2 is an address of this host" "$output"
+check_contains "a host of AGENT_HOSTS" "stf-proxy of mcloud serves the screens of 192.168.30.2 (AGENT_HOSTS)" "$output"
+check_contains "the devices are counted" "$(grep -cE '^ *- +id:' "$vars") devices are declared" "$output"
+# the deployed devices: the list of now (14 fields) and the one deployed before the proxy ports were dropped (16 fields)
+printf '%s\n' "emu1|android|Emu|loc|7471|7472|7475|7480|android-sim|/dev/null|x|host:5557||" > "${WORK}/devices.txt"
+check_contains "the deployed devices are checked" "Emu: no running container" "$(doctor_run)"
+printf '%s\n' "emu1|android|Emu|loc|7471|7472|7473|7474|7475|7480|android-sim|/dev/null|x|host:5557||" > "${WORK}/devices.txt"
+check_contains "a list of the earlier format is read too" "Emu: no running container" "$(doctor_run)"
+check_contains "the remote debug of a private address is explained" \
+  "adb connect of STF (the remote debug) reaches 192.168.30.2 from its network only" "$(doctor_run)"
+sed -i.bak "s/^REMOTE_CONNECT_HOST:.*/REMOTE_CONNECT_HOST: mcloud.example.com/" "$vars"
+check_contains "the adb relay is checked on the port of the devices" \
+  "adb relay of mcloud (REMOTE_CONNECT_HOST): mcloud.example.com:7476 (192.168.50.2) accepts connections" "$(doctor_run)"
+echo "mcloud.example.com:7476" > "${WORK}/net/closed"
+check_contains "the entries of the relay are the remote debug ports" "the remote debug ports of this host (ADB_RELAY_PORTS of mcloud must have them): 192.168.30.2:7476" "$(doctor_run)"
+check_contains "a missing relay tells the entry of mcloud" "ADB_RELAY=true of .env of mcloud (the relay takes the ports of the devices from STF), or ADB_RELAY_HOSTS with 192.168.30.2:7476" "$(doctor_run)"
+: > "${WORK}/net/closed"
+rm -f "${WORK}/devices.txt"
+settings 192.168.30.2
+
+# zebrunner-farm rendered with another STF_PROVIDER_HOST, then with the settings
+if command -v ansible > /dev/null 2>&1; then
+  render "${AGENT}/roles/devices/templates/zebrunner-farm" "${WORK}/farm" --extra-vars "@${AGENT}/defaults/main.yml" \
+    --extra-vars "@${vars}" --extra-vars "STF_PROVIDER_HOST=185.237.20.136" || exit 1
+  check_contains "a deployment with other settings is reported" "zebrunner-farm is deployed with other values of STF_PROVIDER_HOST" "$(doctor_run)"
+  render "${AGENT}/roles/devices/templates/zebrunner-farm" "${WORK}/farm" --extra-vars "@${AGENT}/defaults/main.yml" \
+    --extra-vars "@${vars}" || exit 1
+  check_contains "a deployment with the settings" "zebrunner-farm is deployed with the current settings" "$(doctor_run)"
+  rm -f "${WORK}/farm"
+else
+  skip_check "the settings of the deployed zebrunner-farm" "no ansible"
+fi
+
+echo "mcloud.example.com:4446" > "${WORK}/net/closed"
+check_contains "a closed port is a problem" "mcloud.example.com:4446 (192.168.50.2) does not accept connections: Connection refused" "$(doctor_run)"
+: > "${WORK}/net/closed"
+echo "mcloud.other.com 10.0.0.1" > "${WORK}/net/hosts"
+check_contains "an unresolved server is a problem" "MCloud (PUBLIC_IP): mcloud.example.com is not resolved" "$(doctor_run)"
+
+cp "${AGENT}/roles/devices/vars/main.yml.original" "$vars"
+output="$(doctor_run)"
+check_contains "the empty obligatory settings are listed" \
+  "empty: STF_STORAGE_TOKEN NODE_REGISTRATION_TOKEN STF_ZMQ_CURVE_SERVER_PUBLIC_KEY STF_ZMQ_CURVE_SECRET_KEY" "$output"
+check_contains "the example host is a problem" "STF_PROVIDER_HOST is the example linux-agent.zebrunner.farm" "$output"
+rm -f "$vars"
+check_contains "no settings" "roles/devices/vars/main.yml does not exist" "$(doctor_run)"
+mv "${WORK}/docker" "${WORK}/bin/docker"
+mv "${WORK}/netcheck.py" "${AGENT}/patch/netcheck.py"
+mv "${WORK}/vars.doctor" "$vars"
+rm -f "${WORK}/bin/curl"
 
 section "backup and restore"
 zbr "n\n" backup > /dev/null
