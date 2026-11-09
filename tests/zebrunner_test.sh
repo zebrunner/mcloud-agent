@@ -47,7 +47,7 @@ exports() {
 section "help"
 output="$(zbr "")"
 check_contains "help shows the usage" "Usage: ./zebrunner.sh [option]" "$output"
-for command in setup ansible status backup restore shutdown version curve-key doctor; do
+for command in setup ansible status backup restore shutdown version doctor join; do
   check_contains "help lists ${command}" "         ${command} " "$output"
 done
 
@@ -60,11 +60,12 @@ check "the agent dir is added to .bash_profile" "1" "$(exports .bash_profile)"
 check "Linux settings are created from the example" "same" \
   "$(cmp -s "${AGENT}/roles/devices/vars/main.yml" "${AGENT}/roles/devices/vars/main.yml.original" && echo same)"
 check_contains "the reload of the shell is suggested" "To apply the changes" "$output"
-check_contains "the settings of the server are the next step" "2. Set the settings of the MCloud server in 'roles/devices/vars/main.yml'" "$output"
-check_contains "the address of the host is a step" "3. Set STF_PROVIDER_HOST" "$output"
-check_contains "the key of the host is a step" "4. Make the key of this host: ./zebrunner.sh curve-key" "$output"
-check_contains "the doctor is a step" "6. Check the settings and the network to the MCloud server: ./zebrunner.sh doctor" "$output"
-check_contains "the deploy is a step" "7. Deploy the agent: ./zebrunner.sh ansible" "$output"
+check_contains "the invite is the next step" "2. The administrator of MCloud invites this host on its server: ./zebrunner.sh node-invite" "$output"
+check_contains "the join is the next step" "3. Enroll this host: ./zebrunner.sh join and paste the join string" "$output"
+check_contains "the devices are a step" "4. Declare the devices in 'devices:' of 'roles/devices/vars/main.yml'" "$output"
+check_contains "the doctor is a step" "5. Check the settings, the enrollment and the network to MCloud: ./zebrunner.sh doctor" "$output"
+check_contains "the deploy is a step" "6. Deploy the agent: ./zebrunner.sh ansible" "$output"
+check_not_contains "no manual settings" "variables.env" "$output"
 output="$(OS=Linux zbr "" setup)"
 check "a second setup does not duplicate the variable" "1" "$(exports .bashrc)"
 check_contains "a second setup backs up existing settings" "making a backup" "$output"
@@ -73,32 +74,6 @@ OS=Darwin zbr "" setup > /dev/null
 check "macOS settings are created from the example" "same" \
   "$(cmp -s "${AGENT}/roles/mac-devices/vars/main.yml" "${AGENT}/roles/mac-devices/vars/main.yml.original" && echo same)"
 check_contains "unknown OS is rejected" "Unknown OS" "$(OS=FreeBSD zbr "" setup)"
-
-section "curve-key"
-for os in Linux Darwin; do
-  vars="${AGENT}/roles/$([[ "$os" == Linux ]] && echo devices || echo mac-devices)/vars/main.yml"
-  output="$(OS="$os" zbr "" curve-key)"
-  secret="$(sed -n 's/^STF_ZMQ_CURVE_SECRET_KEY: "\([0-9a-f]*\)"$/\1/p' "$vars")"
-  check "${os}: the key of the host is written" "64" "${#secret}"
-  public="$(python3 "${REPO}/patch/curve_keygen.py" "$secret" | sed -n 's/^public=//p')"
-  check_contains "${os}: its public key is printed" "The public key of this host: ${public}" "$output"
-  check_contains "${os}: the line of variables.env of mcloud is printed" "STF_ZMQ_CURVE_CLIENT_KEY_$(hostname | sed 's/\..*//' | tr '[:lower:]' '[:upper:]' | tr -c 'A-Z0-9\n' '_')=${public}" "$output"
-  check_not_contains "${os}: the secret key is not printed" "$secret" "$output"
-  OS="$os" zbr "" curve-key > /dev/null
-  check "${os}: the key is kept" "$secret" "$(sed -n 's/^STF_ZMQ_CURVE_SECRET_KEY: "\(.*\)"$/\1/p' "$vars")"
-done
-vars="${AGENT}/roles/devices/vars/main.yml"
-cp "$vars" "${WORK}/vars.saved"
-grep -v '^STF_ZMQ_CURVE_SECRET_KEY:' "${WORK}/vars.saved" > "$vars"
-check_contains "the settings need the line of the key" "has no STF_ZMQ_CURVE_SECRET_KEY line" "$(OS=Linux zbr "" curve-key)"
-check "the settings without the line of the key are not changed" "same" \
-  "$(grep -v '^STF_ZMQ_CURVE_SECRET_KEY:' "${WORK}/vars.saved" | cmp -s - "$vars" && echo same)"
-cp "${WORK}/vars.saved" "$vars"
-check_contains "the settings are needed" "run './zebrunner.sh setup' first" \
-  "$(rm -f "${AGENT}/roles/devices/vars/main.yml" && OS=Linux zbr "" curve-key)"
-cp "${WORK}/vars.saved" "$vars"
-check "the script makes the public key of RFC 7748" "public=8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a" \
-  "$(python3 "${REPO}/patch/curve_keygen.py" 77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a | head -1)"
 
 section "version"
 check_contains "versions from the agent dir" "DEVICE_VERSION:" "$(AGENT_DIR="$AGENT" zbr "" version)"
@@ -229,6 +204,91 @@ output="$(AGENT_DIR="$AGENT" OS=Darwin zbr "" status)"
 check_contains "macOS deployed launch agents" "${WORK}/home/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" "$output"
 check_contains "macOS settings file" "${AGENT}/roles/mac-devices/vars/main.yml" "$output"
 
+section "join"
+# a fake MCloud: curl records its arguments, its stdin (the body or the headers) goes to ${WORK}/mcloud/<call>_input, it
+# answers ${WORK}/mcloud/<call>_answer with the code of <call>_code or exits with <call>_exit; <call> is enroll or self
+mkdir -p "${WORK}/mcloud"
+# the stub body is expanded when the stub runs
+# shellcheck disable=SC2016
+stub curl '(IFS="|"; echo "curl|$*") >> "${STUB_DIR}/calls.log"
+case "$*" in
+*/api/v1/nodes/enroll*) call=enroll ;;
+*/api/v1/nodes/self*) call=self ;;
+*) exit 0 ;;
+esac
+cat > "${STUB_DIR}/mcloud/${call}_input"
+exit_code="$(cat "${STUB_DIR}/mcloud/${call}_exit" 2> /dev/null)"
+if [[ "${exit_code:-0}" != "0" ]]; then
+  echo "curl: (${exit_code}) SSL: public key does not match pinned public key" >&2
+  exit "$exit_code"
+fi
+printf "%s\n%s" "$(cat "${STUB_DIR}/mcloud/${call}_answer")" "$(cat "${STUB_DIR}/mcloud/${call}_code")"'
+vars="${AGENT}/roles/devices/vars/main.yml"
+cp "$vars" "${WORK}/vars.before-join"
+cp "${AGENT}/roles/devices/vars/main.yml.original" "$vars"
+pin="$(printf '%043d' 0 | tr 0 Q)="
+invite="mci1.$(printf '%043d' 0 | tr 0 i)"
+node_token="mcn1.build-ua.$(printf '%043d' 0 | tr 0 n)"
+join_string="mcloud-join://192.168.50.2:443?label=build-ua&grid=192.168.50.2:4446&pin=${pin//=/%3D}&token=${invite}"
+server_key="$(printf '%064d' 0 | tr 0 c)"
+# enroll_answer <token> <address>: the answer of the enrollment
+enroll_answer() {
+  printf '{"nodeToken":"%s","label":"build-ua","address":"%s","serverPublicKey":"%s","stfUrl":"https://demo.zebrunner.farm",' "$1" "$2" "$server_key"
+  printf '"endpoints":{"sub":"tcp://192.168.50.2:7250","push":"tcp://192.168.50.2:7270","appDealer":"tcp://192.168.50.2:7160","devDealer":"tcp://192.168.50.2:7260"}}'
+}
+enroll_answer "$node_token" 192.168.30.2 > "${WORK}/mcloud/enroll_answer"
+echo 200 > "${WORK}/mcloud/enroll_code"
+reset_calls
+output="$(OS=Linux zbr "${join_string}\n" join)"
+check "join enrolls the host" "0" "$?"
+check_contains "join reports the label and the address" "enrolled in MCloud 192.168.50.2 as build-ua, its address is 192.168.30.2" "$output"
+check_contains "the enrollment goes to MCloud over HTTPS with the pinned key only" "--pinnedpubkey|sha256//${pin}|" "$(calls curl)"
+check_contains "the enrollment URL" "https://192.168.50.2:443/api/v1/nodes/enroll" "$(calls curl)"
+check_not_contains "the invite is not in the arguments of curl" "$invite" "$(calls curl)"
+body="$(cat "${WORK}/mcloud/enroll_input")"
+check_contains "the body has the invite" "\"invite\": \"${invite}\"" "$body"
+check_contains "the body has the label" "\"label\": \"build-ua\"" "$body"
+secret="$(sed -n 's/^STF_ZMQ_CURVE_SECRET_KEY: "\(.*\)"$/\1/p' "$vars")"
+check "join makes the CURVE key of the host" "64" "${#secret}"
+check_contains "the body has the public key of the host" \
+  "\"publicKey\": \"$(python3 "${REPO}/patch/curve_keygen.py" "$secret" | sed -n 's/^public=//p')\"" "$body"
+check_not_contains "the secret key is not sent" "$secret" "$body"
+check "the script makes the public key of RFC 7748" "public=8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a" \
+  "$(python3 "${REPO}/patch/curve_keygen.py" 77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a | head -1)"
+for line in 'MCLOUD_URL: "https://192.168.50.2:443"' "MCLOUD_TLS_PIN: \"${pin}\"" "MCLOUD_NODE_TOKEN: \"${node_token}\"" \
+  "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY: \"${server_key}\"" 'PUBLIC_IP: "demo.zebrunner.farm"' 'PUBLIC_IP_PORT: "443"' \
+  'PUBLIC_IP_PROTOCOL: "https"' 'STF_PROVIDER_CONNECT_SUB: "tcp://192.168.50.2:7250"' \
+  'STF_PROVIDER_CONNECT_DEV_DEALER: "tcp://192.168.50.2:7260"' 'SELENIUM_HUB_HOST: "192.168.50.2"' \
+  'SELENIUM_HUB_PORT: "4446"' 'STF_PROVIDER_HOST: "192.168.30.2"'; do
+  check "join writes ${line%%:*}" "1" "$(grep -cxF -- "$line" "$vars")"
+done
+check "the settings are private" "600" "$(stat -c '%a' "$vars" 2> /dev/null || stat -f '%Lp' "$vars")"
+backup="$(find "$(dirname "$vars")" -name 'main.yml.bak-join-*' | head -1)"
+check "the previous settings are kept, private too" "600" "$(stat -c '%a' "$backup" 2> /dev/null || stat -f '%Lp' "$backup")"
+check_not_contains "the token is not printed" "$node_token" "$output"
+check_not_contains "the invite is not printed" "$invite" "$output"
+check_contains "the next steps are printed" "./zebrunner.sh ansible deploys them" "$output"
+rm -f "${vars}".bak-join-*
+
+cp "$vars" "${WORK}/vars.joined"
+check_contains "a wrong join string fails" "not a join string of ./zebrunner.sh node-invite" "$(OS=Linux zbr "https://example.com\n" join)"
+check_contains "a join string without the pin fails" "the pin of the join string is not a sha256 in base64" \
+  "$(OS=Linux zbr "${join_string/pin=/pinx=}\n" join)"
+echo 90 > "${WORK}/mcloud/enroll_exit"
+check_contains "another TLS key of the server stops the enrollment" "the TLS key of the server is not the pinned one" \
+  "$(OS=Linux zbr "${join_string}\n" join)"
+rm -f "${WORK}/mcloud/enroll_exit"
+echo 403 > "${WORK}/mcloud/enroll_code"
+check_contains "a refused invite is explained" "MCloud refused the enrollment (HTTP 403)" "$(OS=Linux zbr "${join_string}\n" join)"
+echo 200 > "${WORK}/mcloud/enroll_code"
+enroll_answer "mcn1.other-host.$(printf '%043d' 0 | tr 0 n)" 192.168.30.2 > "${WORK}/mcloud/enroll_answer"
+check_contains "a token of another label is refused" "MCloud answered no valid token of this label" "$(OS=Linux zbr "${join_string}\n" join)"
+enroll_answer "$node_token" '192.168.30.2\nMCLOUD_NODE_TOKEN: x' > "${WORK}/mcloud/enroll_answer"
+output="$(OS=Linux zbr "${join_string}\n" join)"
+check_contains "an answer cannot inject settings" "the address of this host is not a host name or address" "$output"
+check "a failed enrollment changes no setting" "same" "$(cmp -s "$vars" "${WORK}/vars.joined" && echo same)"
+rm -f "${vars}".bak-join-*
+
 section "doctor"
 # a fake network of ${WORK}/net: `hosts` (<name> <address>), `closed` (<host>:<port>), `local` and `source` (addresses)
 mkdir -p "${WORK}/net"
@@ -269,36 +329,24 @@ elif command == "kind":
     ip = ipaddress.ip_address(args[0])
     print("loopback" if ip.is_loopback else "private" if ip.is_private else "public")
 PYTHON
-# the stub body is expanded when the stub runs
-# shellcheck disable=SC2016
-stub curl 'cat "${STUB_DIR}/net/curl_code"'
 cp "${WORK}/bin/docker" "${WORK}/docker"
 # docker of no container (inspect fails) and no device
 # the stub body is expanded when the stub runs
 # shellcheck disable=SC2016
 stub docker '[[ "$1" == "inspect" ]] && exit 1
 exit 0'
-echo "mcloud.example.com 192.168.50.2" > "${WORK}/net/hosts"
+echo "demo.zebrunner.farm 192.168.50.2" > "${WORK}/net/hosts"
 echo "192.168.30.2" > "${WORK}/net/local"
 echo "192.168.30.2" > "${WORK}/net/source"
-echo "403" > "${WORK}/net/curl_code"
 : > "${WORK}/net/closed"
-server_key="$(printf '%064d' 0 | tr 0 a)"
-secret_key="77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"
-vars="${AGENT}/roles/devices/vars/main.yml"
-cp "$vars" "${WORK}/vars.doctor"
-# settings <STF_PROVIDER_HOST>: the settings of an agent in the network of the MCloud server mcloud.example.com
-settings() {
-  sed -e "s/^PUBLIC_IP: .*/PUBLIC_IP: mcloud.example.com/" -e "s/^PUBLIC_IP_PORT: .*/PUBLIC_IP_PORT: 443/" \
-    -e "s|^STF_PROVIDER_CONNECT_\([A-Z_]*\): tcp://[^:]*:|STF_PROVIDER_CONNECT_\1: tcp://mcloud.example.com:|" \
-    -e "s/^SELENIUM_HUB_HOST: .*/SELENIUM_HUB_HOST: mcloud.example.com/" -e "s/^SELENIUM_HUB_PORT: .*/SELENIUM_HUB_PORT: 4446/" \
-    -e "s/^STF_PROVIDER_HOST: .*/STF_PROVIDER_HOST: $1/" -e 's/^NODE_REGISTRATION_TOKEN:.*/NODE_REGISTRATION_TOKEN: "grid-secret"/' \
-    -e 's/^STF_STORAGE_TOKEN:.*/STF_STORAGE_TOKEN: "storage-secret"/' \
-    -e "s/^STF_ZMQ_CURVE_SERVER_PUBLIC_KEY:.*/STF_ZMQ_CURVE_SERVER_PUBLIC_KEY: \"${server_key}\"/" \
-    -e "s/^STF_ZMQ_CURVE_SECRET_KEY:.*/STF_ZMQ_CURVE_SECRET_KEY: \"${secret_key}\" # the key of this host/" \
-    "${AGENT}/roles/devices/vars/main.yml.original" > "$vars"
-  printf '%s\n' "  - id: R28M1384YQY" "    os: android" >> "$vars"
+# the answer of MCloud about this host: a bound present device and an unbound absent one
+self_answer() {
+  printf '{"label":"build-ua","address":"%s","status":"active","devices":[' "$1"
+  printf '{"serial":"R28M1384YQY","platform":"android","present":true,"bound":true},'
+  printf '{"serial":"emu1","platform":"android","present":false,"bound":false}]}'
 }
+self_answer 192.168.30.2 > "${WORK}/mcloud/self_answer"
+echo 200 > "${WORK}/mcloud/self_code"
 # doctor_run: ./zebrunner.sh doctor of a Linux host without the deployed files
 doctor_run() {
   printf '' | env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
@@ -306,46 +354,79 @@ doctor_run() {
     /bin/bash "${AGENT}/zebrunner.sh" doctor 2>&1
 }
 rm -f "${WORK}/farm" "${WORK}/devices.txt"
+cp "${WORK}/vars.joined" "$vars"
+chmod 600 "$vars"
 
-settings 185.237.20.136
+reset_calls
 output="$(doctor_run)"
-check "a broken agent fails" "1" "$?"
-check_contains "the endpoints of the server are checked" "mcloud-grid (SELENIUM_HUB_HOST): mcloud.example.com:4446 (192.168.50.2) accepts connections" "$output"
-check_contains "the public address of a NAT in the network of the server is a problem" \
-  "STF_PROVIDER_HOST 185.237.20.136 (185.237.20.136) is a public address of a NAT" "$output"
-check_contains "the address of this host in that network is the fix" "fix: STF_PROVIDER_HOST: 192.168.30.2 in roles/devices/vars/main.yml" "$output"
-check_contains "a host out of AGENT_HOSTS is a problem" "stf-proxy of mcloud refuses the screens of 185.237.20.136: it is not in AGENT_HOSTS" "$output"
-check_contains "the public key of the host is shown as the line of mcloud" "variables.env of mcloud as STF_ZMQ_CURVE_CLIENT_KEY_" "$output"
-check_contains "the public key is the one of the secret key" "=8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a" "$output"
-for secret in grid-secret storage-secret "$secret_key"; do
+check "an enrolled host passes" "0" "$?"
+check_contains "the enrollment is checked with MCloud" "this host is enrolled and active in MCloud as build-ua" "$output"
+check_contains "the check goes to MCLOUD_URL with the pinned key" "--pinnedpubkey|sha256//${pin}|" "$(calls curl)"
+check_contains "the check URL" "https://192.168.50.2:443/api/v1/nodes/self" "$(calls curl)"
+check_contains "the token goes in the header on stdin" "Authorization: Bearer ${node_token}" "$(cat "${WORK}/mcloud/self_input")"
+check_not_contains "the token is not in the arguments of curl" "$node_token" "$(calls curl)"
+check_contains "the devices of STF are counted" "STF knows 2 devices of this host, 1 bound to it" "$output"
+check_contains "an unbound device is reported" "STF refuses the device emu1 (android) of this host" "$output"
+check_contains "an absent device is reported" "STF knows the device emu1 (android), it is not connected now" "$output"
+check_contains "the endpoints of the server are checked" "mcloud-grid (SELENIUM_HUB_HOST): 192.168.50.2:4446 (192.168.50.2) accepts connections" "$output"
+check_contains "an address of this host" "STF_PROVIDER_HOST 192.168.30.2 is an address of this host" "$output"
+check_contains "not deployed agent" "zebrunner-farm is not deployed" "$output"
+for secret in "$node_token" "$(sed -n 's/^STF_ZMQ_CURVE_SECRET_KEY: "\(.*\)"$/\1/p' "$vars")"; do
   check_not_contains "a secret is not printed" "$secret" "$output"
 done
-check_contains "not deployed agent" "zebrunner-farm is not deployed" "$output"
-check_contains "the problems are counted" "2 problems" "$output"
 
-settings 192.168.30.2
-echo "401" > "${WORK}/net/curl_code"
+self_answer 192.168.30.9 > "${WORK}/mcloud/self_answer"
+check_contains "another address of the host in MCloud is a problem" \
+  "STF_PROVIDER_HOST 192.168.30.2 is not the address of this host in MCloud (192.168.30.9)" "$(doctor_run)"
+self_answer 192.168.30.2 > "${WORK}/mcloud/self_answer"
+echo 401 > "${WORK}/mcloud/self_code"
+check_contains "an unknown token is a problem" "MCloud does not know the token of this host" "$(doctor_run)"
+echo 403 > "${WORK}/mcloud/self_code"
+check_contains "a revoked host is a problem" "MCloud revoked this host" "$(doctor_run)"
+echo 200 > "${WORK}/mcloud/self_code"
+echo 90 > "${WORK}/mcloud/self_exit"
+check_contains "another TLS key of MCloud is a problem" "the TLS key of MCloud https://192.168.50.2:443 is not the pinned one" "$(doctor_run)"
+rm -f "${WORK}/mcloud/self_exit"
+
+# the public address of a NAT as the address of the host while MCloud is in its network
+sed -i.bak 's/^STF_PROVIDER_HOST:.*/STF_PROVIDER_HOST: "185.237.20.136"/' "$vars" && rm -f "${vars}.bak"
+self_answer 185.237.20.136 > "${WORK}/mcloud/self_answer"
 output="$(doctor_run)"
-check "a working agent passes" "0" "$?"
-check_contains "an address of this host" "STF_PROVIDER_HOST 192.168.30.2 is an address of this host" "$output"
-check_contains "a host of AGENT_HOSTS" "stf-proxy of mcloud serves the screens of 192.168.30.2 (AGENT_HOSTS)" "$output"
-check_contains "the devices are counted" "$(grep -cE '^ *- +id:' "$vars") devices are declared" "$output"
-# the deployed devices: the list of now (14 fields) and the one deployed before the proxy ports were dropped (16 fields)
-printf '%s\n' "emu1|android|Emu|loc|7471|7472|7475|7480|android-sim|/dev/null|x|host:5557||" > "${WORK}/devices.txt"
+check "a broken agent fails" "1" "$?"
+check_contains "the public address of a NAT in the network of the server is a problem" \
+  "STF_PROVIDER_HOST 185.237.20.136 (185.237.20.136) is a public address of a NAT" "$output"
+check_contains "a new invite with the address of this host in that network is the fix" \
+  "a new invite of this host with the address 192.168.30.2 (./zebrunner.sh node-invite <label> 192.168.30.2 of mcloud)" "$output"
+cp "${WORK}/vars.joined" "$vars"
+chmod 600 "$vars"
+self_answer 192.168.30.2 > "${WORK}/mcloud/self_answer"
+
+# the remote debug through the adb relay of mcloud
+printf '%s\n' "emu1|android|Emu|loc|7471|7472|7475|7480|android-sim|/dev/null|x|host:5557|||" > "${WORK}/devices.txt"
 check_contains "the deployed devices are checked" "Emu: no running container" "$(doctor_run)"
-printf '%s\n' "emu1|android|Emu|loc|7471|7472|7473|7474|7475|7480|android-sim|/dev/null|x|host:5557||" > "${WORK}/devices.txt"
-check_contains "a list of the earlier format is read too" "Emu: no running container" "$(doctor_run)"
 check_contains "the remote debug of a private address is explained" \
   "adb connect of STF (the remote debug) reaches 192.168.30.2 from its network only" "$(doctor_run)"
-sed -i.bak "s/^REMOTE_CONNECT_HOST:.*/REMOTE_CONNECT_HOST: mcloud.example.com/" "$vars"
-check_contains "the adb relay is checked on the port of the devices" \
-  "adb relay of mcloud (REMOTE_CONNECT_HOST): mcloud.example.com:7476 (192.168.50.2) accepts connections" "$(doctor_run)"
-echo "mcloud.example.com:7476" > "${WORK}/net/closed"
-check_contains "the entries of the relay are the remote debug ports" "the remote debug ports of this host (ADB_RELAY_PORTS of mcloud must have them): 192.168.30.2:7476" "$(doctor_run)"
-check_contains "a missing relay tells the entry of mcloud" "ADB_RELAY=true of .env of mcloud (the relay takes the ports of the devices from STF), or ADB_RELAY_HOSTS with 192.168.30.2:7476" "$(doctor_run)"
+sed -i.bak 's/^REMOTE_CONNECT_HOST:.*/REMOTE_CONNECT_HOST: demo.zebrunner.farm/' "$vars" && rm -f "${vars}.bak"
+check_contains "the adb relay is checked on the remote debug port of the devices" \
+  "adb relay of mcloud (REMOTE_CONNECT_HOST): demo.zebrunner.farm:7476 (192.168.50.2) accepts connections" "$(doctor_run)"
+printf '%s\n' "emu1|android|Emu|loc|7471|7472|7475|7480|android-sim|/dev/null|x|host:5557|||7499" > "${WORK}/devices.txt"
+check_contains "connect_port is the remote debug port" "the remote debug ports of this host (ADB_RELAY_PORTS of mcloud must have them): 192.168.30.2:7499" "$(doctor_run)"
+echo "demo.zebrunner.farm:7499" > "${WORK}/net/closed"
+check_contains "a missing relay tells the setting of mcloud" "ADB_RELAY=true of .env of mcloud" "$(doctor_run)"
 : > "${WORK}/net/closed"
+cp "${WORK}/vars.joined" "$vars"
+chmod 600 "$vars"
+
+# MCloud on this machine: the devices must not use its ports
+echo "192.168.50.2" >> "${WORK}/net/local"
+printf '%s\n' "emu1|android|Emu|loc|4446|7472|7475|7480|android-sim|/dev/null|x|host:5557||" > "${WORK}/devices.txt"
+output="$(doctor_run)"
+check_contains "MCloud on this machine is reported" "MCloud runs on this machine (192.168.50.2)" "$output"
+check_contains "a port of MCloud used by a device is a problem" "the devices use the ports 4446 of MCloud on this machine" "$output"
+printf '%s\n' "emu1|android|Emu|loc|7471|7472|7475|7480|android-sim|/dev/null|x|host:5557||" > "${WORK}/devices.txt"
+check_contains "no port of MCloud used by the devices" "the devices use no port of MCloud on this machine" "$(doctor_run)"
+echo "192.168.30.2" > "${WORK}/net/local"
 rm -f "${WORK}/devices.txt"
-settings 192.168.30.2
 
 # zebrunner-farm rendered with another STF_PROVIDER_HOST, then with the settings
 if command -v ansible > /dev/null 2>&1; then
@@ -354,29 +435,36 @@ if command -v ansible > /dev/null 2>&1; then
   check_contains "a deployment with other settings is reported" "zebrunner-farm is deployed with other values of STF_PROVIDER_HOST" "$(doctor_run)"
   render "${AGENT}/roles/devices/templates/zebrunner-farm" "${WORK}/farm" --extra-vars "@${AGENT}/defaults/main.yml" \
     --extra-vars "@${vars}" || exit 1
-  check_contains "a deployment with the settings" "zebrunner-farm is deployed with the current settings" "$(doctor_run)"
+  chmod 755 "${WORK}/farm"
+  output="$(doctor_run)"
+  check_contains "a deployment with the settings" "zebrunner-farm is deployed with the current settings" "$output"
+  check_contains "a readable zebrunner-farm is reported" "zebrunner-farm has the secrets of the settings and is readable by every user" "$output"
   rm -f "${WORK}/farm"
 else
   skip_check "the settings of the deployed zebrunner-farm" "no ansible"
 fi
 
-echo "mcloud.example.com:4446" > "${WORK}/net/closed"
-check_contains "a closed port is a problem" "mcloud.example.com:4446 (192.168.50.2) does not accept connections: Connection refused" "$(doctor_run)"
+echo "192.168.50.2:4446" > "${WORK}/net/closed"
+check_contains "a closed port is a problem" "192.168.50.2:4446 (192.168.50.2) does not accept connections: Connection refused" "$(doctor_run)"
 : > "${WORK}/net/closed"
 echo "mcloud.other.com 10.0.0.1" > "${WORK}/net/hosts"
-check_contains "an unresolved server is a problem" "MCloud (PUBLIC_IP): mcloud.example.com is not resolved" "$(doctor_run)"
+check_contains "an unresolved server is a problem" "MCloud (PUBLIC_IP): demo.zebrunner.farm is not resolved" "$(doctor_run)"
+echo "demo.zebrunner.farm 192.168.50.2" > "${WORK}/net/hosts"
 
+sed -i.bak 's/^MCLOUD_NODE_TOKEN:.*/MCLOUD_NODE_TOKEN: "mcn1.x"/' "$vars" && rm -f "${vars}.bak"
+check_contains "an invalid token is a problem" "MCLOUD_NODE_TOKEN is not a token of ./zebrunner.sh join" "$(doctor_run)"
+chmod 644 "$vars"
+check_contains "readable settings are reported" "have secrets and are readable by other users (mode 644)" "$(doctor_run)"
 cp "${AGENT}/roles/devices/vars/main.yml.original" "$vars"
 output="$(doctor_run)"
-check_contains "the empty obligatory settings are listed" \
-  "empty: STF_STORAGE_TOKEN NODE_REGISTRATION_TOKEN STF_ZMQ_CURVE_SERVER_PUBLIC_KEY STF_ZMQ_CURVE_SECRET_KEY" "$output"
-check_contains "the example host is a problem" "STF_PROVIDER_HOST is the example linux-agent.zebrunner.farm" "$output"
+check_contains "a host without the enrollment is reported" "this host is not enrolled, empty: MCLOUD_URL MCLOUD_TLS_PIN MCLOUD_NODE_TOKEN" "$output"
+check_contains "join is the fix" "./zebrunner.sh join with the join string of ./zebrunner.sh node-invite of mcloud" "$output"
 rm -f "$vars"
 check_contains "no settings" "roles/devices/vars/main.yml does not exist" "$(doctor_run)"
 mv "${WORK}/docker" "${WORK}/bin/docker"
 mv "${WORK}/netcheck.py" "${AGENT}/patch/netcheck.py"
-mv "${WORK}/vars.doctor" "$vars"
 rm -f "${WORK}/bin/curl"
+mv "${WORK}/vars.before-join" "$vars"
 
 section "backup and restore"
 zbr "n\n" backup > /dev/null

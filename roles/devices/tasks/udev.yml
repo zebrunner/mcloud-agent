@@ -60,24 +60,33 @@
     success_msg: "All device IDs and names are unique."
   tags: [devices, precheck, dedup]
 
-# the authentication of the MCloud server: its tokens and the CURVE keys of ZeroMQ (README.md#connect-to-mcloud)
-- name: Check the obligatory settings of the MCloud server
+# the connection to MCloud of `./zebrunner.sh join` (README.md#node-enrollment): the token of this host, the CURVE keys
+# of ZeroMQ and the endpoints of MCloud
+- name: Check the settings of the node enrollment
   vars:
-    devices_server_settings:
-      STF_STORAGE_TOKEN: "{{ STF_STORAGE_TOKEN | default('', true) | string | trim }}"
-      NODE_REGISTRATION_TOKEN: "{{ NODE_REGISTRATION_TOKEN | default('', true) | string | trim }}"
+    devices_enrollment_settings:
+      MCLOUD_NODE_TOKEN: "{{ MCLOUD_NODE_TOKEN | default('', true) | string | trim }}"
+      STF_PROVIDER_HOST: "{{ STF_PROVIDER_HOST | default('', true) | string | trim }}"
+      PUBLIC_IP: "{{ PUBLIC_IP | default('', true) | string | trim }}"
+      STF_PROVIDER_CONNECT_SUB: "{{ STF_PROVIDER_CONNECT_SUB | default('', true) | string | trim }}"
+      STF_PROVIDER_CONNECT_PUSH: "{{ STF_PROVIDER_CONNECT_PUSH | default('', true) | string | trim }}"
+      SELENIUM_HUB_HOST: "{{ SELENIUM_HUB_HOST | default('', true) | string | trim }}"
+      SELENIUM_HUB_PORT: "{{ SELENIUM_HUB_PORT | default('', true) | string | trim }}"
       STF_ZMQ_CURVE_SERVER_PUBLIC_KEY: "{{ STF_ZMQ_CURVE_SERVER_PUBLIC_KEY | default('', true) | string | trim }}"
       STF_ZMQ_CURVE_SECRET_KEY: "{{ STF_ZMQ_CURVE_SECRET_KEY | default('', true) | string | trim }}"
-    devices_missing_settings: "{{ devices_server_settings | dict2items | selectattr('value', 'equalto', '') | map(attribute='key') | list }}"
+    devices_token_invalid: >-
+      {{ devices_enrollment_settings.MCLOUD_NODE_TOKEN != ''
+         and devices_enrollment_settings.MCLOUD_NODE_TOKEN is not match('^mcn1[.][a-z0-9][a-z0-9-]{0,39}[.][A-Za-z0-9_-]{43}$') }}
+    devices_missing_settings: >-
+      {{ (['MCLOUD_NODE_TOKEN'] if devices_token_invalid | bool else [])
+         + (devices_enrollment_settings | dict2items | selectattr('value', 'equalto', '') | map(attribute='key') | list) }}
   ansible.builtin.assert:
     that: devices_missing_settings | length == 0
     fail_msg: >-
-      The obligatory settings of the MCloud server are missing: {{ devices_missing_settings | join(', ') }}.
-      Set them in roles/devices/vars/main.yml, in quotes: STF_STORAGE_TOKEN, NODE_REGISTRATION_TOKEN and
-      STF_ZMQ_CURVE_SERVER_PUBLIC_KEY are the ones of variables.env of mcloud; STF_ZMQ_CURVE_SECRET_KEY is the key of
-      this host: run ./zebrunner.sh curve-key and add the STF_ZMQ_CURVE_CLIENT_KEY_<HOST> line it prints to variables.env
-      of mcloud (README.md#connect-to-mcloud); ./zebrunner.sh doctor checks the settings.
-    success_msg: "The obligatory settings of the MCloud server are set."
+      The settings of the node enrollment are missing or invalid in roles/devices/vars/main.yml: {{ devices_missing_settings | join(', ') }}.
+      Enroll this host with ./zebrunner.sh join and the join string of ./zebrunner.sh node-invite of mcloud
+      (README.md#node-enrollment); ./zebrunner.sh doctor checks the settings.
+    success_msg: "The settings of the node enrollment are set."
   tags: [devices, precheck, validate]
 
 # the ZeroMQ security of STF: the key of this host with the key of the server (README.md#zeromq-security)
@@ -91,7 +100,7 @@
       - curve_secret_key is match('^[0-9a-fA-F]{64}$')
     fail_msg: >-
       STF_ZMQ_CURVE_SERVER_PUBLIC_KEY must be the 64 hex characters of the STF server (in quotes) and
-      STF_ZMQ_CURVE_SECRET_KEY the 64 hex characters of the key of this host: run ./zebrunner.sh curve-key.
+      STF_ZMQ_CURVE_SECRET_KEY the 64 hex characters of the key of this host: run ./zebrunner.sh join.
     success_msg: "The CURVE keys of ZeroMQ are valid."
   tags: [devices, precheck, validate]
 
@@ -173,9 +182,10 @@
   ansible.builtin.template:
     src: zebrunner-farm
     dest: /usr/local/bin/zebrunner-farm
-    mode: "0755"
+    # it has the secrets of the settings: root (udev) and the group of the user only
+    mode: "0750"
     owner: root
-    group: root
+    group: "{{ lookup('pipe', 'id -g') }}"
   tags: [devices, files]
 
 - name: Copy rules file

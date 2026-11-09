@@ -2,36 +2,33 @@
 
 STF_DOCKER_NETWORK: infra
 
-# [OBLIGATORY] Set host address, port and protocol of the server where STF services are deployed
-PUBLIC_IP: demo.zebrunner.farm
-PUBLIC_IP_PORT: 80
-PUBLIC_IP_PROTOCOL: http
+# The connection to MCloud: `./zebrunner.sh join` writes these settings (README.md#node-enrollment), do not change them
+# by hand; a new join string of `./zebrunner.sh node-invite` of mcloud replaces them. Keep this file private (mode 600).
+# MCLOUD_URL and MCLOUD_TLS_PIN: the API of MCloud and the pin of its TLS key (doctor talks to MCloud with them)
+MCLOUD_URL:
+MCLOUD_TLS_PIN:
+# the token of this host: the grid, the storage and the proof of its devices
+MCLOUD_NODE_TOKEN:
+# the address of this host the MCloud server connects to (the hub, the screens): the address of the invite
+STF_PROVIDER_HOST:
+# the public URL of MCloud: the devices upload the screenshots and download the apps there
+PUBLIC_IP:
+PUBLIC_IP_PORT:
+PUBLIC_IP_PROTOCOL:
+# the triproxies of STF and mcloud-grid on the address this host reaches MCloud with
+STF_PROVIDER_CONNECT_SUB:
+STF_PROVIDER_CONNECT_PUSH:
+STF_PROVIDER_CONNECT_APP_DEALER:
+STF_PROVIDER_CONNECT_DEV_DEALER:
+SELENIUM_HUB_HOST:
+SELENIUM_HUB_PORT:
+# the ZeroMQ security (CURVE): the public key of the server and the key of this host (join makes it when it is empty)
+STF_ZMQ_CURVE_SERVER_PUBLIC_KEY:
+STF_ZMQ_CURVE_SECRET_KEY:
 
-# [OPTIONAL] Set tcp urls of stf-triproxy-dev and stf-triproxy-app.
-# IMPORTANT! make sure to use valid hostname and port if STF services are located on different host.
-STF_PROVIDER_CONNECT_SUB: tcp://stf-triproxy-dev:7250
-STF_PROVIDER_CONNECT_PUSH: tcp://stf-triproxy-dev:7270
-
-STF_PROVIDER_CONNECT_APP_DEALER: tcp://stf-triproxy-app:7160
-STF_PROVIDER_CONNECT_DEV_DEALER: tcp://stf-triproxy-dev:7260
-
-# [OPTIONAL] Set host address and port of mcloud-grid container:
-# https://github.com/zebrunner/mcloud/blob/8442bceec096f886c02bf84a39816f10c694ad9e/docker-compose.yml#L17
-# IMPORTANT! make sure to use valid hostname and port if it is located on different host.
-SELENIUM_HUB_HOST: mcloud-grid
-SELENIUM_HUB_PORT: 4444
-# [OBLIGATORY] The secret the Appium nodes of this host register in mcloud-grid with, README.md#grid-registration:
-# NODE_REGISTRATION_TOKEN of the mcloud variables.env (in quotes).
-NODE_REGISTRATION_TOKEN:
-
-# [OBLIGATORY] The address of this host the MCloud server connects to (the hub, the screens): in the network of the
-# MCloud server its address there, not a public address of the router (README.md#device-hosts-in-a-private-network).
-# Add it to AGENT_HOSTS of .env of mcloud. `./zebrunner.sh doctor` checks it.
-STF_PROVIDER_HOST: linux-agent.zebrunner.farm
-# [OPTIONAL] The host STF shows to the users in `adb connect <host>:<port>` (the remote debug), STF_PROVIDER_HOST
-# by default. For a host in a private network: the public name of MCloud with the adb relay of mcloud (ADB_RELAY_HOSTS)
-# forwarding the remote debug port (min_port + 1) of every Android device of this host; `./zebrunner.sh doctor` prints them
-# (README.md#device-hosts-in-a-private-network).
+# [OPTIONAL] The host STF shows to the users in `adb connect <host>:<port>` (the remote debug), STF_PROVIDER_HOST by
+# default. For a host in a private network: the public name of MCloud with the adb relay of mcloud (ADB_RELAY=true), it
+# forwards the remote debug port (connect_port) of every Android device of this host (README.md#device-hosts-in-a-private-network).
 REMOTE_CONNECT_HOST:
 
 # [OPTIONAL] provider/location name for devices. Use short city name like NYC
@@ -40,15 +37,6 @@ STF_PROVIDER_NAME: mcloud-linux
 # [OPTIONAL] STF integration settings to move devices into Unhealthy state
 STF_API_URL:
 STF_AUTH_TOKEN:
-# [OBLIGATORY] Shared token the provider sends (x-stf-internal-token) so device screenshot uploads and app-install blob
-# fetches pass the authenticated STF storage routes.
-# MUST match STF_STORAGE_TOKEN in the STF server's variables.env (in quotes).
-STF_STORAGE_TOKEN:
-# [OBLIGATORY] The ZeroMQ security (CURVE) of STF, README.md#zeromq-security: STF_ZMQ_CURVE_SERVER_PUBLIC_KEY of the STF
-# server's variables.env (in quotes) and the key of this host, which `./zebrunner.sh curve-key` makes and whose public key
-# goes to the server as the line STF_ZMQ_CURVE_CLIENT_KEY_<HOST>=<public key> of its variables.env (the command prints it).
-STF_ZMQ_CURVE_SERVER_PUBLIC_KEY:
-STF_ZMQ_CURVE_SECRET_KEY:
 
 # [OPTIONAL] S3 compatible storage for video recordings.
 S3_BUCKET:
@@ -78,10 +66,10 @@ WDA_BUNDLEID:
 #   appium_port: unique port value for sharing appium services from the container to outside selenium hub
 #   connect_port: [optional] Android: the remote debug port of STF (adb connect), the second port of min_port-max_port
 #     by default; out of the range it is published too. Unique on the host, and among the hosts for the adb relay of
-#     mcloud (README.md#device-hosts-in-a-private-network)
+#     mcloud (README.md#device-hosts-in-a-private-network). Not a port of MCloud on the same machine.
 #   min_port and max_port: unique range of 7 ports per device for system STF purposes.
 #     The MCloud server reaches them on STF_PROVIDER_HOST (the screens through stf-proxy); adb connect of the remote
-#     debug reaches them directly or through the adb relay of mcloud (REMOTE_CONNECT_HOST, ADB_RELAY_HOSTS).
+#     debug reaches them directly or through the adb relay of mcloud (REMOTE_CONNECT_HOST, ADB_RELAY=true).
 #   connection: [optional] how the connector container reaches the device, usb by default:
 #     usb      - plugged into the server (udev starts and removes its containers)
 #     wireless - over the network: Android over adb connect to address (the id by default, port 5555 unless given),

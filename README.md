@@ -60,20 +60,38 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
   ./zebrunner.sh setup
   ```
 
-- The setup ends with the numbered next steps: the settings of the MCloud server, `STF_PROVIDER_HOST` (it lists the addresses of this host), the CURVE key, the devices, `./zebrunner.sh doctor`, `./zebrunner.sh ansible` and `zebrunner-farm start`.
+- The setup ends with the numbered next steps: the invite of this host on the MCloud server, `./zebrunner.sh join`, the devices, `./zebrunner.sh doctor`, `./zebrunner.sh ansible` and `zebrunner-farm start`.
 
-## Connect to MCloud
+## Node enrollment
 
-Set the settings of the MCloud server in `roles/devices/vars/main.yml` (Linux) or `roles/mac-devices/vars/main.yml` (macOS), which `./zebrunner.sh setup` made; the secrets in quotes. `STF_STORAGE_TOKEN`, `NODE_REGISTRATION_TOKEN`, `STF_ZMQ_CURVE_SERVER_PUBLIC_KEY` and `STF_ZMQ_CURVE_SECRET_KEY` are obligatory: the prechecks of `./zebrunner.sh ansible` fail without them.
+Every device host joins [MCloud](https://github.com/zebrunner/mcloud#nodes) with its own token: the administrator of MCloud invites it, the host enrolls itself, no secret is copied by hand.
+
+1. On the MCloud server: `./zebrunner.sh node-invite <label> <address>`. The label is the name of the host (`a-z`, `0-9`, `-`), the address is the one the MCloud server connects to: the hub registers the Appium nodes by it, stf-proxy takes the screens from it (in the network of the MCloud server the address there, see [Device hosts in a private network](#device-hosts-in-a-private-network); on the MCloud server itself its LAN address, see [Devices on the MCloud server](#devices-on-the-mcloud-server)). It prints a join string, valid once and for a limited time; a new invite of the label replaces it.
+2. On this host: `./zebrunner.sh join` asks for the join string (hidden; or on stdin: never in the command line, where it stays in the shell history) and enrolls the host:
+   - it makes the CURVE key of the host if there is none and sends its public key, never the secret one;
+   - it talks to MCloud over HTTPS and trusts only the server whose TLS key is the pinned one of the join string (a self-signed certificate is fine, another key stops the enrollment);
+   - it writes the connection to MCloud into `roles/.../vars/main.yml` (mode 600, the previous settings are kept in `main.yml.bak-join-<time>`).
+3. `./zebrunner.sh doctor`, `./zebrunner.sh ansible` and `zebrunner-farm start` (`restart` for the existing containers).
+
+The settings of the connection, written by `join` (do not change them by hand, a new join string replaces them):
 
 | Setting | Value |
 | --- | --- |
-| `PUBLIC_IP`, `PUBLIC_IP_PORT`, `PUBLIC_IP_PROTOCOL` | the host, port and protocol of the setup of mcloud (`STF_URL` of its `.env`), reachable from this host: the devices upload the screenshots and download the apps there |
-| `STF_PROVIDER_HOST` | the address of this host the MCloud server connects to: mcloud-grid registers the Appium nodes by it, stf-proxy takes the screens of the devices from it. In the network of the MCloud server use the address of this host there, see [Device hosts in a private network](#device-hosts-in-a-private-network). Add it to `AGENT_HOSTS` of `.env` of mcloud and run `./zebrunner.sh restart` there |
-| `REMOTE_CONNECT_HOST` | optional: the host STF shows in `adb connect <host>:<port>` (the remote debug), `STF_PROVIDER_HOST` by default; for a host in a private network the public name of MCloud with the adb relay of mcloud, see [Device hosts in a private network](#device-hosts-in-a-private-network) |
-| `STF_STORAGE_TOKEN`, `STF_ZMQ_CURVE_SERVER_PUBLIC_KEY`, `NODE_REGISTRATION_TOKEN` | the same variables of `variables.env` of mcloud, its setup prints them |
-| `STF_ZMQ_CURVE_SECRET_KEY` | `./zebrunner.sh curve-key` makes it and prints the line of the public key for `variables.env` of mcloud, `STF_ZMQ_CURVE_CLIENT_KEY_<HOST>=<public key>`: add it there and run `./zebrunner.sh restart` there, see [ZeroMQ security](#zeromq-security) |
-| `STF_PROVIDER_CONNECT_*`, `SELENIUM_HUB_HOST`, `SELENIUM_HUB_PORT` | the defaults are the containers of mcloud in the `infra` network of the same host; for an MCloud server on another host: `tcp://<server>:7250`, `tcp://<server>:7270`, `tcp://<server>:7160`, `tcp://<server>:7260`, `<server>` and `4446` (see [Firewall of mcloud](https://github.com/zebrunner/mcloud#firewall)) |
+| `MCLOUD_URL`, `MCLOUD_TLS_PIN` | the API of MCloud on the address of the join string and the pin of its TLS key: `./zebrunner.sh doctor` checks the enrollment with them |
+| `MCLOUD_NODE_TOKEN` | the token of this host: appium registers in mcloud-grid with it (`NODE_REGISTRATION_TOKEN` of appium), STF of the devices authenticates to the storage and proves its devices with it (`STF_NODE_TOKEN` of mcloud-device) |
+| `STF_PROVIDER_HOST` | the address of the invite |
+| `PUBLIC_IP`, `PUBLIC_IP_PORT`, `PUBLIC_IP_PROTOCOL` | the public URL of MCloud: the devices upload the screenshots and download the apps there |
+| `STF_PROVIDER_CONNECT_*`, `SELENIUM_HUB_HOST`, `SELENIUM_HUB_PORT` | the triproxies of STF and mcloud-grid on the address of the join string |
+| `STF_ZMQ_CURVE_SERVER_PUBLIC_KEY`, `STF_ZMQ_CURVE_SECRET_KEY` | the CURVE keys of ZeroMQ: the one of the server and the one of this host, see [ZeroMQ security](#zeromq-security) |
+
+`REMOTE_CONNECT_HOST` is set by hand when needed, see [Device hosts in a private network](#device-hosts-in-a-private-network).
+
+Security:
+
+- the token is of this host only: MCloud keeps its hash, binds it to the address of the host and to its devices, and revokes it alone (`./zebrunner.sh nodes revoke <label>` of mcloud);
+- `roles/.../vars/main.yml` and the deployed `zebrunner-farm` have the secrets of the host: the settings are mode 600, `zebrunner-farm` is readable by root and the user of the deploy only (Linux: mode 750, the group of the user; macOS: mode 700); the users of the `docker` group can read the variables of the containers anyway, they are root on the host;
+- a new join string (`node-invite` of the same label) replaces the token and the key of the host: run `./zebrunner.sh join` again to rotate them;
+- `./zebrunner.sh doctor` asks MCloud about this host (enrolled, active, its address, the devices STF knows and binds to it) and reports the settings readable by other users.
 
 ## Run ansible playbook
 
@@ -171,29 +189,26 @@ Set the settings of the MCloud server in `roles/devices/vars/main.yml` (Linux) o
 - `backup` and `restore` - save the settings into the `backup` folder and restore them from it.
 - `shutdown` - removes the devices containers, the launch agents or udev rules, the deployed files, the settings and the environment variable (asks for confirmation).
 - `version` - shows the versions of the agent components.
-- `curve-key` - makes the CURVE key of this host for the ZeroMQ security of STF (`STF_ZMQ_CURVE_SECRET_KEY` of `roles/.../vars/main.yml`, kept when it is set) and prints its public key, see [ZeroMQ security](#zeromq-security).
 - `doctor` - checks the host, the settings, the deployment, the network to the MCloud server and the devices, and tells what to fix, see [Doctor](#doctor).
+- `join` - enrolls this host in MCloud with the join string of `./zebrunner.sh node-invite` of mcloud, see [Node enrollment](#node-enrollment).
 
 ### ZeroMQ security
 
-The STF server of [mcloud](https://github.com/zebrunner/mcloud#authentication-of-the-device-hosts) accepts on its ZeroMQ ports only the device hosts with a known CURVE key; for every device host:
-
-1. `./zebrunner.sh curve-key` makes the key of the host and prints its public key as the line `STF_ZMQ_CURVE_CLIENT_KEY_<HOST>=<public key>`, `<HOST>` is the name of the host (e.g. `STF_ZMQ_CURVE_CLIENT_KEY_BUILD_UA`). The public key is not stored: the secret key gives it, the command prints it again any time (so does `./zebrunner.sh doctor`).
-2. Add the line to `variables.env` of the STF server, one variable per device host, and restart the server (`./zebrunner.sh restart` of mcloud). An STF without the variables per host takes the key in `STF_ZMQ_CURVE_CLIENT_KEYS`, separated by commas.
-3. Set `STF_ZMQ_CURVE_SERVER_PUBLIC_KEY` of `roles/.../vars/main.yml` to the one of `variables.env` of the server, in quotes, and run `./zebrunner.sh ansible`: the prechecks of the playbook validate the keys; `zebrunner-farm restart` recreates the existing containers with the keys.
-
-The removal of the variable of a host (or of its key from `STF_ZMQ_CURVE_CLIENT_KEYS`) disconnects it. `patch/curve_keygen.py` makes the keys with Python only (X25519 of RFC 7748), the same as `stf curve-keygen`.
+STF of MCloud accepts on its ZeroMQ ports only the enrolled device hosts: the CURVE key of every host is in the registry of MCloud. `./zebrunner.sh join` makes the key of this host (`STF_ZMQ_CURVE_SECRET_KEY`, kept when it is set), sends its public key and writes the public key of the server (`STF_ZMQ_CURVE_SERVER_PUBLIC_KEY`); a revocation of the host on the MCloud server disconnects it. `patch/curve_keygen.py` makes the keys with Python only (X25519 of RFC 7748), the same as `stf curve-keygen`.
 
 ### Doctor
 
 `./zebrunner.sh doctor` checks the agent and tells what to fix, it changes nothing and prints no secret:
 
 - the host: `ZEBRUNNER_MCLOUD_AGENT_DIR`, docker, ansible, python3, lsusb (Linux), Rosetta 2 (Apple Silicon);
-- the settings of `roles/.../vars/main.yml`: the obligatory ones, the format of the CURVE keys, the example `STF_PROVIDER_HOST`, the devices; it prints the line of the public key of this host for `variables.env` of mcloud;
-- the deployment: `zebrunner-farm` rendered with the current settings (otherwise `./zebrunner.sh ansible`), the containers created with the current `STF_PROVIDER_HOST` (otherwise `zebrunner-farm restart`);
-- the network: the name resolution and the ports of `PUBLIC_IP`, mcloud-grid and the ZeroMQ triproxies; `STF_PROVIDER_HOST` is an address of this host, or a public address of a NAT while the MCloud server is in the network of this host (see [Device hosts in a private network](#device-hosts-in-a-private-network)), and stf-proxy of mcloud serves its screens (`AGENT_HOSTS`);
+- the settings of `roles/.../vars/main.yml`: the ones of `./zebrunner.sh join`, the formats of the token and of the CURVE keys, the file readable by other users, the devices;
+- the enrollment: it asks MCloud about this host (`GET /api/v1/nodes/self` of `MCLOUD_URL` with the token, over HTTPS to the pinned TLS key): enrolled and active (or unknown, revoked), its address in MCloud is `STF_PROVIDER_HOST`, the devices STF knows of it, which of them are bound to it and connected;
+- the deployment: `zebrunner-farm` rendered with the current settings (otherwise `./zebrunner.sh ansible`) and readable by this user only, the containers created with the current `STF_PROVIDER_HOST` (otherwise `zebrunner-farm restart`);
+- the network: the name resolution and the ports of `PUBLIC_IP`, mcloud-grid and the ZeroMQ triproxies; `STF_PROVIDER_HOST` is an address of this host, or a public address of a NAT while the MCloud server is in the network of this host (see [Device hosts in a private network](#device-hosts-in-a-private-network)); MCloud on this machine and the devices using its ports (see [Devices on the MCloud server](#devices-on-the-mcloud-server));
 - the remote debug: with `REMOTE_CONNECT_HOST` the adb relay of mcloud accepts the remote debug ports of the Android devices (printed);
 - the devices: their containers, the refused grid registrations of Appium and the refused CURVE key in the logs of the last 30 minutes.
+
+The MCloud server checks a host too: `./zebrunner.sh nodes check <label>` of [mcloud](https://github.com/zebrunner/mcloud#nodes) shows its record, its devices and whether the server reaches their screens.
 
 It exits with `1` when a check fails.
 
@@ -201,19 +216,27 @@ It exits with `1` when a check fails.
 
 Many device hosts without public addresses can work with one MCloud server of their network: the users reach the MCloud server only. The screens go from the browser to stf-proxy of mcloud (`/d/<STF_PROVIDER_HOST>/...`) and from it to the device host, the tests go to mcloud-grid and from it to the Appium node of the device host (`http://<STF_PROVIDER_HOST>:<appium_port>`); ZeroMQ, the storage and S3 are connections of the device host to the server.
 
-- `STF_PROVIDER_HOST` of every device host is its address in the network (or a name of it there), all of them are in `AGENT_HOSTS` of `.env` of mcloud.
-- `PUBLIC_IP` stays the name the users open MCloud with; the device host resolves it to the address of the server in the network (e.g. a line in `/etc/hosts`, the containers resolve the names through the resolver of the host), or the settings use that address (`STF_PROVIDER_CONNECT_*`, `SELENIUM_HUB_HOST`).
-- A public address of the router as `STF_PROVIDER_HOST` fails inside the network when the router has no NAT hairpin: mcloud-grid refuses the nodes (Appium logs the registration `500`, mcloud-grid `Node http://... is not reachable from the hub`) and the screens stay gray. `./zebrunner.sh doctor` finds it and prints the address to use.
-- The remote debug of STF (`adb connect <host>:<port>`) of an Android device uses its remote debug port: `connect_port` of the device, the second port of `min_port`-`max_port` without it (the first one is the screen, which is never relayed). It goes through the adb relay of mcloud: set `REMOTE_CONNECT_HOST` to the public name of MCloud and turn on `ADB_RELAY=true` in `.env` of mcloud, the relay takes the remote debug ports of the devices of `AGENT_HOSTS` from STF; `ADB_RELAY_PORTS` of mcloud limits them to the range opened in its firewall, so keep the `connect_port` of all the device hosts in one range, unique among the hosts (see [mcloud](https://github.com/zebrunner/mcloud#readme), the manual list `ADB_RELAY_HOSTS` is an alternative). Without the relay only the users of the network reach `adb connect <STF_PROVIDER_HOST>:<port>`.
+- Every device host is invited with its address in the network (`./zebrunner.sh node-invite <label> <address>`), which `join` writes as its `STF_PROVIDER_HOST`.
+- `PUBLIC_IP` stays the name the users open MCloud with: the device host resolves it to the address of the server in the network (e.g. a line in `/etc/hosts`, the containers resolve the names through the resolver of the host); `STF_PROVIDER_CONNECT_*`, `SELENIUM_HUB_HOST` and `MCLOUD_URL` are on the address of the join string.
+- A public address of the router as the address of the invite fails inside the network when the router has no NAT hairpin: mcloud-grid refuses the nodes (Appium logs the registration `500` with `Node http://... is not reachable from the hub`) and the screens stay gray. `./zebrunner.sh doctor` finds it and prints the address to invite the host with.
+- The remote debug of STF (`adb connect <host>:<port>`) of an Android device uses its remote debug port: `connect_port` of the device, the second port of `min_port`-`max_port` without it (the first one is the screen, which is never relayed). It goes through the adb relay of mcloud: set `REMOTE_CONNECT_HOST` to the public name of MCloud and turn on `ADB_RELAY=true` in `.env` of mcloud, the relay takes the remote debug ports of the devices of the enrolled hosts from STF; `ADB_RELAY_PORTS` of mcloud limits them to the range opened in its firewall, so keep the `connect_port` of all the device hosts in one range, unique among the hosts (see [mcloud](https://github.com/zebrunner/mcloud#readme)). Without the relay only the users of the network reach `adb connect <STF_PROVIDER_HOST>:<port>`.
 - `./zebrunner.sh doctor` checks the relay on the remote debug port of the first deployed Android device and prints the remote debug ports of this host. The remote debug is of the Android devices only.
+
+### Devices on the MCloud server
+
+The devices can be on the MCloud server itself (mcloud and mcloud-agent on one machine):
+
+- `AGENTS_ADDRESS` of `.env` of mcloud is the LAN address of the machine, so is the address of the invite (`./zebrunner.sh node-invite <label> <LAN address>`): not `127.0.0.1` or `localhost`, which the containers of mcloud cannot reach the devices with (MCloud refuses them);
+- the devices share the `infra` network with mcloud and reach the published ports of MCloud on that address;
+- the ports of the devices (`appium_port`, `min_port`-`max_port`, `connect_port`) are not the ports of MCloud: its HTTPS port (`STF_PORT`), 4446 (mcloud-grid), 7160, 7250, 7260, 7270 (the triproxies of STF) and the remote debug ports of the adb relay; `./zebrunner.sh doctor` reports the collisions.
 
 ### Grid registration
 
-The Appium node of a device registers in mcloud-grid with `NODE_REGISTRATION_TOKEN` of `roles/.../vars/main.yml`: set it to `NODE_REGISTRATION_TOKEN` of `variables.env` of [mcloud](https://github.com/zebrunner/mcloud#authentication-of-the-device-hosts), in quotes, and run `./zebrunner.sh ansible`; the containers created after it pass the token, `zebrunner-farm restart` recreates the existing ones. The hub registers no node without it, see [mcloud-grid](https://github.com/zebrunner/mcloud-grid#node-registration).
+The Appium node of a device registers in mcloud-grid with the token of this host (`MCLOUD_NODE_TOKEN`, passed to appium as `NODE_REGISTRATION_TOKEN`): the hub accepts it only when STF knows the token of an active host whose address is the host of the node url (`STF_PROVIDER_HOST`), checks it again every minute and sends it back to this node only with every request, see [mcloud-grid](https://github.com/zebrunner/mcloud-grid#node-registration). A revoked host is unregistered.
 
 ### Appium security
 
-The Appium port of a device (`appium_port`) is published on the host for mcloud-grid. Appium of the device answers only the requests of the grid, which carry `NODE_REGISTRATION_TOKEN`, and the ones of its own container: the others get `401` (also Appium Inspector and the WebSockets of the sessions, e.g. the logcat broadcast; use the grid, `/mcloud/wd/hub` of mcloud).
+The Appium port of a device (`appium_port`) is published on the host for mcloud-grid. Appium of the device answers only the requests of the grid, which carry the token of this host, and the ones of its own container: the others get `401` (also Appium Inspector and the WebSockets of the sessions, e.g. the logcat broadcast; use the grid, `/mcloud/wd/hub` of mcloud).
 
 `APPIUM_RELAXED_SECURITY` of `defaults/main.yml` is `true`: every session, also through the grid, gets the insecure features of Appium: `mobile: shell` (adb shell of the device), the Appium log of the earlier sessions of the device (`get_server_logs`), the emulator console, the screen streaming, the download of chromedriver. Set it to `false` when the tests do not need them.
 
@@ -292,9 +315,11 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
 | `./zebrunner.sh ansible` fails on `Pull Zebrunner images` and `Check that images failed to pull exist locally` with `denied: Your authorization token has expired` or `403 Forbidden` | an expired login to public.ecr.aws in `~/.docker/config.json` of the user: the images are public, `docker logout public.ecr.aws` (or log in again) |
 | the pull fails with `manifest unknown` | the tag of `defaults/main.yml` is not published, see the images of the current [mcloud](https://github.com/zebrunner/mcloud) |
 | Linux: the deploy passed, the devices plugged in before it have no containers | udev starts them on the next connection only: `zebrunner-farm start` |
-| the containers are healthy, the devices are not in STF | the public key of this host is not in `variables.env` of mcloud (`STF_ZMQ_CURVE_CLIENT_KEY_<HOST>` or `STF_ZMQ_CURVE_CLIENT_KEYS`), or `STF_ZMQ_CURVE_SERVER_PUBLIC_KEY` is not the one of mcloud: the STF triproxies log `Refused the ZeroMQ client ... with the unknown key`, see [ZeroMQ security](#zeromq-security) |
-| the devices are in STF, not in the grid; Appium logs `An attempt to register with the grid was unsuccessful` | the reason is in the log of Appium (`device-<name>-<udid>-appium`, the latest appium) or of `mcloud-grid`: `is not reachable from the hub` - `STF_PROVIDER_HOST` and `appium_port` are not reachable from the MCloud server (in its network use the address of this host there, see [Device hosts in a private network](#device-hosts-in-a-private-network)); `NODE_REGISTRATION_TOKEN` - not the one of mcloud; also `STF_TOKEN` of mcloud, see [Troubleshooting of mcloud](https://github.com/zebrunner/mcloud#troubleshooting) |
-| the screenshots or the app installs of the devices fail | `STF_STORAGE_TOKEN` is not the one of mcloud, or `PUBLIC_IP` is not reachable from this host (e.g. the public address of a server of the same network behind a NAT without hairpin: use its address in the network) |
+| `./zebrunner.sh join` stops with `the TLS key of the server is not the pinned one` | the join string is of another MCloud (or the address of the join string leads elsewhere), or a man in the middle; a new TLS key of MCloud needs a new join string |
+| `./zebrunner.sh join` stops with `MCloud refused the enrollment (HTTP 403)` | the invite is used, expired, replaced by a newer one of the label, or of another label: a new `./zebrunner.sh node-invite` on the MCloud server |
+| the containers are healthy, the devices are not in STF | `./zebrunner.sh doctor`: MCloud does not know or revoked this host (a new invite and `./zebrunner.sh join`), its address in MCloud is not `STF_PROVIDER_HOST`, the devices are not bound to it (the containers created before `join`: `./zebrunner.sh ansible`, `zebrunner-farm restart`); the STF triproxies log `Refused the ZeroMQ client ... with the unknown key` for a key MCloud does not know, see [ZeroMQ security](#zeromq-security) |
+| the devices are in STF, not in the grid; Appium logs `An attempt to register with the grid was unsuccessful` | the reason is in the log of Appium (`device-<name>-<udid>-appium`) or of `mcloud-grid`: `is not reachable from the hub` - `STF_PROVIDER_HOST` and `appium_port` are not reachable from the MCloud server (in its network the address of this host there, see [Device hosts in a private network](#device-hosts-in-a-private-network)); an unknown or revoked node token, or a node url whose host is not the address of the invite - `./zebrunner.sh doctor`, see [Grid registration](#grid-registration) |
+| the screenshots or the app installs of the devices fail | MCloud refuses the token of this host (`./zebrunner.sh doctor`), or `PUBLIC_IP` is not reachable from this host (e.g. the public address of a server of the same network behind a NAT without hairpin: resolve it to its address in the network) |
 | the uploader container exits with `Required S3 arguments are missed! Integration with S3 will be disabled.` | no `S3_*` settings: the videos and logs stay on the host, set them to upload the artifacts |
 | macOS: an iOS simulator is not in STF, the log of its `-stf` container stops after `connecting to WdaMjpeg` | the amd64 mcloud-device under emulation: the arm64 one of a multi-platform mcloud-device image is needed on Apple Silicon (`docker image inspect <image> --format '{{.Architecture}}'`) |
 

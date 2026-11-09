@@ -12,19 +12,6 @@ source "${MCLOUD_AGENT_DIR_VALUE}/patch/backup.sh"
 # Load the checks of `./zebrunner.sh doctor`
 source "${MCLOUD_AGENT_DIR_VALUE}/patch/doctor.sh"
 
-# host_label: the name of this host as a variable suffix: BUILD_UA of build-ua.example.com
-host_label() {
-  local name
-  name="$(hostname 2> /dev/null)"
-  name="${name%%.*}"
-  printf '%s' "${name:-HOST}" | tr '[:lower:]' '[:upper:]' | tr -c 'A-Z0-9\n' '_'
-}
-
-# curve_client_line <public key>: the line of variables.env of mcloud that lets this host in (one variable per host)
-curve_client_line() {
-  echo "STF_ZMQ_CURVE_CLIENT_KEY_$(host_label)=$1"
-}
-
 # host_addresses: the IPv4 addresses of this host but the loopback and docker ones, separated by spaces
 host_addresses() {
   if [[ "$(uname)" == "Darwin" ]]; then
@@ -152,30 +139,25 @@ setup() {
   delimiter "*"
   local addresses
   addresses="$(host_addresses)"
-  echo "Next steps (https://github.com/zebrunner/mcloud-agent#connect-to-mcloud):
+  echo "Next steps (https://github.com/zebrunner/mcloud-agent#node-enrollment):
 
   1. Open a new terminal (or run the command above) to have ZEBRUNNER_MCLOUD_AGENT_DIR.
 
-  2. Set the settings of the MCloud server in '${vars}', the secrets in quotes:
-     - PUBLIC_IP, PUBLIC_IP_PORT, PUBLIC_IP_PROTOCOL: STF_URL of .env of mcloud;
-     - STF_PROVIDER_CONNECT_*, SELENIUM_HUB_HOST, SELENIUM_HUB_PORT: the MCloud server, unless it runs on this host;
-     - STF_STORAGE_TOKEN, NODE_REGISTRATION_TOKEN, STF_ZMQ_CURVE_SERVER_PUBLIC_KEY: variables.env of mcloud.
+  2. The administrator of MCloud invites this host on its server: ./zebrunner.sh node-invite <label> <address>, the
+     address is the one the MCloud server connects to: the addresses of this host are ${addresses:-unknown}; in the
+     network of the MCloud server the address there (on the MCloud server itself its LAN address, not 127.0.0.1).
 
-  3. Set STF_PROVIDER_HOST: the address of this host the MCloud server connects to (the hub, the screens);
-     the addresses of this host: ${addresses:-unknown}. In the network of the MCloud server use the address there,
-     not a public address of the router. On the MCloud server add it to AGENT_HOSTS of .env, ./zebrunner.sh restart.
+  3. Enroll this host: ./zebrunner.sh join and paste the join string of step 2. It writes the connection to MCloud
+     into '${vars}'.
 
-  4. Make the key of this host: ./zebrunner.sh curve-key, add the line it prints to variables.env of mcloud and
-     restart mcloud (./zebrunner.sh restart there).
-
-  5. Declare the devices in 'devices:' of '${vars}': the udid (adb devices, idevice_id -l), a unique name and
+  4. Declare the devices in 'devices:' of '${vars}': the udid (adb devices, idevice_id -l), a unique name and
      unique ports.
 
-  6. Check the settings and the network to the MCloud server: ./zebrunner.sh doctor
+  5. Check the settings, the enrollment and the network to MCloud: ./zebrunner.sh doctor
 
-  7. Deploy the agent: ./zebrunner.sh ansible
+  6. Deploy the agent: ./zebrunner.sh ansible
 
-  8. Start the devices: zebrunner-farm start, then zebrunner-farm status and ./zebrunner.sh doctor."
+  7. Start the devices: zebrunner-farm start, then zebrunner-farm status and ./zebrunner.sh doctor."
 
   delimiter "Setting up MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished successfully"
 }
@@ -271,53 +253,64 @@ stop_running_devices() {
   fi
 }
 
-# curve_key: the CURVE key of this host for the ZeroMQ security of STF (README.md#zeromq-security): STF_ZMQ_CURVE_SECRET_KEY
-# of roles/.../vars/main.yml is made when it is empty, its public key goes to STF_ZMQ_CURVE_CLIENT_KEYS of the server
-curve_key() {
+# settings_file: roles/.../vars/main.yml of the OS, fails when it does not exist
+settings_file() {
   local vars
-  local secret
-  local public
   case "$(uname)" in
   Linux) vars="roles/devices/vars/main.yml" ;;
   Darwin) vars="roles/mac-devices/vars/main.yml" ;;
   *)
-    echo_warning "Unknown OS. Supported OS are Linux and macOS."
-    exit 1
+    echo_warning "Unknown OS. Supported OS are Linux and macOS." >&2
+    return 1
     ;;
   esac
   if [[ ! -f "$vars" ]]; then
-    echo_warning "'${vars}' does not exist, run './zebrunner.sh setup' first."
-    exit 1
+    echo_warning "'${vars}' does not exist, run './zebrunner.sh setup' first." >&2
+    return 1
   fi
+  echo "$vars"
+}
+
+# ensure_curve_key <settings file>: STF_ZMQ_CURVE_SECRET_KEY of the settings made when it is empty, its public key in
+# CURVE_PUBLIC_KEY
+ensure_curve_key() {
+  local vars="$1"
+  local secret
+  CURVE_PUBLIC_KEY=""
   if ! grep -q '^STF_ZMQ_CURVE_SECRET_KEY:' "$vars"; then
     echo_warning "'${vars}' has no STF_ZMQ_CURVE_SECRET_KEY line: add it as in '${vars}.original'."
-    exit 1
+    return 1
   fi
-
   secret="$(sed -n 's/^STF_ZMQ_CURVE_SECRET_KEY:[[:space:]]*//p' "$vars" | tr -d "\"' ")"
   if [[ -z "$secret" ]]; then
     secret="$(python3 patch/curve_keygen.py | sed -n 's/^secret=//p')"
     if [[ ! "$secret" =~ ^[0-9a-f]{64}$ ]]; then
       echo_warning "Unable to make the key with python3 patch/curve_keygen.py."
-      exit 1
+      return 1
     fi
     sed -i.bak "s/^STF_ZMQ_CURVE_SECRET_KEY:.*/STF_ZMQ_CURVE_SECRET_KEY: \"${secret}\"/" "$vars" && rm -f "${vars}.bak"
     echo "The key of this host is written to STF_ZMQ_CURVE_SECRET_KEY of '${vars}'."
   fi
-  if ! public="$(python3 patch/curve_keygen.py "$secret" | sed -n 's/^public=//p')" || [[ -z "$public" ]]; then
+  if ! CURVE_PUBLIC_KEY="$(python3 patch/curve_keygen.py "$secret" | sed -n 's/^public=//p')" || [[ -z "$CURVE_PUBLIC_KEY" ]]; then
     echo_warning "STF_ZMQ_CURVE_SECRET_KEY of '${vars}' is not a key of 64 hex characters."
+    return 1
+  fi
+}
+
+# join: enrolls this host in MCloud with the join string of `./zebrunner.sh node-invite` of mcloud, read from a hidden
+# prompt or stdin (README.md#node-enrollment): the token of this host and the settings of MCloud go to the settings
+join() {
+  local vars
+  vars="$(settings_file)" || exit 1
+  if ! command -v python3 > /dev/null 2>&1 || ! command -v curl > /dev/null 2>&1; then
+    echo_warning "The enrollment needs python3 and curl."
     exit 1
   fi
+  ensure_curve_key "$vars" || exit 1
+  python3 patch/enroll.py "$vars" "$CURVE_PUBLIC_KEY" || exit 1
   echo "
-      The public key of this host: ${public}
-      It is not stored: the secret key gives it, this command prints it again any time.
-
-      On the MCloud server add this line to variables.env of mcloud and restart it (./zebrunner.sh restart):
-
-      $(curve_client_line "$public")
-
-      (an STF older than the variables per host: add the key to STF_ZMQ_CURVE_CLIENT_KEYS, separated by commas)
-      Then set STF_ZMQ_CURVE_SERVER_PUBLIC_KEY of '${vars}' and run './zebrunner.sh ansible'."
+      Next: ./zebrunner.sh doctor checks the settings, ./zebrunner.sh ansible deploys them and zebrunner-farm restart
+      recreates the containers of the devices with the token of this host."
 }
 
 # rosetta_state: Rosetta 2 of the Mac for the linux/amd64 image of appium: 'intel' (not
@@ -590,8 +583,8 @@ echo_help() {
          restore              Restore MCloud Agent setup
          shutdown             Stop and remove MCloud Agent containers, clear volumes and environment
          version              Version of MCloud Agent components
-         curve-key            Make the CURVE key of this host for STF and print its public key
-         doctor               Check the settings, the deployment and the network to MCloud, tell what to fix"
+         doctor               Check the settings, the deployment and the network to MCloud, tell what to fix
+         join                 Enroll this host in MCloud with the join string of ./zebrunner.sh node-invite (stdin)"
   echo_telegram
   delimiter
 }
@@ -618,11 +611,11 @@ shutdown)
 version)
   version
   ;;
-curve-key)
-  curve_key
-  ;;
 doctor)
   doctor
+  ;;
+join)
+  join
   ;;
 *)
   echo_help
