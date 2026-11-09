@@ -362,6 +362,9 @@ setup_case
 farm devices down --exclude=ios,android-sim,Galaxy > /dev/null
 check "--exclude= takes the devices too" "WiFi" "$(removed)"
 setup_case
+farm devices down -e=ios,android-sim -e Galaxy > /dev/null
+check "-e is -x (also -e=)" "WiFi" "$(removed)"
+setup_case
 farm devices down '*WiFi' > /dev/null
 check "a pattern matches the names" "WiFi iPhoneWiFi" "$(removed)"
 setup_case
@@ -522,6 +525,6 @@ check "stopped container has unknown uptime" "UNKNOWN" "$uptime"
 section "help"
 output="$(farm devices)"
 check_contains "help describes the devices argument" "Devices: udid or name of a whitelisted device, a group: ios, android, usb" "$output"
-check_contains "help describes the exclusion" "-x, --exclude <devices>" "$output"
+check_contains "help describes the exclusion" "-x, -e, --exclude <devices>" "$output"
 
 finish

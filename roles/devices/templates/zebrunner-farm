@@ -547,7 +547,7 @@ parse_selection() {
     -q | --quiet | -y | --yes)
       QUIET="true"
       ;;
-    -x | --exclude)
+    -x | -e | --exclude)
       if [[ -z "$2" ]]; then
         failed "$1 needs the devices to skip"
         return 1
@@ -555,8 +555,8 @@ parse_selection() {
       add_selectors excludes "$2"
       shift
       ;;
-    --exclude=*)
-      add_selectors excludes "${1#--exclude=}"
+    -x=* | -e=* | --exclude=*)
+      add_selectors excludes "${1#*=}"
       ;;
     -*)
       failed "unknown option: $1"
@@ -912,7 +912,7 @@ echo_help() {
       Devices: udid or name of a whitelisted device, a group: ios, android, usb, wireless, android-sim, ios-sim,
       proxy, or a pattern of the udids, names and locations in quotes ('Samsung_*'); several ones separated by spaces
       or commas. All whitelisted devices are used if the devices are omitted.
-          -x, --exclude <devices>  Skip these devices, may be repeated
+          -x, -e, --exclude <devices>  Skip these devices, may be repeated (also -x=<devices>)
           -q, --quiet              No list of the devices and no question
       In a terminal start, stop, restart and down of a group of devices show the devices first and ask to run the
       command, to cancel, to filter the list (f) or to exclude devices (x) by their numbers, udids, names, groups or

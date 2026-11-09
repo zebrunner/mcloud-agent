@@ -219,7 +219,7 @@ The Appium port of a device (`appium_port`) is published on the host for mcloud-
 `zebrunner-farm <command> [devices...] [-x|--exclude <devices>]... [-q|--quiet]` manages the containers of the devices: `status`, `start` (creates the missing containers, starts the stopped ones, keeps the running ones), `stop`, `restart` (removes and creates them again) and `down` (removes them).
 
 - The devices are udids or names, groups (`ios`, `android`, `usb`, `wireless`, `android-sim`, `ios-sim`, `proxy`) or patterns of the udids, names and locations in quotes (`'Samsung_*'`), several ones separated by spaces or commas; all the devices without them.
-- `-x` (`--exclude`) skips devices, groups or patterns, e.g. `zebrunner-farm restart android -x Pixel_8_Pro -x 'Samsung_Galaxy_S2?'`.
+- `-x` (`-e`, `--exclude`, also `-x=<devices>`) skips devices, groups or patterns, e.g. `zebrunner-farm restart android -x Pixel_8_Pro -x 'Samsung_Galaxy_S2?'`.
 - In a terminal `start`, `stop`, `restart` and `down` of a group show the numbered devices with the state of their containers and ask: Enter or `y` runs the command, `n` cancels, `f <devices>` keeps only these devices of the list, `x <devices>` excludes them; `<devices>` are the numbers of the list, udids, names, groups or patterns. `-q` (`--quiet`) runs at once; a single device named exactly, udev, launchd and scripts without a terminal are not asked.
 - Every device prints one line per container: `running` (kept), `started`, `created <id>` or the error of docker; the containers after a failed one are not created.
 
