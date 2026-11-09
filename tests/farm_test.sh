@@ -191,7 +191,7 @@ server_key="$(printf '%064d' 0 | tr 0 a)"
 secret_key="$(printf '%064d' 0 | tr 0 b)"
 for role in devices mac-devices; do
   render_farm "$role" "${WORK}/zebrunner-farm-${role}" --extra-vars \
-    "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=${server_key} STF_ZMQ_CURVE_SECRET_KEY=${secret_key} STF_STORAGE_TOKEN=storage-token" || exit 1
+    "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=${server_key} STF_ZMQ_CURVE_SECRET_KEY=${secret_key}" || exit 1
   sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
   # <name>:<container prefix> of an Android and an iOS device
   for device in WiFi:device-WiFi-192.168.1.50 AppleTV:device-AppleTV-aaaa1111; do
@@ -200,7 +200,7 @@ for role in devices mac-devices; do
     stf="$(run_args "${device#*:}-stf")"
     check_contains "${role}: ${device%%:*}: the CURVE keys are passed" \
       "|STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=${server_key}|-e|STF_ZMQ_CURVE_SECRET_KEY=${secret_key}|" "$stf"
-    check_contains "${role}: ${device%%:*}: the storage token is passed" "|STF_STORAGE_TOKEN=storage-token|" "$stf"
+    check_not_contains "${role}: ${device%%:*}: no shared storage token" "STF_STORAGE_TOKEN" "$stf"
     check_not_contains "${role}: ${device%%:*}: no RethinkDB" "RETHINKDB" "$stf"
   done
 
@@ -307,34 +307,25 @@ check_contains "appium of an Android emulator of macOS knows the connection" "|D
 
 section "grid registration"
 for role in devices mac-devices; do
-  render_farm "$role" "${WORK}/zebrunner-farm-${role}" --extra-vars "NODE_REGISTRATION_TOKEN=grid-token" || exit 1
+  # the token of this host of ./zebrunner.sh join
+  node_token="mcn1.build-ua.$(printf '%043d' 0 | tr 0 n)"
+  render_farm "$role" "${WORK}/zebrunner-farm-${role}" --extra-vars "MCLOUD_NODE_TOKEN=${node_token}" || exit 1
   sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
   setup_case
   farm "$role" start WiFi > /dev/null
-  check_contains "${role}: android appium gets the registration token" "|NODE_REGISTRATION_TOKEN=grid-token|" \
+  check_contains "${role}: android appium registers with the token of the host" "|NODE_REGISTRATION_TOKEN=${node_token}|" \
     "$(run_args device-WiFi-192.168.1.50-appium)"
   farm "$role" start AppleTV > /dev/null
-  check_contains "${role}: iOS appium gets the registration token" "|NODE_REGISTRATION_TOKEN=grid-token|" \
+  check_contains "${role}: iOS appium registers with the token of the host" "|NODE_REGISTRATION_TOKEN=${node_token}|" \
     "$(run_args device-AppleTV-aaaa1111-appium)"
-
-  # the token of the node enrollment replaces the shared tokens
-  node_token="mcn1.build-ua.$(printf '%043d' 0 | tr 0 n)"
-  render_farm "$role" "${WORK}/zebrunner-farm-${role}" --extra-vars "NODE_REGISTRATION_TOKEN=grid-token MCLOUD_NODE_TOKEN=${node_token}" || exit 1
-  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
-  setup_case
-  farm "$role" start WiFi > /dev/null
-  check_contains "${role}: appium registers with the token of the host" "|NODE_REGISTRATION_TOKEN=${node_token}|" \
-    "$(run_args device-WiFi-192.168.1.50-appium)"
-  stf="$(run_args device-WiFi-192.168.1.50-stf)"
-  check_contains "${role}: STF uses the token of the host for the storage" "|STF_STORAGE_TOKEN=${node_token}|" "$stf"
-  check_contains "${role}: STF proves the devices with the token of the host" "|STF_NODE_TOKEN=${node_token}|" "$stf"
-  check_not_contains "${role}: no shared token with the token of the host" "grid-token" "$(calls docker)"
+  for device in device-WiFi-192.168.1.50 device-AppleTV-aaaa1111; do
+    stf="$(run_args "${device}-stf")"
+    check_contains "${role}: ${device}: STF proves the devices and uses the storage with the token of the host" "|STF_NODE_TOKEN=${node_token}|" "$stf"
+    check_not_contains "${role}: ${device}: no shared storage token" "STF_STORAGE_TOKEN" "$stf"
+  done
 
   render_farm "$role" "${WORK}/zebrunner-farm-${role}" || exit 1
   sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
-  setup_case
-  farm "$role" start WiFi > /dev/null
-  check_contains "${role}: no token of the host without the enrollment" "|STF_NODE_TOKEN=|" "$(run_args device-WiFi-192.168.1.50-stf)"
 done
 
 section "macOS device listener"

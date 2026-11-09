@@ -140,41 +140,27 @@ doctor_settings() {
   local name
   local value
   local missing=()
-  local node_token
-  node_token="$(setting MCLOUD_NODE_TOKEN)"
-  local obligatory="PUBLIC_IP PUBLIC_IP_PORT PUBLIC_IP_PROTOCOL STF_PROVIDER_HOST STF_PROVIDER_CONNECT_SUB
-    STF_PROVIDER_CONNECT_PUSH SELENIUM_HUB_HOST SELENIUM_HUB_PORT"
-  # the shared tokens of the manual setup, MCLOUD_NODE_TOKEN of ./zebrunner.sh join replaces them
-  if [[ -z "$node_token" ]]; then
-    obligatory="${obligatory} STF_STORAGE_TOKEN NODE_REGISTRATION_TOKEN"
-  fi
-  obligatory="${obligatory} STF_ZMQ_CURVE_SERVER_PUBLIC_KEY STF_ZMQ_CURVE_SECRET_KEY"
-  # the names are words
-  # shellcheck disable=SC2086
-  for name in $obligatory; do
+  # the settings of ./zebrunner.sh join
+  for name in MCLOUD_URL MCLOUD_TLS_PIN MCLOUD_NODE_TOKEN STF_PROVIDER_HOST PUBLIC_IP PUBLIC_IP_PORT PUBLIC_IP_PROTOCOL \
+    STF_PROVIDER_CONNECT_SUB STF_PROVIDER_CONNECT_PUSH SELENIUM_HUB_HOST SELENIUM_HUB_PORT STF_ZMQ_CURVE_SERVER_PUBLIC_KEY \
+    STF_ZMQ_CURVE_SECRET_KEY; do
     [[ -n "$(setting "$name")" ]] || missing+=("$name")
   done
   if [[ "$(count_values "${missing[@]}")" -gt 0 ]]; then
-    doctor_fail "empty: ${missing[*]}" "the values of variables.env and .env of mcloud (README.md#connect-to-mcloud)"
-  else
-    doctor_ok "the obligatory settings are set"
+    doctor_fail "this host is not enrolled, empty: ${missing[*]}" \
+      "./zebrunner.sh join with the join string of ./zebrunner.sh node-invite of mcloud (README.md#node-enrollment)"
   fi
-  doctor_enrollment "$node_token"
   doctor_private "$DOCTOR_VARS" "the settings" "chmod 600 ${DOCTOR_VARS}"
-  value="$(setting STF_PROVIDER_HOST)"
-  if [[ "$value" == "linux-agent.zebrunner.farm" || "$value" == "macos-agent.zebrunner.farm" ]]; then
-    doctor_fail "STF_PROVIDER_HOST is the example ${value}" "the address of this host the MCloud server reaches (README.md#connect-to-mcloud)"
+  value="$(setting MCLOUD_NODE_TOKEN)"
+  if [[ -n "$value" && ! "$value" =~ ^mcn1\.([a-z0-9][a-z0-9-]{0,39})\.[A-Za-z0-9_-]{43}$ ]]; then
+    doctor_fail "MCLOUD_NODE_TOKEN is not a token of ./zebrunner.sh join" "./zebrunner.sh join with a new join string of ./zebrunner.sh node-invite of mcloud"
   fi
-  value="$(setting STF_ZMQ_CURVE_SERVER_PUBLIC_KEY)"
-  if [[ -n "$value" && ! "$value" =~ ^[0-9a-fA-F]{64}$ ]]; then
-    doctor_fail "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY is not a key of 64 hex characters" "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY of variables.env of mcloud, in quotes"
-  fi
-  value="$(setting STF_ZMQ_CURVE_SECRET_KEY)"
-  if [[ -n "$value" && ! "$value" =~ ^[0-9a-fA-F]{64}$ ]]; then
-    doctor_fail "STF_ZMQ_CURVE_SECRET_KEY is not a key of 64 hex characters" "./zebrunner.sh curve-key after emptying it"
-  elif [[ -n "$value" ]] && command -v python3 > /dev/null 2>&1; then
-    doctor_info "the public CURVE key of this host is in variables.env of mcloud as $(curve_client_line "$(python3 patch/curve_keygen.py "$value" | sed -n 's/^public=//p')")"
-  fi
+  for name in STF_ZMQ_CURVE_SERVER_PUBLIC_KEY STF_ZMQ_CURVE_SECRET_KEY; do
+    value="$(setting "$name")"
+    if [[ -n "$value" && ! "$value" =~ ^[0-9a-fA-F]{64}$ ]]; then
+      doctor_fail "${name} is not a key of 64 hex characters" "./zebrunner.sh join with a new join string (README.md#node-enrollment)"
+    fi
+  done
   if grep -qE '^[[:space:]]*-[[:space:]]+id:' "$DOCTOR_VARS"; then
     doctor_ok "$(grep -cE '^[[:space:]]*-[[:space:]]+id:' "$DOCTOR_VARS") devices are declared"
   else
@@ -182,20 +168,83 @@ doctor_settings() {
   fi
 }
 
-# doctor_enrollment <MCLOUD_NODE_TOKEN>: the token of the node enrollment of this host, or the shared tokens of the
-# manual setup (README.md#node-enrollment)
+# doctor_enrollment: what MCloud knows about this host: GET /api/v1/nodes/self of MCLOUD_URL with the token of this host,
+# over HTTPS to the pinned TLS key only (the token goes to curl on stdin, never in its arguments)
 doctor_enrollment() {
-  local token="$1"
-  if [[ -z "$token" ]]; then
-    doctor_info "this host is not enrolled: it uses the shared tokens of the manual setup; with the node enrollment of MCloud run ./zebrunner.sh join (README.md#node-enrollment)"
-  elif [[ ! "$token" =~ ^mcn1\.([a-z0-9][a-z0-9-]{0,39})\.[A-Za-z0-9_-]{43}$ ]]; then
-    doctor_fail "MCLOUD_NODE_TOKEN is not a token of ./zebrunner.sh join" "./zebrunner.sh join with a new join string of ./zebrunner.sh node-invite of mcloud"
-  else
-    doctor_ok "this host is enrolled in MCloud as ${BASH_REMATCH[1]}"
-    if [[ -n "$(setting NODE_REGISTRATION_TOKEN)$(setting STF_STORAGE_TOKEN)" ]]; then
-      doctor_warn "the shared tokens of the manual setup are still in the settings (NODE_REGISTRATION_TOKEN, STF_STORAGE_TOKEN): MCLOUD_NODE_TOKEN replaces them" \
-        "empty them in ${DOCTOR_VARS}"
+  doctor_section "Enrollment (MCloud)"
+  local url pin token answer code report
+  url="$(setting MCLOUD_URL)"
+  pin="$(setting MCLOUD_TLS_PIN)"
+  token="$(setting MCLOUD_NODE_TOKEN)"
+  if [[ -z "$url" || -z "$pin" || -z "$token" ]]; then
+    doctor_fail "this host is not enrolled" "./zebrunner.sh join (README.md#node-enrollment)"
+    return 0
+  fi
+  if ! command -v curl > /dev/null 2>&1 || ! command -v python3 > /dev/null 2>&1; then
+    doctor_warn "the enrollment is not checked without curl and python3"
+    return 0
+  fi
+  if ! answer="$(printf 'Authorization: Bearer %s\n' "$token" | curl -sS -k --max-time 15 --pinnedpubkey "sha256//${pin}" \
+    -H @- "${url}/api/v1/nodes/self" -w '\n%{http_code}' 2>&1)"; then
+    if [[ "$answer" == *"pinned public key"* || "$answer" == *"(90)"* ]]; then
+      doctor_fail "the TLS key of MCloud ${url} is not the pinned one" "a wrong MCLOUD_URL or a man in the middle; a new TLS key of MCloud needs a new join string"
+    else
+      doctor_fail "MCloud ${url} does not answer: ${answer}" "the network to MCloud (MCLOUD_URL is the address of the join string)"
     fi
+    return 0
+  fi
+  code="${answer##*$'\n'}"
+  answer="${answer%$'\n'*}"
+  case "$code" in
+  200) ;;
+  401)
+    doctor_fail "MCloud does not know the token of this host" "./zebrunner.sh join with a new join string of ./zebrunner.sh node-invite of mcloud"
+    return 0
+    ;;
+  403)
+    doctor_fail "MCloud revoked this host" "the administrator of MCloud invites it again (./zebrunner.sh node-invite), then ./zebrunner.sh join"
+    return 0
+    ;;
+  *)
+    doctor_fail "MCloud answers ${code} to the check of this host" "MCloud with the node enrollment (README.md#node-enrollment)"
+    return 0
+    ;;
+  esac
+  report="$(python3 -c '
+import json, sys
+node = json.load(sys.stdin)
+print("label=%s" % node.get("label", ""))
+print("address=%s" % node.get("address", ""))
+for device in node.get("devices") or []:
+    print("device=%s|%s|%s|%s" % (device.get("serial", ""), device.get("platform", ""), str(bool(device.get("present"))).lower(), str(bool(device.get("bound"))).lower()))
+' <<< "$answer" 2> /dev/null)" || {
+    doctor_fail "MCloud answers no valid JSON to the check of this host"
+    return 0
+  }
+  local label address line serial platform present bound devices=0 bound_count=0
+  label="$(sed -n 's/^label=//p' <<< "$report")"
+  address="$(sed -n 's/^address=//p' <<< "$report")"
+  doctor_ok "this host is enrolled and active in MCloud as ${label}"
+  if [[ "$(tr '[:upper:]' '[:lower:]' <<< "$address")" != "$(setting STF_PROVIDER_HOST | tr '[:upper:]' '[:lower:]')" ]]; then
+    doctor_fail "STF_PROVIDER_HOST $(setting STF_PROVIDER_HOST) is not the address of this host in MCloud (${address}): STF refuses its devices" \
+      "./zebrunner.sh join with a new join string (it writes the address of the invite)"
+  fi
+  while IFS='|' read -r line; do
+    [[ "$line" == device=* ]] || continue
+    IFS='|' read -r serial platform present bound <<< "${line#device=}"
+    devices=$((devices + 1))
+    if [[ "$bound" == "true" ]]; then
+      bound_count=$((bound_count + 1))
+    else
+      doctor_warn "STF refuses the device ${serial} (${platform}) of this host: it is not bound to it" \
+        "STF_PROVIDER_HOST must be the address of the invite, zebrunner-farm restart ${serial} after ./zebrunner.sh ansible"
+    fi
+    [[ "$present" == "true" ]] || doctor_info "STF knows the device ${serial} (${platform}), it is not connected now"
+  done <<< "$report"
+  if [[ "$devices" -eq 0 ]]; then
+    doctor_info "STF knows no device of this host yet: zebrunner-farm start"
+  else
+    doctor_ok "STF knows ${devices} devices of this host, ${bound_count} bound to it"
   fi
 }
 
@@ -214,17 +263,6 @@ doctor_private() {
   fi
 }
 
-# effective_setting <name>: the value a setting has in the containers: MCLOUD_NODE_TOKEN replaces the shared tokens
-effective_setting() {
-  local token
-  token="$(setting MCLOUD_NODE_TOKEN)"
-  if [[ -n "$token" && ("$1" == "NODE_REGISTRATION_TOKEN" || "$1" == "STF_STORAGE_TOKEN") ]]; then
-    echo "$token"
-  else
-    setting "$1"
-  fi
-}
-
 # doctor_deployment: zebrunner-farm and the containers made with the current settings
 doctor_deployment() {
   doctor_section "Deployment"
@@ -239,11 +277,11 @@ doctor_deployment() {
   local changed=()
   for pair in STF_PROVIDER_HOST=STF_PROVIDER_HOST STF_PROVIDER_PUBLIC_IP=PUBLIC_IP SELENIUM_HOST=SELENIUM_HUB_HOST \
     SELENIUM_PORT=SELENIUM_HUB_PORT STF_PROVIDER_CONNECT_SUB=STF_PROVIDER_CONNECT_SUB \
-    STF_PROVIDER_CONNECT_PUSH=STF_PROVIDER_CONNECT_PUSH NODE_REGISTRATION_TOKEN=NODE_REGISTRATION_TOKEN \
-    STF_STORAGE_TOKEN=STF_STORAGE_TOKEN STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=STF_ZMQ_CURVE_SERVER_PUBLIC_KEY \
+    STF_PROVIDER_CONNECT_PUSH=STF_PROVIDER_CONNECT_PUSH NODE_REGISTRATION_TOKEN=MCLOUD_NODE_TOKEN \
+    STF_NODE_TOKEN=MCLOUD_NODE_TOKEN STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=STF_ZMQ_CURVE_SERVER_PUBLIC_KEY \
     STF_ZMQ_CURVE_SECRET_KEY=STF_ZMQ_CURVE_SECRET_KEY REMOTE_CONNECT_HOST=REMOTE_CONNECT_HOST; do
     env_name="${pair%%=*}"
-    value="$(effective_setting "${pair#*=}")"
+    value="$(setting "${pair#*=}")"
     grep -qF -- "${env_name}=\"${value}\"" "$DOCTOR_FARM" || changed+=("${pair#*=}")
   done
   local mode
@@ -281,16 +319,13 @@ doctor_network() {
     return 0
   fi
   local public_ip
-  local protocol
   local port
   local endpoint
   local name
-  local code
   public_ip="$(setting PUBLIC_IP)"
-  protocol="$(setting PUBLIC_IP_PROTOCOL)"
   port="$(setting PUBLIC_IP_PORT)"
   check_endpoint "MCloud (PUBLIC_IP)" "$public_ip" "$port" \
-    "PUBLIC_IP, PUBLIC_IP_PORT: STF_URL of .env of mcloud; in the network of the server its address there (README.md#troubleshooting)"
+    "the devices reach the public name of MCloud: resolve it to the address of the MCloud server in its network (e.g. /etc/hosts, README.md#device-hosts-in-a-private-network)"
   check_endpoint "mcloud-grid (SELENIUM_HUB_HOST)" "$(setting SELENIUM_HUB_HOST)" "$(setting SELENIUM_HUB_PORT)" \
     "the address of the MCloud server and the port of mcloud-grid (4446), see Firewall of mcloud"
   for name in STF_PROVIDER_CONNECT_SUB STF_PROVIDER_CONNECT_PUSH STF_PROVIDER_CONNECT_APP_DEALER STF_PROVIDER_CONNECT_DEV_DEALER; do
@@ -303,19 +338,7 @@ doctor_network() {
   doctor_provider_host
   doctor_remote_connect
 
-  # stf-proxy of mcloud serves the screens of the device hosts of AGENT_HOSTS only (403 for the other ones)
-  local provider_host
-  provider_host="$(setting STF_PROVIDER_HOST)"
-  if [[ -n "$public_ip" && -n "$provider_host" ]] && command -v curl > /dev/null 2>&1; then
-    code="$(curl -ks -m 10 -o /dev/null -w '%{http_code}' "${protocol:-http}://${public_ip}:${port:-80}/d/${provider_host}/doctor/7400/" 2> /dev/null)"
-    case "$code" in
-    403) doctor_fail "stf-proxy of mcloud refuses the screens of ${provider_host}: it is not in AGENT_HOSTS" \
-      "AGENT_HOSTS of .env of mcloud with ${provider_host} (separated by commas), then ./zebrunner.sh restart there" ;;
-    401 | 400 | 426 | 502 | 504) doctor_ok "stf-proxy of mcloud serves the screens of ${provider_host} (AGENT_HOSTS)" ;;
-    000 | "") doctor_warn "stf-proxy of mcloud does not answer on ${protocol:-http}://${public_ip}:${port:-80}" ;;
-    *) doctor_info "stf-proxy of mcloud answers ${code} for the screens of ${provider_host}" ;;
-    esac
-  fi
+  doctor_same_machine
 }
 
 # doctor_provider_host: STF_PROVIDER_HOST leads to this host from the MCloud server: the hub registers the Appium nodes
@@ -342,7 +365,7 @@ doctor_provider_host() {
     doctor_ok "STF_PROVIDER_HOST ${provider_host} is an address of this host"
   elif [[ -n "$route_source" && "$(probe kind "$server_address")" != "public" && "$(probe kind "$provider_address")" == "public" ]]; then
     doctor_fail "the MCloud server ${server} (${server_address}) is in the network of this host (${route_source}), STF_PROVIDER_HOST ${provider_host} (${provider_address}) is a public address of a NAT: without the hairpin of the router the hub and stf-proxy cannot connect to it (registration 500 'not reachable from the hub', gray screens)" \
-      "STF_PROVIDER_HOST: ${route_source} in ${DOCTOR_VARS} and in AGENT_HOSTS of .env of mcloud (README.md#device-hosts-in-a-private-network)"
+      "a new invite of this host with the address ${route_source} (./zebrunner.sh node-invite <label> ${route_source} of mcloud), then ./zebrunner.sh join (README.md#device-hosts-in-a-private-network)"
   else
     doctor_info "STF_PROVIDER_HOST ${provider_host} (${provider_address}) is not an address of this host: it must lead to this host from the MCloud server (a NAT, a port forwarding)"
   fi
@@ -352,11 +375,9 @@ doctor_provider_host() {
 # min_port + 1 without it (min_port is the screen)
 connect_ports() {
   [[ -f "$DOCTOR_DEVICES" ]] || return 0
-  # min_port is the 7th field and connect_port the 15th; min_port is the 9th of a list deployed before the proxy ports
-  # were dropped (16 fields)
+  # min_port is the 7th field and connect_port the 15th
   awk -F '|' '$2 == "android" {
-      if (NF >= 16) port = $9 + 1
-      else if ($15 ~ /^[0-9]+$/) port = $15
+      if ($15 ~ /^[0-9]+$/) port = $15
       else if ($7 ~ /^[0-9]+$/) port = $7 + 1
       else next
       print port
@@ -378,7 +399,7 @@ doctor_remote_connect() {
   for port in $ports; do
     entries="${entries:+${entries},}${provider_host}:${port}"
   done
-  relay="ADB_RELAY=true of .env of mcloud (the relay takes the ports of the devices from STF), or ADB_RELAY_HOSTS with ${entries:-<STF_PROVIDER_HOST>:<connect_port of every Android device>}; then ./zebrunner.sh restart there"
+  relay="ADB_RELAY=true of .env of mcloud (the relay takes the remote debug ports of the devices from STF) with the ports ${entries:-of the devices} in ADB_RELAY_PORTS, then ./zebrunner.sh restart there"
   if [[ -z "$remote" || "$remote" == "$provider_host" ]]; then
     if [[ "$(probe kind "$(first_address "$provider_host")" 2> /dev/null)" == "private" ]]; then
       doctor_info "adb connect of STF (the remote debug) reaches ${provider_host} from its network only; for the other users: REMOTE_CONNECT_HOST (the public name of MCloud) and ${relay}"
@@ -388,6 +409,43 @@ doctor_remote_connect() {
   else
     check_endpoint "adb relay of mcloud (REMOTE_CONNECT_HOST)" "$remote" "${ports%% *}" "$relay"
     doctor_info "the remote debug ports of this host (ADB_RELAY_PORTS of mcloud must have them): ${entries}"
+  fi
+}
+
+# device_ports_of_list: the host ports of the deployed devices, one per line: appium_port, min_port-max_port, connect_port
+device_ports_of_list() {
+  [[ -f "$DOCTOR_DEVICES" ]] || return 0
+  awk -F '|' '$5 ~ /^[0-9]+$/ { print $5 }
+    $7 ~ /^[0-9]+$/ && $8 ~ /^[0-9]+$/ { for (port = $7; port <= $8; port++) print port }
+    $15 ~ /^[0-9]+$/ { print $15 }' "$DOCTOR_DEVICES"
+}
+
+# doctor_same_machine: MCloud on this machine (README.md#devices-on-the-mcloud-server): the ports of the devices are not the
+# ports of MCloud
+doctor_same_machine() {
+  local url host address reserved port used
+  url="$(setting MCLOUD_URL)"
+  host="${url#*://}"
+  host="${host%%[:/]*}"
+  [[ -n "$host" ]] || return 0
+  address="$(first_address "$host")"
+  [[ -n "$address" ]] && probe local "$address" > /dev/null 2>&1 || return 0
+  doctor_info "MCloud runs on this machine (${host})"
+  reserved="${url##*:} $(setting SELENIUM_HUB_PORT)"
+  for name in STF_PROVIDER_CONNECT_SUB STF_PROVIDER_CONNECT_PUSH STF_PROVIDER_CONNECT_APP_DEALER STF_PROVIDER_CONNECT_DEV_DEALER; do
+    port="$(setting "$name")"
+    reserved="${reserved} ${port##*:}"
+  done
+  used=""
+  for port in $reserved; do
+    if grep -qx -- "$port" <<< "$(device_ports_of_list)"; then
+      used="${used:+${used} }${port}"
+    fi
+  done
+  if [[ -n "$used" ]]; then
+    doctor_fail "the devices use the ports ${used} of MCloud on this machine" "other appium_port, min_port-max_port and connect_port of the devices (README.md#devices-on-the-mcloud-server)"
+  else
+    doctor_ok "the devices use no port of MCloud on this machine"
   fi
 }
 
@@ -411,12 +469,7 @@ doctor_devices() {
     udid="${fields[0]}"
     [[ -n "$udid" ]] || continue
     name="${fields[2]}"
-    # the connection is the 9th field, the 11th of a list deployed before the proxy ports were dropped (16 fields)
-    if [[ "$(count_values "${fields[@]}")" -ge 16 ]]; then
-      connection="${fields[10]}"
-    else
-      connection="${fields[8]}"
-    fi
+    connection="${fields[8]}"
     prefix="device-${name}-${udid}"
     running="$(grep -cF -- "${prefix}-" <<< "$(grep ' running$' <<< "$states")")"
     if [[ "$running" -eq 0 ]]; then
@@ -434,7 +487,7 @@ doctor_devices() {
         "the log of mcloud-grid tells why (e.g. 'is not reachable from the hub': STF_PROVIDER_HOST and appium_port must be reachable from the MCloud server)"
     fi
     if docker logs --since 30m --tail 300 "${prefix}-stf" 2>&1 | grep -q 'refused the CURVE key'; then
-      doctor_fail "${name}: STF refuses the CURVE key of this host" "add $(curve_client_line '<public key of ./zebrunner.sh curve-key>') to variables.env of mcloud and restart it"
+      doctor_fail "${name}: STF refuses the CURVE key of this host: MCloud knows another key of it or revoked it" "./zebrunner.sh join with a new join string of ./zebrunner.sh node-invite of mcloud"
     fi
   done < "$DOCTOR_DEVICES"
 }
@@ -457,6 +510,7 @@ doctor() {
   esac
   doctor_host
   if doctor_settings; then
+    doctor_enrollment
     doctor_deployment
     doctor_network
     doctor_devices

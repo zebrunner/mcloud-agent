@@ -10,8 +10,8 @@ from the command line:
 
 sends the invite with the label and the public key to POST /api/v1/nodes/enroll of MCloud over HTTPS, trusting only the
 server whose TLS key has the pin (curl --pinnedpubkey), and writes the settings of the answer into the settings file
-(mode 600): the token of this host, the CURVE key of the server, the endpoints of MCloud and the address of this host.
-The shared tokens of the manual setup are emptied. The secrets go to curl on stdin, not in its arguments.
+(mode 600): the URL and the TLS pin of MCloud, the token of this host, the CURVE key of the server, the endpoints of
+MCloud and the address of this host. The secrets go to curl on stdin, not in its arguments.
 """
 
 import getpass
@@ -140,9 +140,9 @@ def settings_of(join, answer):
         raise EnrollError("MCloud answered no valid URL")
     endpoints = answer.get("endpoints") or {}
     settings = {
+        "MCLOUD_URL": f"https://{join['host']}:{join['port']}",
+        "MCLOUD_TLS_PIN": join["pin"],
         "MCLOUD_NODE_TOKEN": token,
-        "NODE_REGISTRATION_TOKEN": "",
-        "STF_STORAGE_TOKEN": "",
         "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY": server_key,
         "PUBLIC_IP": host_of(stf.hostname, "the host of MCloud"),
         "PUBLIC_IP_PORT": str(stf.port or (443 if stf.scheme == "https" else 80)),

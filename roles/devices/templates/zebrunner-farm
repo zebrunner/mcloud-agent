@@ -220,8 +220,7 @@ create_containers() {
       -e PUBLIC_IP_PROTOCOL="{{ PUBLIC_IP_PROTOCOL }}" \
       -e STF_PROVIDER_CONNECT_SUB="{{ STF_PROVIDER_CONNECT_SUB }}" \
       -e STF_PROVIDER_CONNECT_PUSH="{{ STF_PROVIDER_CONNECT_PUSH }}" \
-      -e STF_STORAGE_TOKEN="{{ MCLOUD_NODE_TOKEN | default('', true) or STF_STORAGE_TOKEN }}" \
-      -e STF_NODE_TOKEN="{{ MCLOUD_NODE_TOKEN | default('', true) }}" \
+      -e STF_NODE_TOKEN="{{ MCLOUD_NODE_TOKEN }}" \
       -e STF_ZMQ_CURVE_SERVER_PUBLIC_KEY="{{ STF_ZMQ_CURVE_SERVER_PUBLIC_KEY }}" \
       -e STF_ZMQ_CURVE_SECRET_KEY="{{ STF_ZMQ_CURVE_SECRET_KEY }}" \
       "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}" || return 1
@@ -259,7 +258,7 @@ create_containers() {
       -e APPIUM_APP_WAITING_TIMEOUT="{{ APPIUM_APP_WAITING_TIMEOUT }}" \
       -e SELENIUM_HOST="{{ SELENIUM_HUB_HOST }}" \
       -e SELENIUM_PORT="{{ SELENIUM_HUB_PORT }}" \
-      -e NODE_REGISTRATION_TOKEN="{{ MCLOUD_NODE_TOKEN | default('', true) or NODE_REGISTRATION_TOKEN }}" \
+      -e NODE_REGISTRATION_TOKEN="{{ MCLOUD_NODE_TOKEN }}" \
       -e DEFAULT_CAPABILITIES=true \
       -e DEVICE_NAME="$dev_device_name" \
       -e DEVICE_UDID="$STF_DEVICE_UDID" \
@@ -358,8 +357,7 @@ create_containers() {
       -e STF_PROVIDER_CONNECT_PUSH="{{ STF_PROVIDER_CONNECT_PUSH }}" \
       -e STF_PROVIDER_CONNECT_APP_DEALER="{{ STF_PROVIDER_CONNECT_APP_DEALER }}" \
       -e STF_PROVIDER_CONNECT_DEV_DEALER="{{ STF_PROVIDER_CONNECT_DEV_DEALER }}" \
-      -e STF_STORAGE_TOKEN="{{ MCLOUD_NODE_TOKEN | default('', true) or STF_STORAGE_TOKEN }}" \
-      -e STF_NODE_TOKEN="{{ MCLOUD_NODE_TOKEN | default('', true) }}" \
+      -e STF_NODE_TOKEN="{{ MCLOUD_NODE_TOKEN }}" \
       -e STF_ZMQ_CURVE_SERVER_PUBLIC_KEY="{{ STF_ZMQ_CURVE_SERVER_PUBLIC_KEY }}" \
       -e STF_ZMQ_CURVE_SECRET_KEY="{{ STF_ZMQ_CURVE_SECRET_KEY }}" \
       "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}" || return 1
@@ -393,7 +391,7 @@ create_containers() {
       -e APPIUM_APP_WAITING_TIMEOUT="{{ APPIUM_APP_WAITING_TIMEOUT }}" \
       -e SELENIUM_HOST="{{ SELENIUM_HUB_HOST }}" \
       -e SELENIUM_PORT="{{ SELENIUM_HUB_PORT }}" \
-      -e NODE_REGISTRATION_TOKEN="{{ MCLOUD_NODE_TOKEN | default('', true) or NODE_REGISTRATION_TOKEN }}" \
+      -e NODE_REGISTRATION_TOKEN="{{ MCLOUD_NODE_TOKEN }}" \
       -e DEFAULT_CAPABILITIES=true \
       -e DEVICE_NAME="$dev_device_name" \
       -e DEVICE_UDID="$dev_udid" \
