@@ -330,6 +330,21 @@ check "a working agent passes" "0" "$?"
 check_contains "an address of this host" "STF_PROVIDER_HOST 192.168.30.2 is an address of this host" "$output"
 check_contains "a host of AGENT_HOSTS" "stf-proxy of mcloud serves the screens of 192.168.30.2 (AGENT_HOSTS)" "$output"
 check_contains "the devices are counted" "$(grep -cE '^ *- +id:' "$vars") devices are declared" "$output"
+# the deployed devices: the list of now (14 fields) and the one deployed before the proxy ports were dropped (16 fields)
+printf '%s\n' "emu1|android|Emu|loc|7471|7472|7475|7480|android-sim|/dev/null|x|host:5557||" > "${WORK}/devices.txt"
+check_contains "the deployed devices are checked" "Emu: no running container" "$(doctor_run)"
+printf '%s\n' "emu1|android|Emu|loc|7471|7472|7473|7474|7475|7480|android-sim|/dev/null|x|host:5557||" > "${WORK}/devices.txt"
+check_contains "a list of the earlier format is read too" "Emu: no running container" "$(doctor_run)"
+check_contains "the remote debug of a private address is explained" \
+  "adb connect of STF (the remote debug) reaches 192.168.30.2 from its network only" "$(doctor_run)"
+sed -i.bak "s/^REMOTE_CONNECT_HOST:.*/REMOTE_CONNECT_HOST: mcloud.example.com/" "$vars"
+check_contains "the adb relay is checked on the port of the devices" \
+  "adb relay of mcloud (REMOTE_CONNECT_HOST): mcloud.example.com:7475 (192.168.50.2) accepts connections" "$(doctor_run)"
+echo "mcloud.example.com:7475" > "${WORK}/net/closed"
+check_contains "a missing relay tells the entry of mcloud" "ADB_RELAY_HOSTS of .env of mcloud with 192.168.30.2:7475-7480" "$(doctor_run)"
+: > "${WORK}/net/closed"
+rm -f "${WORK}/devices.txt"
+settings 192.168.30.2
 
 # zebrunner-farm rendered with another STF_PROVIDER_HOST, then with the settings
 if command -v ansible > /dev/null 2>&1; then

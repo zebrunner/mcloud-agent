@@ -5,16 +5,15 @@
 source "$(dirname "$0")/lib.sh"
 require_cmd ansible
 
-# udid|platform|name|location|appium|adb|proxy|server proxy|min|max|connection|wda file|wda bundle id|address|wda port|
-# mjpeg port
+# udid|platform|name|location|appium|adb|min|max|connection|wda file|wda bundle id|address|wda port|mjpeg port
 cat > "${WORK}/devices.txt" << 'EOF'
-R28M1384YQY|android|Galaxy|loc|7421|7422|7423|7424|7425|7430|usb|/dev/null|x|||
-192.168.1.50|android|WiFi|loc|7431|7432|7433|7434|7435|7440|wireless|/dev/null|x|||
-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11|ios|iPhone_8_Plus|loc|7441|7442|7443|7444|7445|7450|usb|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
-aaaa1111|ios|AppleTV|loc|7451|7452|7453|7454|7455|7460|proxy|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.5|8100|
-bbbb2222|ios|iPhoneWiFi|loc|7461|7462|7463|7464|7465|7470|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|192.168.1.60||
-emu1|android|Emu|loc|7471|7472|7473|7474|7475|7480|android-sim|/dev/null|x|host.docker.internal:5557||
-B1B07E76|ios|Sim|loc|7481|7482|7483|7484|7485|7490|ios-sim|/tmp/wda-sim.zip|com.facebook.WebDriverAgentRunner.xctrunner||8110|
+R28M1384YQY|android|Galaxy|loc|7421|7422|7425|7430|usb|/dev/null|x|||
+192.168.1.50|android|WiFi|loc|7431|7432|7435|7440|wireless|/dev/null|x|||
+d6afc6b3a65584ca0813eb8957c6479b9b6ebb11|ios|iPhone_8_Plus|loc|7441|7442|7445|7450|usb|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
+aaaa1111|ios|AppleTV|loc|7451|7452|7455|7460|proxy|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.5|8100|
+bbbb2222|ios|iPhoneWiFi|loc|7461|7462|7465|7470|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|192.168.1.60||
+emu1|android|Emu|loc|7471|7472|7475|7480|android-sim|/dev/null|x|host.docker.internal:5557||
+B1B07E76|ios|Sim|loc|7481|7482|7485|7490|ios-sim|/tmp/wda-sim.zip|com.facebook.WebDriverAgentRunner.xctrunner||8110|
 EOF
 IPHONE="device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"
 
@@ -129,6 +128,7 @@ appium="$(run_args device-Galaxy-R28M1384YQY-appium)"
 check_contains "appium relaxed security comes from the defaults" "|RELAXED_SECURITY=true|" "$appium"
 check_contains "appium app size check flag is lower case" "|APPIUM_APP_SIZE_DISABLE=false|" "$appium"
 check_contains "appium links the stf container" "|--link|device-Galaxy-R28M1384YQY-stf:device|" "$appium"
+check_not_contains "appium gets no proxy ports" "PROXY_PORT" "$appium"
 
 setup_case
 farm devices start WiFi > /dev/null
@@ -439,6 +439,52 @@ for role in devices mac-devices; do
   setup_case
   output="$(farm "$role" down android < /dev/null)"
   check_not_contains "${role}: without a terminal (udev, launchd, scripts) nothing is asked" "The devices to" "$output"
+done
+
+section "restart strategies"
+# phases: the order of the removals and the creations of the containers, repeats collapsed
+phases() {
+  calls docker | grep -E '^(rm|run)\|' | cut -d '|' -f 1 | uniq | paste -s -d ' ' -
+}
+for role in devices mac-devices; do
+  setup_case
+  output="$(farm "$role" restart android -q)"
+  check "${role}: batch is the default: all removed, then created" "rm run" "$(phases)"
+  check_contains "${role}: the batch phases are reported" "Removing the containers of 3 devices (batch restart)" "$output"
+  setup_case
+  farm "$role" restart android -q --rolling > /dev/null
+  check "${role}: rolling removes and creates device by device" "rm run rm run" "$(phases)"
+  setup_case
+  farm "$role" restart android -q --strategy=rolling > /dev/null
+  check "${role}: --strategy=rolling" "rm run rm run" "$(phases)"
+  setup_case
+  farm "$role" restart android -q --strategy batch > /dev/null
+  check "${role}: --strategy batch" "rm run" "$(phases)"
+  check_contains "${role}: an unknown strategy fails" "--strategy is batch or rolling" "$(farm "$role" restart --strategy=fast)"
+  setup_case
+  output="$(printf 's\ny\n' | MCLOUD_FARM_INTERACTIVE=true farm "$role" restart android)"
+  check_contains "${role}: the question shows the strategy" "Strategy: batch - the containers of all the devices are removed" "$output"
+  check_contains "${role}: s switches the strategy" "Strategy: rolling - device by device" "$output"
+  check "${role}: the switched strategy runs" "rm run rm run" "$(phases)"
+  setup_case
+  output="$(printf 'n\n' | MCLOUD_FARM_INTERACTIVE=true farm "$role" stop android)"
+  check_not_contains "${role}: other commands have no strategy" "Strategy:" "$output"
+done
+
+section "remote connect host"
+for role in devices mac-devices; do
+  setup_case
+  farm "$role" start WiFi > /dev/null
+  check_contains "${role}: STF_PROVIDER_HOST is the connect host by default" "|REMOTE_CONNECT_HOST=|" "$(run_args device-WiFi-192.168.1.50-stf)"
+  render_farm "$role" "${WORK}/zebrunner-farm-${role}" --extra-vars "REMOTE_CONNECT_HOST=mcloud.example.com" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
+  for device in WiFi:device-WiFi-192.168.1.50 AppleTV:device-AppleTV-aaaa1111; do
+    setup_case
+    farm "$role" start "${device%%:*}" > /dev/null
+    check_contains "${role}: ${device%%:*}: the connect host goes to STF" "|REMOTE_CONNECT_HOST=mcloud.example.com|" "$(run_args "${device#*:}-stf")"
+  done
+  render_farm "$role" "${WORK}/zebrunner-farm-${role}" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
 done
 
 section "containers of a device"

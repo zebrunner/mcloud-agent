@@ -246,19 +246,19 @@ devices:
   - {id: phone, os: ios, name: WiFi, appium_port: 23, adb_port: 24, min_port: 25, max_port: 26, connection: wireless, address: 10.0.0.7}
 EOF
 render "${REPO}/roles/devices/templates/mcloud-devices.txt" "${WORK}/linux.txt" --extra-vars "@${WORK}/devices.yml" || exit 1
-check "Linux devices list" "R28M-1384YQY|android|Galaxy_S10||1|2|0|0|3|4|usb|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
-12345|android|Numeric||5|6|7|8|9|10|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
-abc|ios|Phone||11|12|0|0|13|14|usb|/wda.ipa|my.wda||8101|
-tv|ios|TV||15|16|0|0|17|18|proxy|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.6||
-sim|ios|Sim||19|20|0|0|21|22|ios-sim|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||8110|8111
-phone|ios|WiFi||23|24|0|0|25|26|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.7||" "$(cat "${WORK}/linux.txt")"
+check "Linux devices list" "R28M-1384YQY|android|Galaxy_S10||1|2|3|4|usb|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
+12345|android|Numeric||5|6|9|10|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
+abc|ios|Phone||11|12|13|14|usb|/wda.ipa|my.wda||8101|
+tv|ios|TV||15|16|17|18|proxy|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.6||
+sim|ios|Sim||19|20|21|22|ios-sim|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||8110|8111
+phone|ios|WiFi||23|24|25|26|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.7||" "$(cat "${WORK}/linux.txt")"
 render "${REPO}/roles/mac-devices/templates/mcloud-devices.txt" "${WORK}/mac.txt" --extra-vars "@${WORK}/devices.yml" || exit 1
-check "macOS devices list" "R28M-1384YQY|android|Galaxy_S10||1|2|0|0|3|4|usb|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
-12345|android|Numeric||5|6|7|8|9|10|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
-abc|ios|Phone||11|12|0|0|13|14|usb|/wda.ipa|my.wda||8101|
-tv|ios|TV||15|16|0|0|17|18|proxy|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.6||
-sim|ios|Sim||19|20|0|0|21|22|ios-sim|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||8110|8111
-phone|ios|WiFi||23|24|0|0|25|26|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.7||" "$(cat "${WORK}/mac.txt")"
+check "macOS devices list" "R28M-1384YQY|android|Galaxy_S10||1|2|3|4|usb|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
+12345|android|Numeric||5|6|9|10|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
+abc|ios|Phone||11|12|13|14|usb|/wda.ipa|my.wda||8101|
+tv|ios|TV||15|16|17|18|proxy|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.6||
+sim|ios|Sim||19|20|21|22|ios-sim|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||8110|8111
+phone|ios|WiFi||23|24|25|26|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.7||" "$(cat "${WORK}/mac.txt")"
 render "${REPO}/roles/devices/templates/90_mcloud.rules" "${WORK}/rules" --extra-vars "@${WORK}/devices.yml" || exit 1
 cat > "${WORK}/expected_rules" << 'EOF'
 SUBSYSTEM=="usb", ENV{ID_SERIAL_SHORT}=="R28M1384YQY", MODE="0666", SYMLINK+="device-Galaxy_S10-R28M-1384YQY"

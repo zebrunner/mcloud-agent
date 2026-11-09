@@ -187,7 +187,7 @@ doctor_deployment() {
     SELENIUM_PORT=SELENIUM_HUB_PORT STF_PROVIDER_CONNECT_SUB=STF_PROVIDER_CONNECT_SUB \
     STF_PROVIDER_CONNECT_PUSH=STF_PROVIDER_CONNECT_PUSH NODE_REGISTRATION_TOKEN=NODE_REGISTRATION_TOKEN \
     STF_STORAGE_TOKEN=STF_STORAGE_TOKEN STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=STF_ZMQ_CURVE_SERVER_PUBLIC_KEY \
-    STF_ZMQ_CURVE_SECRET_KEY=STF_ZMQ_CURVE_SECRET_KEY; do
+    STF_ZMQ_CURVE_SECRET_KEY=STF_ZMQ_CURVE_SECRET_KEY REMOTE_CONNECT_HOST=REMOTE_CONNECT_HOST; do
     env_name="${pair%%=*}"
     value="$(setting "${pair#*=}")"
     grep -qF -- "${env_name}=\"${value}\"" "$DOCTOR_FARM" || changed+=("${pair#*=}")
@@ -242,6 +242,7 @@ doctor_network() {
   done
 
   doctor_provider_host
+  doctor_remote_connect
 
   # stf-proxy of mcloud serves the screens of the device hosts of AGENT_HOSTS only (403 for the other ones)
   local provider_host
@@ -288,6 +289,37 @@ doctor_provider_host() {
   fi
 }
 
+# device_ports: <first>-<last> of the ports of the deployed devices (min_port to max_port), nothing without them
+device_ports() {
+  [[ -f "$DOCTOR_DEVICES" ]] || return 0
+  # the ports are the 7th and 8th fields, the 9th and 10th of a list deployed before the proxy ports were dropped
+  awk -F '|' 'NF >= 16 { lo = $9; hi = $10 } NF < 16 { lo = $7; hi = $8 }
+    lo ~ /^[0-9]+$/ && hi ~ /^[0-9]+$/ { if (min == "" || lo + 0 < min) min = lo + 0; if (hi + 0 > max) max = hi + 0 }
+    END { if (min != "") print min "-" max }' "$DOCTOR_DEVICES"
+}
+
+# doctor_remote_connect: the host of `adb connect` of STF (the remote debug) reaches the devices: REMOTE_CONNECT_HOST
+# through the adb relay of mcloud, STF_PROVIDER_HOST directly
+doctor_remote_connect() {
+  local remote
+  local provider_host
+  local ports
+  local relay
+  remote="$(setting REMOTE_CONNECT_HOST)"
+  provider_host="$(setting STF_PROVIDER_HOST)"
+  ports="$(device_ports)"
+  relay="ADB_RELAY_HOSTS of .env of mcloud with ${provider_host}:${ports:-<min_port>-<max_port of the devices>}, then ./zebrunner.sh restart there"
+  if [[ -z "$remote" || "$remote" == "$provider_host" ]]; then
+    if [[ "$(probe kind "$(first_address "$provider_host")" 2> /dev/null)" == "private" ]]; then
+      doctor_info "adb connect of STF (the remote debug) reaches ${provider_host} from its network only; for the other users: REMOTE_CONNECT_HOST (the public name of MCloud) and ${relay}"
+    fi
+  elif [[ -z "$ports" ]]; then
+    doctor_info "adb connect of STF goes to ${remote}: the relay is checked with the deployed devices"
+  else
+    check_endpoint "adb relay of mcloud (REMOTE_CONNECT_HOST)" "$remote" "${ports%-*}" "$relay"
+  fi
+}
+
 # doctor_devices: the deployed devices, their containers and the errors of their logs
 doctor_devices() {
   doctor_section "Devices"
@@ -303,8 +335,17 @@ doctor_devices() {
   local line
   local states
   states="$(docker ps -a --filter name=device- --format '{{.Names}} {{.State}}' 2> /dev/null)"
-  while IFS='|' read -r udid _ name _ _ _ _ _ _ _ connection _; do
+  local -a fields
+  while IFS='|' read -r -a fields; do
+    udid="${fields[0]}"
     [[ -n "$udid" ]] || continue
+    name="${fields[2]}"
+    # the connection is the 9th field, the 11th of a list deployed before the proxy ports were dropped (16 fields)
+    if [[ "$(count_values "${fields[@]}")" -ge 16 ]]; then
+      connection="${fields[10]}"
+    else
+      connection="${fields[8]}"
+    fi
     prefix="device-${name}-${udid}"
     running="$(grep -cF -- "${prefix}-" <<< "$(grep ' running$' <<< "$states")")"
     if [[ "$running" -eq 0 ]]; then

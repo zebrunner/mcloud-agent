@@ -25,8 +25,6 @@ get_device_fields() {
   dev_location=""
   dev_appium_port=""
   dev_adb_port=""
-  dev_proxy_port=""
-  dev_server_proxy_port=""
   dev_stf_min_port=""
   dev_stf_max_port=""
   dev_connection=""
@@ -55,12 +53,10 @@ get_device_fields() {
   dev_location="${fields[3]}"
   dev_appium_port="${fields[4]}"
   dev_adb_port="${fields[5]}"
-  dev_proxy_port="${fields[6]}"
-  dev_server_proxy_port="${fields[7]}"
-  dev_stf_min_port="${fields[8]}"
-  dev_stf_max_port="${fields[9]}"
+  dev_stf_min_port="${fields[6]}"
+  dev_stf_max_port="${fields[7]}"
 
-  # Field 11 - 'connection': how the connector container reaches the device. Docker of macOS has no USB, so the
+  # Field 9 - 'connection': how the connector container reaches the device. Docker of macOS has no USB, so the
   # connector takes a USB device from the host: usbmuxd (iOS) or the adb server (Android) of the host.
   #   usb         - plugged into the host: iOS over usbmuxd of the host, Android over the adb server of the host
   #   wireless    - over the network: iOS paired with the Mac (usbmuxd of the host), Android over adb connect
@@ -68,11 +64,11 @@ get_device_fields() {
   #                 a container Android, Genymotion), adb connect to its address
   #   ios-sim     - an iOS / tvOS simulator of the host, the connector runs xcrun simctl of the host over ssh
   #   proxy       - WebDriverAgent published by another tool, the connector relays it (iOS)
-  dev_connection="${fields[10]:-usb}"
+  dev_connection="${fields[8]:-usb}"
 
-  # Fields 12 / 13 - 'device_wda_ipa_path' and 'device_wda_bundle_id'.
+  # Fields 10 / 11 - 'device_wda_ipa_path' and 'device_wda_bundle_id'.
   # Device specific WebDriverAgent path (the simulator build for a simulator) and bundle ID.
-  dev_device_wda_ipa_path="${fields[11]}"
+  dev_device_wda_ipa_path="${fields[9]}"
   if [[ "$dev_device_wda_ipa_path" == "/dev/null" || -z "$dev_device_wda_ipa_path" ]]; then
     dev_device_wda_ipa_path="{{ WDA_FILE }}"
     if [[ "$dev_connection" == "ios-sim" ]]; then
@@ -81,20 +77,20 @@ get_device_fields() {
   fi
   : "${dev_device_wda_ipa_path:='/dev/null'}"
 
-  dev_device_wda_bundle_id="${fields[12]}"
+  dev_device_wda_bundle_id="${fields[10]}"
   if [[ "$dev_device_wda_bundle_id" == "/dev/null" || -z "$dev_device_wda_bundle_id" ]]; then
     dev_device_wda_bundle_id="{{ WDA_BUNDLEID }}"
   fi
   : "${dev_device_wda_bundle_id:='com.facebook.WebDriverAgentRunner.xctrunner'}"
 
-  # Fields 14 - 16 - 'address', 'wda_port' and 'mjpeg_port'.
+  # Fields 12 - 14 - 'address', 'wda_port' and 'mjpeg_port'.
   # address: the adb address of a wireless Android device or of an emulator (the id by default) or the host of the
   # proxied WebDriverAgent;
   # wda_port and mjpeg_port: the ports of WebDriverAgent on the host for a simulator (unique, a simulator shares the
   # network of the host) or on the address for the proxy
-  dev_address="${fields[13]}"
-  dev_wda_port="${fields[14]}"
-  dev_mjpeg_port="${fields[15]}"
+  dev_address="${fields[11]}"
+  dev_wda_port="${fields[12]}"
+  dev_mjpeg_port="${fields[13]}"
 
   # Common name prefix for all containers
   dev_container="device-${dev_device_name}-${dev_udid}"
@@ -181,6 +177,7 @@ create_containers() {
       -e STF_PROVIDER_DEVICE_NAME="$dev_device_name" \
       -e DEVICE_UDID="$STF_DEVICE_UDID" \
       -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
+      -e REMOTE_CONNECT_HOST="{{ REMOTE_CONNECT_HOST | default('', true) }}" \
       -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}${dev_location:+_$dev_location}" \
       -e STF_PROVIDER_MIN_PORT="$dev_stf_min_port" \
       -e STF_PROVIDER_MAX_PORT="$dev_stf_max_port" \
@@ -226,8 +223,6 @@ create_containers() {
       -e DEVICE_NAME="$dev_device_name" \
       -e DEVICE_UDID="$STF_DEVICE_UDID" \
       -e ADB_PORT="$dev_adb_port" \
-      -e PROXY_PORT="$dev_proxy_port" \
-      -e SERVER_PROXY_PORT="$dev_server_proxy_port" \
       -e APPIUM_PORT="$dev_appium_port" \
       -p "$dev_appium_port":"$dev_appium_port" \
       -e RELAXED_SECURITY="{{ APPIUM_RELAXED_SECURITY | string | lower }}" \
@@ -314,6 +309,7 @@ create_containers() {
       -e STF_PROVIDER_DEVICE_NAME="$dev_device_name" \
       -e DEVICE_UDID="$dev_udid" \
       -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
+      -e REMOTE_CONNECT_HOST="{{ REMOTE_CONNECT_HOST | default('', true) }}" \
       -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}${dev_location:+_$dev_location}" \
       -e STF_PROVIDER_MIN_PORT="$dev_stf_min_port" \
       -e STF_PROVIDER_MAX_PORT="$dev_stf_max_port" \
@@ -364,8 +360,6 @@ create_containers() {
       -e DEVICE_NAME="$dev_device_name" \
       -e DEVICE_UDID="$dev_udid" \
       -e ADB_PORT="$dev_adb_port" \
-      -e PROXY_PORT="$dev_proxy_port" \
-      -e SERVER_PROXY_PORT="$dev_server_proxy_port" \
       -e APPIUM_PORT="$dev_appium_port" \
       -p "$dev_appium_port":"$dev_appium_port" \
       -e RELAXED_SECURITY="{{ APPIUM_RELAXED_SECURITY | string | lower }}" \
@@ -491,11 +485,13 @@ ensure_network() {
 #### Device selection
 
 # The devices of a command: the SELECTORS of its arguments (all the devices without them) but the EXCLUDES of -x; QUIET
-# (-q) skips the question. SELECTED are their udids in the order of mcloud-devices.txt.
+# (-q) skips the question. SELECTED are their udids in the order of mcloud-devices.txt. RESTART_STRATEGY of restart:
+# batch removes the containers of all the devices, then creates them; rolling removes and creates them device by device.
 SELECTORS=()
 EXCLUDES=()
 QUIET=""
 SELECTED=()
+RESTART_STRATEGY="batch"
 
 # count <values...>: the number of the values; the length expansion of bash cannot be used, a template comment starts
 # with its characters
@@ -523,10 +519,26 @@ parse_selection() {
   SELECTORS=()
   EXCLUDES=()
   QUIET=""
+  RESTART_STRATEGY="batch"
   while [[ $# -gt 0 ]]; do
     case "$1" in
     -q | --quiet | -y | --yes)
       QUIET="true"
+      ;;
+    --batch | --rolling)
+      RESTART_STRATEGY="${1#--}"
+      ;;
+    --strategy | --strategy=*)
+      if [[ "$1" == "--strategy" ]]; then
+        RESTART_STRATEGY="$2"
+        shift
+      else
+        RESTART_STRATEGY="${1#--strategy=}"
+      fi
+      if [[ "$RESTART_STRATEGY" != "batch" && "$RESTART_STRATEGY" != "rolling" ]]; then
+        failed "--strategy is batch or rolling"
+        return 1
+      fi
       ;;
     -x | -e | --exclude)
       if [[ -z "$2" ]]; then
@@ -703,12 +715,24 @@ confirm_selection() {
   if [[ -n "$QUIET" || -n "$(single_device)" ]] || [[ ! -t 0 && "$MCLOUD_FARM_INTERACTIVE" != "true" ]]; then
     return 0
   fi
+  local switch=""
   while true; do
     echo -e "\nThe devices to ${command} ($(count "${SELECTED[@]}")):"
     print_selection
     echo ""
-    read -r -p "Run '${command}' for them? [Y]es, [n]o, [f]ilter the list, e[x]clude devices: " answer || return 1
+    if [[ "$command" == "restart" ]]; then
+      echo "Strategy: $(strategy_description)"
+      switch=", [s]trategy"
+    fi
+    read -r -p "Run '${command}' for them? [Y]es, [n]o, [f]ilter the list, e[x]clude devices${switch}: " answer || return 1
     case "$answer" in
+    [sS])
+      if [[ "$RESTART_STRATEGY" == "batch" ]]; then
+        RESTART_STRATEGY="rolling"
+      else
+        RESTART_STRATEGY="batch"
+      fi
+      ;;
     "" | [yY] | [yY][eE][sS])
       return 0
       ;;
@@ -734,6 +758,27 @@ confirm_selection() {
       return 1
     fi
   done
+}
+
+# strategy_description: RESTART_STRATEGY for a person
+strategy_description() {
+  if [[ "$RESTART_STRATEGY" == "rolling" ]]; then
+    echo "rolling - device by device: its containers are removed and created again at once"
+  else
+    echo "batch - the containers of all the devices are removed, then all of them are created"
+  fi
+}
+
+# restart_selected: restart of SELECTED by RESTART_STRATEGY
+restart_selected() {
+  if [[ "$RESTART_STRATEGY" == "rolling" || "$(count "${SELECTED[@]}")" -eq 1 ]]; then
+    run_selected restart
+    return
+  fi
+  echo -e "\nRemoving the containers of $(count "${SELECTED[@]}") devices (batch restart)"
+  run_selected down
+  echo -e "\nCreating the containers of $(count "${SELECTED[@]}") devices again"
+  run_selected start
 }
 
 # run_selected <command>: the command (start, stop, restart, down, status) for every device of SELECTED
@@ -891,12 +936,13 @@ verify_containers() {
 
 echo_help() {
   echo "
-      Usage: zebrunner-farm <command> [devices...] [-x|--exclude <devices>]... [-q|--quiet]
+      Usage: zebrunner-farm <command> [devices...] [-x|--exclude <devices>]... [-q|--quiet] [--batch|--rolling]
       Commands:
           status [devices]     The containers of the devices
           start [devices]      Create (or start) and run the containers of the devices
           stop [devices]       Stop and keep the containers of the devices
-          restart [devices]    Remove and create again the containers of the devices
+          restart [devices]    Remove and create again the containers of the devices: --batch (default) removes
+                               the containers of all of them, then creates them; --rolling device by device
           down [devices]       Stop and remove the containers of the devices
           ansible ['devices']  Run ansible-playbook script with custom or predefined args
           version              Show version of MCloud Agent components
@@ -932,7 +978,11 @@ farm_command() {
   if [[ "$command" == "start" || "$command" == "restart" ]]; then
     ensure_network
   fi
-  run_selected "$command"
+  if [[ "$command" == "restart" ]]; then
+    restart_selected
+  else
+    run_selected "$command"
+  fi
   # the listener is loaded after the last container, otherwise it starts the devices in parallel
   if [[ "$command" == "start" || "$command" == "restart" ]] && listener_applies; then
     launchctl load "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1

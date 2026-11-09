@@ -28,6 +28,10 @@ NODE_REGISTRATION_TOKEN:
 # MCloud server its address there, not a public address of the router (README.md#device-hosts-in-a-private-network).
 # Add it to AGENT_HOSTS of .env of mcloud. `./zebrunner.sh doctor` checks it.
 STF_PROVIDER_HOST: macos-agent.zebrunner.farm
+# [OPTIONAL] The host STF shows to the users in `adb connect <host>:<port>` (the remote debug), STF_PROVIDER_HOST
+# by default. For a host in a private network: the public name of MCloud with the adb relay of mcloud (ADB_RELAY_HOSTS)
+# forwarding min_port-max_port of the devices of this host (README.md#device-hosts-in-a-private-network).
+REMOTE_CONNECT_HOST:
 
 # [OBLIGATORY] Set host address of current STF provider server and 2222 port as default. We start socat listener and share usbmuxd into the containers
 USBMUXD_SOCKET_ADDRESS: host.docker.internal:2222
@@ -81,11 +85,9 @@ WDA_BUNDLEID:
 #   location: clarified device location for ease of device management (an underscore will be added automatically before the value)
 #   appium_port: unique port value for sharing appium services from the container to outside selenium hub
 #   adb_port: unique connect port value (old adb_port name is used from Android implementation)
-#   proxy_port: unique port value to configure embedded proxy (they can be used in integration with Carina traffic sniffering functionality:
-#     https://zebrunner.github.io/carina/advanced/proxy/)
 #   min_port and max_port: unique range of 7 ports per device for system STF purposes.
-#     These ports on STF_PROVIDER_HOST should be accessible from client's browser otherwise gray screen, no remote adb connect etc.
-#   server_proxy_port: [optional] port passed to the appium container as SERVER_PROXY_PORT, 0 by default
+#     The MCloud server reaches them on STF_PROVIDER_HOST (the screens through stf-proxy); adb connect of the remote
+#     debug reaches them directly or through the adb relay of mcloud (REMOTE_CONNECT_HOST, ADB_RELAY_HOSTS).
 #   connection: [optional] how the connector container reaches the device, usb by default. Docker of macOS has no USB:
 #     the connectors take the devices from the host, but every device command comes from the containers.
 #     usb       - plugged into the Mac: iOS over usbmuxd of the host (the connector installs and starts WebDriverAgent),
@@ -111,7 +113,5 @@ devices:
     location: location_1
     appium_port: 7431
     adb_port: 7432
-    proxy_port: 7433
-    server_proxy_port: 7434
     min_port: 7435
     max_port: 7440

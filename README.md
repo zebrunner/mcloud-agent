@@ -70,6 +70,7 @@ Set the settings of the MCloud server in `roles/devices/vars/main.yml` (Linux) o
 | --- | --- |
 | `PUBLIC_IP`, `PUBLIC_IP_PORT`, `PUBLIC_IP_PROTOCOL` | the host, port and protocol of the setup of mcloud (`STF_URL` of its `.env`), reachable from this host: the devices upload the screenshots and download the apps there |
 | `STF_PROVIDER_HOST` | the address of this host the MCloud server connects to: mcloud-grid registers the Appium nodes by it, stf-proxy takes the screens of the devices from it. In the network of the MCloud server use the address of this host there, see [Device hosts in a private network](#device-hosts-in-a-private-network). Add it to `AGENT_HOSTS` of `.env` of mcloud and run `./zebrunner.sh restart` there |
+| `REMOTE_CONNECT_HOST` | optional: the host STF shows in `adb connect <host>:<port>` (the remote debug), `STF_PROVIDER_HOST` by default; for a host in a private network the public name of MCloud with the adb relay of mcloud, see [Device hosts in a private network](#device-hosts-in-a-private-network) |
 | `STF_STORAGE_TOKEN`, `STF_ZMQ_CURVE_SERVER_PUBLIC_KEY`, `NODE_REGISTRATION_TOKEN` | the same variables of `variables.env` of mcloud, its setup prints them |
 | `STF_ZMQ_CURVE_SECRET_KEY` | `./zebrunner.sh curve-key` makes it and prints the line of the public key for `variables.env` of mcloud, `STF_ZMQ_CURVE_CLIENT_KEY_<HOST>=<public key>`: add it there and run `./zebrunner.sh restart` there, see [ZeroMQ security](#zeromq-security) |
 | `STF_PROVIDER_CONNECT_*`, `SELENIUM_HUB_HOST`, `SELENIUM_HUB_PORT` | the defaults are the containers of mcloud in the `infra` network of the same host; for an MCloud server on another host: `tcp://<server>:7250`, `tcp://<server>:7270`, `tcp://<server>:7160`, `tcp://<server>:7260`, `<server>` and `4446` (see [Firewall of mcloud](https://github.com/zebrunner/mcloud#firewall)) |
@@ -191,6 +192,7 @@ The removal of the variable of a host (or of its key from `STF_ZMQ_CURVE_CLIENT_
 - the settings of `roles/.../vars/main.yml`: the obligatory ones, the format of the CURVE keys, the example `STF_PROVIDER_HOST`, the devices; it prints the line of the public key of this host for `variables.env` of mcloud;
 - the deployment: `zebrunner-farm` rendered with the current settings (otherwise `./zebrunner.sh ansible`), the containers created with the current `STF_PROVIDER_HOST` (otherwise `zebrunner-farm restart`);
 - the network: the name resolution and the ports of `PUBLIC_IP`, mcloud-grid and the ZeroMQ triproxies; `STF_PROVIDER_HOST` is an address of this host, or a public address of a NAT while the MCloud server is in the network of this host (see [Device hosts in a private network](#device-hosts-in-a-private-network)), and stf-proxy of mcloud serves its screens (`AGENT_HOSTS`);
+- the remote debug: with `REMOTE_CONNECT_HOST` the adb relay of mcloud accepts the ports of the devices (`ADB_RELAY_HOSTS`);
 - the devices: their containers, the refused grid registrations of Appium and the refused CURVE key in the logs of the last 30 minutes.
 
 It exits with `1` when a check fails.
@@ -202,7 +204,8 @@ Many device hosts without public addresses can work with one MCloud server of th
 - `STF_PROVIDER_HOST` of every device host is its address in the network (or a name of it there), all of them are in `AGENT_HOSTS` of `.env` of mcloud.
 - `PUBLIC_IP` stays the name the users open MCloud with; the device host resolves it to the address of the server in the network (e.g. a line in `/etc/hosts`, the containers resolve the names through the resolver of the host), or the settings use that address (`STF_PROVIDER_CONNECT_*`, `SELENIUM_HUB_HOST`).
 - A public address of the router as `STF_PROVIDER_HOST` fails inside the network when the router has no NAT hairpin: mcloud-grid refuses the nodes (Appium logs the registration `500`, mcloud-grid `Node http://... is not reachable from the hub`) and the screens stay gray. `./zebrunner.sh doctor` finds it and prints the address to use.
-- Only `adb connect <STF_PROVIDER_HOST>:<port>` of the remote debug of STF needs a route from the computer of the user to the device host.
+- The remote debug of STF (`adb connect <host>:<port>`, a port of `min_port`-`max_port` of the device) goes through the adb relay of mcloud: set `REMOTE_CONNECT_HOST` to the public name of MCloud, add `<STF_PROVIDER_HOST>:<first>-<last>` (the ports of all the devices of the host, not shared with another host) to `ADB_RELAY_HOSTS` of `.env` of mcloud and open the ports in its firewall, see [mcloud](https://github.com/zebrunner/mcloud#readme). Without the relay only the users of the network reach `adb connect <STF_PROVIDER_HOST>:<port>`.
+- `./zebrunner.sh doctor` checks the relay on the first port of the deployed devices and prints the `ADB_RELAY_HOSTS` entry of this host.
 
 ### Grid registration
 
@@ -216,7 +219,9 @@ The Appium port of a device (`appium_port`) is published on the host for mcloud-
 
 ### Devices management
 
-`zebrunner-farm <command> [devices...] [-x|--exclude <devices>]... [-q|--quiet]` manages the containers of the devices: `status`, `start` (creates the missing containers, starts the stopped ones, keeps the running ones), `stop`, `restart` (removes and creates them again) and `down` (removes them).
+`zebrunner-farm <command> [devices...] [-x|--exclude <devices>]... [-q|--quiet] [--batch|--rolling]` manages the containers of the devices: `status`, `start` (creates the missing containers, starts the stopped ones, keeps the running ones), `stop`, `restart` (removes and creates them again) and `down` (removes them).
+
+- `restart` of several devices has two strategies: `--batch` (the default, `--strategy batch`) removes the containers of all the devices one by one, then creates and starts them; `--rolling` (`--strategy rolling`) removes and creates the containers device by device, the other devices keep working meanwhile. The question of a terminal shows the strategy, `s` switches it.
 
 - The devices are udids or names, groups (`ios`, `android`, `usb`, `wireless`, `android-sim`, `ios-sim`, `proxy`) or patterns of the udids, names and locations in quotes (`'Samsung_*'`), several ones separated by spaces or commas; all the devices without them.
 - `-x` (`-e`, `--exclude`, also `-x=<devices>`) skips devices, groups or patterns, e.g. `zebrunner-farm restart android -x Pixel_8_Pro -x 'Samsung_Galaxy_S2?'`.
