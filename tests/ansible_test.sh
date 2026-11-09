@@ -157,22 +157,35 @@ check_contains "missing setup fails" "You have to set up services in advance usi
 mv "${WORK}/vars.yml" "${WORK}/play-${OS_ROLE}/roles/${OS_ROLE}/vars/main.yml"
 output="$(playbook "$OS_ROLE" --check --tags precheck --extra-vars "@${REPO}/roles/${OS_ROLE}/vars/main.yml.original")"
 check_contains "the example settings fail with all the obligatory settings of the server" \
-  "missing: STF_STORAGE_TOKEN, NODE_REGISTRATION_TOKEN, STF_ZMQ_CURVE_SERVER_PUBLIC_KEY, STF_ZMQ_CURVE_SECRET_KEY." "$output"
+  "missing or invalid: STF_STORAGE_TOKEN, NODE_REGISTRATION_TOKEN, STF_ZMQ_CURVE_SERVER_PUBLIC_KEY, STF_ZMQ_CURVE_SECRET_KEY." "$output"
 check_contains "the tokens and the key of the server come from mcloud" "are the ones of variables.env of mcloud" "$output"
-check_contains "the key of the host comes from curve-key" "run ./zebrunner.sh curve-key" "$output"
+check_contains "the key of the host comes from curve-key" "the key of ./zebrunner.sh curve-key" "$output"
+check_contains "the enrollment sets them" "Enroll this host with ./zebrunner.sh join" "$output"
 
 section "obligatory settings of the MCloud server"
 for role in devices mac-devices; do
   for setting in STF_STORAGE_TOKEN NODE_REGISTRATION_TOKEN STF_ZMQ_CURVE_SERVER_PUBLIC_KEY STF_ZMQ_CURVE_SECRET_KEY; do
-    check_contains "${role}: a blank ${setting} fails" "The obligatory settings of the MCloud server are missing: ${setting}." \
+    check_contains "${role}: a blank ${setting} fails" "The obligatory settings of the MCloud server are missing or invalid: ${setting}." \
       "$(playbook "$role" --tags validate --extra-vars "{\"${setting}\": \" \"}")"
   done
   vars="${WORK}/play-${role}/roles/${role}/vars/main.yml"
   cp "$vars" "${WORK}/vars.yml"
   grep -v '^NODE_REGISTRATION_TOKEN:' "${WORK}/vars.yml" > "$vars"
-  check_contains "${role}: settings without the line of a setting fail" "are missing: NODE_REGISTRATION_TOKEN." \
+  check_contains "${role}: settings without the line of a setting fail" "are missing or invalid: NODE_REGISTRATION_TOKEN." \
     "$(playbook "$role" --tags validate)"
   mv "${WORK}/vars.yml" "$vars"
+  # the token of the node enrollment replaces the shared tokens
+  node_token="mcn1.build-ua.$(printf '%043d' 0 | tr 0 A)"
+  # the JSON in variables: bash 3.2 misparses the escaped quotes of a command substitution in double quotes
+  extra="{\"MCLOUD_NODE_TOKEN\": \"${node_token}\", \"STF_STORAGE_TOKEN\": \"\", \"NODE_REGISTRATION_TOKEN\": \"\"}"
+  check_contains "${role}: the token of the enrollment replaces the shared tokens" "The obligatory settings of the MCloud server are set." \
+    "$(playbook "$role" --tags validate --extra-vars "$extra")"
+  extra='{"MCLOUD_NODE_TOKEN": "mcn1.Bad_Label.x"}'
+  check_contains "${role}: an invalid token of the enrollment fails" "The obligatory settings of the MCloud server are missing or invalid: MCLOUD_NODE_TOKEN." \
+    "$(playbook "$role" --tags validate --extra-vars "$extra")"
+  extra="{\"MCLOUD_NODE_TOKEN\": \"${node_token}\", \"STF_ZMQ_CURVE_SECRET_KEY\": \" \"}"
+  check_contains "${role}: the CURVE keys stay obligatory with the token" "missing or invalid: STF_ZMQ_CURVE_SECRET_KEY." \
+    "$(playbook "$role" --tags validate --extra-vars "$extra")"
   check_contains "${role}: an invalid key of the server fails" "must be the 64 hex characters" \
     "$(playbook "$role" --tags validate --extra-vars "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=abc")"
   check_contains "${role}: an invalid key of the host fails" "must be the 64 hex characters" \

@@ -67,23 +67,32 @@
     success_msg: "All device IDs and names are unique."
   tags: [devices, precheck, dedup]
 
-# the authentication of the MCloud server: its tokens and the CURVE keys of ZeroMQ (README.md#connect-to-mcloud)
+# the authentication of the MCloud server: the token of this host of the node enrollment (README.md#node-enrollment) or
+# the shared tokens of the manual setup (README.md#connect-to-mcloud), and the CURVE keys of ZeroMQ
 - name: Check the obligatory settings of the MCloud server
   vars:
-    mac_devices_server_settings:
-      STF_STORAGE_TOKEN: "{{ STF_STORAGE_TOKEN | default('', true) | string | trim }}"
-      NODE_REGISTRATION_TOKEN: "{{ NODE_REGISTRATION_TOKEN | default('', true) | string | trim }}"
-      STF_ZMQ_CURVE_SERVER_PUBLIC_KEY: "{{ STF_ZMQ_CURVE_SERVER_PUBLIC_KEY | default('', true) | string | trim }}"
-      STF_ZMQ_CURVE_SECRET_KEY: "{{ STF_ZMQ_CURVE_SECRET_KEY | default('', true) | string | trim }}"
-    mac_devices_missing_settings: "{{ mac_devices_server_settings | dict2items | selectattr('value', 'equalto', '') | map(attribute='key') | list }}"
+    mac_devices_node_token: "{{ MCLOUD_NODE_TOKEN | default('', true) | string | trim }}"
+    mac_devices_server_settings: >-
+      {{ ({} if mac_devices_node_token else
+           {'STF_STORAGE_TOKEN': STF_STORAGE_TOKEN | default('', true) | string | trim,
+            'NODE_REGISTRATION_TOKEN': NODE_REGISTRATION_TOKEN | default('', true) | string | trim})
+         | combine({'STF_ZMQ_CURVE_SERVER_PUBLIC_KEY': STF_ZMQ_CURVE_SERVER_PUBLIC_KEY | default('', true) | string | trim,
+                    'STF_ZMQ_CURVE_SECRET_KEY': STF_ZMQ_CURVE_SECRET_KEY | default('', true) | string | trim}) }}
+    mac_devices_token_invalid: >-
+      {{ mac_devices_node_token != ''
+         and mac_devices_node_token is not match('^mcn1[.][a-z0-9][a-z0-9-]{0,39}[.][A-Za-z0-9_-]{43}$') }}
+    mac_devices_missing_settings: >-
+      {{ (['MCLOUD_NODE_TOKEN'] if mac_devices_token_invalid | bool else [])
+         + (mac_devices_server_settings | dict2items | selectattr('value', 'equalto', '') | map(attribute='key') | list) }}
   ansible.builtin.assert:
     that: mac_devices_missing_settings | length == 0
     fail_msg: >-
-      The obligatory settings of the MCloud server are missing: {{ mac_devices_missing_settings | join(', ') }}.
-      Set them in roles/mac-devices/vars/main.yml, in quotes: STF_STORAGE_TOKEN, NODE_REGISTRATION_TOKEN and
-      STF_ZMQ_CURVE_SERVER_PUBLIC_KEY are the ones of variables.env of mcloud; STF_ZMQ_CURVE_SECRET_KEY is the key of
-      this host: run ./zebrunner.sh curve-key and add the STF_ZMQ_CURVE_CLIENT_KEY_<HOST> line it prints to variables.env
-      of mcloud (README.md#connect-to-mcloud); ./zebrunner.sh doctor checks the settings.
+      The obligatory settings of the MCloud server are missing or invalid: {{ mac_devices_missing_settings | join(', ') }}.
+      Enroll this host with ./zebrunner.sh join (README.md#node-enrollment), it sets them; or set them in
+      roles/mac-devices/vars/main.yml by hand, in quotes: STF_STORAGE_TOKEN, NODE_REGISTRATION_TOKEN and
+      STF_ZMQ_CURVE_SERVER_PUBLIC_KEY are the ones of variables.env of mcloud, STF_ZMQ_CURVE_SECRET_KEY the key of ./zebrunner.sh curve-key
+      (README.md#connect-to-mcloud); MCLOUD_NODE_TOKEN is the token of ./zebrunner.sh join. ./zebrunner.sh doctor
+      checks the settings.
     success_msg: "The obligatory settings of the MCloud server are set."
   tags: [devices, precheck, validate]
 
@@ -220,8 +229,9 @@
   ansible.builtin.template:
     src: zebrunner-farm
     dest: /usr/local/bin/zebrunner-farm
-    mode: "0755"
-    owner: root
+    # it has the secrets of the settings: the user (launchd runs it as the user) only
+    mode: "0700"
+    owner: "{{ lookup('env', 'USER') }}"
     group: wheel
   tags: [devices, files]
 

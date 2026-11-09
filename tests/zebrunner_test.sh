@@ -47,7 +47,7 @@ exports() {
 section "help"
 output="$(zbr "")"
 check_contains "help shows the usage" "Usage: ./zebrunner.sh [option]" "$output"
-for command in setup ansible status backup restore shutdown version curve-key doctor; do
+for command in setup ansible status backup restore shutdown version curve-key doctor join; do
   check_contains "help lists ${command}" "         ${command} " "$output"
 done
 
@@ -60,11 +60,13 @@ check "the agent dir is added to .bash_profile" "1" "$(exports .bash_profile)"
 check "Linux settings are created from the example" "same" \
   "$(cmp -s "${AGENT}/roles/devices/vars/main.yml" "${AGENT}/roles/devices/vars/main.yml.original" && echo same)"
 check_contains "the reload of the shell is suggested" "To apply the changes" "$output"
-check_contains "the settings of the server are the next step" "2. Set the settings of the MCloud server in 'roles/devices/vars/main.yml'" "$output"
-check_contains "the address of the host is a step" "3. Set STF_PROVIDER_HOST" "$output"
-check_contains "the key of the host is a step" "4. Make the key of this host: ./zebrunner.sh curve-key" "$output"
-check_contains "the doctor is a step" "6. Check the settings and the network to the MCloud server: ./zebrunner.sh doctor" "$output"
-check_contains "the deploy is a step" "7. Deploy the agent: ./zebrunner.sh ansible" "$output"
+check_contains "the enrollment is the next step" "2. Enroll this host (README.md#node-enrollment)" "$output"
+check_contains "the join command is explained" "run ./zebrunner.sh join here and paste the join string" "$output"
+check_contains "the manual settings are the alternative" "3. Without the enrollment set the settings of the MCloud server in 'roles/devices/vars/main.yml'" "$output"
+check_contains "the address of the host is a step" "4. Set STF_PROVIDER_HOST" "$output"
+check_contains "the key of the host is a step" "5. Make the key of this host: ./zebrunner.sh curve-key" "$output"
+check_contains "the doctor is a step" "7. Check the settings and the network to the MCloud server: ./zebrunner.sh doctor" "$output"
+check_contains "the deploy is a step" "8. Deploy the agent: ./zebrunner.sh ansible" "$output"
 output="$(OS=Linux zbr "" setup)"
 check "a second setup does not duplicate the variable" "1" "$(exports .bashrc)"
 check_contains "a second setup backs up existing settings" "making a backup" "$output"
@@ -377,6 +379,116 @@ mv "${WORK}/docker" "${WORK}/bin/docker"
 mv "${WORK}/netcheck.py" "${AGENT}/patch/netcheck.py"
 mv "${WORK}/vars.doctor" "$vars"
 rm -f "${WORK}/bin/curl"
+
+section "join"
+# a fake MCloud: curl records its arguments and its stdin (the body), answers ${WORK}/enroll/answer with the HTTP code of
+# ${WORK}/enroll/code and exits with ${WORK}/enroll/exit
+mkdir -p "${WORK}/enroll"
+# the stub body is expanded when the stub runs
+# shellcheck disable=SC2016
+stub curl '(IFS="|"; echo "curl|$*") >> "${STUB_DIR}/calls.log"
+cat > "${STUB_DIR}/enroll/body"
+exit_code="$(cat "${STUB_DIR}/enroll/exit" 2> /dev/null)"
+[[ "${exit_code:-0}" == "0" ]] || { echo "curl: (${exit_code}) failed" >&2; exit "$exit_code"; }
+printf "%s\n%s" "$(cat "${STUB_DIR}/enroll/answer")" "$(cat "${STUB_DIR}/enroll/code")"'
+vars="${AGENT}/roles/devices/vars/main.yml"
+cp "$vars" "${WORK}/vars.before-join"
+cp "${AGENT}/roles/devices/vars/main.yml.original" "$vars"
+sed -i.bak -e 's/^NODE_REGISTRATION_TOKEN:.*/NODE_REGISTRATION_TOKEN: "shared-grid-secret"/' \
+  -e 's/^STF_STORAGE_TOKEN:.*/STF_STORAGE_TOKEN: "shared-storage-secret"/' "$vars" && rm -f "${vars}.bak"
+pin="$(printf '%043d' 0 | tr 0 Q)="
+invite="mci1.$(printf '%043d' 0 | tr 0 i)"
+node_token="mcn1.build-ua.$(printf '%043d' 0 | tr 0 n)"
+join_string="mcloud-join://192.168.50.2:443?label=build-ua&grid=192.168.50.2:4446&pin=${pin//=/%3D}&token=${invite}"
+server_key="$(printf '%064d' 0 | tr 0 c)"
+# answer <token> <address>: the answer of the enrollment
+answer() {
+  printf '{"nodeToken":"%s","label":"build-ua","address":"%s","serverPublicKey":"%s","stfUrl":"https://demo.zebrunner.farm",' "$1" "$2" "$server_key"
+  printf '"endpoints":{"sub":"tcp://stf-triproxy-dev:7250","push":"tcp://stf-triproxy-dev:7270","appDealer":"tcp://stf-triproxy-app:7160","devDealer":"tcp://stf-triproxy-dev:7260"}}'
+}
+answer "$node_token" 192.168.30.2 > "${WORK}/enroll/answer"
+echo 200 > "${WORK}/enroll/code"
+echo 0 > "${WORK}/enroll/exit"
+reset_calls
+output="$(OS=Linux zbr "${join_string}\n" join)"
+check "join enrolls the host" "0" "$?"
+check_contains "join reports the label and the address" "enrolled in MCloud 192.168.50.2 as build-ua, its address is 192.168.30.2" "$output"
+check_contains "the enrollment goes to MCloud over HTTPS with the pinned key only" \
+  "--pinnedpubkey|sha256//${pin}|" "$(calls curl)"
+check_contains "the enrollment URL" "https://192.168.50.2:443/api/v1/nodes/enroll" "$(calls curl)"
+check_not_contains "the invite is not in the arguments of curl" "$invite" "$(calls curl)"
+body="$(cat "${WORK}/enroll/body")"
+check_contains "the body has the invite" "\"invite\": \"${invite}\"" "$body"
+check_contains "the body has the label" "\"label\": \"build-ua\"" "$body"
+secret="$(sed -n 's/^STF_ZMQ_CURVE_SECRET_KEY: "\(.*\)"$/\1/p' "$vars")"
+check "join makes the CURVE key of the host" "64" "${#secret}"
+check_contains "the body has the public key of the host" "\"publicKey\": \"$(python3 "${REPO}/patch/curve_keygen.py" "$secret" | sed -n 's/^public=//p')\"" "$body"
+check_not_contains "the secret key is not sent" "$secret" "$body"
+for line in "MCLOUD_NODE_TOKEN: \"${node_token}\"" "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY: \"${server_key}\"" \
+  'PUBLIC_IP: "demo.zebrunner.farm"' 'PUBLIC_IP_PORT: "443"' 'PUBLIC_IP_PROTOCOL: "https"' \
+  'STF_PROVIDER_CONNECT_SUB: "tcp://192.168.50.2:7250"' 'STF_PROVIDER_CONNECT_DEV_DEALER: "tcp://192.168.50.2:7260"' \
+  'SELENIUM_HUB_HOST: "192.168.50.2"' 'SELENIUM_HUB_PORT: "4446"' 'STF_PROVIDER_HOST: "192.168.30.2"' \
+  'NODE_REGISTRATION_TOKEN:' 'STF_STORAGE_TOKEN:'; do
+  check "join writes ${line%%:*}" "1" "$(grep -cxF -- "$line" "$vars")"
+done
+check_not_contains "the shared tokens are removed" "shared-" "$(cat "$vars")"
+check "the settings are private" "600" "$(stat -c '%a' "$vars" 2> /dev/null || stat -f '%Lp' "$vars")"
+backup="$(find "$(dirname "$vars")" -name 'main.yml.bak-join-*' | head -1)"
+check "the previous settings are kept, private too" "600" "$(stat -c '%a' "$backup" 2> /dev/null || stat -f '%Lp' "$backup")"
+check_not_contains "the token is not printed" "$node_token" "$output"
+check_not_contains "the invite is not printed" "$invite" "$output"
+check_contains "the next steps are printed" "./zebrunner.sh ansible deploys them" "$output"
+rm -f "${vars}".bak-join-*
+
+cp "$vars" "${WORK}/vars.joined"
+check_contains "a wrong join string fails" "not a join string of ./zebrunner.sh node-invite" "$(OS=Linux zbr "https://example.com\n" join)"
+check_contains "a join string without the pin fails" "the pin of the join string is not a sha256 in base64" \
+  "$(OS=Linux zbr "${join_string/pin=/pinx=}\n" join)"
+echo 90 > "${WORK}/enroll/exit"
+check_contains "another TLS key of the server stops the enrollment" "the TLS key of the server is not the pinned one" \
+  "$(OS=Linux zbr "${join_string}\n" join)"
+echo 0 > "${WORK}/enroll/exit"
+echo 403 > "${WORK}/enroll/code"
+check_contains "a refused invite is explained" "MCloud refused the enrollment (HTTP 403)" "$(OS=Linux zbr "${join_string}\n" join)"
+echo 200 > "${WORK}/enroll/code"
+answer "mcn1.other-host.$(printf '%043d' 0 | tr 0 n)" 192.168.30.2 > "${WORK}/enroll/answer"
+check_contains "a token of another label is refused" "MCloud answered no valid token of this label" "$(OS=Linux zbr "${join_string}\n" join)"
+answer "$node_token" '192.168.30.2\nMCLOUD_NODE_TOKEN: x' > "${WORK}/enroll/answer"
+output="$(OS=Linux zbr "${join_string}\n" join)"
+check_contains "an answer cannot inject settings" "the address of this host is not a host name or address" "$output"
+check "a failed enrollment changes no setting" "same" "$(cmp -s "$vars" "${WORK}/vars.joined" && echo same)"
+rm -f "${vars}".bak-join-* "${WORK}/bin/curl"
+
+section "doctor of an enrolled host"
+# the settings of the join above, a working network of the fake netcheck.py
+cp "${WORK}/vars.joined" "$vars"
+cp "${AGENT}/patch/netcheck.py" "${WORK}/netcheck.py"
+printf '%s\n' 'import sys' 'sys.exit(0 if sys.argv[1] != "local" else 1)' > "${AGENT}/patch/netcheck.py"
+# the stub body is expanded when the stub runs
+# shellcheck disable=SC2016
+stub curl 'echo 401'
+cp "${WORK}/bin/docker" "${WORK}/docker"
+# the stub body is expanded when the stub runs
+# shellcheck disable=SC2016
+stub docker '[[ "$1" == "inspect" ]] && exit 1
+exit 0'
+output="$(doctor_run)"
+check_contains "an enrolled host is reported" "this host is enrolled in MCloud as build-ua" "$output"
+check_not_contains "the token is not printed by doctor" "$node_token" "$output"
+check_not_contains "no warning about the shared tokens after join" "the shared tokens of the manual setup are still" "$output"
+check_not_contains "the shared tokens are not obligatory with the token" "NODE_REGISTRATION_TOKEN STF" "$output"
+sed -i.bak 's/^NODE_REGISTRATION_TOKEN:.*/NODE_REGISTRATION_TOKEN: "shared-grid-secret"/' "$vars" && rm -f "${vars}.bak"
+check_contains "the shared tokens left are reported" "the shared tokens of the manual setup are still in the settings" "$(doctor_run)"
+sed -i.bak 's/^MCLOUD_NODE_TOKEN:.*/MCLOUD_NODE_TOKEN: "mcn1.x"/' "$vars" && rm -f "${vars}.bak"
+check_contains "an invalid token is a problem" "MCLOUD_NODE_TOKEN is not a token of ./zebrunner.sh join" "$(doctor_run)"
+chmod 644 "$vars"
+check_contains "readable settings are reported" "have secrets and are readable by other users (mode 644)" "$(doctor_run)"
+sed -i.bak 's/^MCLOUD_NODE_TOKEN:.*/MCLOUD_NODE_TOKEN:/' "$vars" && rm -f "${vars}.bak"
+check_contains "a host without the token is not enrolled" "this host is not enrolled" "$(doctor_run)"
+mv "${WORK}/docker" "${WORK}/bin/docker"
+mv "${WORK}/netcheck.py" "${AGENT}/patch/netcheck.py"
+rm -f "${WORK}/bin/curl"
+mv "${WORK}/vars.before-join" "$vars"
 
 section "backup and restore"
 zbr "n\n" backup > /dev/null

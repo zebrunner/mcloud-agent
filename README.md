@@ -60,11 +60,31 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
   ./zebrunner.sh setup
   ```
 
-- The setup ends with the numbered next steps: the settings of the MCloud server, `STF_PROVIDER_HOST` (it lists the addresses of this host), the CURVE key, the devices, `./zebrunner.sh doctor`, `./zebrunner.sh ansible` and `zebrunner-farm start`.
+- The setup ends with the numbered next steps: the enrollment of this host (or the settings of the MCloud server by hand, `STF_PROVIDER_HOST`, the CURVE key), the devices, `./zebrunner.sh doctor`, `./zebrunner.sh ansible` and `zebrunner-farm start`.
+
+## Node enrollment
+
+An MCloud server with the node enrollment ([mcloud](https://github.com/zebrunner/mcloud#readme)) gives every device host its own token and lets it in by itself, no secret of the server is copied by hand:
+
+1. On the MCloud server the administrator invites the host: `./zebrunner.sh node-invite <label> <address>`, the label is the name of the host (`a-z`, `0-9`, `-`), the address is the one the MCloud server connects to (its `STF_PROVIDER_HOST`). It prints a join string, valid once and for a limited time.
+2. On this host `./zebrunner.sh join` asks for the join string (hidden; or on stdin: never in the command line, where it stays in the shell history) and enrolls the host:
+   - it makes the CURVE key of the host if there is none and sends its public key, never the secret one;
+   - it talks to MCloud over HTTPS and trusts only the server whose TLS key is the pinned one of the join string (a self-signed certificate is fine, another key stops the enrollment);
+   - it writes the answer into `roles/.../vars/main.yml` (mode 600, the previous settings are kept in `main.yml.bak-join-<time>`): `MCLOUD_NODE_TOKEN` (the token of this host), `STF_ZMQ_CURVE_SERVER_PUBLIC_KEY`, `PUBLIC_IP*`, `STF_PROVIDER_CONNECT_*`, `SELENIUM_HUB_*` and `STF_PROVIDER_HOST`, and empties the shared `NODE_REGISTRATION_TOKEN` and `STF_STORAGE_TOKEN`.
+3. `./zebrunner.sh doctor`, `./zebrunner.sh ansible` and `zebrunner-farm restart`: the containers use the token of the host for the grid, the storage and the proof of its devices (`STF_NODE_TOKEN`).
+
+Security:
+
+- the token is of this host only: MCloud keeps its hash, binds it to the address of the host and to its devices, and revokes it alone (`./zebrunner.sh nodes revoke <label>` of mcloud);
+- `roles/.../vars/main.yml` and the deployed `zebrunner-farm` have the secrets of the host: the settings are mode 600, `zebrunner-farm` is readable by root and the user of the deploy only (Linux: mode 750, the group of the user; macOS: mode 700); the users of the `docker` group can read the variables of the containers anyway, they are root on the host;
+- a new join string (`node-invite` of the same label) replaces the token and the key of the host: run `./zebrunner.sh join` again to rotate them;
+- `./zebrunner.sh doctor` reports the enrollment, the shared tokens left in the settings and the settings readable by other users.
+
+Without the node enrollment set the settings by hand, see [Connect to MCloud](#connect-to-mcloud).
 
 ## Connect to MCloud
 
-Set the settings of the MCloud server in `roles/devices/vars/main.yml` (Linux) or `roles/mac-devices/vars/main.yml` (macOS), which `./zebrunner.sh setup` made; the secrets in quotes. `STF_STORAGE_TOKEN`, `NODE_REGISTRATION_TOKEN`, `STF_ZMQ_CURVE_SERVER_PUBLIC_KEY` and `STF_ZMQ_CURVE_SECRET_KEY` are obligatory: the prechecks of `./zebrunner.sh ansible` fail without them.
+The manual setup, without the [node enrollment](#node-enrollment): set the settings of the MCloud server in `roles/devices/vars/main.yml` (Linux) or `roles/mac-devices/vars/main.yml` (macOS), which `./zebrunner.sh setup` made; the secrets in quotes. `STF_STORAGE_TOKEN`, `NODE_REGISTRATION_TOKEN`, `STF_ZMQ_CURVE_SERVER_PUBLIC_KEY` and `STF_ZMQ_CURVE_SECRET_KEY` are obligatory: the prechecks of `./zebrunner.sh ansible` fail without them.
 
 | Setting | Value |
 | --- | --- |
@@ -173,6 +193,7 @@ Set the settings of the MCloud server in `roles/devices/vars/main.yml` (Linux) o
 - `version` - shows the versions of the agent components.
 - `curve-key` - makes the CURVE key of this host for the ZeroMQ security of STF (`STF_ZMQ_CURVE_SECRET_KEY` of `roles/.../vars/main.yml`, kept when it is set) and prints its public key, see [ZeroMQ security](#zeromq-security).
 - `doctor` - checks the host, the settings, the deployment, the network to the MCloud server and the devices, and tells what to fix, see [Doctor](#doctor).
+- `join` - enrolls this host in MCloud with the join string of `./zebrunner.sh node-invite` of mcloud, see [Node enrollment](#node-enrollment).
 
 ### ZeroMQ security
 

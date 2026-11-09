@@ -317,8 +317,24 @@ for role in devices mac-devices; do
   check_contains "${role}: iOS appium gets the registration token" "|NODE_REGISTRATION_TOKEN=grid-token|" \
     "$(run_args device-AppleTV-aaaa1111-appium)"
 
+  # the token of the node enrollment replaces the shared tokens
+  node_token="mcn1.build-ua.$(printf '%043d' 0 | tr 0 n)"
+  render_farm "$role" "${WORK}/zebrunner-farm-${role}" --extra-vars "NODE_REGISTRATION_TOKEN=grid-token MCLOUD_NODE_TOKEN=${node_token}" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
+  setup_case
+  farm "$role" start WiFi > /dev/null
+  check_contains "${role}: appium registers with the token of the host" "|NODE_REGISTRATION_TOKEN=${node_token}|" \
+    "$(run_args device-WiFi-192.168.1.50-appium)"
+  stf="$(run_args device-WiFi-192.168.1.50-stf)"
+  check_contains "${role}: STF uses the token of the host for the storage" "|STF_STORAGE_TOKEN=${node_token}|" "$stf"
+  check_contains "${role}: STF proves the devices with the token of the host" "|STF_NODE_TOKEN=${node_token}|" "$stf"
+  check_not_contains "${role}: no shared token with the token of the host" "grid-token" "$(calls docker)"
+
   render_farm "$role" "${WORK}/zebrunner-farm-${role}" || exit 1
   sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
+  setup_case
+  farm "$role" start WiFi > /dev/null
+  check_contains "${role}: no token of the host without the enrollment" "|STF_NODE_TOKEN=|" "$(run_args device-WiFi-192.168.1.50-stf)"
 done
 
 section "macOS device listener"

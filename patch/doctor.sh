@@ -140,9 +140,18 @@ doctor_settings() {
   local name
   local value
   local missing=()
-  for name in PUBLIC_IP PUBLIC_IP_PORT PUBLIC_IP_PROTOCOL STF_PROVIDER_HOST STF_PROVIDER_CONNECT_SUB STF_PROVIDER_CONNECT_PUSH \
-    SELENIUM_HUB_HOST SELENIUM_HUB_PORT STF_STORAGE_TOKEN NODE_REGISTRATION_TOKEN STF_ZMQ_CURVE_SERVER_PUBLIC_KEY \
-    STF_ZMQ_CURVE_SECRET_KEY; do
+  local node_token
+  node_token="$(setting MCLOUD_NODE_TOKEN)"
+  local obligatory="PUBLIC_IP PUBLIC_IP_PORT PUBLIC_IP_PROTOCOL STF_PROVIDER_HOST STF_PROVIDER_CONNECT_SUB
+    STF_PROVIDER_CONNECT_PUSH SELENIUM_HUB_HOST SELENIUM_HUB_PORT"
+  # the shared tokens of the manual setup, MCLOUD_NODE_TOKEN of ./zebrunner.sh join replaces them
+  if [[ -z "$node_token" ]]; then
+    obligatory="${obligatory} STF_STORAGE_TOKEN NODE_REGISTRATION_TOKEN"
+  fi
+  obligatory="${obligatory} STF_ZMQ_CURVE_SERVER_PUBLIC_KEY STF_ZMQ_CURVE_SECRET_KEY"
+  # the names are words
+  # shellcheck disable=SC2086
+  for name in $obligatory; do
     [[ -n "$(setting "$name")" ]] || missing+=("$name")
   done
   if [[ "$(count_values "${missing[@]}")" -gt 0 ]]; then
@@ -150,6 +159,8 @@ doctor_settings() {
   else
     doctor_ok "the obligatory settings are set"
   fi
+  doctor_enrollment "$node_token"
+  doctor_private "$DOCTOR_VARS" "the settings" "chmod 600 ${DOCTOR_VARS}"
   value="$(setting STF_PROVIDER_HOST)"
   if [[ "$value" == "linux-agent.zebrunner.farm" || "$value" == "macos-agent.zebrunner.farm" ]]; then
     doctor_fail "STF_PROVIDER_HOST is the example ${value}" "the address of this host the MCloud server reaches (README.md#connect-to-mcloud)"
@@ -171,6 +182,49 @@ doctor_settings() {
   fi
 }
 
+# doctor_enrollment <MCLOUD_NODE_TOKEN>: the token of the node enrollment of this host, or the shared tokens of the
+# manual setup (README.md#node-enrollment)
+doctor_enrollment() {
+  local token="$1"
+  if [[ -z "$token" ]]; then
+    doctor_info "this host is not enrolled: it uses the shared tokens of the manual setup; with the node enrollment of MCloud run ./zebrunner.sh join (README.md#node-enrollment)"
+  elif [[ ! "$token" =~ ^mcn1\.([a-z0-9][a-z0-9-]{0,39})\.[A-Za-z0-9_-]{43}$ ]]; then
+    doctor_fail "MCLOUD_NODE_TOKEN is not a token of ./zebrunner.sh join" "./zebrunner.sh join with a new join string of ./zebrunner.sh node-invite of mcloud"
+  else
+    doctor_ok "this host is enrolled in MCloud as ${BASH_REMATCH[1]}"
+    if [[ -n "$(setting NODE_REGISTRATION_TOKEN)$(setting STF_STORAGE_TOKEN)" ]]; then
+      doctor_warn "the shared tokens of the manual setup are still in the settings (NODE_REGISTRATION_TOKEN, STF_STORAGE_TOKEN): MCLOUD_NODE_TOKEN replaces them" \
+        "empty them in ${DOCTOR_VARS}"
+    fi
+  fi
+}
+
+# file_mode <file>: the permissions of the file in octal (e.g. 600)
+file_mode() {
+  stat -c '%a' "$1" 2> /dev/null || stat -f '%Lp' "$1" 2> /dev/null
+}
+
+# doctor_private <file> <description> <fix>: the file with secrets is not readable by the group and the others
+doctor_private() {
+  local mode
+  mode="$(file_mode "$1")"
+  [[ -n "$mode" ]] || return 0
+  if [[ "${mode: -2}" != "00" ]]; then
+    doctor_warn "${2} (${1}) have secrets and are readable by other users (mode ${mode})" "$3"
+  fi
+}
+
+# effective_setting <name>: the value a setting has in the containers: MCLOUD_NODE_TOKEN replaces the shared tokens
+effective_setting() {
+  local token
+  token="$(setting MCLOUD_NODE_TOKEN)"
+  if [[ -n "$token" && ("$1" == "NODE_REGISTRATION_TOKEN" || "$1" == "STF_STORAGE_TOKEN") ]]; then
+    echo "$token"
+  else
+    setting "$1"
+  fi
+}
+
 # doctor_deployment: zebrunner-farm and the containers made with the current settings
 doctor_deployment() {
   doctor_section "Deployment"
@@ -189,9 +243,14 @@ doctor_deployment() {
     STF_STORAGE_TOKEN=STF_STORAGE_TOKEN STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=STF_ZMQ_CURVE_SERVER_PUBLIC_KEY \
     STF_ZMQ_CURVE_SECRET_KEY=STF_ZMQ_CURVE_SECRET_KEY REMOTE_CONNECT_HOST=REMOTE_CONNECT_HOST; do
     env_name="${pair%%=*}"
-    value="$(setting "${pair#*=}")"
+    value="$(effective_setting "${pair#*=}")"
     grep -qF -- "${env_name}=\"${value}\"" "$DOCTOR_FARM" || changed+=("${pair#*=}")
   done
+  local mode
+  mode="$(file_mode "$DOCTOR_FARM")"
+  if [[ -n "$mode" && "${mode: -1}" != "0" ]]; then
+    doctor_warn "zebrunner-farm has the secrets of the settings and is readable by every user (mode ${mode})" "./zebrunner.sh ansible deploys it readable by this user only"
+  fi
   if [[ "$(count_values "${changed[@]}")" -gt 0 ]]; then
     doctor_warn "zebrunner-farm is deployed with other values of ${changed[*]}" \
       "./zebrunner.sh ansible, then zebrunner-farm restart recreates the containers with them"
