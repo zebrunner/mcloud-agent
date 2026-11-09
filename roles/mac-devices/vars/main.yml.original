@@ -85,7 +85,10 @@ WDA_BUNDLEID:
 #   name: device name as it will be registered in STF (avoid special symbols and spaces!)
 #   location: clarified device location for ease of device management (an underscore will be added automatically before the value)
 #   appium_port: unique port value for sharing appium services from the container to outside selenium hub
-#   adb_port: unique connect port value (old adb_port name is used from Android implementation)
+#   adb_port: USB Android: the port of the host forwarded to the device, unique on the host (see connection)
+#   connect_port: [optional] Android: the remote debug port of STF (adb connect), the second port of min_port-max_port
+#     by default; out of the range it is published too. Unique on the host, and among the hosts for the adb relay of
+#     mcloud (README.md#device-hosts-in-a-private-network)
 #   min_port and max_port: unique range of 7 ports per device for system STF purposes.
 #     The MCloud server reaches them on STF_PROVIDER_HOST (the screens through stf-proxy); adb connect of the remote
 #     debug reaches them directly or through the adb relay of mcloud (REMOTE_CONNECT_HOST, ADB_RELAY_HOSTS).
@@ -106,7 +109,6 @@ WDA_BUNDLEID:
 #   address, wda_port and mjpeg_port: [optional] see connection
 #   wda_file and wda_bundleid: [optional] device specific overrides of WDA_FILE and WDA_BUNDLEID
 
-# TODO: convert adb_port to connect_port to support iOS as well
 devices:
   - id: d6afc6b3a65584ca0813eb8957c6479b9b6ebb11
     os: ios

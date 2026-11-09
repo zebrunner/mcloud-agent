@@ -100,13 +100,14 @@
     that:
       - item.id is defined and item.name is defined
       - item.os is defined and item.os in ['android', 'ios']
-      - item.appium_port is defined and item.adb_port is defined and item.min_port is defined and item.max_port is defined
+      - item.appium_port is defined and item.min_port is defined and item.max_port is defined
       - 0 < (item.appium_port | int) < 65536
       - 0 < (item.min_port | int) <= (item.max_port | int) < 65536
+      - item.connect_port is not defined or (item.os == 'android' and 1023 < (item.connect_port | int) < 65536)
     fail_msg: >-
       Invalid settings of device '{{ item.name | default(item.id) | default('?') }}':
-      id, name, os (android or ios), appium_port, adb_port, min_port and max_port are obligatory,
-      ports are 1-65535 and min_port is not greater than max_port.
+      id, name, os (android or ios), appium_port, min_port and max_port are obligatory,
+      ports are 1-65535 and min_port is not greater than max_port; connect_port is of an Android device only, 1024-65535.
     success_msg: "Device '{{ item.name | default(item.id) | default('?') }}' settings are valid."
     quiet: true
   loop: "{{ devices }}"
@@ -136,10 +137,14 @@
     label: "{{ item.name }}"
   tags: [devices, precheck, validate]
 
-# appium_port and the min_port-max_port range are published on the host, other ports stay in the containers
+# appium_port, the min_port-max_port range and a connect_port out of it are published on the host, other ports stay in
+# the containers
 - name: Collect host ports published by each device
+  vars:
+    devices_range: "{{ range(item.min_port | int, (item.max_port | int) + 1) | list }}"
+    devices_connect: "{{ [item.connect_port | int] if (item.connect_port is defined and (item.connect_port | int) not in devices_range) else [] }}"
   ansible.builtin.set_fact:
-    devices_ports: "{{ (devices_ports | default([])) + [[item.appium_port | int] + range(item.min_port | int, (item.max_port | int) + 1) | list] }}"
+    devices_ports: "{{ (devices_ports | default([])) + [[item.appium_port | int] + devices_range + devices_connect] }}"
   loop: "{{ devices }}"
   loop_control:
     label: "{{ item.name }}"
@@ -149,12 +154,13 @@
   vars:
     other_ports: "{{ (devices_ports[:idx] + devices_ports[idx + 1 :]) | flatten }}"
     own_range: "{{ range(item.min_port | int, (item.max_port | int) + 1) | list }}"
-    shared_ports: "{{ devices_ports[idx] | intersect(other_ports) | union([item.appium_port | int] | intersect(own_range)) }}"
+    own_connect: "{{ [item.connect_port | int] if item.connect_port is defined else [] }}"
+    shared_ports: "{{ devices_ports[idx] | intersect(other_ports) | union([item.appium_port | int] | intersect(own_range + own_connect)) }}"
   ansible.builtin.assert:
     that: shared_ports | length == 0
     fail_msg: >-
       Host ports {{ shared_ports }} of device '{{ item.name }}' are used by another device
-      or by both its appium_port and min_port-max_port range.
+      or by both its appium_port and min_port-max_port range or connect_port.
     success_msg: "Host ports of device '{{ item.name }}' are not shared."
     quiet: true
   loop: "{{ devices }}"

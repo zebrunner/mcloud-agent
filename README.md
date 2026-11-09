@@ -93,7 +93,7 @@ Set the settings of the MCloud server in `roles/devices/vars/main.yml` (Linux) o
 
 - update `roles/devices/vars/main.yml` file according to the obligatory/optional comments inside.
   > Register all whitelisted Android and iOS devices with their udids!
-  > The deploy validates the devices: obligatory settings, unique ids and names, and host ports (`appium_port`, `min_port`-`max_port`) not shared by devices.
+  > The deploy validates the devices: obligatory settings, unique ids and names, and host ports (`appium_port`, `min_port`-`max_port`, `connect_port`) not shared by devices. `adb_port` is not used on Linux; `connect_port` (optional, Android) is the remote debug port of STF.
 - Run ansible-playbook script to download the required components (the connector of the platforms of the registered devices only) and set up udev rules:
 
   ```bash
@@ -130,7 +130,7 @@ Set the settings of the MCloud server in `roles/devices/vars/main.yml` (Linux) o
 
 - update `roles/mac-devices/vars/main.yml` file according to the obligatory/optional comments inside.
   > Register all whitelisted Android and iOS devices (phones, tablets, TVs or simulators) with their udids and connections!
-  > The deploy validates the devices: obligatory settings, unique ids and names, the connections, host ports (`appium_port`, `min_port`-`max_port`, `wda_port` and `mjpeg_port` of the iOS simulators, `adb_port` of the USB Android devices) not shared by devices.
+  > The deploy validates the devices: obligatory settings, unique ids and names, the connections, host ports (`appium_port`, `min_port`-`max_port`, `connect_port`, `wda_port` and `mjpeg_port` of the iOS simulators, `adb_port` of the USB Android devices) not shared by devices.
 - Run ansible-playbook script to download the required components (the connector of the platforms of the registered devices only) and set up launchd agents:
 
   ```bash
@@ -192,7 +192,7 @@ The removal of the variable of a host (or of its key from `STF_ZMQ_CURVE_CLIENT_
 - the settings of `roles/.../vars/main.yml`: the obligatory ones, the format of the CURVE keys, the example `STF_PROVIDER_HOST`, the devices; it prints the line of the public key of this host for `variables.env` of mcloud;
 - the deployment: `zebrunner-farm` rendered with the current settings (otherwise `./zebrunner.sh ansible`), the containers created with the current `STF_PROVIDER_HOST` (otherwise `zebrunner-farm restart`);
 - the network: the name resolution and the ports of `PUBLIC_IP`, mcloud-grid and the ZeroMQ triproxies; `STF_PROVIDER_HOST` is an address of this host, or a public address of a NAT while the MCloud server is in the network of this host (see [Device hosts in a private network](#device-hosts-in-a-private-network)), and stf-proxy of mcloud serves its screens (`AGENT_HOSTS`);
-- the remote debug: with `REMOTE_CONNECT_HOST` the adb relay of mcloud accepts the remote debug ports of the Android devices (`ADB_RELAY_HOSTS`, printed);
+- the remote debug: with `REMOTE_CONNECT_HOST` the adb relay of mcloud accepts the remote debug ports of the Android devices (printed);
 - the devices: their containers, the refused grid registrations of Appium and the refused CURVE key in the logs of the last 30 minutes.
 
 It exits with `1` when a check fails.
@@ -204,8 +204,8 @@ Many device hosts without public addresses can work with one MCloud server of th
 - `STF_PROVIDER_HOST` of every device host is its address in the network (or a name of it there), all of them are in `AGENT_HOSTS` of `.env` of mcloud.
 - `PUBLIC_IP` stays the name the users open MCloud with; the device host resolves it to the address of the server in the network (e.g. a line in `/etc/hosts`, the containers resolve the names through the resolver of the host), or the settings use that address (`STF_PROVIDER_CONNECT_*`, `SELENIUM_HUB_HOST`).
 - A public address of the router as `STF_PROVIDER_HOST` fails inside the network when the router has no NAT hairpin: mcloud-grid refuses the nodes (Appium logs the registration `500`, mcloud-grid `Node http://... is not reachable from the hub`) and the screens stay gray. `./zebrunner.sh doctor` finds it and prints the address to use.
-- The remote debug of STF (`adb connect <host>:<port>`, a port of `min_port`-`max_port` of the device) goes through the adb relay of mcloud: set `REMOTE_CONNECT_HOST` to the public name of MCloud, add the remote debug port of every Android device, `<STF_PROVIDER_HOST>:<min_port + 1>` (`min_port` is the screen, which the relay must not expose), to `ADB_RELAY_HOSTS` of `.env` of mcloud and open the ports in its firewall, see [mcloud](https://github.com/zebrunner/mcloud#readme). Without the relay only the users of the network reach `adb connect <STF_PROVIDER_HOST>:<port>`.
-- `./zebrunner.sh doctor` checks the relay on the remote debug port of the first deployed Android device and prints the `ADB_RELAY_HOSTS` entries of this host. The remote debug is of the Android devices only.
+- The remote debug of STF (`adb connect <host>:<port>`) of an Android device uses its remote debug port: `connect_port` of the device, the second port of `min_port`-`max_port` without it (the first one is the screen, which is never relayed). It goes through the adb relay of mcloud: set `REMOTE_CONNECT_HOST` to the public name of MCloud and turn on `ADB_RELAY=true` in `.env` of mcloud, the relay takes the remote debug ports of the devices of `AGENT_HOSTS` from STF; `ADB_RELAY_PORTS` of mcloud limits them to the range opened in its firewall, so keep the `connect_port` of all the device hosts in one range, unique among the hosts (see [mcloud](https://github.com/zebrunner/mcloud#readme), the manual list `ADB_RELAY_HOSTS` is an alternative). Without the relay only the users of the network reach `adb connect <STF_PROVIDER_HOST>:<port>`.
+- `./zebrunner.sh doctor` checks the relay on the remote debug port of the first deployed Android device and prints the remote debug ports of this host. The remote debug is of the Android devices only.
 
 ### Grid registration
 

@@ -99,6 +99,12 @@ for role in devices mac-devices; do
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 7421, "adb_port": 2, "min_port": 7425, "max_port": 7430}, {"id": "b", "name": "B", "os": "ios", "appium_port": 7441, "adb_port": 2, "min_port": 7430, "max_port": 7440}]=Host ports [7430] of device 'B'
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 7426, "adb_port": 2, "min_port": 7425, "max_port": 7430}]=Host ports [7426] of device 'A'
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 7421, "adb_port": 7422, "min_port": 7425, "max_port": 7430}, {"id": "b", "name": "B", "os": "android", "appium_port": 7431, "adb_port": 7422, "min_port": 7432, "max_port": 7440}]=failed=0
+[{"id": "a", "name": "A", "os": "android", "appium_port": 7421, "min_port": 7425, "max_port": 7430, "connect_port": 7426, "connection": "wireless"}]=failed=0
+[{"id": "a", "name": "A", "os": "android", "appium_port": 7421, "min_port": 7425, "max_port": 7430, "connect_port": 7499, "connection": "wireless"}]=failed=0
+[{"id": "a", "name": "A", "os": "ios", "appium_port": 7421, "min_port": 7425, "max_port": 7430, "connect_port": 7499}]=Invalid settings of device 'A'
+[{"id": "a", "name": "A", "os": "android", "appium_port": 7421, "min_port": 7425, "max_port": 7430, "connect_port": 80, "connection": "wireless"}]=Invalid settings of device 'A'
+[{"id": "a", "name": "A", "os": "android", "appium_port": 7421, "min_port": 7425, "max_port": 7430, "connect_port": 7421, "connection": "wireless"}]=Host ports [7421] of device 'A'
+[{"id": "a", "name": "A", "os": "android", "appium_port": 7421, "min_port": 7425, "max_port": 7430, "connect_port": 7499, "connection": "wireless"}, {"id": "b", "name": "B", "os": "android", "appium_port": 7431, "min_port": 7495, "max_port": 7500, "connection": "wireless"}]=Host ports [7499] of device 'B'
 EOF
 done
 while IFS='=' read -r devices expected; do
@@ -117,6 +123,8 @@ done << 'EOF'
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 8110, "adb_port": 2, "min_port": 3, "max_port": 4}, {"id": "b", "name": "B", "os": "ios", "appium_port": 5, "adb_port": 6, "min_port": 7, "max_port": 8, "connection": "ios-sim", "wda_port": 8110}]=The host ports [8110, 8111] of the iOS simulators
 [{"id": "a", "name": "A", "os": "android", "appium_port": 1, "adb_port": 7422, "min_port": 3, "max_port": 4}, {"id": "b", "name": "B", "os": "android", "appium_port": 5, "adb_port": 7422, "min_port": 7, "max_port": 8}]=The host ports [7422, 7422] of the iOS simulators
 [{"id": "a", "name": "A", "os": "android", "appium_port": 1, "adb_port": 7422, "min_port": 3, "max_port": 4}, {"id": "b", "name": "B", "os": "android", "appium_port": 5, "adb_port": 7422, "min_port": 7, "max_port": 8, "connection": "wireless"}]=failed=0
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 4}]=Invalid settings of device 'A'
+[{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 4}]=failed=0
 EOF
 while IFS='=' read -r devices expected; do
   check_contains "devices: ${devices}" "$expected" "$(playbook devices --tags validate --extra-vars "{\"devices\": ${devices}}")"
@@ -129,6 +137,7 @@ done << 'EOF'
 [{"id": "a", "name": "Emu", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "android-sim"}]=Invalid connection 'android-sim' of device 'Emu'
 [{"id": "a", "name": "Emu", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "emulator"}]=Invalid connection 'emulator' of device 'Emu'
 [{"id": "a", "name": "TV", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "proxy", "address": "10.0.0.5"}]=failed=0
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 4, "connection": "wireless"}]=failed=0
 EOF
 
 section "prechecks of ${OS_ROLE}"
@@ -239,26 +248,26 @@ done
 cat > "${WORK}/devices.yml" << 'EOF'
 devices:
   - {id: " R28M-1384YQY ", os: android, name: " Galaxy S10 ", appium_port: 1, adb_port: 2, min_port: 3, max_port: 4}
-  - {id: 12345, os: android, name: Numeric, appium_port: 5, adb_port: 6, proxy_port: 7, server_proxy_port: 8, min_port: 9, max_port: 10, connection: Wireless}
+  - {id: 12345, os: android, name: Numeric, appium_port: 5, adb_port: 6, proxy_port: 7, server_proxy_port: 8, min_port: 9, max_port: 10, connection: Wireless, connect_port: 7999}
   - {id: abc, os: ios, name: Phone, appium_port: 11, adb_port: 12, min_port: 13, max_port: 14, wda_file: /wda.ipa, wda_bundleid: my.wda, wda_port: 8101}
   - {id: tv, os: ios, name: TV, appium_port: 15, adb_port: 16, min_port: 17, max_port: 18, connection: proxy, address: 10.0.0.6}
   - {id: sim, os: ios, name: Sim, appium_port: 19, adb_port: 20, min_port: 21, max_port: 22, connection: iOS-Sim, wda_port: 8110, mjpeg_port: 8111}
   - {id: phone, os: ios, name: WiFi, appium_port: 23, adb_port: 24, min_port: 25, max_port: 26, connection: wireless, address: 10.0.0.7}
 EOF
 render "${REPO}/roles/devices/templates/mcloud-devices.txt" "${WORK}/linux.txt" --extra-vars "@${WORK}/devices.yml" || exit 1
-check "Linux devices list" "R28M-1384YQY|android|Galaxy_S10||1|2|3|4|usb|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
-12345|android|Numeric||5|6|9|10|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
-abc|ios|Phone||11|12|13|14|usb|/wda.ipa|my.wda||8101|
-tv|ios|TV||15|16|17|18|proxy|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.6||
-sim|ios|Sim||19|20|21|22|ios-sim|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||8110|8111
-phone|ios|WiFi||23|24|25|26|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.7||" "$(cat "${WORK}/linux.txt")"
+check "Linux devices list" "R28M-1384YQY|android|Galaxy_S10||1|2|3|4|usb|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||||
+12345|android|Numeric||5|6|9|10|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||||7999
+abc|ios|Phone||11|12|13|14|usb|/wda.ipa|my.wda||8101||
+tv|ios|TV||15|16|17|18|proxy|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.6|||
+sim|ios|Sim||19|20|21|22|ios-sim|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||8110|8111|
+phone|ios|WiFi||23|24|25|26|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.7|||" "$(cat "${WORK}/linux.txt")"
 render "${REPO}/roles/mac-devices/templates/mcloud-devices.txt" "${WORK}/mac.txt" --extra-vars "@${WORK}/devices.yml" || exit 1
-check "macOS devices list" "R28M-1384YQY|android|Galaxy_S10||1|2|3|4|usb|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
-12345|android|Numeric||5|6|9|10|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
-abc|ios|Phone||11|12|13|14|usb|/wda.ipa|my.wda||8101|
-tv|ios|TV||15|16|17|18|proxy|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.6||
-sim|ios|Sim||19|20|21|22|ios-sim|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||8110|8111
-phone|ios|WiFi||23|24|25|26|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.7||" "$(cat "${WORK}/mac.txt")"
+check "macOS devices list" "R28M-1384YQY|android|Galaxy_S10||1|2|3|4|usb|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||||
+12345|android|Numeric||5|6|9|10|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||||7999
+abc|ios|Phone||11|12|13|14|usb|/wda.ipa|my.wda||8101||
+tv|ios|TV||15|16|17|18|proxy|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.6|||
+sim|ios|Sim||19|20|21|22|ios-sim|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||8110|8111|
+phone|ios|WiFi||23|24|25|26|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.7|||" "$(cat "${WORK}/mac.txt")"
 render "${REPO}/roles/devices/templates/90_mcloud.rules" "${WORK}/rules" --extra-vars "@${WORK}/devices.yml" || exit 1
 cat > "${WORK}/expected_rules" << 'EOF'
 SUBSYSTEM=="usb", ENV{ID_SERIAL_SHORT}=="R28M1384YQY", MODE="0666", SYMLINK+="device-Galaxy_S10-R28M-1384YQY"

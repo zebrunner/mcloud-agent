@@ -33,6 +33,8 @@ get_device_fields() {
   dev_address=""
   dev_wda_port=""
   dev_mjpeg_port=""
+  dev_connect_port=""
+  dev_remote_port=""
 
   local line
   # exact match of udid (field 1) or name (field 3)
@@ -92,6 +94,11 @@ get_device_fields() {
   dev_wda_port="${fields[12]}"
   dev_mjpeg_port="${fields[13]}"
 
+  # Field 15 - 'connect_port': the remote debug port of STF (adb connect) of an Android device, the second port of
+  # min_port-max_port (STF_PROVIDER_CONNECT_PORT is not set) by default; dev_remote_port is the port of either case
+  dev_connect_port="${fields[14]}"
+  dev_remote_port="${dev_connect_port:-$((dev_stf_min_port + 1))}"
+
   # Common name prefix for all containers
   dev_container="device-${dev_device_name}-${dev_udid}"
 }
@@ -126,6 +133,15 @@ create_containers() {
   local device_args=()
   local appium_args=()
   local STF_DEVICE_UDID="$dev_udid"
+
+  # the fixed remote debug port of an Android device, published when it is out of min_port-max_port
+  local connect_args=()
+  if [[ -n "$dev_connect_port" ]]; then
+    connect_args=(-e STF_PROVIDER_CONNECT_PORT="$dev_connect_port")
+    if ((dev_connect_port < dev_stf_min_port || dev_connect_port > dev_stf_max_port)); then
+      connect_args+=(-p "${dev_connect_port}:${dev_connect_port}")
+    fi
+  fi
 
   if [[ "$dev_platform_name" == "android" ]]; then
     case "$dev_connection" in
@@ -181,6 +197,7 @@ create_containers() {
       -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}${dev_location:+_$dev_location}" \
       -e STF_PROVIDER_MIN_PORT="$dev_stf_min_port" \
       -e STF_PROVIDER_MAX_PORT="$dev_stf_max_port" \
+      "${connect_args[@]+"${connect_args[@]}"}" \
       -p "${dev_stf_min_port}-${dev_stf_max_port}":"${dev_stf_min_port}-${dev_stf_max_port}" \
       -e STF_PROVIDER_PUBLIC_IP="{{ PUBLIC_IP }}" \
       -e PUBLIC_IP_PORT="{{ PUBLIC_IP_PORT }}" \
@@ -222,7 +239,7 @@ create_containers() {
       -e DEFAULT_CAPABILITIES=true \
       -e DEVICE_NAME="$dev_device_name" \
       -e DEVICE_UDID="$STF_DEVICE_UDID" \
-      -e ADB_PORT="$dev_adb_port" \
+      -e ADB_PORT="$dev_remote_port" \
       -e APPIUM_PORT="$dev_appium_port" \
       -p "$dev_appium_port":"$dev_appium_port" \
       -e RELAXED_SECURITY="{{ APPIUM_RELAXED_SECURITY | string | lower }}" \
@@ -359,7 +376,7 @@ create_containers() {
       -e DEFAULT_CAPABILITIES=true \
       -e DEVICE_NAME="$dev_device_name" \
       -e DEVICE_UDID="$dev_udid" \
-      -e ADB_PORT="$dev_adb_port" \
+      -e ADB_PORT="${dev_adb_port:-5037}" \
       -e APPIUM_PORT="$dev_appium_port" \
       -p "$dev_appium_port":"$dev_appium_port" \
       -e RELAXED_SECURITY="{{ APPIUM_RELAXED_SECURITY | string | lower }}" \

@@ -471,6 +471,30 @@ for role in devices mac-devices; do
   check_not_contains "${role}: other commands have no strategy" "Strategy:" "$output"
 done
 
+section "remote debug port"
+cp "${WORK}/devices.txt" "${WORK}/devices.saved"
+# WiFi: the port in the range, Emu: the port out of it
+sed -e 's/^\(192.168.1.50|.*\)$/\1|7436/' -e 's/^\(emu1|.*\)$/\1|7999/' "${WORK}/devices.saved" > "${WORK}/devices.txt"
+for role in devices mac-devices; do
+  setup_case
+  farm "$role" start WiFi Emu -q > /dev/null
+  stf="$(run_args device-WiFi-192.168.1.50-stf)"
+  check_contains "${role}: connect_port goes to STF" "|STF_PROVIDER_CONNECT_PORT=7436|" "$stf"
+  check_not_contains "${role}: connect_port in the range is not published twice" "|7436:7436|" "$stf"
+  check_contains "${role}: connect_port out of the range is published" "|-p|7999:7999|" "$(run_args device-Emu-emu1-stf)"
+  check_contains "${role}: appium knows the remote debug port" "|ADB_PORT=7999|" "$(run_args device-Emu-emu1-appium)"
+done
+mv "${WORK}/devices.saved" "${WORK}/devices.txt"
+for role in devices mac-devices; do
+  setup_case
+  farm "$role" start WiFi > /dev/null
+  check_not_contains "${role}: STF picks the remote debug port without connect_port" "STF_PROVIDER_CONNECT_PORT" "$(run_args device-WiFi-192.168.1.50-stf)"
+  check_contains "${role}: the remote debug port is the second one of the range by default" "|ADB_PORT=7436|" \
+    "$(run_args device-WiFi-192.168.1.50-appium)"
+  farm "$role" start AppleTV > /dev/null
+  check_contains "${role}: an iOS appium keeps adb_port" "|ADB_PORT=7452|" "$(run_args device-AppleTV-aaaa1111-appium)"
+done
+
 section "remote connect host"
 for role in devices mac-devices; do
   setup_case
