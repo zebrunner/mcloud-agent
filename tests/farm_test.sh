@@ -68,7 +68,7 @@ farm() {
   shift
   env -i HOME="${WORK}" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
     DOCKER_FAIL_RUN="${DOCKER_FAIL_RUN:-}" DOCKER_STARTED_AT="${DOCKER_STARTED_AT:-}" DOCKER_FINISHED_AT="${DOCKER_FINISHED_AT:-}" \
-    MCLOUD_LOCK_DIR="$WORK" MCLOUD_LOCK_TIMEOUT="${MCLOUD_LOCK_TIMEOUT:-}" \
+    MCLOUD_LOCK_DIR="$WORK" MCLOUD_LOCK_TIMEOUT="${MCLOUD_LOCK_TIMEOUT:-}" MCLOUD_FARM_INTERACTIVE="${MCLOUD_FARM_INTERACTIVE:-}" \
     /bin/bash "${WORK}/zebrunner-farm-${role}" "$@" 2>&1
 }
 
@@ -139,7 +139,7 @@ check_contains "wireless android is connected over adb tcp" "|ANDROID_DEVICE=192
 
 setup_case
 output="$(farm devices start Galaxy)"
-check_contains "disconnected USB device is reported" "was NOT detected as connected" "$output"
+check_contains "disconnected USB device is reported" "NOT connected over USB (lsusb): the containers are not created." "$output"
 check "disconnected USB device gets no containers" "" "$(calls docker | grep '^run|')"
 
 setup_case
@@ -228,7 +228,9 @@ check "existing container is not created again" "connector appium uploader" \
 setup_case
 echo '"USB Serial Number" = "d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"' > "${WORK}/usb"
 output="$(DOCKER_FAIL_RUN=-appium farm mac-devices start iPhone_8_Plus)"
-check_contains "failed container creation is reported" "Error. Not created" "$output"
+check_contains "failed container creation is reported with the error of docker" "NOT created: docker: simulated failure" "$output"
+check "the containers after a failed one are not created" "connector stf appium" \
+  "$(calls docker | grep '^run|' | grep -o -- "--name|${IPHONE}-[a-z]*" | sed 's/.*-//' | paste -s -d ' ' -)"
 
 setup_case
 farm mac-devices start AppleTV > /dev/null
@@ -260,7 +262,7 @@ check "USB device stop includes the connector" "connector appium stf uploader" \
 
 setup_case
 output="$(farm mac-devices start iPhoneWiFi)"
-check_contains "wireless iPhone skips the USB check" "is connected as 'wireless', skipping USB presence check." "$output"
+check_not_contains "wireless iPhone skips the USB check" "connected over USB" "$output"
 connector="$(run_args device-iPhoneWiFi-bbbb2222-connector)"
 check_contains "wireless iPhone uses usbmuxd of the host" "|USBMUXD_SOCKET_ADDRESS=host.docker.internal:2222|-e|DEVICE_CONNECTION=wireless|" "$connector"
 check_contains "the connector of macOS starts WDA itself" "|HOST_OS=DARWIN|" "$connector"
@@ -332,6 +334,132 @@ for command in start stop down; do
   done
 done
 
+section "selection of several devices"
+for role in devices mac-devices; do
+  while IFS='=' read -r query expected; do
+    setup_case
+    # the query words are the arguments, their patterns are not expanded by this shell
+    set -f
+    # shellcheck disable=SC2086
+    farm "$role" down $query > /dev/null
+    set +f
+    check "${role}: down ${query} selects '${expected}'" "$expected" "$(removed)"
+  done << 'EOF'
+Galaxy WiFi=Galaxy WiFi
+Galaxy,Sim=Galaxy Sim
+wireless=WiFi iPhoneWiFi
+android-sim ios-sim proxy=AppleTV Emu Sim
+iPhone*=iPhone_8_Plus iPhoneWiFi
+??=
+lo?=Galaxy WiFi iPhone_8_Plus AppleTV iPhoneWiFi Emu Sim
+android -x WiFi=Galaxy Emu
+-x ios -x Emu=Galaxy WiFi
+--exclude ios,android-sim=Galaxy WiFi
+ios --exclude iPhone*=AppleTV Sim
+EOF
+done
+setup_case
+farm devices down --exclude=ios,android-sim,Galaxy > /dev/null
+check "--exclude= takes the devices too" "WiFi" "$(removed)"
+setup_case
+farm devices down '*WiFi' > /dev/null
+check "a pattern matches the names" "WiFi iPhoneWiFi" "$(removed)"
+setup_case
+output="$(farm devices stop ios -x ios)"
+check "an empty selection fails" "1" "$?"
+check_contains "an empty selection is reported" "No device matches: ios without ios" "$output"
+check "an empty selection changes no container" "" "$(calls docker | grep -v '^network|')"
+setup_case
+output="$(farm devices stop android -x NO_SUCH)"
+check "an excluded unknown device fails" "1" "$?"
+check_contains "an excluded unknown device is reported" "device not found: NO_SUCH" "$output"
+output="$(farm devices stop android --bad)"
+check_contains "an unknown option is reported" "unknown option: --bad" "$output"
+output="$(farm devices stop android -x)"
+check_contains "the exclusion needs devices" "-x needs the devices to skip" "$output"
+
+section "confirmation of the devices"
+# ask <role> <answers> <arguments...>: zebrunner-farm as a person at a terminal answering the question
+ask() {
+  local role="$1"
+  local answers="$2"
+  shift 2
+  printf '%b' "$answers" | MCLOUD_FARM_INTERACTIVE=true farm "$role" "$@"
+}
+for role in devices mac-devices; do
+  setup_case
+  printf '%s\n' "device-WiFi-192.168.1.50-stf running" "device-WiFi-192.168.1.50-appium exited" > "${WORK}/docker_ps"
+  output="$(ask "$role" "\n" down android)"
+  check "${role}: the devices are listed with their numbers" "1" "$(grep -cE '^ +2 +WiFi +192\.168\.1\.50 +android +wireless ' <<< "$output")"
+  check_contains "${role}: the containers of a device are summarized" "1 of 2 running" "$output"
+  check_contains "${role}: a device without containers" "Galaxy" "$output"
+  check "${role}: Enter runs the command" "Galaxy WiFi Emu" "$(removed)"
+
+  setup_case
+  output="$(ask "$role" "n\n" down android)"
+  check_contains "${role}: n cancels" "Cancelled." "$output"
+  check "${role}: a cancelled command changes no container" "" "$(calls docker | grep -v '^ps|')"
+
+  setup_case
+  ask "$role" "x 2\ny\n" down android > /dev/null
+  check "${role}: x excludes a device by its number" "Galaxy Emu" "$(removed)"
+  setup_case
+  ask "$role" "x\nEmu,1\n\n" down android > /dev/null
+  check "${role}: x asks the devices to exclude" "WiFi" "$(removed)"
+  setup_case
+  ask "$role" "f ios\nf Sim 2\ny\n" down > /dev/null
+  # the numbers are the ones of the list shown last: 2 is AppleTV of the iOS devices
+  check "${role}: f filters the list, again and again" "AppleTV Sim" "$(removed)"
+  setup_case
+  output="$(ask "$role" "x android\n" down android)"
+  check_contains "${role}: no device left cancels" "No device is left." "$output"
+  check "${role}: no device left changes no container" "" "$(removed)"
+  setup_case
+  output="$(ask "$role" "what\ny\n" down Emu WiFi)"
+  check_contains "${role}: a wrong answer is explained" "Answer y (run), n (cancel)" "$output"
+  check "${role}: a wrong answer asks again" "WiFi Emu" "$(removed)"
+  setup_case
+  output="$(ask "$role" "" down android)"
+  check "${role}: no answer (end of input) cancels" "" "$(removed)"
+
+  setup_case
+  output="$(ask "$role" "n\n" down android -q)"
+  check_not_contains "${role}: -q asks nothing" "The devices to" "$output"
+  check "${role}: -q runs the command" "Galaxy WiFi Emu" "$(removed)"
+  setup_case
+  output="$(ask "$role" "n\n" down WiFi)"
+  check_not_contains "${role}: a device named exactly is not confirmed" "The devices to" "$output"
+  check "${role}: a device named exactly runs at once" "WiFi" "$(removed)"
+  setup_case
+  output="$(ask "$role" "n\n" status android)"
+  check_not_contains "${role}: status asks nothing" "The devices to" "$output"
+  setup_case
+  output="$(farm "$role" down android < /dev/null)"
+  check_not_contains "${role}: without a terminal (udev, launchd, scripts) nothing is asked" "The devices to" "$output"
+done
+
+section "containers of a device"
+for role in devices mac-devices; do
+  setup_case
+  printf '%s\n' "device-WiFi-192.168.1.50-connector running" "device-WiFi-192.168.1.50-stf exited" > "${WORK}/docker_ps"
+  # without the colors of the states
+  output="$(farm "$role" start WiFi | sed "s/$(printf '\033')\[[0-9;]*m//g")"
+  check_contains "${role}: a running container is kept" "connector  running" "$output"
+  check_contains "${role}: a stopped container is started" "stf        started" "$output"
+  check_contains "${role}: a missing container is created" "appium     created" "$output"
+  check "${role}: only the stopped container is started" "start|device-WiFi-192.168.1.50-stf" "$(calls docker | grep '^start|')"
+  check "${role}: only the missing containers are created" "appium uploader" \
+    "$(calls docker | grep '^run|' | grep -o -- '--name|device-WiFi-192.168.1.50-[a-z]*' | sed 's/.*-//' | paste -s -d ' ' -)"
+  setup_case
+  output="$(farm "$role" down WiFi)"
+  # the docker stub removes no container
+  check_contains "${role}: down reports every container" "uploader   no container" "$output"
+  check_contains "${role}: down reports the volume of the logs" "logs       volume removed" "$output"
+  output="$(farm "$role" stop WiFi)"
+  check_contains "${role}: stop reports every container" "appium     stopped" "$output"
+  check_contains "${role}: the device is the header of its lines" "==> WiFi (192.168.1.50, android, wireless)" "$output"
+done
+
 section "status"
 setup_case
 check_contains "Linux: wireless device shows its containers" "| Connector" "$(farm devices status WiFi)"
@@ -392,6 +520,8 @@ uptime="$(DOCKER_STARTED_AT="$(iso_ago 7200)" DOCKER_FINISHED_AT="$(iso_ago 60)"
 check "stopped container has unknown uptime" "UNKNOWN" "$uptime"
 
 section "help"
-check_contains "help describes the device argument" "Device: udid or name of a whitelisted device, or ios/android" "$(farm devices)"
+output="$(farm devices)"
+check_contains "help describes the devices argument" "Devices: udid or name of a whitelisted device, a group: ios, android, usb" "$output"
+check_contains "help describes the exclusion" "-x, --exclude <devices>" "$output"
 
 finish

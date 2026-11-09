@@ -9,6 +9,35 @@ cd "${MCLOUD_AGENT_DIR_VALUE}" || exit
 source "${MCLOUD_AGENT_DIR_VALUE}/patch/utility.sh"
 # Load backup/restore functions
 source "${MCLOUD_AGENT_DIR_VALUE}/patch/backup.sh"
+# Load the checks of `./zebrunner.sh doctor`
+source "${MCLOUD_AGENT_DIR_VALUE}/patch/doctor.sh"
+
+# host_label: the name of this host as a variable suffix: BUILD_UA of build-ua.example.com
+host_label() {
+  local name
+  name="$(hostname 2> /dev/null)"
+  name="${name%%.*}"
+  printf '%s' "${name:-HOST}" | tr '[:lower:]' '[:upper:]' | tr -c 'A-Z0-9\n' '_'
+}
+
+# curve_client_line <public key>: the line of variables.env of mcloud that lets this host in (one variable per host)
+curve_client_line() {
+  echo "STF_ZMQ_CURVE_CLIENT_KEY_$(host_label)=$1"
+}
+
+# host_addresses: the IPv4 addresses of this host but the loopback and docker ones, separated by spaces
+host_addresses() {
+  if [[ "$(uname)" == "Darwin" ]]; then
+    ifconfig 2> /dev/null | awk '$1 == "inet" && $2 != "127.0.0.1" { print $2 }'
+  else
+    ip -4 -o addr show scope global 2> /dev/null | awk '$2 !~ /^(docker|br-|veth)/ { sub(/\/.*/, "", $4); print $4 }'
+  fi | paste -s -d ' ' -
+}
+
+# running_device_containers: the names of the running containers of the devices, one per line
+running_device_containers() {
+  docker ps --filter name=device- --format '{{.Names}}' 2> /dev/null | grep -E -- '-(connector|stf|appium|uploader)$'
+}
 
 setup() {
   delimiter "Setting up MCloud Agent"
@@ -119,11 +148,34 @@ setup() {
     rosetta_report
   fi
 
-  ### Final message
+  ### Next steps
   delimiter "*"
-  echo "Set the settings of the MCloud server in '${vars}' (https://github.com/zebrunner/mcloud-agent#connect-to-mcloud),"
-  echo "make the key of this host with './zebrunner.sh curve-key' and set the devices, then run './zebrunner.sh ansible'"
-  echo "(https://github.com/zebrunner/mcloud-agent#run-ansible-playbook)."
+  local addresses
+  addresses="$(host_addresses)"
+  echo "Next steps (https://github.com/zebrunner/mcloud-agent#connect-to-mcloud):
+
+  1. Open a new terminal (or run the command above) to have ZEBRUNNER_MCLOUD_AGENT_DIR.
+
+  2. Set the settings of the MCloud server in '${vars}', the secrets in quotes:
+     - PUBLIC_IP, PUBLIC_IP_PORT, PUBLIC_IP_PROTOCOL: STF_URL of .env of mcloud;
+     - STF_PROVIDER_CONNECT_*, SELENIUM_HUB_HOST, SELENIUM_HUB_PORT: the MCloud server, unless it runs on this host;
+     - STF_STORAGE_TOKEN, NODE_REGISTRATION_TOKEN, STF_ZMQ_CURVE_SERVER_PUBLIC_KEY: variables.env of mcloud.
+
+  3. Set STF_PROVIDER_HOST: the address of this host the MCloud server connects to (the hub, the screens);
+     the addresses of this host: ${addresses:-unknown}. In the network of the MCloud server use the address there,
+     not a public address of the router. On the MCloud server add it to AGENT_HOSTS of .env, ./zebrunner.sh restart.
+
+  4. Make the key of this host: ./zebrunner.sh curve-key, add the line it prints to variables.env of mcloud and
+     restart mcloud (./zebrunner.sh restart there).
+
+  5. Declare the devices in 'devices:' of '${vars}': the udid (adb devices, idevice_id -l), a unique name and
+     unique ports.
+
+  6. Check the settings and the network to the MCloud server: ./zebrunner.sh doctor
+
+  7. Deploy the agent: ./zebrunner.sh ansible
+
+  8. Start the devices: zebrunner-farm start, then zebrunner-farm status and ./zebrunner.sh doctor."
 
   delimiter "Setting up MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished successfully"
 }
@@ -172,6 +224,11 @@ ansible() {
     fi
   fi
 
+  ### The running containers of the devices keep the old settings and images
+  if [[ "$1" != "devices" ]]; then
+    stop_running_devices
+  fi
+
   ### Run ansible with arguments
   echo_warning "Sudo permissions are required to run this script!"
   echo "ansible-playbook --ask-become-pass --inventory hosts ${args[*]}"
@@ -186,6 +243,32 @@ ansible() {
     echo "Run 'zebrunner-farm start' to create the containers of the connected devices."
   fi
   delimiter "Deploying MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished successfully"
+}
+
+# stop_running_devices: asks to stop and remove the running containers of the devices before the deploy: they keep the
+# settings and the images they were created with, zebrunner-farm start creates them again with the new ones
+stop_running_devices() {
+  local containers
+  containers="$(running_device_containers)"
+  [[ -n "$containers" ]] || return 0
+  delimiter "*"
+  echo_warning "$(grep -c . <<< "$containers") containers of the devices are running:"
+  sed -E -e 's/-(connector|stf|appium|uploader)$//' -e 's/^/        /' <<< "$containers" | sort -u
+  echo "
+      They keep the settings and the images they were created with: stop and remove them before the deploy, then
+      'zebrunner-farm start' creates them with the new ones."
+  if confirm "" "      Stop and remove them now (zebrunner-farm down)?" "y"; then
+    if command -v zebrunner-farm > /dev/null 2>&1; then
+      # no terminal for zebrunner-farm: it asks nothing, also the earlier versions without --quiet
+      zebrunner-farm down < /dev/null
+    else
+      # the names of the containers are words
+      # shellcheck disable=SC2086
+      docker rm -f $containers > /dev/null
+    fi
+  else
+    echo "The containers keep running: run 'zebrunner-farm restart' after the deploy."
+  fi
 }
 
 # curve_key: the CURVE key of this host for the ZeroMQ security of STF (README.md#zeromq-security): STF_ZMQ_CURVE_SECRET_KEY
@@ -227,8 +310,14 @@ curve_key() {
   fi
   echo "
       The public key of this host: ${public}
-      Add it to STF_ZMQ_CURVE_CLIENT_KEYS of variables.env of the STF server (separated by commas) and restart it, set
-      STF_ZMQ_CURVE_SERVER_PUBLIC_KEY of '${vars}' and run './zebrunner.sh ansible'."
+      It is not stored: the secret key gives it, this command prints it again any time.
+
+      On the MCloud server add this line to variables.env of mcloud and restart it (./zebrunner.sh restart):
+
+      $(curve_client_line "$public")
+
+      (an STF older than the variables per host: add the key to STF_ZMQ_CURVE_CLIENT_KEYS, separated by commas)
+      Then set STF_ZMQ_CURVE_SERVER_PUBLIC_KEY of '${vars}' and run './zebrunner.sh ansible'."
 }
 
 # rosetta_state: Rosetta 2 of the Mac for the linux/amd64 image of appium: 'intel' (not
@@ -437,7 +526,8 @@ shutdown() {
   delimiter "*"
   echo "Stopping and removing MCloud Agent containers:"
   if command -v zebrunner-farm > /dev/null 2>&1; then
-    zebrunner-farm down
+    # no terminal for zebrunner-farm: it asks nothing
+    zebrunner-farm down < /dev/null
   else
     failed "Can't find 'zebrunner-farm' executable file"
   fi
@@ -500,7 +590,8 @@ echo_help() {
          restore              Restore MCloud Agent setup
          shutdown             Stop and remove MCloud Agent containers, clear volumes and environment
          version              Version of MCloud Agent components
-         curve-key            Make the CURVE key of this host for STF and print its public key"
+         curve-key            Make the CURVE key of this host for STF and print its public key
+         doctor               Check the settings, the deployment and the network to MCloud, tell what to fix"
   echo_telegram
   delimiter
 }
@@ -529,6 +620,9 @@ version)
   ;;
 curve-key)
   curve_key
+  ;;
+doctor)
+  doctor
   ;;
 *)
   echo_help

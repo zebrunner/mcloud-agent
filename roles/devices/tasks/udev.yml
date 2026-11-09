@@ -75,8 +75,8 @@
       The obligatory settings of the MCloud server are missing: {{ devices_missing_settings | join(', ') }}.
       Set them in roles/devices/vars/main.yml, in quotes: STF_STORAGE_TOKEN, NODE_REGISTRATION_TOKEN and
       STF_ZMQ_CURVE_SERVER_PUBLIC_KEY are the ones of variables.env of mcloud; STF_ZMQ_CURVE_SECRET_KEY is the key of
-      this host: run ./zebrunner.sh curve-key and add its public key to STF_ZMQ_CURVE_CLIENT_KEYS of variables.env of
-      mcloud (README.md#connect-to-mcloud).
+      this host: run ./zebrunner.sh curve-key and add the STF_ZMQ_CURVE_CLIENT_KEY_<HOST> line it prints to variables.env
+      of mcloud (README.md#connect-to-mcloud); ./zebrunner.sh doctor checks the settings.
     success_msg: "The obligatory settings of the MCloud server are set."
   tags: [devices, precheck, validate]
 

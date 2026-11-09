@@ -24,7 +24,9 @@ SELENIUM_HUB_PORT: 4444
 # NODE_REGISTRATION_TOKEN of the mcloud variables.env (in quotes).
 NODE_REGISTRATION_TOKEN:
 
-# [OBLIGATORY] Set host address of current STF provider server. It should be resolvable and accessible from the PUBLIC_IP!
+# [OBLIGATORY] The address of this host the MCloud server connects to (the hub, the screens): in the network of the
+# MCloud server its address there, not a public address of the router (README.md#device-hosts-in-a-private-network).
+# Add it to AGENT_HOSTS of .env of mcloud. `./zebrunner.sh doctor` checks it.
 STF_PROVIDER_HOST: macos-agent.zebrunner.farm
 
 # [OBLIGATORY] Set host address of current STF provider server and 2222 port as default. We start socat listener and share usbmuxd into the containers
@@ -45,7 +47,7 @@ STF_AUTH_TOKEN:
 STF_STORAGE_TOKEN:
 # [OBLIGATORY] The ZeroMQ security (CURVE) of STF, README.md#zeromq-security: STF_ZMQ_CURVE_SERVER_PUBLIC_KEY of the STF
 # server's variables.env (in quotes) and the key of this host, which `./zebrunner.sh curve-key` makes and whose public key
-# goes to STF_ZMQ_CURVE_CLIENT_KEYS of the server.
+# goes to the server as the line STF_ZMQ_CURVE_CLIENT_KEY_<HOST>=<public key> of its variables.env (the command prints it).
 STF_ZMQ_CURVE_SERVER_PUBLIC_KEY:
 STF_ZMQ_CURVE_SECRET_KEY:
 
