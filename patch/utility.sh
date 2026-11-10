@@ -137,3 +137,21 @@ delimiter() {
   fi
   printf "\n"
 }
+
+# yaml_python: a python with PyYAML for patch/settings.py and patch/enroll.py: $ZEBRUNNER_PYTHON, python3 or the python
+# of ansible (ansible-core depends on PyYAML; `ansible-playbook --version` shows its path); fails when there is none
+yaml_python() {
+  local python
+  for python in "${ZEBRUNNER_PYTHON:-}" python3; do
+    if [[ -n "$python" ]] && "$python" -c 'import yaml' > /dev/null 2>&1; then
+      echo "$python"
+      return 0
+    fi
+  done
+  python="$(ansible-playbook --version 2> /dev/null | sed -nE 's/^ *python version = .*[[(](\/[^])]*)[])]$/\1/p' | head -n 1)"
+  if [[ -n "$python" ]] && "$python" -c 'import yaml' > /dev/null 2>&1; then
+    echo "$python"
+    return 0
+  fi
+  return 1
+}

@@ -11,19 +11,19 @@ from the command line:
 sends the invite with the label and the public key to POST /api/v1/nodes/enroll of MCloud over HTTPS, trusting only the
 server whose TLS key has the pin (curl --pinnedpubkey), and writes the settings of the answer into the settings file
 (mode 600): the URL and the TLS pin of MCloud, the token of this host, the CURVE key of the server, the endpoints of
-MCloud and the address of this host. The secrets go to curl on stdin, not in its arguments.
+MCloud and the address of this host. The secrets go to curl on stdin, not in its arguments. It needs PyYAML
+(patch/settings.py writes the settings): zebrunner.sh runs it with yaml_python of patch/utility.sh.
 """
 
 import getpass
 import json
-import os
 import re
-import shutil
-import stat
 import subprocess
 import sys
 import time
 from urllib.parse import parse_qs, unquote, urlsplit
+
+from settings import SettingsError, write_settings
 
 LABEL = r"[a-z0-9][a-z0-9-]{0,39}"
 HOST = r"[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?"
@@ -159,27 +159,6 @@ def settings_of(join, answer):
     return settings
 
 
-def write_settings(path, settings):
-    """The settings in the file (the lines replaced, the missing ones at its end), mode 600, a backup first."""
-    with open(path, encoding="utf-8") as file:
-        lines = file.read().split("\n")
-    backup = f"{path}.bak-join-{time.strftime('%Y%m%d%H%M%S')}"
-    shutil.copyfile(path, backup)
-    os.chmod(backup, stat.S_IRUSR | stat.S_IWUSR)
-    for name, value in settings.items():
-        line = f'{name}: "{value}"' if value else f"{name}:"
-        index = next((i for i, text in enumerate(lines) if re.match(rf"^{name}:", text)), None)
-        if index is None:
-            lines.insert(len(lines) - 1 if lines[-1] == "" else len(lines), line)
-        else:
-            lines[index] = line
-    fd = os.open(path, os.O_WRONLY | os.O_TRUNC | os.O_CREAT, stat.S_IRUSR | stat.S_IWUSR)
-    with os.fdopen(fd, "w", encoding="utf-8") as file:
-        file.write("\n".join(lines))
-    os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
-    return backup
-
-
 def main():
     if len(sys.argv) != 3 or not CURVE_KEY.match(sys.argv[2]):
         print(__doc__, file=sys.stderr)
@@ -188,8 +167,9 @@ def main():
     try:
         join = parse_join(read_join())
         settings = settings_of(join, enroll(join, public_key))
-        backup = write_settings(path, settings)
-    except (EnrollError, ValueError) as err:
+        backup = f"{path}.bak-join-{time.strftime('%Y%m%d%H%M%S')}"
+        write_settings(path, settings, backup)
+    except (EnrollError, SettingsError, ValueError) as err:
         print(f"The enrollment failed: {err}", file=sys.stderr)
         return 1
     address = settings["STF_PROVIDER_HOST"]

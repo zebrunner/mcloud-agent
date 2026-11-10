@@ -19,4 +19,6 @@ config/*
 roles/devices/vars/
 roles/mac-devices/vars/
 DeveloperDiskImages
+# the cache of patch/settings.py imported by patch/enroll.py
+__pycache__/
 become.yml

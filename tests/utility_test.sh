@@ -73,4 +73,20 @@ check "warn is yellow" $'\033[1;33mtext\033[0m' "$(warn text)"
 check "succeed is green" $'\033[0;32mtext\033[0m' "$(succeed text)"
 check_contains "echo_warning prefix" "WARNING! text" "$(echo_warning text)"
 
+section "yaml_python"
+yaml="$(command -v "$(yaml_python)")"
+if [[ -n "$yaml" ]]; then
+  check "ZEBRUNNER_PYTHON goes first" "$yaml" "$(ZEBRUNNER_PYTHON="$yaml" yaml_python)"
+  # python3 without PyYAML: the python of ansible-playbook --version
+  stub python3 'exit 1'
+  stub ansible-playbook "echo '  python version = 3.12.2 (main, Feb 27 2024) [Clang 14.0.6] (${yaml})'"
+  check "the python of ansible" "$yaml" "$(PATH="${WORK}/bin:${PATH}" ZEBRUNNER_PYTHON="" yaml_python)"
+  stub ansible-playbook "echo '  python version = 3.9.6 (default) [/nonexistent/python3]'"
+  PATH="${WORK}/bin:${PATH}" ZEBRUNNER_PYTHON="" yaml_python > /dev/null
+  check "no python with PyYAML fails" "1" "$?"
+  rm -f "${WORK}/bin/python3" "${WORK}/bin/ansible-playbook"
+else
+  skip_check "yaml_python" "no python3 with PyYAML"
+fi
+
 finish
