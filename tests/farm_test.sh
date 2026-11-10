@@ -57,8 +57,8 @@ stub ioreg 'cat "${STUB_DIR}/usb" 2> /dev/null'
 record_stub launchctl
 
 for role in devices mac-devices; do
-  render_farm "$role" "${WORK}/zebrunner-farm-${role}" || exit 1
-  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
+  render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
 done
 
 # farm <devices|mac-devices> <arguments...>: runs zebrunner-farm without the user's environment
@@ -68,7 +68,7 @@ farm() {
   env -i HOME="${WORK}" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
     DOCKER_FAIL_RUN="${DOCKER_FAIL_RUN:-}" DOCKER_STARTED_AT="${DOCKER_STARTED_AT:-}" DOCKER_FINISHED_AT="${DOCKER_FINISHED_AT:-}" \
     MCLOUD_LOCK_DIR="$WORK" MCLOUD_LOCK_TIMEOUT="${MCLOUD_LOCK_TIMEOUT:-}" MCLOUD_FARM_INTERACTIVE="${MCLOUD_FARM_INTERACTIVE:-}" \
-    /bin/bash "${WORK}/zebrunner-farm-${role}" "$@" 2>&1
+    ZEBRUNNER_FARM_ENV="${WORK}/farm-${role}.env" /bin/bash "$FARM_SCRIPT" "$@" 2>&1
 }
 
 # run_args <container>: arguments of the `docker run` of a container, joined by '|'
@@ -190,9 +190,9 @@ section "ZeroMQ security"
 server_key="$(printf '%064d' 0 | tr 0 a)"
 secret_key="$(printf '%064d' 0 | tr 0 b)"
 for role in devices mac-devices; do
-  render_farm "$role" "${WORK}/zebrunner-farm-${role}" --extra-vars \
+  render_farm "$role" "${WORK}/farm-${role}.env" --extra-vars \
     "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=${server_key} STF_ZMQ_CURVE_SECRET_KEY=${secret_key}" || exit 1
-  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
   # <name>:<container prefix> of an Android and an iOS device
   for device in WiFi:device-WiFi-192.168.1.50 AppleTV:device-AppleTV-aaaa1111; do
     setup_case
@@ -204,8 +204,8 @@ for role in devices mac-devices; do
     check_not_contains "${role}: ${device%%:*}: no RethinkDB" "RETHINKDB" "$stf"
   done
 
-  render_farm "$role" "${WORK}/zebrunner-farm-${role}" || exit 1
-  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
+  render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
 done
 
 section "macOS container creation"
@@ -249,7 +249,12 @@ for container in connector stf uploader; do
   check_not_contains "macOS: the ${container} runs on the platform of the host" "--platform" \
     "$(run_args "device-AppleTV-aaaa1111-${container}")"
 done
-check_not_contains "macOS: no default platform" "DOCKER_DEFAULT_PLATFORM=" "$(grep -v '^ *#' "${WORK}/zebrunner-farm-mac-devices")"
+check_not_contains "macOS: no default platform" "DOCKER_DEFAULT_PLATFORM=" "$(grep -v '^ *#' "$FARM_SCRIPT")"
+output="$(env -i PATH=/usr/bin:/bin ZEBRUNNER_FARM_ENV="${WORK}/missing.env" /bin/bash "$FARM_SCRIPT" status 2>&1)"
+check_contains "zebrunner-farm without its settings asks for the deploy" "the settings ${WORK}/missing.env are not readable: deploy them with ./zebrunner.sh ansible" "$output"
+output="$(farm devices version)"
+check_contains "zebrunner-farm runs zebrunner.sh of the agent of its settings" "DEVICE_VERSION:" "$output"
+check_not_contains "zebrunner.sh gets the agent dir from zebrunner-farm" "is not set" "$output"
 
 setup_case
 farm mac-devices stop AppleTV > /dev/null
@@ -309,8 +314,8 @@ section "grid registration"
 for role in devices mac-devices; do
   # the token of this host of ./zebrunner.sh join
   node_token="mcn1.build-ua.$(printf '%043d' 0 | tr 0 n)"
-  render_farm "$role" "${WORK}/zebrunner-farm-${role}" --extra-vars "MCLOUD_NODE_TOKEN=${node_token}" || exit 1
-  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
+  render_farm "$role" "${WORK}/farm-${role}.env" --extra-vars "MCLOUD_NODE_TOKEN=${node_token}" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
   setup_case
   farm "$role" start WiFi > /dev/null
   check_contains "${role}: android appium registers with the token of the host" "|NODE_REGISTRATION_TOKEN=${node_token}|" \
@@ -324,8 +329,8 @@ for role in devices mac-devices; do
     check_not_contains "${role}: ${device}: no shared storage token" "STF_STORAGE_TOKEN" "$stf"
   done
 
-  render_farm "$role" "${WORK}/zebrunner-farm-${role}" || exit 1
-  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
+  render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
 done
 
 section "macOS device listener"
@@ -507,15 +512,15 @@ for role in devices mac-devices; do
   setup_case
   farm "$role" start WiFi > /dev/null
   check_contains "${role}: STF_PROVIDER_HOST is the connect host by default" "|REMOTE_CONNECT_HOST=|" "$(run_args device-WiFi-192.168.1.50-stf)"
-  render_farm "$role" "${WORK}/zebrunner-farm-${role}" --extra-vars "REMOTE_CONNECT_HOST=mcloud.example.com" || exit 1
-  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
+  render_farm "$role" "${WORK}/farm-${role}.env" --extra-vars "REMOTE_CONNECT_HOST=mcloud.example.com" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
   for device in WiFi:device-WiFi-192.168.1.50 AppleTV:device-AppleTV-aaaa1111; do
     setup_case
     farm "$role" start "${device%%:*}" > /dev/null
     check_contains "${role}: ${device%%:*}: the connect host goes to STF" "|REMOTE_CONNECT_HOST=mcloud.example.com|" "$(run_args "${device#*:}-stf")"
   done
-  render_farm "$role" "${WORK}/zebrunner-farm-${role}" || exit 1
-  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/zebrunner-farm-${role}"
+  render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
 done
 
 section "containers of a device"

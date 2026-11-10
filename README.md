@@ -80,7 +80,7 @@ The other files of the settings are in git, do not change them: `git pull` bring
 | `roles/common/defaults/main.yml` | the values by default of both OS: the options of Appium (`APPIUM_RELAXED_SECURITY`, ...), `RESTARTS_LIMIT` |
 | `roles/devices/defaults/main.yml`, `roles/mac-devices/defaults/main.yml` | the values by default of the OS: `STF_PROVIDER_NAME`; `USBMUXD_SOCKET_ADDRESS`, `ADB_SERVER_SOCKET_ADDRESS` of macOS |
 
-The playbooks load them in this order: the values by default of the roles, `versions.yml`, `config/settings.yml`, `config/devices.yml`. `./zebrunner.sh backup` keeps the two files of `config/` in a private folder `backup/bak_<time>_<random>/config/`, `restore` puts them back; the code of the agent is not in a backup, it comes from git (`git pull`).
+The playbooks load them in this order: the values by default of the roles, `versions.yml`, `config/settings.yml`, `config/devices.yml`. The deploy renders the settings zebrunner-farm runs with into `/usr/local/etc/zebrunner-farm.env`: udev and launchd run it without the environment of the user, a change of `config/` needs `./zebrunner.sh ansible` (`./zebrunner.sh doctor` reports the settings that differ). `./zebrunner.sh backup` keeps the two files of `config/` in a private folder `backup/bak_<time>_<random>/config/`, `restore` puts them back; the code of the agent is not in a backup, it comes from git (`git pull`).
 
 The earlier versions kept everything in `roles/devices/vars/main.yml` (Linux) or `roles/mac-devices/vars/main.yml` (macOS). Such a file overrides `config/`, so the deploy and `./zebrunner.sh doctor` refuse it: after `./zebrunner.sh setup` move its settings to `config/settings.yml` and its `devices:` to `config/devices.yml`, then remove it. The images and the options of Appium were in `defaults/main.yml`, now `versions.yml` and `roles/common/defaults/main.yml`: before `git pull` put the changed lines of `defaults/main.yml` into `config/settings.yml` and drop the local change (`git checkout defaults/main.yml`).
 
@@ -111,7 +111,7 @@ The settings of the connection, written by `join` (do not change them by hand, a
 Security:
 
 - the token is of this host only: MCloud keeps its hash, binds it to the address of the host and to its devices, and revokes it alone (`./zebrunner.sh nodes revoke <label>` of mcloud);
-- `config/settings.yml` and the deployed `zebrunner-farm` have the secrets of the host: the settings are mode 600, `zebrunner-farm` is readable by root and the user of the deploy only (Linux: mode 750, the group of the user; macOS: mode 700); the users of the `docker` group can read the variables of the containers anyway, they are root on the host;
+- `config/settings.yml` and the deployed settings of `zebrunner-farm` (`/usr/local/etc/zebrunner-farm.env`) have the secrets of the host: `config/settings.yml` is mode 600, the settings of `zebrunner-farm` are readable by root and the user of the deploy only (Linux: mode 640, the group of the user; macOS: mode 600, the user); the script `zebrunner-farm` has no secret; the users of the `docker` group can read the variables of the containers anyway, they are root on the host;
 - a new join string (`node-invite` of the same label) replaces the token and the key of the host: run `./zebrunner.sh join` again to rotate them;
 - `./zebrunner.sh doctor` asks MCloud about this host (enrolled, active, its address, the devices STF knows and binds to it) and reports the settings readable by other users.
 
@@ -156,7 +156,7 @@ Security:
 - Running containers of the devices keep the settings and the images they were created with: `./zebrunner.sh ansible` lists them and offers to remove them first (`zebrunner-farm down`, Enter is yes), otherwise run `zebrunner-farm restart` after the deploy.
 - Run `zebrunner-farm start` to create the containers of the devices connected before the deploy and of the wireless,
   emulator and proxy devices: udev starts the containers of a USB device on its next connection only.
-- Devices management script is deployed to /usr/local/bin/zebrunner-farm.
+- Devices management script is deployed to /usr/local/bin/zebrunner-farm (the same script on Linux and macOS), its settings to /usr/local/etc/zebrunner-farm.env (see [Settings](#settings)).
 - Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules: a connection of a USB device starts the systemd unit `mcloud-device-restart@<id>`, a disconnection `mcloud-device-down@<id>` (`/etc/systemd/system`), which run `zebrunner-farm restart` or `down` for it. udev only queues the job: its programs are killed after the event (180 s), the containers may need longer (the images are pulled). A disconnection cancels an unfinished restart and the other way round.
 - The commands of one device (`zebrunner-farm start`, `stop`, `restart`, `down <device>`, the units of udev) run one at a time (`flock`, `/run/lock/mcloud-device-<id>.lock`): one waits for up to 30 minutes for another.
 - Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
@@ -190,7 +190,7 @@ Security:
   ./zebrunner.sh ansible --user=USERNAME
   ```
 
-- Devices management script is deployed to /usr/local/bin/zebrunner-farm.
+- Devices management script is deployed to /usr/local/bin/zebrunner-farm (the same script on Linux and macOS), its settings to /usr/local/etc/zebrunner-farm.env (see [Settings](#settings)).
 - The containers run on the platform of the Mac, arm64 on Apple Silicon (the STF provider of an iOS simulator hangs
   under emulation, the other ones are slower), but appium: its image is `linux/amd64` only (see
   [appium](https://github.com/zebrunner/appium#limitations)), emulated by Docker Desktop with Rosetta 2 on Apple Silicon.
@@ -227,7 +227,7 @@ STF of MCloud accepts on its ZeroMQ ports only the enrolled device hosts: the CU
 - the YAML of `config/settings.yml` and `config/devices.yml`: doctor reads the settings as the playbooks load them (the values by default of the roles, `versions.yml`, `config/settings.yml`), a file that is not valid YAML is a problem;
 - the settings of `config/settings.yml`: the ones of `./zebrunner.sh join`, the formats of the token and of the CURVE keys, the file readable by other users, a `roles/.../vars/main.yml` of an earlier version; the devices of `config/devices.yml`;
 - the enrollment: it asks MCloud about this host (`GET /api/v1/nodes/self` of `MCLOUD_URL` with the token, over HTTPS to the pinned TLS key): enrolled and active (or unknown, revoked), its address in MCloud is `STF_PROVIDER_HOST`, the devices STF knows of it, which of them are bound to it and connected;
-- the deployment: `zebrunner-farm` rendered with the current settings (otherwise `./zebrunner.sh ansible`) and readable by this user only, the containers created with the current `STF_PROVIDER_HOST` (otherwise `zebrunner-farm restart`);
+- the deployment: the settings of `zebrunner-farm` (`/usr/local/etc/zebrunner-farm.env`) are the current ones, also the versions of the images (otherwise `./zebrunner.sh ansible`) and readable by this user only, the containers created with the current `STF_PROVIDER_HOST` (otherwise `zebrunner-farm restart`);
 - the network: the name resolution and the ports of `PUBLIC_IP`, mcloud-grid and the ZeroMQ triproxies; `STF_PROVIDER_HOST` is an address of this host, or a public address of a NAT while the MCloud server is in the network of this host (see [Device hosts in a private network](#device-hosts-in-a-private-network)); MCloud on this machine and the devices using its ports (see [Devices on the MCloud server](#devices-on-the-mcloud-server));
 - the remote debug: with `REMOTE_CONNECT_HOST` the adb relay of mcloud accepts the remote debug ports of the Android devices (printed);
 - the devices: their containers, the refused grid registrations of Appium and the refused CURVE key in the logs of the last 30 minutes.
@@ -359,7 +359,7 @@ Run `./zebrunner.sh doctor` first, see [Doctor](#doctor). Follow the below algor
 
 - If there are no updates during connection/disconnection, please, verify the correctness of:
   - device udid values,
-  - presence of `/usr/local/bin/zebrunner-farm`,
+  - presence of `/usr/local/bin/zebrunner-farm` and of its settings `/usr/local/etc/zebrunner-farm.env`,
   - correctness of `/usr/local/bin/mcloud-devices.txt` and `/etc/udev/rules.d/90_mcloud.rules` files.
 - Read carefully the `zebrunner-farm` output in syslog to identify the exact failure during containers creation.
 - Analyze device container logs if the status is not `healthy`:
@@ -416,7 +416,7 @@ The `tests` folder covers zebrunner.sh, the ansible roles and templates, zebrunn
   > The linters of `tests/requirements-lint.txt` are installed into `.venv` automatically. On macOS install hadolint with `brew install hadolint`: the hadolint-py wheel for macOS is broken.
 
 - Run a part of the checks with `make lint`, `make test` or `make docker`, `make` lists the targets.
-- The roles: `devices` (Linux) and `mac-devices` (macOS) deploy the agent of the OS; `common`, their dependency (`meta/main.yml`), has the values by default and the checks of the settings and the devices shared by both (`roles/common/tasks/checks.yml`, imported after the check of the OS: a check of one OS only stays in its role); `download` pulls the images.
+- The roles: `devices` (Linux) and `mac-devices` (macOS) deploy the agent of the OS; `common`, their dependency (`meta/main.yml`), has the values by default and the checks of the settings and the devices shared by both (`roles/common/tasks/checks.yml`, imported after the check of the OS: a check of one OS only stays in its role), and `zebrunner-farm` (`roles/common/tasks/farm.yml`): one static script of both OS (`roles/common/files/zebrunner-farm`, the branches of `FARM_OS`) with its settings rendered into an env file (`roles/common/templates/zebrunner-farm.env`); the tests run it with `ZEBRUNNER_FARM_ENV`; `download` pulls the images.
 - With `JUNIT_DIR` set, `tests/lint.sh` and every test write JUnit XML into it. CI publishes the results as annotations and a job summary, and keeps the XML files as artifacts.
 - The `usbmuxd_watch` binary of the `mac-devices` role is built from `roles/mac-devices/files/usbmuxd_watch.c` and the pinned release tarballs (sha256) of libplist, libimobiledevice-glue and libusbmuxd. After a change of the source or of a library version, rebuild it on macOS with the Xcode command line tools and commit it; the same Xcode builds the same binary byte for byte. CI builds it the same way and runs `tests/usbmuxd_watch_test.sh` on the result:
 

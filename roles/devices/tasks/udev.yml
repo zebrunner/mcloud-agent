@@ -37,15 +37,16 @@
     label: "{{ item.name }}"
   tags: [devices, precheck, validate]
 
-- name: Copy 'zebrunner-farm' script file
-  ansible.builtin.template:
-    src: zebrunner-farm
-    dest: /usr/local/bin/zebrunner-farm
-    # it has the secrets of the settings: root (udev) and the group of the user only
-    mode: "0750"
-    owner: root
-    group: "{{ lookup('pipe', 'id -g') }}"
-  tags: [devices, files]
+# the settings have the secrets of the host: root (udev) and the group of the user only
+- name: Deploy 'zebrunner-farm'
+  ansible.builtin.import_role:
+    name: common
+    tasks_from: farm
+  vars:
+    common_farm_os: linux
+    common_farm_owner: root
+    common_farm_group: "{{ lookup('pipe', 'id -g') }}"
+    common_farm_env_mode: "0640"
 
 - name: Copy rules file
   ansible.builtin.template:
