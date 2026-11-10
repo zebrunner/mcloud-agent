@@ -396,17 +396,32 @@ doctor_provider_host() {
   fi
 }
 
+# device_list_fields <key>...: the values of the keys of every deployed device, separated by '|', one device per line:
+# mcloud-devices.txt has the fields key=value separated by '|' in any order (README.md#devices-management)
+device_list_fields() {
+  [[ -f "$DOCTOR_DEVICES" ]] || return 0
+  awk -F '|' -v keys="$*" '!/^#/ && /=/ {
+      split("", value)
+      for (i = 1; i <= NF; i++) {
+        eq = index($i, "=")
+        if (eq > 0) value[substr($i, 1, eq - 1)] = substr($i, eq + 1)
+      }
+      n = split(keys, key, " ")
+      line = value[key[1]]
+      for (j = 2; j <= n; j++) line = line "|" value[key[j]]
+      print line
+    }' "$DOCTOR_DEVICES"
+}
+
 # connect_ports: the remote debug (adb connect) ports of the deployed Android devices, separated by spaces: connect_port,
 # min_port + 1 without it (min_port is the screen)
 connect_ports() {
-  [[ -f "$DOCTOR_DEVICES" ]] || return 0
-  # min_port is the 7th field and connect_port the 15th
-  awk -F '|' '$2 == "android" {
-      if ($15 ~ /^[0-9]+$/) port = $15
-      else if ($7 ~ /^[0-9]+$/) port = $7 + 1
+  device_list_fields os min_port connect_port | awk -F '|' '$1 == "android" {
+      if ($3 ~ /^[0-9]+$/) port = $3
+      else if ($2 ~ /^[0-9]+$/) port = $2 + 1
       else next
       print port
-    }' "$DOCTOR_DEVICES" | paste -s -d ' ' -
+    }' | paste -s -d ' ' -
 }
 
 # doctor_remote_connect: `adb connect` of STF (the remote debug of the Android devices) reaches the devices:
@@ -439,10 +454,9 @@ doctor_remote_connect() {
 
 # device_ports_of_list: the host ports of the deployed devices, one per line: appium_port, min_port-max_port, connect_port
 device_ports_of_list() {
-  [[ -f "$DOCTOR_DEVICES" ]] || return 0
-  awk -F '|' '$5 ~ /^[0-9]+$/ { print $5 }
-    $7 ~ /^[0-9]+$/ && $8 ~ /^[0-9]+$/ { for (port = $7; port <= $8; port++) print port }
-    $15 ~ /^[0-9]+$/ { print $15 }' "$DOCTOR_DEVICES"
+  device_list_fields appium_port min_port max_port connect_port | awk -F '|' '$1 ~ /^[0-9]+$/ { print $1 }
+    $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/ { for (port = $2; port <= $3; port++) print port }
+    $4 ~ /^[0-9]+$/ { print $4 }'
 }
 
 # doctor_same_machine: MCloud on this machine (README.md#devices-on-the-mcloud-server): the ports of the devices are not the
@@ -489,12 +503,8 @@ doctor_devices() {
   local line
   local states
   states="$(docker ps -a --filter name=device- --format '{{.Names}} {{.State}}' 2> /dev/null)"
-  local -a fields
-  while IFS='|' read -r -a fields; do
-    udid="${fields[0]}"
+  while IFS='|' read -r udid name connection; do
     [[ -n "$udid" ]] || continue
-    name="${fields[2]}"
-    connection="${fields[8]}"
     prefix="device-${name}-${udid}"
     running="$(grep -cF -- "${prefix}-" <<< "$(grep ' running$' <<< "$states")")"
     if [[ "$running" -eq 0 ]]; then
@@ -514,7 +524,7 @@ doctor_devices() {
     if docker logs --since 30m --tail 300 "${prefix}-stf" 2>&1 | grep -q 'refused the CURVE key'; then
       doctor_fail "${name}: STF refuses the CURVE key of this host: MCloud knows another key of it or revoked it" "./zebrunner.sh join with a new join string of ./zebrunner.sh node-invite of mcloud"
     fi
-  done < "$DOCTOR_DEVICES"
+  done <<< "$(device_list_fields id name connection)"
 }
 
 # count_values <values...>: the number of the values

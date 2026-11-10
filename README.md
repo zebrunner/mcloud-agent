@@ -159,7 +159,7 @@ Security:
 - Devices management script is deployed to /usr/local/bin/zebrunner-farm (the same script on Linux and macOS), its settings to /usr/local/etc/zebrunner-farm.env (see [Settings](#settings)).
 - Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules: a connection of a USB device starts the systemd unit `mcloud-device-restart@<id>`, a disconnection `mcloud-device-down@<id>` (`/etc/systemd/system`), which run `zebrunner-farm restart` or `down` for it. udev only queues the job: its programs are killed after the event (180 s), the containers may need longer (the images are pulled). A disconnection cancels an unfinished restart and the other way round.
 - The commands of one device (`zebrunner-farm start`, `stop`, `restart`, `down <device>`, the units of udev) run one at a time (`flock`, `/run/lock/mcloud-device-<id>.lock`): one waits for up to 30 minutes for another.
-- Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
+- Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt, rendered from `config/devices.yml`: one device per line, its fields `key=value` (the keys of `config/devices.yml`) separated by `|`; an empty value is the value by default (`wda_file`, `wda_bundleid`: `WDA_FILE`, `WDA_BUNDLEID` of the settings).
 - Usbmuxd service is stopped and masked (disabled).
 - Wireless, emulator and proxy devices have no udev rules: `zebrunner-farm start` creates their containers.
 - Android emulators (`android-sim`) are started outside the farm (e.g. an AVD, Genymotion, a container Android): set `address` to their adb address reachable from the docker network; appium gets `DEVICE_CONNECTION=android-sim` (a `default` device is a phone).
@@ -194,7 +194,7 @@ Security:
 - The containers run on the platform of the Mac, arm64 on Apple Silicon (the STF provider of an iOS simulator hangs
   under emulation, the other ones are slower), but appium: its image is `linux/amd64` only (see
   [appium](https://github.com/zebrunner/appium#limitations)), emulated by Docker Desktop with Rosetta 2 on Apple Silicon.
-- Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt.
+- Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt, rendered from `config/devices.yml`: one device per line, its fields `key=value` (the keys of `config/devices.yml`) separated by `|`; an empty value is the value by default (`wda_file`, `wda_bundleid`: `WDA_FILE`, `WDA_BUNDLEID` of the settings).
 - Deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist to share usbmuxd into the device containers
 - USB Android devices: deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerAdb.plist, the adb server of the host (`brew install android-platform-tools`); the connectors take the devices from it, the containers of a USB Android device are created by `zebrunner-farm start` (the devices listener handles iOS only).
 - iOS simulators (`ios-sim`): the ssh key of the agent is generated into `ssh/id_ed25519` of the agent folder and authorized in `~/.ssh/authorized_keys` (`restrict`), turn on Remote Login (System Settings, General, Sharing) for the user. Set the simulator build of WebDriverAgent (`WDA_SIMULATOR_FILE` or `wda_file` of the device), e.g. `WebDriverAgentRunner-Build-Sim-arm64.zip` of [appium/WebDriverAgent](https://github.com/appium/WebDriverAgent/releases).

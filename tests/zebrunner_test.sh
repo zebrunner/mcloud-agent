@@ -427,14 +427,14 @@ chmod 600 "$vars"
 self_answer 192.168.30.2 > "${WORK}/mcloud/self_answer"
 
 # the remote debug through the adb relay of mcloud
-printf '%s\n' "emu1|android|Emu|loc|7471|7472|7475|7480|android-sim|/dev/null|x|host:5557|||" > "${WORK}/devices.txt"
+printf '%s\n' "id=emu1|os=android|name=Emu|location=loc|appium_port=7471|adb_port=7472|min_port=7475|max_port=7480|connection=android-sim|wda_file=/dev/null|wda_bundleid=x|address=host:5557|wda_port=|mjpeg_port=|connect_port=" > "${WORK}/devices.txt"
 check_contains "the deployed devices are checked" "Emu: no running container" "$(doctor_run)"
 check_contains "the remote debug of a private address is explained" \
   "adb connect of STF (the remote debug) reaches 192.168.30.2 from its network only" "$(doctor_run)"
 sed -i.bak 's/^REMOTE_CONNECT_HOST:.*/REMOTE_CONNECT_HOST: demo.zebrunner.farm/' "$vars" && rm -f "${vars}.bak"
 check_contains "the adb relay is checked on the remote debug port of the devices" \
   "adb relay of mcloud (REMOTE_CONNECT_HOST): demo.zebrunner.farm:7476 (192.168.50.2) accepts connections" "$(doctor_run)"
-printf '%s\n' "emu1|android|Emu|loc|7471|7472|7475|7480|android-sim|/dev/null|x|host:5557|||7499" > "${WORK}/devices.txt"
+printf '%s\n' "id=emu1|os=android|name=Emu|location=loc|appium_port=7471|adb_port=7472|min_port=7475|max_port=7480|connection=android-sim|wda_file=/dev/null|wda_bundleid=x|address=host:5557|wda_port=|mjpeg_port=|connect_port=7499" > "${WORK}/devices.txt"
 check_contains "connect_port is the remote debug port" "the remote debug ports of this host (ADB_RELAY_PORTS of mcloud must have them): 192.168.30.2:7499" "$(doctor_run)"
 echo "demo.zebrunner.farm:7499" > "${WORK}/net/closed"
 check_contains "a missing relay tells the setting of mcloud" "ADB_RELAY=true of .env of mcloud" "$(doctor_run)"
@@ -444,11 +444,11 @@ chmod 600 "$vars"
 
 # MCloud on this machine: the devices must not use its ports
 echo "192.168.50.2" >> "${WORK}/net/local"
-printf '%s\n' "emu1|android|Emu|loc|4446|7472|7475|7480|android-sim|/dev/null|x|host:5557||" > "${WORK}/devices.txt"
+printf '%s\n' "id=emu1|os=android|name=Emu|location=loc|appium_port=4446|adb_port=7472|min_port=7475|max_port=7480|connection=android-sim|wda_file=/dev/null|wda_bundleid=x|address=host:5557|wda_port=|mjpeg_port=|connect_port=" > "${WORK}/devices.txt"
 output="$(doctor_run)"
 check_contains "MCloud on this machine is reported" "MCloud runs on this machine (192.168.50.2)" "$output"
 check_contains "a port of MCloud used by a device is a problem" "the devices use the ports 4446 of MCloud on this machine" "$output"
-printf '%s\n' "emu1|android|Emu|loc|7471|7472|7475|7480|android-sim|/dev/null|x|host:5557||" > "${WORK}/devices.txt"
+printf '%s\n' "id=emu1|os=android|name=Emu|location=loc|appium_port=7471|adb_port=7472|min_port=7475|max_port=7480|connection=android-sim|wda_file=/dev/null|wda_bundleid=x|address=host:5557|wda_port=|mjpeg_port=|connect_port=" > "${WORK}/devices.txt"
 check_contains "no port of MCloud used by the devices" "the devices use no port of MCloud on this machine" "$(doctor_run)"
 echo "192.168.30.2" > "${WORK}/net/local"
 rm -f "${WORK}/devices.txt"

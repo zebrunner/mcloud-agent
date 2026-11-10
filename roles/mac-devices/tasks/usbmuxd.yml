@@ -61,15 +61,6 @@
     group: wheel
   tags: [devices, files]
 
-- name: Copy devices details file
-  ansible.builtin.template:
-    src: mcloud-devices.txt
-    dest: /usr/local/bin/mcloud-devices.txt
-    mode: "0644"
-    owner: root
-    group: wheel
-  tags: [devices, files]
-
 - name: Copy devices listener log rotation settings
   ansible.builtin.template:
     src: zebrunner-mcloud.newsyslog.conf

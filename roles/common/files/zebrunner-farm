@@ -57,6 +57,15 @@ with_device_lock() {
   ) 9< "$lock"
 }
 
+# device_line <udid or name>: the line of the device of mcloud-devices.txt (README.md#devices-management): one device per
+# line, its fields key=value separated by '|' in any order, the comments start with '#'
+device_line() {
+  awk -F '|' -v filter="$1" 'filter != "" && !/^#/ {
+      for (i = 1; i <= NF; i++) if ($i == "id=" filter || $i == "name=" filter) { print; exit }
+    }' "$MCLOUD_DEVICES"
+}
+
+# get_device_fields <udid or name>: the dev_ variables of the device; an empty field is the value by default
 get_device_fields() {
   local filter="$1"
 
@@ -79,8 +88,8 @@ get_device_fields() {
   dev_remote_port=""
 
   local line
-  # exact match of udid (field 1) or name (field 3)
-  line="$(awk -F"|" -v filter="$filter" 'filter != "" && ($1 == filter || $3 == filter) { print; exit }' "$MCLOUD_DEVICES")"
+  # exact match of the udid (id) or the name
+  line="$(device_line "$filter")"
   if [[ -z "$line" ]]; then
     failed "device not found: ${filter}"
     return 1
@@ -89,18 +98,30 @@ get_device_fields() {
   local IFS='|'
   read -r -a fields <<< "$line"
   unset IFS
+  local field
+  local value
+  for field in "${fields[@]}"; do
+    value="${field#*=}"
+    case "${field%%=*}" in
+    id) dev_udid="$value" ;;
+    os) dev_platform_name="$value" ;;
+    name) dev_device_name="$value" ;;
+    location) dev_location="$value" ;;
+    appium_port) dev_appium_port="$value" ;;
+    adb_port) dev_adb_port="$value" ;;
+    min_port) dev_stf_min_port="$value" ;;
+    max_port) dev_stf_max_port="$value" ;;
+    connection) dev_connection="$value" ;;
+    wda_file) dev_device_wda_ipa_path="$value" ;;
+    wda_bundleid) dev_device_wda_bundle_id="$value" ;;
+    address) dev_address="$value" ;;
+    wda_port) dev_wda_port="$value" ;;
+    mjpeg_port) dev_mjpeg_port="$value" ;;
+    connect_port) dev_connect_port="$value" ;;
+    esac
+  done
 
-  # fields values shifted by -1 as `fields` is zero-indexed array
-  dev_udid="${fields[0]}"
-  dev_platform_name="${fields[1]}"
-  dev_device_name="${fields[2]}"
-  dev_location="${fields[3]}"
-  dev_appium_port="${fields[4]}"
-  dev_adb_port="${fields[5]}"
-  dev_stf_min_port="${fields[6]}"
-  dev_stf_max_port="${fields[7]}"
-
-  # Field 9 - 'connection': how the connector container reaches the device. Docker of macOS has no USB, so there the
+  # 'connection': how the connector container reaches the device. Docker of macOS has no USB, so there the
   # connector takes a USB device from the host: usbmuxd (iOS) or the adb server (Android) of the host.
   #   usb         - plugged into the host: Linux: passed into the connector, udev starts and removes its containers;
   #                 macOS: iOS over usbmuxd of the host, Android over the adb server of the host
@@ -111,11 +132,10 @@ get_device_fields() {
   #   ios-sim     - an iOS / tvOS simulator of a macOS host, the connector runs xcrun simctl of the host over ssh
   #   proxy       - WebDriverAgent published by another tool, the connector relays it (iOS)
   # The non-usb devices have no udev rules, `zebrunner-farm start` creates their containers.
-  dev_connection="${fields[8]:-usb}"
+  dev_connection="${dev_connection:-usb}"
 
-  # Fields 10 / 11 - 'device_wda_ipa_path' and 'device_wda_bundle_id'.
-  # Device specific WebDriverAgent path (the simulator build for a simulator) and bundle ID.
-  dev_device_wda_ipa_path="${fields[9]}"
+  # 'wda_file' and 'wda_bundleid': device specific WebDriverAgent path (the simulator build for a simulator) and bundle
+  # ID, WDA_FILE (WDA_SIMULATOR_FILE) and WDA_BUNDLEID of the settings by default
   if [[ "$dev_device_wda_ipa_path" == "/dev/null" || -z "$dev_device_wda_ipa_path" ]]; then
     dev_device_wda_ipa_path="${WDA_FILE}"
     if [[ "$dev_connection" == "ios-sim" ]]; then
@@ -124,24 +144,19 @@ get_device_fields() {
   fi
   : "${dev_device_wda_ipa_path:='/dev/null'}"
 
-  dev_device_wda_bundle_id="${fields[10]}"
   if [[ "$dev_device_wda_bundle_id" == "/dev/null" || -z "$dev_device_wda_bundle_id" ]]; then
     dev_device_wda_bundle_id="${WDA_BUNDLEID}"
   fi
   : "${dev_device_wda_bundle_id:='com.facebook.WebDriverAgentRunner.xctrunner'}"
 
-  # Fields 12 - 14 - 'address', 'wda_port' and 'mjpeg_port'.
+  # 'address', 'wda_port' and 'mjpeg_port':
   # address: the adb address of a wireless Android device or of an emulator (the id by default), the IP of a wireless
   # iOS device (Linux) or the host of the proxied WebDriverAgent;
   # wda_port and mjpeg_port: the ports of WebDriverAgent on the host for a simulator (unique, a simulator shares the
   # network of the host) or on the address for the proxy
-  dev_address="${fields[11]}"
-  dev_wda_port="${fields[12]}"
-  dev_mjpeg_port="${fields[13]}"
 
-  # Field 15 - 'connect_port': the remote debug port of STF (adb connect) of an Android device, the second port of
-  # min_port-max_port (STF_PROVIDER_CONNECT_PORT is not set) by default; dev_remote_port is the port of either case
-  dev_connect_port="${fields[14]}"
+  # 'connect_port': the remote debug port of STF (adb connect) of an Android device, the second port of min_port-max_port
+  # (STF_PROVIDER_CONNECT_PORT is not set) by default; dev_remote_port is the port of either case
   dev_remote_port="${dev_connect_port:-$((dev_stf_min_port + 1))}"
 
   # Common name prefix for all containers
@@ -799,8 +814,8 @@ select_devices() {
     fi
   done
   while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
-    get_device_fields "${line%%|*}" > /dev/null || continue
+    [[ "|${line}|" =~ \|id=([^|]*)\| ]] || continue
+    get_device_fields "${BASH_REMATCH[1]}" > /dev/null || continue
     if in_selection; then
       SELECTED+=("$dev_udid")
     fi
@@ -1136,10 +1151,19 @@ echo_help() {
   exit 0
 }
 
+# check_devices_list: mcloud-devices.txt of an earlier version (positional fields) needs the deploy of this version
+check_devices_list() {
+  if grep -v '^#' "$MCLOUD_DEVICES" 2> /dev/null | grep -q . && ! grep -Eq '(^|[|])id=' "$MCLOUD_DEVICES"; then
+    failed "The devices list ${MCLOUD_DEVICES} is of an earlier version: deploy it with ./zebrunner.sh ansible"
+    return 1
+  fi
+}
+
 # farm_command <command> <arguments...>: the command for the devices of the arguments
 farm_command() {
   local command="$1"
   shift
+  check_devices_list || return 1
   parse_selection "$@" || return 1
   select_devices || return 1
   if [[ "$command" == "status" ]]; then

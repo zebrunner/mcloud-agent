@@ -53,15 +53,6 @@
     daemon_reload: true
   tags: [devices, udev]
 
-- name: Copy devices details file
-  ansible.builtin.template:
-    src: mcloud-devices.txt
-    dest: /usr/local/bin/mcloud-devices.txt
-    mode: "0644"
-    owner: root
-    group: root
-  tags: [devices, files]
-
 # WARNING: udevadm control --reload only re-reads the rules file.
 #      It does NOT reapply rules to already-connected devices.
 #      Re-plug affected devices manually, or run:
