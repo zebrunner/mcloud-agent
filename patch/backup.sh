@@ -1,66 +1,34 @@
 #!/bin/bash
+# `./zebrunner.sh backup` and `restore` (README.md#settings): the local settings of config/ only, the code of the agent
+# comes from git. Sourced by zebrunner.sh after patch/utility.sh.
+
+# backup_files: the files of a backup, relative to the agent folder
+backup_files() {
+  echo "$SETTINGS_FILE" "$DEVICES_FILE"
+}
 
 backup() {
   delimiter "Backup MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
 
   confirm "" "      Do you want to do a backup now?" "n" || exit 0
   echo ""
-  echo "Creating backup directories:"
-  echo -n "    "
   local backup_dir_name
   backup_dir_name="backup/bak_$(date +%d-%m-%Y_%H-%M)_$(random_string 5)"
-  if ! mkdir -vp "$backup_dir_name" 2> /dev/null; then
-    failed "mkdir for '$backup_dir_name' failed"
+  echo "Creating backup directory:"
+  echo -n "    "
+  # the settings have secrets: the backup is private
+  if ! (umask 077 && mkdir -vp "${backup_dir_name}/config" 2> /dev/null); then
+    failed "mkdir for '${backup_dir_name}/config' failed"
     exit 1
   fi
 
-  if [[ ! -d "${backup_dir_name}/defaults" ]]; then
-    echo -n "    "
-    mkdir -vp "${backup_dir_name}/defaults" 2> /dev/null || failed "mkdir for '${backup_dir_name}/defaults' failed"
-  fi
-
-  if [[ ! -d "${backup_dir_name}/tasks" ]]; then
-    echo -n "    "
-    mkdir -vp "${backup_dir_name}/tasks" 2> /dev/null || failed "mkdir for '${backup_dir_name}/tasks' failed"
-  fi
-
-  if [[ ! -d "${backup_dir_name}/templates" ]]; then
-    echo -n "    "
-    mkdir -vp "${backup_dir_name}/templates" 2> /dev/null || failed "mkdir for '${backup_dir_name}/templates' failed"
-  fi
-
-  if [[ ! -d "${backup_dir_name}/config" ]]; then
-    echo -n "    "
-    mkdir -vp "${backup_dir_name}/config" 2> /dev/null || failed "mkdir for '${backup_dir_name}/config' failed"
-  fi
-
-  if [[ ! -d "${backup_dir_name}/download" ]]; then
-    echo -n "    "
-    mkdir -vp "${backup_dir_name}/download" 2> /dev/null || failed "mkdir for '${backup_dir_name}/download' failed"
-  fi
-
   echo ""
-  echo "Backing up MCloud Agent related files:"
-  echo -n "    "
-  cp -av "defaults/main.yml" "${backup_dir_name}/defaults/" 2> /dev/null || failed "cp for 'defaults/main.yml' failed"
-  echo -n "    "
-  cp -av "roles/download/tasks/main.yml" "${backup_dir_name}/download/" 2> /dev/null || failed "cp for 'roles/download/tasks/main.yml' failed"
-  echo -n "    "
-  cp -av "config/settings.yml" "${backup_dir_name}/config/" 2> /dev/null || failed "cp for 'config/settings.yml' failed"
-  echo -n "    "
-  cp -av "config/devices.yml" "${backup_dir_name}/config/" 2> /dev/null || failed "cp for 'config/devices.yml' failed"
-
-  if [[ "$(uname)" == "Darwin" ]]; then
+  echo "Backing up the settings:"
+  local file
+  for file in $(backup_files); do
     echo -n "    "
-    cp -av "roles/mac-devices/tasks/usbmuxd.yml" "${backup_dir_name}/tasks/" 2> /dev/null || failed "cp for 'roles/mac-devices/tasks/usbmuxd.yml' failed"
-    echo -n "    "
-    cp -av "roles/mac-devices/templates/zebrunner-farm" "${backup_dir_name}/templates/" 2> /dev/null || failed "cp for 'roles/mac-devices/templates/zebrunner-farm' failed"
-  else
-    echo -n "    "
-    cp -av "roles/devices/tasks/udev.yml" "${backup_dir_name}/tasks/" 2> /dev/null || failed "cp for 'roles/devices/tasks/udev.yml' failed"
-    echo -n "    "
-    cp -av "roles/devices/templates/zebrunner-farm" "${backup_dir_name}/templates/" 2> /dev/null || failed "cp for 'roles/devices/templates/zebrunner-farm' failed"
-  fi
+    cp -pv "$file" "${backup_dir_name}/config/" 2> /dev/null || failed "cp for '${file}' failed"
+  done
 
   delimiter
 }
@@ -84,8 +52,8 @@ restore() {
 
   echo ""
   while true; do
-    read -r -p "Please enter the backup directory name you want to restore: " backup_dir_name
-    if [[ -d "backup/${backup_dir_name}" ]]; then
+    read -r -p "Please enter the backup directory name you want to restore: " backup_dir_name || exit 1
+    if [[ -n "$backup_dir_name" && -d "backup/${backup_dir_name}" ]]; then
       backup_dir_name="backup/${backup_dir_name}"
       break
     else
@@ -95,28 +63,20 @@ restore() {
     fi
   done
 
+  # a backup of an earlier version: the settings in vars/main.yml, the code of that version beside them
+  if [[ ! -d "${backup_dir_name}/config" ]]; then
+    echo_warning "'${backup_dir_name}' is a backup of an earlier version: move the settings of its vars/main.yml to '${SETTINGS_FILE}' and its devices: to '${DEVICES_FILE}' by hand (README.md#settings)."
+    exit 1
+  fi
+
   echo ""
   echo "Restoring from '${backup_dir_name}':"
-  echo -n "    "
-  cp -av "${backup_dir_name}/defaults/main.yml" "defaults/" 2> /dev/null || failed "cp for '${backup_dir_name}/defaults/main.yml' failed"
-  echo -n "    "
-  cp -av "${backup_dir_name}/download/main.yml" "roles/download/tasks/" 2> /dev/null || failed "cp for '${backup_dir_name}/download/main.yml' failed"
-  echo -n "    "
-  cp -av "${backup_dir_name}/config/settings.yml" "config/" 2> /dev/null || failed "cp for '${backup_dir_name}/config/settings.yml' failed"
-  echo -n "    "
-  cp -av "${backup_dir_name}/config/devices.yml" "config/" 2> /dev/null || failed "cp for '${backup_dir_name}/config/devices.yml' failed"
-
-  if [[ "$(uname)" == "Darwin" ]]; then
+  mkdir -p config
+  local file
+  for file in $(backup_files); do
     echo -n "    "
-    cp -av "${backup_dir_name}/tasks/usbmuxd.yml" "roles/mac-devices/tasks/" 2> /dev/null || failed "cp for '${backup_dir_name}/tasks/usbmuxd.yml' failed"
-    echo -n "    "
-    cp -av "${backup_dir_name}/templates/zebrunner-farm" "roles/mac-devices/templates/" 2> /dev/null || failed "cp for '${backup_dir_name}/templates/zebrunner-farm' failed"
-  else
-    echo -n "    "
-    cp -av "${backup_dir_name}/tasks/udev.yml" "roles/devices/tasks/" 2> /dev/null || failed "cp for '${backup_dir_name}/tasks/udev.yml' failed"
-    echo -n "    "
-    cp -av "${backup_dir_name}/templates/zebrunner-farm" "roles/devices/templates/" 2> /dev/null || failed "cp for '${backup_dir_name}/templates/zebrunner-farm' failed"
-  fi
+    cp -pv "${backup_dir_name}/${file}" "$file" 2> /dev/null || failed "cp for '${backup_dir_name}/${file}' failed"
+  done
 
   echo_warning "After recovery, you need to reapply the settings:"
   warn ">\t./zebrunner.sh ansible"
