@@ -65,7 +65,7 @@ restore() {
 
   # a backup of an earlier version: the settings in vars/main.yml, the code of that version beside them
   if [[ ! -d "${backup_dir_name}/config" ]]; then
-    echo_warning "'${backup_dir_name}' is a backup of an earlier version: move the settings of its vars/main.yml to '${SETTINGS_FILE}' and its devices: to '${DEVICES_FILE}' by hand (README.md#settings)."
+    echo_warning "'${backup_dir_name}' is a backup of an earlier version: ./zebrunner.sh migrate ${backup_dir_name}/vars/main.yml ${backup_dir_name}/defaults/main.yml moves its settings to '${SETTINGS_FILE}' and its devices: to '${DEVICES_FILE}' (README.md#settings)."
     exit 1
   fi
 

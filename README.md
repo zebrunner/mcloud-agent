@@ -82,7 +82,12 @@ The other files of the settings are in git, do not change them: `git pull` bring
 
 The playbooks load them in this order: the values by default of the roles, `versions.yml`, `config/settings.yml`, `config/devices.yml`. The deploy renders the settings zebrunner-farm runs with into `/usr/local/etc/zebrunner-farm.env`: udev and launchd run it without the environment of the user, a change of `config/` needs `./zebrunner.sh ansible` (`./zebrunner.sh doctor` reports the settings that differ). `./zebrunner.sh backup` keeps the two files of `config/` in a private folder `backup/bak_<time>_<random>/config/`, `restore` puts them back; the code of the agent is not in a backup, it comes from git (`git pull`).
 
-The earlier versions kept everything in `roles/devices/vars/main.yml` (Linux) or `roles/mac-devices/vars/main.yml` (macOS). Such a file overrides `config/`, so the deploy and `./zebrunner.sh doctor` refuse it: after `./zebrunner.sh setup` move its settings to `config/settings.yml` and its `devices:` to `config/devices.yml`, then remove it. The images and the options of Appium were in `defaults/main.yml`, now `versions.yml` and `roles/common/defaults/main.yml`: before `git pull` put the changed lines of `defaults/main.yml` into `config/settings.yml` and drop the local change (`git checkout defaults/main.yml`).
+The earlier versions kept everything in `roles/devices/vars/main.yml` (Linux) or `roles/mac-devices/vars/main.yml` (macOS), and the images and the options of Appium in `defaults/main.yml` (now `versions.yml` and `roles/common/defaults/main.yml`). Such a `vars/main.yml` overrides `config/`, so the deploy and `./zebrunner.sh doctor` refuse it. `./zebrunner.sh migrate` moves them: it shows the changes of `config/` (the secrets hidden) and asks first, then writes the settings that differ from the ones the deploy has already into `config/settings.yml` and the `devices:` into `config/devices.yml` (the previous files are kept as `*.bak`), and renames the files of the earlier version to `*.migrated`. With a local change of `defaults/main.yml`, `git pull` stops: keep a copy, drop the change, pull, then migrate the copy:
+
+```bash
+cp defaults/main.yml defaults.local.yml && git checkout defaults/main.yml && git pull
+./zebrunner.sh migrate defaults.local.yml
+```
 
 ## Node enrollment
 
@@ -209,11 +214,12 @@ Security:
 - `setup` - prepares the agent: the settings of `config/` from the examples. It changes no shell profile: `zebrunner.sh` knows its folder, `zebrunner-farm` has it in its settings, so `zebrunner-farm ansible` deploys again from any folder; the `ZEBRUNNER_MCLOUD_AGENT_DIR` line of the earlier versions is removed from the profiles.
 - `ansible [devices]` - deploys the agent, `devices` registers the devices only.
 - `status` - shows the state of the agent components: tools, Rosetta 2 of an Apple Silicon Mac, deployed files, launch agents.
-- `backup` and `restore` - save the settings of `config/` into the `backup` folder and restore them from it (see [Settings](#settings)); a backup of an earlier version (`vars/main.yml`) is moved by hand.
+- `backup` and `restore` - save the settings of `config/` into the `backup` folder and restore them from it (see [Settings](#settings)); a backup of an earlier version (`vars/main.yml`, `defaults/main.yml`) goes to `config/` with `./zebrunner.sh migrate <its files>`.
 - `shutdown` - removes the devices containers, the launch agents or udev rules, the deployed files, the settings and the environment variable (asks for confirmation).
 - `version` - shows the versions of the agent components.
 - `doctor` - checks the host, the settings, the deployment, the network to the MCloud server and the devices, and tells what to fix, see [Doctor](#doctor).
 - `join` - enrolls this host in MCloud with the join string of `./zebrunner.sh node-invite` of mcloud, see [Node enrollment](#node-enrollment).
+- `migrate [files...]` - moves the settings of an earlier version to `config/`, see [Settings](#settings).
 
 ### ZeroMQ security
 

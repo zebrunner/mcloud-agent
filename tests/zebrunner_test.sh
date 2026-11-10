@@ -57,7 +57,7 @@ exports() {
 section "help"
 output="$(zbr "")"
 check_contains "help shows the usage" "Usage: ./zebrunner.sh [option]" "$output"
-for command in setup ansible status backup restore shutdown version doctor join; do
+for command in setup ansible status backup restore shutdown version doctor join migrate; do
   check_contains "help lists ${command}" "         ${command} " "$output"
 done
 
@@ -92,7 +92,7 @@ output="$(OS=Darwin zbr "" setup)"
 check "macOS devices are created from the example" "same" \
   "$(cmp -s "${AGENT}/config/devices.yml" "${AGENT}/config/mac-devices.yml.original" && echo same)"
 check_contains "the settings of an earlier version are reported" \
-  "'roles/mac-devices/vars/main.yml' of an earlier version overrides 'config/': move its settings to 'config/settings.yml'" "$output"
+  "'roles/mac-devices/vars/main.yml' of an earlier version overrides 'config/': ./zebrunner.sh migrate moves its settings to 'config/settings.yml'" "$output"
 rm -rf "${AGENT}/roles/mac-devices/vars" "${AGENT}/config/"*.bak
 mv "${WORK}/devices.yml" "${AGENT}/config/devices.yml"
 check_contains "unknown OS is rejected" "Unknown OS" "$(OS=FreeBSD zbr "" setup)"
@@ -547,9 +547,69 @@ OS=Linux zbr "y\n" restore > /dev/null
 check "restore stops at the end of the input" "1" "$?"
 mkdir -p "${AGENT}/backup/bak_old/vars"
 touch "${AGENT}/backup/bak_old/vars/main.yml"
-check_contains "a backup of an earlier version is explained" "is a backup of an earlier version: move the settings of its vars/main.yml" \
+check_contains "a backup of an earlier version is explained" "is a backup of an earlier version: ./zebrunner.sh migrate backup/bak_old/vars/main.yml backup/bak_old/defaults/main.yml" \
   "$(OS=Linux zbr "y\nbak_old\n" restore)"
 rm -rf "${AGENT}/backup/bak_old"
+
+section "migrate"
+cp "${AGENT}/config/settings.yml" "${WORK}/settings.saved"
+cp "${AGENT}/config/devices.yml" "${WORK}/devices.saved"
+cp "${AGENT}/config/settings.yml.original" "${AGENT}/config/settings.yml"
+cp "${AGENT}/config/devices.yml.original" "${AGENT}/config/devices.yml"
+check_contains "nothing to migrate without the files of an earlier version" "nothing to migrate" "$(OS=Linux zbr "" migrate)"
+mkdir -p "${AGENT}/roles/devices/vars" "${AGENT}/defaults"
+cat > "${AGENT}/roles/devices/vars/main.yml" << 'EOF'
+---
+STF_DOCKER_NETWORK: infra
+PUBLIC_IP: old.example.com
+PUBLIC_IP_PORT: 80
+MCLOUD_NODE_TOKEN: "mcn1.old-host.secret-token-value"
+STF_PROVIDER_NAME: mcloud-linux
+# the devices of the earlier version
+devices:
+  # the phone on the desk
+  - id: OLD1
+    os: android
+    name: Old_Phone
+    appium_port: 7421
+    min_port: 7425
+    max_port: 7430
+EOF
+printf 'DEVICE_IMAGE: public.ecr.aws/zebrunner/mcloud-device\nDEVICE_VERSION: 9.9-local\nAPPIUM_RELAXED_SECURITY: false\n' > "${AGENT}/defaults/main.yml"
+output="$(OS=Linux zbr "n\n" migrate)"
+check_contains "the files of an earlier version are found" "roles/devices/vars/main.yml defaults/main.yml" "$output"
+check_contains "a changed setting is shown" '+PUBLIC_IP: "old.example.com"' "$output"
+check_contains "a number keeps its type" "+PUBLIC_IP_PORT: 80" "$output"
+check_contains "a secret is hidden" "+MCLOUD_NODE_TOKEN: ******" "$output"
+check_not_contains "the value of a secret is not shown" "secret-token-value" "$output"
+check_contains "a changed version is shown" '+DEVICE_VERSION: "9.9-local"' "$output"
+check_contains "a changed option of Appium is shown" "+APPIUM_RELAXED_SECURITY: false" "$output"
+check_not_contains "a value the deploy has already is not shown" "STF_PROVIDER_NAME" "$output"
+check_not_contains "an unchanged image is not shown" "DEVICE_IMAGE" "$output"
+check_contains "the devices are shown" "+  - id: OLD1" "$output"
+check "a declined migration changes nothing" "same" "$(cmp -s "${AGENT}/config/settings.yml" "${AGENT}/config/settings.yml.original" && echo same)"
+check "a declined migration keeps the files of an earlier version" "yes" "$([[ -f "${AGENT}/roles/devices/vars/main.yml" ]] && echo yes)"
+output="$(OS=Linux zbr "y\n" migrate)"
+check_contains "the migration writes the settings" "Written: config/settings.yml" "$output"
+check "the setting is migrated" 'PUBLIC_IP: "old.example.com"' "$(grep '^PUBLIC_IP:' "${AGENT}/config/settings.yml")"
+check "the version is migrated" 'DEVICE_VERSION: "9.9-local"' "$(grep '^DEVICE_VERSION:' "${AGENT}/config/settings.yml")"
+check "the migrated settings are private" "600" "$(stat -c '%a' "${AGENT}/config/settings.yml" 2> /dev/null || stat -f '%Lp' "${AGENT}/config/settings.yml")"
+check "the previous settings are kept" "same" "$(cmp -s "${AGENT}/config/settings.yml.bak" "${AGENT}/config/settings.yml.original" && echo same)"
+check_contains "the devices are migrated with their comments" "  # the phone on the desk
+  - id: OLD1" "$(cat "${AGENT}/config/devices.yml")"
+check_not_contains "the example devices are replaced" "R28M1384YQY" "$(cat "${AGENT}/config/devices.yml")"
+check "the settings of an earlier version are renamed" "no yes" \
+  "$([[ -f "${AGENT}/roles/devices/vars/main.yml" ]] && echo yes || echo no) $([[ -f "${AGENT}/roles/devices/vars/main.yml.migrated" ]] && echo yes)"
+check "the defaults of an earlier version are renamed" "yes" "$([[ -f "${AGENT}/defaults/main.yml.migrated" ]] && echo yes)"
+check_contains "a second migration has nothing to do" "nothing to migrate" "$(OS=Linux zbr "" migrate)"
+mkdir -p "${WORK}/old-backup"
+printf 'PUBLIC_IP: backup.example.com\n' > "${WORK}/old-backup/main.yml"
+OS=Linux zbr "y\n" migrate "${WORK}/old-backup/main.yml" > /dev/null
+check "a file given is migrated" 'PUBLIC_IP: "backup.example.com"' "$(grep '^PUBLIC_IP:' "${AGENT}/config/settings.yml")"
+check "a file given is not renamed" "yes" "$([[ -f "${WORK}/old-backup/main.yml" ]] && echo yes)"
+rm -rf "${AGENT}/roles/devices/vars" "${AGENT}/defaults" "${AGENT}/config/"*.bak
+mv "${WORK}/settings.saved" "${AGENT}/config/settings.yml"
+mv "${WORK}/devices.saved" "${AGENT}/config/devices.yml"
 
 section "shutdown"
 for profile in .bashrc .zshrc; do

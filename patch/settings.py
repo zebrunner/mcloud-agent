@@ -60,19 +60,16 @@ def dump(paths):
     ]
 
 
-def write_settings(path, settings, backup=None):
-    """The settings in the file (the lines replaced, the missing ones at its end), mode 600, a copy to backup first.
-
-    The values are written as JSON strings (YAML double-quoted scalars); the new text is parsed before it is written,
-    so a value never changes another setting."""
+def updated_text(text, settings, path):
+    """The text with the settings: the lines replaced, the missing ones at its end. The values are written as JSON
+    (YAML double-quoted strings, numbers, true/false); the new text is parsed, so a value never changes another one."""
     for name, value in settings.items():
-        if not NAME.match(name) or "\n" in value:
+        if not NAME.match(name) or "\n" in text_of(value) or isinstance(value, (dict, list)):
             raise SettingsError(f"invalid setting {name!r}")
-    with open(path, encoding="utf-8") as file:
-        lines = file.read().split("\n")
+    lines = text.split("\n")
     for name, value in settings.items():
-        line = f"{name}: {json.dumps(value)}" if value else f"{name}:"
-        index = next((i for i, text in enumerate(lines) if re.match(rf"^{name}:", text)), None)
+        line = f"{name}: {json.dumps(value)}" if value not in ("", None) else f"{name}:"
+        index = next((i for i, line_text in enumerate(lines) if re.match(rf"^{name}:", line_text)), None)
         if index is None:
             lines.insert(len(lines) - 1 if lines[-1] == "" else len(lines), line)
         else:
@@ -82,16 +79,28 @@ def write_settings(path, settings, backup=None):
         written = yaml.safe_load(text) or {}
     except yaml.YAMLError as err:
         raise SettingsError(f"{path} is not valid YAML: {err}") from err
-    changed = [name for name, value in settings.items() if text_of(written.get(name)) != value]
+    changed = [name for name, value in settings.items() if text_of(written.get(name)) != text_of(value)]
     if changed:
         raise SettingsError(f"{path}: the settings {', '.join(changed)} are not read back as written")
-    if backup:
+    return text
+
+
+def write_private(path, text, backup=None):
+    """The text in the file, mode 600, a copy of the file to backup first."""
+    if backup and os.path.exists(path):
         shutil.copyfile(path, backup)
         os.chmod(backup, stat.S_IRUSR | stat.S_IWUSR)
     fd = os.open(path, os.O_WRONLY | os.O_TRUNC | os.O_CREAT, stat.S_IRUSR | stat.S_IWUSR)
     with os.fdopen(fd, "w", encoding="utf-8") as file:
         file.write(text)
     os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+
+
+def write_settings(path, settings, backup=None):
+    """The settings in the file (updated_text), mode 600, a copy to backup first."""
+    with open(path, encoding="utf-8") as file:
+        text = updated_text(file.read(), settings, path)
+    write_private(path, text, backup)
 
 
 def main(args):
