@@ -6,6 +6,7 @@
 DOCTOR_PROBLEMS=0
 DOCTOR_WARNINGS=0
 DOCTOR_VARS=""
+DOCTOR_DEVICE_LIST=""
 DOCTOR_FARM="${DOCTOR_FARM:-/usr/local/bin/zebrunner-farm}"
 DOCTOR_DEVICES="${DOCTOR_DEVICES:-/usr/local/bin/mcloud-devices.txt}"
 
@@ -46,7 +47,7 @@ setting_of() {
     sed -e 's/[[:space:]]#.*$//' -e 's/[[:space:]]*$//' -e 's/^"\(.*\)"$/\1/' -e "s/^'\\(.*\\)'\$/\\1/"
 }
 
-# setting <name>: the value of a setting: roles/.../vars/main.yml, defaults/main.yml when the settings have no such line
+# setting <name>: the value of a setting: config/settings.yml, defaults/main.yml when the settings have no such line
 setting() {
   if grep -q "^$1:" "$DOCTOR_VARS" 2> /dev/null; then
     setting_of "$DOCTOR_VARS" "$1"
@@ -130,12 +131,18 @@ doctor_host() {
   fi
 }
 
-# doctor_settings: the obligatory settings of roles/.../vars/main.yml and their format
+# doctor_settings: the obligatory settings of config/settings.yml and their format, the devices of config/devices.yml
 doctor_settings() {
   doctor_section "Settings (${DOCTOR_VARS})"
   if [[ ! -f "$DOCTOR_VARS" ]]; then
     doctor_fail "${DOCTOR_VARS} does not exist" "./zebrunner.sh setup"
     return 1
+  fi
+  local legacy
+  legacy="$(legacy_settings_file)"
+  if [[ -f "$legacy" ]]; then
+    doctor_fail "${legacy} of an earlier version overrides ${DOCTOR_VARS}" \
+      "move its settings to ${DOCTOR_VARS} and its devices: to ${DOCTOR_DEVICE_LIST} (README.md#settings), then remove it"
   fi
   local name
   local value
@@ -161,10 +168,12 @@ doctor_settings() {
       doctor_fail "${name} is not a key of 64 hex characters" "./zebrunner.sh join with a new join string (README.md#node-enrollment)"
     fi
   done
-  if grep -qE '^[[:space:]]*-[[:space:]]+id:' "$DOCTOR_VARS"; then
-    doctor_ok "$(grep -cE '^[[:space:]]*-[[:space:]]+id:' "$DOCTOR_VARS") devices are declared"
+  if [[ ! -f "$DOCTOR_DEVICE_LIST" ]]; then
+    doctor_fail "${DOCTOR_DEVICE_LIST} does not exist" "./zebrunner.sh setup"
+  elif grep -qE '^[[:space:]]*-[[:space:]]+id:' "$DOCTOR_DEVICE_LIST"; then
+    doctor_ok "$(grep -cE '^[[:space:]]*-[[:space:]]+id:' "$DOCTOR_DEVICE_LIST") devices are declared"
   else
-    doctor_warn "no device is declared" "the devices of ${DOCTOR_VARS} (README.md#run-ansible-playbook)"
+    doctor_warn "no device is declared" "the devices of ${DOCTOR_DEVICE_LIST} (README.md#run-ansible-playbook)"
   fi
 }
 
@@ -500,9 +509,10 @@ count_values() {
 # doctor: all the checks; fails when one of them fails
 doctor() {
   delimiter "MCloud Agent doctor"
+  DOCTOR_VARS="$SETTINGS_FILE"
+  DOCTOR_DEVICE_LIST="$DEVICES_FILE"
   case "$(uname)" in
-  Linux) DOCTOR_VARS="roles/devices/vars/main.yml" ;;
-  Darwin) DOCTOR_VARS="roles/mac-devices/vars/main.yml" ;;
+  Linux | Darwin) ;;
   *)
     echo_warning "Unknown OS. Supported OS are Linux and macOS."
     return 1

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The enrollment of this host in MCloud (README.md#node-enrollment): `./zebrunner.sh join` runs it.
 
-  enroll.py <settings file> <public CURVE key of this host>
+  enroll.py <settings file: config/settings.yml> <public CURVE key of this host>
 
 Reads the join string of `./zebrunner.sh node-invite` of mcloud from a hidden prompt (a terminal) or from stdin, never
 from the command line:
@@ -160,7 +160,7 @@ def settings_of(join, answer):
 
 
 def write_settings(path, settings):
-    """The settings in the file (the lines replaced, the missing ones before `devices:`), mode 600, a backup first."""
+    """The settings in the file (the lines replaced, the missing ones at its end), mode 600, a backup first."""
     with open(path, encoding="utf-8") as file:
         lines = file.read().split("\n")
     backup = f"{path}.bak-join-{time.strftime('%Y%m%d%H%M%S')}"
@@ -170,8 +170,7 @@ def write_settings(path, settings):
         line = f'{name}: "{value}"' if value else f"{name}:"
         index = next((i for i, text in enumerate(lines) if re.match(rf"^{name}:", text)), None)
         if index is None:
-            index = next((i for i, text in enumerate(lines) if text.startswith("devices:")), len(lines))
-            lines.insert(index, line)
+            lines.insert(len(lines) - 1 if lines[-1] == "" else len(lines), line)
         else:
             lines[index] = line
     fd = os.open(path, os.O_WRONLY | os.O_TRUNC | os.O_CREAT, stat.S_IRUSR | stat.S_IWUSR)

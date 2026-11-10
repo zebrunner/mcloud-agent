@@ -20,16 +20,18 @@ server_key="$(printf '%064d' 0 | tr 0 a)"
 secret_key="$(printf '%064d' 0 | tr 0 b)"
 node_token="mcn1.build-ua.$(printf '%043d' 0 | tr 0 A)"
 
-# make_play <role>: a playbook dir using the role from the repo with the example vars as its settings, the obligatory
-# settings of the node enrollment set as ./zebrunner.sh join sets them
+# make_play <role>: a playbook dir using the role from the repo with the example settings and devices of the role in its
+# config/ (as ./zebrunner.sh setup makes them), the obligatory settings of the node enrollment set as ./zebrunner.sh join
+# sets them
 make_play() {
   local dir="${WORK}/play-$1"
   local part
-  mkdir -p "${dir}/roles/$1/vars"
-  for part in tasks templates files; do
+  mkdir -p "${dir}/roles/$1" "${dir}/config"
+  for part in tasks templates files defaults; do
     [[ -d "${REPO}/roles/$1/${part}" ]] && ln -s "${REPO}/roles/$1/${part}" "${dir}/roles/$1/${part}"
   done
-  if [[ -f "${REPO}/roles/$1/vars/main.yml.original" ]]; then
+  if [[ -f "${REPO}/config/$1.yml.original" ]]; then
+    cp "${REPO}/config/$1.yml.original" "${dir}/config/devices.yml"
     sed -e "s/^MCLOUD_NODE_TOKEN:.*/MCLOUD_NODE_TOKEN: \"${node_token}\"/" \
       -e 's/^STF_PROVIDER_HOST:.*/STF_PROVIDER_HOST: "192.168.30.2"/' -e 's/^PUBLIC_IP:.*/PUBLIC_IP: "mcloud.example.com"/' \
       -e 's|^STF_PROVIDER_CONNECT_SUB:.*|STF_PROVIDER_CONNECT_SUB: "tcp://192.168.50.2:7250"|' \
@@ -37,7 +39,7 @@ make_play() {
       -e 's/^SELENIUM_HUB_HOST:.*/SELENIUM_HUB_HOST: "192.168.50.2"/' -e 's/^SELENIUM_HUB_PORT:.*/SELENIUM_HUB_PORT: "4446"/' \
       -e "s/^STF_ZMQ_CURVE_SERVER_PUBLIC_KEY:.*/STF_ZMQ_CURVE_SERVER_PUBLIC_KEY: \"${server_key}\"/" \
       -e "s/^STF_ZMQ_CURVE_SECRET_KEY:.*/STF_ZMQ_CURVE_SECRET_KEY: \"${secret_key}\"/" \
-      "${REPO}/roles/$1/vars/main.yml.original" > "${dir}/roles/$1/vars/main.yml"
+      "${REPO}/config/settings.yml.original" > "${dir}/config/settings.yml"
   fi
   cat > "${dir}/play.yml" << EOF
 - hosts: localhost
@@ -45,6 +47,8 @@ make_play() {
   gather_subset: [min]
   vars_files:
     - ${REPO}/defaults/main.yml
+    - [config/settings.yml, ${REPO}/defaults/main.yml]
+    - [config/devices.yml, ${REPO}/defaults/main.yml]
   vars:
     STF_DOCKER_NETWORK: infra
   roles:
@@ -148,6 +152,7 @@ section "prechecks of ${OS_ROLE}"
 output="$(playbook "$OS_ROLE" --check --tags precheck)"
 check_contains "OS is compatible" "OS is compatible: $(uname)" "$output"
 check_contains "setup is done" "Setup is ready" "$output"
+check_contains "no settings of an earlier version" "No settings of an earlier version." "$output"
 check_contains "agent dir env variable is set" "env variable is defined" "$output"
 check_contains "prechecks pass" "failed=0" "$output"
 check_contains "the settings of the node enrollment pass" "The settings of the node enrollment are set." "$output"
@@ -156,25 +161,34 @@ output="$(cd "${WORK}/play-${OS_ROLE}" && env -u ZEBRUNNER_MCLOUD_AGENT_DIR ansi
 check_contains "unset agent dir env variable fails" "You have to set up 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable in advance!" "$output"
 output="$(cd "${WORK}/play-${OS_ROLE}" && ZEBRUNNER_MCLOUD_AGENT_DIR="" ansible-playbook play.yml --check --tags precheck < /dev/null 2>&1)"
 check_contains "empty agent dir env variable fails" "You have to set up 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable in advance!" "$output"
-mv "${WORK}/play-${OS_ROLE}/roles/${OS_ROLE}/vars/main.yml" "${WORK}/vars.yml"
-check_contains "missing setup fails" "You have to set up services in advance using: ./zebrunner.sh setup!" "$(playbook "$OS_ROLE" --check --tags precheck)"
-mv "${WORK}/vars.yml" "${WORK}/play-${OS_ROLE}/roles/${OS_ROLE}/vars/main.yml"
-output="$(playbook "$OS_ROLE" --check --tags precheck --extra-vars "@${REPO}/roles/${OS_ROLE}/vars/main.yml.original")"
+for file in settings devices; do
+  mv "${WORK}/play-${OS_ROLE}/config/${file}.yml" "${WORK}/${file}.yml"
+  check_contains "missing config/${file}.yml fails" "You have to set up services in advance using: ./zebrunner.sh setup!" \
+    "$(playbook "$OS_ROLE" --check --tags precheck)"
+  mv "${WORK}/${file}.yml" "${WORK}/play-${OS_ROLE}/config/${file}.yml"
+done
+mkdir -p "${WORK}/play-${OS_ROLE}/roles/${OS_ROLE}/vars"
+cp "${WORK}/play-${OS_ROLE}/config/settings.yml" "${WORK}/play-${OS_ROLE}/roles/${OS_ROLE}/vars/main.yml"
+check_contains "the settings of an earlier version fail" \
+  "roles/${OS_ROLE}/vars/main.yml of an earlier version overrides config/: move its settings to config/settings.yml" \
+  "$(playbook "$OS_ROLE" --check --tags precheck)"
+rm -rf "${WORK}/play-${OS_ROLE}/roles/${OS_ROLE}/vars"
+output="$(playbook "$OS_ROLE" --check --tags precheck --extra-vars "@${REPO}/config/settings.yml.original")"
 check_contains "the example settings fail without the enrollment" \
-  "missing or invalid in roles/${OS_ROLE}/vars/main.yml: MCLOUD_NODE_TOKEN, STF_PROVIDER_HOST, PUBLIC_IP" "$output"
+  "missing or invalid in config/settings.yml: MCLOUD_NODE_TOKEN, STF_PROVIDER_HOST, PUBLIC_IP" "$output"
 check_contains "the enrollment sets them" "Enroll this host with ./zebrunner.sh join" "$output"
 
 section "settings of the node enrollment"
 for role in devices mac-devices; do
   for setting in MCLOUD_NODE_TOKEN STF_PROVIDER_HOST PUBLIC_IP STF_PROVIDER_CONNECT_SUB SELENIUM_HUB_HOST STF_ZMQ_CURVE_SERVER_PUBLIC_KEY STF_ZMQ_CURVE_SECRET_KEY; do
     extra="{\"${setting}\": \" \"}"
-    check_contains "${role}: a blank ${setting} fails" "are missing or invalid in roles/${role}/vars/main.yml: ${setting}." \
+    check_contains "${role}: a blank ${setting} fails" "are missing or invalid in config/settings.yml: ${setting}." \
       "$(playbook "$role" --tags validate --extra-vars "$extra")"
   done
   check_contains "${role}: the settings of join pass" "The settings of the node enrollment are set." "$(playbook "$role" --tags validate)"
   # the JSON in variables: bash 3.2 misparses the escaped quotes of a command substitution in double quotes
   extra='{"MCLOUD_NODE_TOKEN": "mcn1.Bad_Label.x"}'
-  check_contains "${role}: an invalid token fails" "are missing or invalid in roles/${role}/vars/main.yml: MCLOUD_NODE_TOKEN." \
+  check_contains "${role}: an invalid token fails" "are missing or invalid in config/settings.yml: MCLOUD_NODE_TOKEN." \
     "$(playbook "$role" --tags validate --extra-vars "$extra")"
   check_contains "${role}: an invalid key of the server fails" "must be the 64 hex characters" \
     "$(playbook "$role" --tags validate --extra-vars "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=abc")"

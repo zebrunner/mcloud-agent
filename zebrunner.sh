@@ -5,6 +5,10 @@ MCLOUD_AGENT_DIR_NAME="ZEBRUNNER_MCLOUD_AGENT_DIR"
 MCLOUD_AGENT_DIR_VALUE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${MCLOUD_AGENT_DIR_VALUE}" || exit
 
+# The settings of this host and its devices (README.md#settings)
+SETTINGS_FILE="config/settings.yml"
+DEVICES_FILE="config/devices.yml"
+
 # Load utility functions
 source "${MCLOUD_AGENT_DIR_VALUE}/patch/utility.sh"
 # Load backup/restore functions
@@ -68,35 +72,29 @@ setup() {
     fi
   done
 
-  ### Create roles/.../vars/main.yml according to OS
+  ### Create the settings of config/ according to OS
   delimiter "*"
   os="$(uname)"
   echo "Current OS: ${os}"
   echo ""
-  echo "Setting up 'roles/.../vars/main.yml' according to OS:"
-  local vars="roles/devices/vars/main.yml"
-  if [[ "$os" == "Darwin" ]]; then
-    vars="roles/mac-devices/vars/main.yml"
-  fi
-  if [[ "$os" == "Linux" ]]; then
-    if [[ -f roles/devices/vars/main.yml ]]; then
-      echo "'roles/devices/vars/main.yml' already exists, making a backup 'roles/devices/vars/main.yml.bak'"
-      cp roles/devices/vars/main.yml roles/devices/vars/main.yml.bak
-    else
-      echo "Creating 'roles/devices/vars/main.yml'"
-      cp roles/devices/vars/main.yml.original roles/devices/vars/main.yml
-    fi
-  elif [[ "$os" == "Darwin" ]]; then
-    if [[ -f roles/mac-devices/vars/main.yml ]]; then
-      echo "'roles/mac-devices/vars/main.yml' already exists, making a backup 'roles/mac-devices/vars/main.yml.bak'"
-      cp roles/mac-devices/vars/main.yml roles/mac-devices/vars/main.yml.bak
-    else
-      echo "Creating 'roles/mac-devices/vars/main.yml'"
-      cp roles/mac-devices/vars/main.yml.original roles/mac-devices/vars/main.yml
-    fi
-  else
+  local vars="$SETTINGS_FILE"
+  local devices="$DEVICES_FILE"
+  local devices_example
+  case "$os" in
+  Linux) devices_example="config/devices.yml.original" ;;
+  Darwin) devices_example="config/mac-devices.yml.original" ;;
+  *)
     echo "Unknown OS. Supported OS are Linux and macOS."
     exit 1
+    ;;
+  esac
+  echo "Setting up the settings of 'config/' according to OS:"
+  setup_file "${vars}.original" "$vars"
+  setup_file "$devices_example" "$devices"
+  local legacy
+  legacy="$(legacy_settings_file)"
+  if [[ -f "$legacy" ]]; then
+    echo_warning "'${legacy}' of an earlier version overrides 'config/': move its settings to '${vars}' and its devices: to '${devices}' (README.md#settings), then remove it."
   fi
 
   ### Shell reload help message
@@ -150,7 +148,7 @@ setup() {
   3. Enroll this host: ./zebrunner.sh join and paste the join string of step 2. It writes the connection to MCloud
      into '${vars}'.
 
-  4. Declare the devices in 'devices:' of '${vars}': the udid (adb devices, idevice_id -l), a unique name and
+  4. Declare the devices in 'devices:' of '${devices}': the udid (adb devices, idevice_id -l), a unique name and
      unique ports.
 
   5. Check the settings, the enrollment and the network to MCloud: ./zebrunner.sh doctor
@@ -253,22 +251,36 @@ stop_running_devices() {
   fi
 }
 
-# settings_file: roles/.../vars/main.yml of the OS, fails when it does not exist
-settings_file() {
-  local vars
+# setup_file <example> <file>: the file made from the example (private: the settings have secrets), a backup <file>.bak
+# of an existing one
+setup_file() {
+  (
+    umask 077
+    if [[ -f "$2" ]]; then
+      echo "'$2' already exists, making a backup '$2.bak'"
+      cp "$2" "$2.bak"
+    else
+      echo "Creating '$2'"
+      cp "$1" "$2"
+    fi
+  )
+}
+
+# legacy_settings_file: roles/.../vars/main.yml of the OS, the settings of an earlier version: they override config/
+legacy_settings_file() {
   case "$(uname)" in
-  Linux) vars="roles/devices/vars/main.yml" ;;
-  Darwin) vars="roles/mac-devices/vars/main.yml" ;;
-  *)
-    echo_warning "Unknown OS. Supported OS are Linux and macOS." >&2
-    return 1
-    ;;
+  Darwin) echo "roles/mac-devices/vars/main.yml" ;;
+  *) echo "roles/devices/vars/main.yml" ;;
   esac
-  if [[ ! -f "$vars" ]]; then
-    echo_warning "'${vars}' does not exist, run './zebrunner.sh setup' first." >&2
+}
+
+# settings_file: config/settings.yml, fails when it does not exist
+settings_file() {
+  if [[ ! -f "$SETTINGS_FILE" ]]; then
+    echo_warning "'${SETTINGS_FILE}' does not exist, run './zebrunner.sh setup' first." >&2
     return 1
   fi
-  echo "$vars"
+  echo "$SETTINGS_FILE"
 }
 
 # ensure_curve_key <settings file>: STF_ZMQ_CURVE_SECRET_KEY of the settings made when it is empty, its public key in
@@ -397,13 +409,9 @@ status() {
     echo "Loaded launchctl Zebrunner jobs:"
     launchctl list | grep -i zebrunner || failed "No loaded Zebrunner jobs found"
     echo ""
-    echo "roles/mac-devices/vars/main.yml:  $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/roles/mac-devices/vars/main.yml" 2> /dev/null || failed "File not found")"
-    echo ""
     echo "MacOS ansible-playbook:           $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/mac-devices.yml" 2> /dev/null || failed "File not found")"
     echo ""
   else
-    echo "roles/devices/vars/main.yml:      $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/roles/devices/vars/main.yml" 2> /dev/null || failed "File not found")"
-    echo ""
     echo "Linux ansible-playbook:           $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/devices.yml" 2> /dev/null || failed "File not found")"
     echo ""
     echo "90_mcloud.rules:                  $(ls /etc/udev/rules.d/90_mcloud.rules 2> /dev/null || failed "File not found")"
@@ -414,6 +422,10 @@ status() {
     echo ""
   fi
   echo "mcloud-devices.txt:               $(ls "/usr/local/bin/mcloud-devices.txt" 2> /dev/null || failed "File not found")"
+  echo ""
+  echo "config/settings.yml:              $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/${SETTINGS_FILE}" 2> /dev/null || failed "File not found")"
+  echo ""
+  echo "config/devices.yml:               $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/${DEVICES_FILE}" 2> /dev/null || failed "File not found")"
   echo ""
   echo "defaults/main.yml:                $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/defaults/main.yml" 2> /dev/null || failed "File not found")"
 
@@ -536,13 +548,13 @@ shutdown() {
   ### Remove files
   delimiter "*"
   echo "Removing MCloud Agent files and volumes (sudo privileges required):"
+  # the settings of an earlier version too
+  rm -vf "$SETTINGS_FILE" "$DEVICES_FILE" "$(legacy_settings_file)"
   if [[ "$os" == "Darwin" ]]; then
-    rm -vf roles/mac-devices/vars/main.yml
     sudo rm -vf /usr/local/bin/zebrunner-device-listener
     sudo rm -vf /usr/local/bin/usbmuxd_watch
     sudo rm -vf /etc/newsyslog.d/zebrunner-mcloud.conf
   else
-    rm -vf roles/devices/vars/main.yml
     sudo rm -vf /etc/udev/rules.d/90_mcloud.rules
     sudo rm -vf /etc/systemd/system/mcloud-device-restart@.service
     sudo rm -vf /etc/systemd/system/mcloud-device-down@.service

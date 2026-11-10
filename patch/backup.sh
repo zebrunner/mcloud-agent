@@ -29,9 +29,9 @@ backup() {
     mkdir -vp "${backup_dir_name}/templates" 2> /dev/null || failed "mkdir for '${backup_dir_name}/templates' failed"
   fi
 
-  if [[ ! -d "${backup_dir_name}/vars" ]]; then
+  if [[ ! -d "${backup_dir_name}/config" ]]; then
     echo -n "    "
-    mkdir -vp "${backup_dir_name}/vars" 2> /dev/null || failed "mkdir for '${backup_dir_name}/vars' failed"
+    mkdir -vp "${backup_dir_name}/config" 2> /dev/null || failed "mkdir for '${backup_dir_name}/config' failed"
   fi
 
   if [[ ! -d "${backup_dir_name}/download" ]]; then
@@ -45,21 +45,21 @@ backup() {
   cp -av "defaults/main.yml" "${backup_dir_name}/defaults/" 2> /dev/null || failed "cp for 'defaults/main.yml' failed"
   echo -n "    "
   cp -av "roles/download/tasks/main.yml" "${backup_dir_name}/download/" 2> /dev/null || failed "cp for 'roles/download/tasks/main.yml' failed"
+  echo -n "    "
+  cp -av "config/settings.yml" "${backup_dir_name}/config/" 2> /dev/null || failed "cp for 'config/settings.yml' failed"
+  echo -n "    "
+  cp -av "config/devices.yml" "${backup_dir_name}/config/" 2> /dev/null || failed "cp for 'config/devices.yml' failed"
 
   if [[ "$(uname)" == "Darwin" ]]; then
     echo -n "    "
     cp -av "roles/mac-devices/tasks/usbmuxd.yml" "${backup_dir_name}/tasks/" 2> /dev/null || failed "cp for 'roles/mac-devices/tasks/usbmuxd.yml' failed"
     echo -n "    "
     cp -av "roles/mac-devices/templates/zebrunner-farm" "${backup_dir_name}/templates/" 2> /dev/null || failed "cp for 'roles/mac-devices/templates/zebrunner-farm' failed"
-    echo -n "    "
-    cp -av "roles/mac-devices/vars/main.yml" "${backup_dir_name}/vars/" 2> /dev/null || failed "cp for 'roles/mac-devices/vars/main.yml' failed"
   else
     echo -n "    "
     cp -av "roles/devices/tasks/udev.yml" "${backup_dir_name}/tasks/" 2> /dev/null || failed "cp for 'roles/devices/tasks/udev.yml' failed"
     echo -n "    "
     cp -av "roles/devices/templates/zebrunner-farm" "${backup_dir_name}/templates/" 2> /dev/null || failed "cp for 'roles/devices/templates/zebrunner-farm' failed"
-    echo -n "    "
-    cp -av "roles/devices/vars/main.yml" "${backup_dir_name}/vars/" 2> /dev/null || failed "cp for 'roles/devices/vars/main.yml' failed"
   fi
 
   delimiter
@@ -101,21 +101,21 @@ restore() {
   cp -av "${backup_dir_name}/defaults/main.yml" "defaults/" 2> /dev/null || failed "cp for '${backup_dir_name}/defaults/main.yml' failed"
   echo -n "    "
   cp -av "${backup_dir_name}/download/main.yml" "roles/download/tasks/" 2> /dev/null || failed "cp for '${backup_dir_name}/download/main.yml' failed"
+  echo -n "    "
+  cp -av "${backup_dir_name}/config/settings.yml" "config/" 2> /dev/null || failed "cp for '${backup_dir_name}/config/settings.yml' failed"
+  echo -n "    "
+  cp -av "${backup_dir_name}/config/devices.yml" "config/" 2> /dev/null || failed "cp for '${backup_dir_name}/config/devices.yml' failed"
 
   if [[ "$(uname)" == "Darwin" ]]; then
     echo -n "    "
     cp -av "${backup_dir_name}/tasks/usbmuxd.yml" "roles/mac-devices/tasks/" 2> /dev/null || failed "cp for '${backup_dir_name}/tasks/usbmuxd.yml' failed"
     echo -n "    "
     cp -av "${backup_dir_name}/templates/zebrunner-farm" "roles/mac-devices/templates/" 2> /dev/null || failed "cp for '${backup_dir_name}/templates/zebrunner-farm' failed"
-    echo -n "    "
-    cp -av "${backup_dir_name}/vars/main.yml" "roles/mac-devices/vars/" 2> /dev/null || failed "cp for '${backup_dir_name}/vars/main.yml' failed"
   else
     echo -n "    "
     cp -av "${backup_dir_name}/tasks/udev.yml" "roles/devices/tasks/" 2> /dev/null || failed "cp for '${backup_dir_name}/tasks/udev.yml' failed"
     echo -n "    "
     cp -av "${backup_dir_name}/templates/zebrunner-farm" "roles/devices/templates/" 2> /dev/null || failed "cp for '${backup_dir_name}/templates/zebrunner-farm' failed"
-    echo -n "    "
-    cp -av "${backup_dir_name}/vars/main.yml" "roles/devices/vars/" 2> /dev/null || failed "cp for '${backup_dir_name}/vars/main.yml' failed"
   fi
 
   echo_warning "After recovery, you need to reapply the settings:"

@@ -10,9 +10,21 @@
 - name: Check setup completion
   ansible.builtin.assert:
     that:
-      - lookup('file', 'roles/devices/vars/main.yml', errors='ignore') is not none
+      - lookup('file', playbook_dir ~ '/config/settings.yml', errors='ignore') is not none
+      - lookup('file', playbook_dir ~ '/config/devices.yml', errors='ignore') is not none
     fail_msg: "You have to set up services in advance using: ./zebrunner.sh setup!"
-    success_msg: "Setup is ready: 'roles/devices/vars/main.yml' exists."
+    success_msg: "Setup is ready: 'config/settings.yml' and 'config/devices.yml' exist."
+  tags: [devices, precheck]
+
+# the vars of a role override the settings of config/: the settings of an earlier version are moved by hand
+- name: Check the settings of an earlier version
+  ansible.builtin.assert:
+    that:
+      - lookup('file', role_path ~ '/vars/main.yml', errors='ignore') is none
+    fail_msg: >-
+      roles/devices/vars/main.yml of an earlier version overrides config/: move its settings to config/settings.yml and
+      its devices: to config/devices.yml (README.md#settings), then remove it.
+    success_msg: "No settings of an earlier version."
   tags: [devices, precheck]
 
 - name: Check 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable
@@ -83,7 +95,7 @@
   ansible.builtin.assert:
     that: devices_missing_settings | length == 0
     fail_msg: >-
-      The settings of the node enrollment are missing or invalid in roles/devices/vars/main.yml: {{ devices_missing_settings | join(', ') }}.
+      The settings of the node enrollment are missing or invalid in config/settings.yml: {{ devices_missing_settings | join(', ') }}.
       Enroll this host with ./zebrunner.sh join and the join string of ./zebrunner.sh node-invite of mcloud
       (README.md#node-enrollment); ./zebrunner.sh doctor checks the settings.
     success_msg: "The settings of the node enrollment are set."

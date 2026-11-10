@@ -1,0 +1,4 @@
+---
+# The values by default of the settings of a Linux host: config/settings.yml overrides them (README.md#settings)
+
+STF_PROVIDER_NAME: mcloud-linux

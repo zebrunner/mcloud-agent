@@ -13,7 +13,10 @@ backup/*
 variables.env
 .env
 logs/*.log
-roles/devices/vars/main.yml
-roles/mac-devices/vars/main.yml
+config/*
+!config/*.original
+# the settings of the earlier versions, the playbooks refuse them
+roles/devices/vars/
+roles/mac-devices/vars/
 DeveloperDiskImages
 become.yml

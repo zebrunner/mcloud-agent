@@ -18,11 +18,13 @@ render() {
   }
 }
 
-# render_farm <devices|mac-devices> <destination> [ansible arguments...]: zebrunner-farm with the example settings
+# render_farm <devices|mac-devices> <destination> [ansible arguments...]: zebrunner-farm with the example settings and
+# devices of the role (config/<role>.yml.original), over the values by default of the role as the playbooks load them
 render_farm() {
   local role="$1"
   local dest="$2"
   shift 2
   render "${REPO}/roles/${role}/templates/zebrunner-farm" "$dest" \
-    --extra-vars "@${REPO}/defaults/main.yml" --extra-vars "@${REPO}/roles/${role}/vars/main.yml.original" "$@"
+    --extra-vars "@${REPO}/defaults/main.yml" --extra-vars "@${REPO}/roles/${role}/defaults/main.yml" \
+    --extra-vars "@${REPO}/config/settings.yml.original" --extra-vars "@${REPO}/config/${role}.yml.original" "$@"
 }
