@@ -39,6 +39,12 @@ case "$1" in
     ;;
   inspect)
     case "$*" in
+      # status --json: the state of a container of docker_ps (<name> <status>), healthy, started 100 seconds ago
+      *'{{.State.Status}}|'*)
+        status="$(grep "^${*: -1} " "${STUB_DIR}/docker_ps" 2> /dev/null | cut -d ' ' -f 2)"
+        [[ -n "$status" ]] || exit 1
+        echo "${status}|healthy|${DOCKER_STARTED_AT}|2"
+        ;;
       *StartedAt*) echo "$DOCKER_STARTED_AT" ;;
       *FinishedAt*) echo "${DOCKER_FINISHED_AT:-0001-01-01T00:00:00Z}" ;;
     esac
@@ -572,6 +578,51 @@ check_contains "Linux: wireless device shows its containers" "| Connector" "$(fa
 check_contains "Linux: USB device without symlink is disconnected" "DISCONNECTED" "$(farm devices status Galaxy)"
 check_contains "macOS: wireless device shows its containers" "| Connector" "$(farm mac-devices status AppleTV)"
 check_contains "macOS: not connected USB device is disconnected" "DISCONNECTED" "$(farm mac-devices status iPhone_8_Plus)"
+
+# status --json: the JSON array on stdout only, checked by python
+OS_ROLE=devices
+[[ "$(uname)" == "Darwin" ]] && OS_ROLE=mac-devices
+setup_case
+printf '%s\n' "device-WiFi-192.168.1.50-connector running" "device-WiFi-192.168.1.50-stf exited" > "${WORK}/docker_ps"
+for role in devices mac-devices; do
+  started="$(date -u -v-100S +%Y-%m-%dT%H:%M:%S 2> /dev/null || date -u -d '100 seconds ago' +%Y-%m-%dT%H:%M:%S).123456789Z"
+  output="$(DOCKER_STARTED_AT="$started" farm "$role" status --json WiFi Galaxy 2> /dev/null)"
+  report="$(python3 -c '
+import json, sys
+devices = json.loads(sys.argv[1])
+wifi, galaxy = [next(device for device in devices if device["name"] == name) for name in ("WiFi", "Galaxy")]
+connector = wifi["containers"]["connector"]
+print(len(devices), wifi["name"], wifi["os"], wifi["connection"], wifi["plugged_in"], galaxy["plugged_in"])
+print(connector["status"], connector["health"], connector["restarts"])
+print(95 <= (connector["uptime_seconds"] or 0) <= 130)
+print(wifi["containers"]["stf"]["status"], wifi["containers"]["stf"]["uptime_seconds"], wifi["containers"]["appium"])
+' "$output" 2>&1)"
+  check "${role}: status --json is the devices of the selection" "2 WiFi android wireless None False" "$(sed -n 1p <<< "$report")"
+  check "${role}: status --json has the state of a running container" "running healthy 2" "$(sed -n 2p <<< "$report")"
+  check "${role}: status --json has a stopped and a missing container" "exited None {'exists': False}" "$(sed -n 4p <<< "$report")"
+  # the date of the OS of the role: GNU date of Linux, BSD date of macOS
+  if [[ "$role" == "$OS_ROLE" ]]; then
+    check "${role}: status --json has the uptime of a running container" "True" "$(sed -n 3p <<< "$report")"
+  fi
+done
+# farm_streams <stdout|stderr> <arguments...>: one output stream of zebrunner-farm of Linux
+farm_streams() {
+  local stream="$1"
+  shift
+  if [[ "$stream" == stdout ]]; then
+    env -i PATH="${WORK}/bin:/usr/bin:/bin" STUB_DIR="$WORK" ZEBRUNNER_FARM_ENV="${WORK}/farm-devices.env" \
+      /bin/bash "$FARM_SCRIPT" "$@" 2> /dev/null
+  else
+    env -i PATH="${WORK}/bin:/usr/bin:/bin" STUB_DIR="$WORK" ZEBRUNNER_FARM_ENV="${WORK}/farm-devices.env" \
+      /bin/bash "$FARM_SCRIPT" "$@" 3>&1 1> /dev/null 2>&3
+  fi
+}
+check_contains "status --json of an unknown device: the message on stderr" "device not found: Nope" \
+  "$(farm_streams stderr status --json Nope)"
+check "status --json of an unknown device: nothing on stdout" "" "$(farm_streams stdout status --json Nope)"
+check_contains "status --json: the JSON on stdout" '"name": "WiFi"' "$(farm_streams stdout status --json WiFi)"
+check_contains "--json is for status only" "--json is an option of status only" "$(farm devices stop --json WiFi 2>&1)"
+check "a name with a quote is a JSON string" '"a\"b\\c"' "$(eval "$(sed -n '/^json_string() {/,/^}/p' "$FARM_SCRIPT")" && json_string 'a"b\c')"
 
 section "device lock"
 if command -v flock > /dev/null 2>&1; then

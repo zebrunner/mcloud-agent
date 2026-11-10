@@ -649,6 +649,7 @@ parse_selection() {
   SELECTORS=()
   EXCLUDES=()
   QUIET=""
+  OUTPUT_JSON=""
   RESTART_STRATEGY="batch"
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -657,6 +658,9 @@ parse_selection() {
       ;;
     --batch | --rolling)
       RESTART_STRATEGY="${1#--}"
+      ;;
+    --json)
+      OUTPUT_JSON="true"
       ;;
     --strategy | --strategy=*)
       if [[ "$1" == "--strategy" ]]; then
@@ -972,6 +976,66 @@ epoch() {
   fi
 }
 
+# json_string <value>: the value as a JSON string
+json_string() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  value="${value//$'\t'/\\t}"
+  value="${value//$'\n'/\\n}"
+  printf '"%s"' "$value"
+}
+
+# container_json <container>: the state of the container as a JSON object: {"exists": false} without it
+container_json() {
+  local info
+  if ! info="$(docker inspect --format '{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{end}}|{{.State.StartedAt}}|{{.RestartCount}}' "$1" 2> /dev/null)" ||
+    [[ -z "$info" ]]; then
+    printf '{"exists": false}'
+    return 0
+  fi
+  local status health started restarts
+  IFS='|' read -r status health started restarts <<< "$info"
+  local uptime="null"
+  local started_epoch
+  if [[ "$status" == "running" ]]; then
+    started_epoch="$(epoch "$started" 2> /dev/null)"
+    [[ "$started_epoch" =~ ^[0-9]+$ ]] && uptime="$(($(date "+%s") - started_epoch))"
+  fi
+  [[ "$restarts" =~ ^[0-9]+$ ]] || restarts="null"
+  if [[ -n "$health" ]]; then
+    health="$(json_string "$health")"
+  else
+    health="null"
+  fi
+  printf '{"exists": true, "status": %s, "health": %s, "started_at": %s, "uptime_seconds": %s, "restarts": %s}' \
+    "$(json_string "$status")" "$health" "$(json_string "$started")" "$uptime" "$restarts"
+}
+
+# status_json: the devices of SELECTED and their containers as a JSON array, one device per line (README.md#devices-management)
+status_json() {
+  local udid
+  local separator=""
+  local plugged_in
+  echo "["
+  for udid in "${SELECTED[@]}"; do
+    get_device_fields "$udid" > /dev/null 2>&1 || continue
+    plugged_in="null"
+    if [[ "$dev_connection" == "usb" ]]; then
+      plugged_in="false"
+      usb_present > /dev/null 2>&1 && plugged_in="true"
+    fi
+    printf '%s{"id": %s, "name": %s, "os": %s, "connection": %s, "location": %s, "plugged_in": %s, "containers": {' \
+      "$separator" "$(json_string "$dev_udid")" "$(json_string "$dev_device_name")" "$(json_string "$dev_platform_name")" \
+      "$(json_string "$dev_connection")" "$(json_string "$dev_location")" "$plugged_in"
+    printf '"connector": %s, "stf": %s, "appium": %s, "uploader": %s}}' "$(container_json "${dev_container}-connector")" \
+      "$(container_json "${dev_container}-stf")" "$(container_json "${dev_container}-appium")" \
+      "$(container_json "${dev_container}-uploader")"
+    separator=$',\n'
+  done
+  printf '\n]\n'
+}
+
 detect_uptime() {
   local started_at
   started_at="$(docker inspect --format='{{.State.StartedAt}}' "$1")"
@@ -1079,9 +1143,9 @@ verify_containers() {
 
 echo_help() {
   echo "
-      Usage: zebrunner-farm <command> [devices...] [-x|--exclude <devices>]... [-q|--quiet] [--batch|--rolling]
+      Usage: zebrunner-farm <command> [devices...] [-x|--exclude <devices>]... [-q|--quiet] [--batch|--rolling] [--json]
       Commands:
-          status [devices]     The containers of the devices
+          status [devices]     The containers of the devices; --json: as a JSON array for the monitoring
           start [devices]      Create (or start) and run the containers of the devices
           stop [devices]       Stop and keep the containers of the devices
           restart [devices]    Remove and create again the containers of the devices: --batch (default) removes
@@ -1113,11 +1177,24 @@ check_devices_list() {
 farm_command() {
   local command="$1"
   shift
-  check_devices_list || return 1
-  parse_selection "$@" || return 1
-  select_devices || return 1
+  # status --json: the JSON only on stdout, the messages on stderr
+  local messages=1
+  [[ " $* " == *" --json "* ]] && messages=2
+  {
+    check_devices_list || return 1
+    parse_selection "$@" || return 1
+    if [[ -n "$OUTPUT_JSON" && "$command" != "status" ]]; then
+      failed "--json is an option of status only"
+      return 1
+    fi
+    select_devices || return 1
+  } >&"$messages"
   if [[ "$command" == "status" ]]; then
-    run_selected status
+    if [[ -n "$OUTPUT_JSON" ]]; then
+      status_json
+    else
+      run_selected status
+    fi
     return
   fi
   if ! confirm_selection "$command"; then
