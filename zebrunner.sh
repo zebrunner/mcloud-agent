@@ -366,6 +366,8 @@ status() {
   echo ""
   echo "zebrunner-farm.env:               $(ls "/usr/local/etc/zebrunner-farm.env" 2> /dev/null || failed "File not found")"
   echo ""
+  echo "Autostart after a reboot:         $(if autostart_enabled; then autostart_file; else echo "off (./zebrunner.sh autostart)"; fi)"
+  echo ""
   echo "config/settings.yml:              $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/${SETTINGS_FILE}" 2> /dev/null || failed "File not found")"
   echo ""
   echo "config/devices.yml:               $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/${DEVICES_FILE}" 2> /dev/null || failed "File not found")"
@@ -460,6 +462,12 @@ shutdown() {
   ### The variable of the earlier versions in the shell profiles
   remove_profile_variable
 
+  ### The autostart of the devices after a reboot
+  if autostart_enabled || [[ -f "$(autostart_file)" ]]; then
+    echo "Removing the autostart: $(autostart_file)"
+    autostart_remove
+  fi
+
   ### Stop and remove containers
   delimiter "*"
   echo "Found MCloud Agent containers:"
@@ -513,6 +521,182 @@ version() {
   delimiter
 }
 
+# The containers of the devices after a reboot (README.md#autostart), off by default: the USB devices are started by
+# udev (Linux) and the devices listener (iOS of macOS) anyway, autostart starts all the devices once
+AUTOSTART_UNIT="/etc/systemd/system/mcloud-farm.service"
+AUTOSTART_PLIST="${HOME}/Library/LaunchAgents/ZebrunnerFarmStart.plist"
+
+# autostart_file: the file of the autostart of the OS
+autostart_file() {
+  if [[ "$(uname)" == "Darwin" ]]; then
+    echo "$AUTOSTART_PLIST"
+  else
+    echo "$AUTOSTART_UNIT"
+  fi
+}
+
+# autostart_enabled: 0 when the autostart is on
+autostart_enabled() {
+  if [[ "$(uname)" == "Darwin" ]]; then
+    [[ -f "$AUTOSTART_PLIST" ]]
+  else
+    systemctl is-enabled --quiet mcloud-farm.service 2> /dev/null
+  fi
+}
+
+# autostart_unit: the systemd unit of Linux, run once after docker at the boot
+autostart_unit() {
+  cat << 'EOF'
+# The containers of all the devices after a boot: ./zebrunner.sh autostart enable made it, disable removes it
+# (README.md#autostart). The log: journalctl -u mcloud-farm
+[Unit]
+Description=MCloud: the containers of the devices after a boot
+Wants=docker.service network-online.target
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/zebrunner-farm start --quiet
+# the images may be pulled
+TimeoutStartSec=30min
+
+[Install]
+WantedBy=multi-user.target
+EOF
+}
+
+# autostart_plist: the launch agent of macOS, run once at the login when Docker Desktop answers (10 minutes at most)
+autostart_plist() {
+  cat << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The containers of all the devices at the login: ./zebrunner.sh autostart enable made it, disable removes it -->
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.zebrunner.mcloud.autostart</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>PATH</key>
+      <string>/bin:/usr/bin:/usr/local/bin:/usr/sbin:/sbin:/opt/homebrew/bin</string>
+    </dict>
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/bash</string>
+      <string>-c</string>
+      <string>for i in \$(seq 1 120); do docker info &gt; /dev/null 2&gt;&amp;1 &amp;&amp; exec /usr/local/bin/zebrunner-farm start --quiet; sleep 5; done; echo "Docker Desktop does not answer" &gt;&amp;2; exit 1</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>${MCLOUD_AGENT_DIR_VALUE}/logs/autostart.log</string>
+    <key>StandardErrorPath</key>
+    <string>${MCLOUD_AGENT_DIR_VALUE}/logs/autostart.log</string>
+  </dict>
+</plist>
+EOF
+}
+
+# autostart [status|enable|disable]: the state of the autostart; enable and disable tell what they change and ask
+autostart() {
+  delimiter "Autostart of the devices after a reboot"
+  local file
+  file="$(autostart_file)"
+  case "${1:-status}" in
+  status)
+    if autostart_enabled; then
+      succeed "Autostart is on: ${file}"
+    else
+      echo "Autostart is off (by default): ./zebrunner.sh autostart enable tells what it adds and asks first."
+    fi
+    ;;
+  enable)
+    if autostart_enabled; then
+      echo "Autostart is on already: ${file}"
+      delimiter
+      return 0
+    fi
+    if [[ "$(uname)" == "Darwin" ]]; then
+      echo "
+      It creates ${file}: a launch agent of $(id -un 2> /dev/null || echo "this user") loaded at the next login, nothing
+      starts now. At the login it waits for Docker Desktop (10 minutes at most: let Docker Desktop start at the
+      login, its Settings, General) and runs 'zebrunner-farm start --quiet' once: the containers of all the devices,
+      also the Android, wireless, emulator and proxy ones the devices listener does not start. Its log:
+      ${MCLOUD_AGENT_DIR_VALUE}/logs/autostart.log. No sudo is needed.
+
+      The content of ${file}:
+"
+      autostart_plist
+    else
+      if ! command -v systemctl > /dev/null 2>&1; then
+        echo_warning "The autostart of Linux is a systemd unit: this host has no systemctl."
+        exit 1
+      fi
+      echo "
+      It runs with sudo:
+        1. creates ${file} (mode 644): a systemd unit that runs 'zebrunner-farm start --quiet' once after docker at
+           the boot: the containers of all the devices, also the wireless, emulator and proxy ones udev does not
+           start (udev starts the USB devices anyway). Its log: journalctl -u mcloud-farm
+        2. systemctl daemon-reload
+        3. systemctl enable mcloud-farm.service: it runs at the next boot, nothing starts now.
+
+      The content of ${file}:
+"
+      autostart_unit
+    fi
+    echo ""
+    confirm "" "      Enable the autostart as described above?" "n" || exit 0
+    if [[ "$(uname)" == "Darwin" ]]; then
+      mkdir -p "$(dirname "$file")"
+      autostart_plist > "$file"
+    else
+      autostart_unit | sudo tee "$file" > /dev/null || exit 1
+      sudo chmod 644 "$file"
+      sudo systemctl daemon-reload
+      sudo systemctl enable mcloud-farm.service || exit 1
+    fi
+    succeed "Autostart is on: ${file}"
+    ;;
+  disable)
+    if ! autostart_enabled && [[ ! -f "$file" ]]; then
+      echo "Autostart is off already."
+      delimiter
+      return 0
+    fi
+    if [[ "$(uname)" == "Darwin" ]]; then
+      echo "
+      It unloads and removes ${file}: the containers of the devices are not started at the login anymore, the
+      running ones keep running."
+    else
+      echo "
+      It runs with sudo: systemctl disable mcloud-farm.service, removes ${file}, systemctl daemon-reload: the
+      containers of the devices are not started at the boot anymore, the running ones keep running."
+    fi
+    echo ""
+    confirm "" "      Disable the autostart as described above?" "n" || exit 0
+    autostart_remove
+    succeed "Autostart is off."
+    ;;
+  *)
+    echo "Usage: ./zebrunner.sh autostart [status|enable|disable]"
+    exit 1
+    ;;
+  esac
+  delimiter
+}
+
+# autostart_remove: the autostart of the OS removed
+autostart_remove() {
+  if [[ "$(uname)" == "Darwin" ]]; then
+    launchctl bootout gui/"$(id -u)" "$AUTOSTART_PLIST" > /dev/null 2>&1
+    rm -f "$AUTOSTART_PLIST"
+  else
+    sudo systemctl disable mcloud-farm.service > /dev/null 2>&1
+    sudo rm -f "$AUTOSTART_UNIT"
+    sudo systemctl daemon-reload
+  fi
+}
+
 # migrate [file...]: the settings of an earlier version moved to config/ (README.md#settings): the files given (e.g.
 # vars/main.yml of a backup) or the ones of an earlier version in this folder; it shows the changes and asks first
 migrate() {
@@ -561,7 +745,8 @@ echo_help() {
          version              Version of MCloud Agent components
          doctor               Check the settings, the deployment and the network to MCloud, tell what to fix
          join                 Enroll this host in MCloud with the join string of ./zebrunner.sh node-invite (stdin)
-         migrate [files...]   Move the settings of an earlier version to config/ (shows the changes, asks first)"
+         migrate [files...]   Move the settings of an earlier version to config/ (shows the changes, asks first)
+         autostart [status|enable|disable]  The containers of the devices after a reboot (off by default, asks first)"
   echo_telegram
   delimiter
 }
@@ -596,6 +781,9 @@ join)
   ;;
 migrate)
   migrate "${@:2}"
+  ;;
+autostart)
+  autostart "$2"
   ;;
 *)
   echo_help

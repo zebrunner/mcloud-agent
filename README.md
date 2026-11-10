@@ -169,7 +169,7 @@ Security:
 - Usbmuxd service is stopped and masked (disabled).
 - Wireless, emulator and proxy devices have no udev rules: `zebrunner-farm start` creates their containers.
 - Android emulators (`android-sim`) are started outside the farm (e.g. an AVD, Genymotion, a container Android): set `address` to their adb address reachable from the docker network; appium gets `DEVICE_CONNECTION=android-sim` (a `default` device is a phone).
-- [Optional] Register`@reboot /usr/local/bin/zebrunner-farm restart` via crontab to forcibly restart containers on reboot
+- [Optional] The containers of all the devices after a reboot: `./zebrunner.sh autostart enable`, see [Autostart](#autostart).
 - [Optional] Increased `fs.inotify.max_user_instances` to workaround [#328](https://github.com/zebrunner/mcloud-agent/issues/328)
   > `sudo sysctl fs.inotify.max_user_instances=2048`
 
@@ -221,6 +221,17 @@ Security:
 - `doctor` - checks the host, the settings, the deployment, the network to the MCloud server and the devices, and tells what to fix, see [Doctor](#doctor).
 - `join` - enrolls this host in MCloud with the join string of `./zebrunner.sh node-invite` of mcloud, see [Node enrollment](#node-enrollment).
 - `migrate [files...]` - moves the settings of an earlier version to `config/`, see [Settings](#settings).
+- `autostart [status|enable|disable]` - the containers of the devices after a reboot, off by default, see [Autostart](#autostart).
+
+### Autostart
+
+The deploy adds no autostart. After a reboot the USB devices are started by udev (Linux) and by the devices listener at the login (iOS of macOS); the containers of the other devices (wireless, emulators, proxy; the USB Android devices of macOS) stay stopped: `zebrunner-farm start` starts them. The autostart is a choice of the administrator of the host, off by default:
+
+- `./zebrunner.sh autostart` shows whether it is on.
+- `./zebrunner.sh autostart enable` tells what it adds, shows the content of the file and asks first (No by default); nothing starts at once:
+  - Linux: the systemd unit `/etc/systemd/system/mcloud-farm.service` (sudo, `systemctl enable`), it runs `zebrunner-farm start --quiet` once after docker at the boot; its log: `journalctl -u mcloud-farm`;
+  - macOS: the launch agent `~/Library/LaunchAgents/ZebrunnerFarmStart.plist` of the user (no sudo), at the login it waits for Docker Desktop (10 minutes at most: let it start at the login) and runs `zebrunner-farm start --quiet` once; its log: `logs/autostart.log` of the agent folder.
+- `./zebrunner.sh autostart disable` tells what it removes and asks first; the running containers keep running. `./zebrunner.sh shutdown` removes it too.
 
 ### ZeroMQ security
 
