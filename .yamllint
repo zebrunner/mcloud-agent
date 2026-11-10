@@ -7,7 +7,7 @@ yaml-files:
   - "*.yml.original"
   - ".yamllint"
 
-# roles/*/vars/main.yml are the local settings of a farm
+# config/*.yml are the local settings of a farm
 ignore-from-file: .gitignore
 
 rules:

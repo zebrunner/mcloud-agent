@@ -62,6 +62,19 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 - The setup ends with the numbered next steps: the invite of this host on the MCloud server, `./zebrunner.sh join`, the devices, `./zebrunner.sh doctor`, `./zebrunner.sh ansible` and `zebrunner-farm start`.
 
+## Settings
+
+The local settings of the host are in `config/`, out of git; `./zebrunner.sh setup` makes them from the examples (an existing file is kept, its copy goes to `<file>.bak`):
+
+| File | What it is | Example |
+| --- | --- | --- |
+| `config/settings.yml` | the settings of the host, the same for Linux and macOS: the connection to MCloud of `./zebrunner.sh join`, S3, WebDriverAgent; mode 600, it has secrets | `config/settings.yml.original` |
+| `config/devices.yml` | the list of the devices (`devices:`) | `config/devices.yml.original` (Linux), `config/mac-devices.yml.original` (macOS) |
+
+The playbooks load `defaults/main.yml` (the images and their versions), then `config/settings.yml` and `config/devices.yml`: a setting of `config/settings.yml` overrides the one of `defaults/main.yml`. The values by default of the OS (`STF_PROVIDER_NAME`; `USBMUXD_SOCKET_ADDRESS`, `ADB_SERVER_SOCKET_ADDRESS` of macOS) are in `roles/devices/defaults/main.yml` and `roles/mac-devices/defaults/main.yml`, a line of `config/settings.yml` overrides them too. `./zebrunner.sh backup` and `restore` keep both files of `config/`.
+
+The earlier versions kept everything in `roles/devices/vars/main.yml` (Linux) or `roles/mac-devices/vars/main.yml` (macOS). Such a file overrides `config/`, so the deploy and `./zebrunner.sh doctor` refuse it: after `./zebrunner.sh setup` move its settings to `config/settings.yml` and its `devices:` to `config/devices.yml`, then remove it.
+
 ## Node enrollment
 
 Every device host joins [MCloud](https://github.com/zebrunner/mcloud#nodes) with its own token: the administrator of MCloud invites it, the host enrolls itself, no secret is copied by hand.
@@ -70,7 +83,7 @@ Every device host joins [MCloud](https://github.com/zebrunner/mcloud#nodes) with
 2. On this host: `./zebrunner.sh join` asks for the join string (hidden; or on stdin: never in the command line, where it stays in the shell history) and enrolls the host:
    - it makes the CURVE key of the host if there is none and sends its public key, never the secret one;
    - it talks to MCloud over HTTPS and trusts only the server whose TLS key is the pinned one of the join string (a self-signed certificate is fine, another key stops the enrollment);
-   - it writes the connection to MCloud into `roles/.../vars/main.yml` (mode 600, the previous settings are kept in `main.yml.bak-join-<time>`).
+   - it writes the connection to MCloud into `config/settings.yml` (mode 600, the previous settings are kept in `settings.yml.bak-join-<time>`).
 3. `./zebrunner.sh doctor`, `./zebrunner.sh ansible` and `zebrunner-farm start` (`restart` for the existing containers).
 
 The settings of the connection, written by `join` (do not change them by hand, a new join string replaces them):
@@ -89,7 +102,7 @@ The settings of the connection, written by `join` (do not change them by hand, a
 Security:
 
 - the token is of this host only: MCloud keeps its hash, binds it to the address of the host and to its devices, and revokes it alone (`./zebrunner.sh nodes revoke <label>` of mcloud);
-- `roles/.../vars/main.yml` and the deployed `zebrunner-farm` have the secrets of the host: the settings are mode 600, `zebrunner-farm` is readable by root and the user of the deploy only (Linux: mode 750, the group of the user; macOS: mode 700); the users of the `docker` group can read the variables of the containers anyway, they are root on the host;
+- `config/settings.yml` and the deployed `zebrunner-farm` have the secrets of the host: the settings are mode 600, `zebrunner-farm` is readable by root and the user of the deploy only (Linux: mode 750, the group of the user; macOS: mode 700); the users of the `docker` group can read the variables of the containers anyway, they are root on the host;
 - a new join string (`node-invite` of the same label) replaces the token and the key of the host: run `./zebrunner.sh join` again to rotate them;
 - `./zebrunner.sh doctor` asks MCloud about this host (enrolled, active, its address, the devices STF knows and binds to it) and reports the settings readable by other users.
 
@@ -109,7 +122,7 @@ Security:
 
 ### Linux OS
 
-- update `roles/devices/vars/main.yml` file according to the obligatory/optional comments inside.
+- update `config/settings.yml` and `config/devices.yml` files according to the obligatory/optional comments inside (see [Settings](#settings)).
   > Register all whitelisted Android and iOS devices with their udids!
   > The deploy validates the devices: obligatory settings, unique ids and names, and host ports (`appium_port`, `min_port`-`max_port`, `connect_port`) not shared by devices. `adb_port` is not used on Linux; `connect_port` (optional, Android) is the remote debug port of STF.
 - Run ansible-playbook script to download the required components (the connector of the platforms of the registered devices only) and set up udev rules:
@@ -146,7 +159,7 @@ Security:
 
 ### Mac OS
 
-- update `roles/mac-devices/vars/main.yml` file according to the obligatory/optional comments inside.
+- update `config/settings.yml` and `config/devices.yml` files according to the obligatory/optional comments inside (see [Settings](#settings)).
   > Register all whitelisted Android and iOS devices (phones, tablets, TVs or simulators) with their udids and connections!
   > The deploy validates the devices: obligatory settings, unique ids and names, the connections, host ports (`appium_port`, `min_port`-`max_port`, `connect_port`, `wda_port` and `mjpeg_port` of the iOS simulators, `adb_port` of the USB Android devices) not shared by devices.
 - Run ansible-playbook script to download the required components (the connector of the platforms of the registered devices only) and set up launchd agents:
@@ -201,7 +214,7 @@ STF of MCloud accepts on its ZeroMQ ports only the enrolled device hosts: the CU
 `./zebrunner.sh doctor` checks the agent and tells what to fix, it changes nothing and prints no secret:
 
 - the host: `ZEBRUNNER_MCLOUD_AGENT_DIR`, docker, ansible, python3, lsusb (Linux), Rosetta 2 (Apple Silicon);
-- the settings of `roles/.../vars/main.yml`: the ones of `./zebrunner.sh join`, the formats of the token and of the CURVE keys, the file readable by other users, the devices;
+- the settings of `config/settings.yml`: the ones of `./zebrunner.sh join`, the formats of the token and of the CURVE keys, the file readable by other users, a `roles/.../vars/main.yml` of an earlier version; the devices of `config/devices.yml`;
 - the enrollment: it asks MCloud about this host (`GET /api/v1/nodes/self` of `MCLOUD_URL` with the token, over HTTPS to the pinned TLS key): enrolled and active (or unknown, revoked), its address in MCloud is `STF_PROVIDER_HOST`, the devices STF knows of it, which of them are bound to it and connected;
 - the deployment: `zebrunner-farm` rendered with the current settings (otherwise `./zebrunner.sh ansible`) and readable by this user only, the containers created with the current `STF_PROVIDER_HOST` (otherwise `zebrunner-farm restart`);
 - the network: the name resolution and the ports of `PUBLIC_IP`, mcloud-grid and the ZeroMQ triproxies; `STF_PROVIDER_HOST` is an address of this host, or a public address of a NAT while the MCloud server is in the network of this host (see [Device hosts in a private network](#device-hosts-in-a-private-network)); MCloud on this machine and the devices using its ports (see [Devices on the MCloud server](#devices-on-the-mcloud-server));
@@ -296,7 +309,7 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
 7. Copy the WebDriverAgentRunner-Runner.app to the Payload directory: **cp -r WebDriverAgentRunner-Runner.app Payload**
 8. Finally, zip up the project as an *.ipa file: **zip -r WebDriverAgent.ipa ./Payload**
    > Make sure to specify relative `./Payload` to archive only Payload folder content
-9. Share built ipa via WDA_FILE variable in roles/devices/vars/main.yml (Linux) or roles/mac-devices/vars/main.yml (macOS) file.
+9. Share built ipa via WDA_FILE variable in config/settings.yml file.
    > to override WDA_FILE artifacts per each device use `wda_file` and `wda_bundleid` iOS device properties and re-execute ansible playbook.
 10. The device connector installs WebDriverAgent from the ipa on Linux and on macOS (over usbmuxd of the host), a WebDriverAgent started on macOS by the host is used as is.
 

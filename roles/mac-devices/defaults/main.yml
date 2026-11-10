@@ -1,0 +1,13 @@
+---
+# The values by default of the settings of a macOS host: config/settings.yml overrides them (README.md#settings)
+
+STF_PROVIDER_NAME: mcloud-macos
+
+# the usbmuxd of the host shared into the containers by socat (ZebrunnerUsbmuxd launch agent)
+USBMUXD_SOCKET_ADDRESS: host.docker.internal:2222
+
+# the adb server of the host for the USB Android devices (ZebrunnerAdb launch agent)
+ADB_SERVER_SOCKET_ADDRESS: host.docker.internal:5037
+
+# the simulator build of WebDriverAgent for the iOS simulators
+WDA_SIMULATOR_FILE:

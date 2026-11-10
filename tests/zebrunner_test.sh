@@ -7,7 +7,9 @@ source "$(dirname "$0")/lib.sh"
 AGENT="${WORK}/repo"
 mkdir -p "$AGENT" "${WORK}/home"
 (cd "$REPO" && tar --exclude=.git -cf - .) | (cd "$AGENT" && tar -xf -)
-rm -rf "${AGENT}/backup/"bak_* "${AGENT}/roles/devices/vars/main.yml" "${AGENT}/roles/mac-devices/vars/main.yml"
+rm -rf "${AGENT}/backup/"bak_* "${AGENT}/config/"*.yml "${AGENT}/config/"*.yml.* "${AGENT}/roles/devices/vars" "${AGENT}/roles/mac-devices/vars"
+mkdir -p "${AGENT}/config"
+cp "${REPO}/config/"*.original "${AGENT}/config/"
 
 # the stub body is expanded when the stub runs
 # shellcheck disable=SC2016
@@ -57,22 +59,34 @@ output="$(OS=Linux zbr "" setup)"
 check "the agent dir replaces an old value in .bashrc" "1" "$(exports .bashrc)"
 check "the old value is gone" "0" "$(grep -c '/old/path' "${WORK}/home/.bashrc")"
 check "the agent dir is added to .bash_profile" "1" "$(exports .bash_profile)"
-check "Linux settings are created from the example" "same" \
-  "$(cmp -s "${AGENT}/roles/devices/vars/main.yml" "${AGENT}/roles/devices/vars/main.yml.original" && echo same)"
+check "the settings are created from the example" "same" \
+  "$(cmp -s "${AGENT}/config/settings.yml" "${AGENT}/config/settings.yml.original" && echo same)"
+check "the settings are private" "600" "$(stat -c '%a' "${AGENT}/config/settings.yml" 2> /dev/null || stat -f '%Lp' "${AGENT}/config/settings.yml")"
+check "Linux devices are created from the example" "same" \
+  "$(cmp -s "${AGENT}/config/devices.yml" "${AGENT}/config/devices.yml.original" && echo same)"
+check_not_contains "no settings of an earlier version" "earlier version" "$output"
 check_contains "the reload of the shell is suggested" "To apply the changes" "$output"
 check_contains "the invite is the next step" "2. The administrator of MCloud invites this host on its server: ./zebrunner.sh node-invite" "$output"
 check_contains "the join is the next step" "3. Enroll this host: ./zebrunner.sh join and paste the join string" "$output"
-check_contains "the devices are a step" "4. Declare the devices in 'devices:' of 'roles/devices/vars/main.yml'" "$output"
+check_contains "the devices are a step" "4. Declare the devices in 'devices:' of 'config/devices.yml'" "$output"
 check_contains "the doctor is a step" "5. Check the settings, the enrollment and the network to MCloud: ./zebrunner.sh doctor" "$output"
 check_contains "the deploy is a step" "6. Deploy the agent: ./zebrunner.sh ansible" "$output"
 check_not_contains "no manual settings" "variables.env" "$output"
 output="$(OS=Linux zbr "" setup)"
 check "a second setup does not duplicate the variable" "1" "$(exports .bashrc)"
 check_contains "a second setup backs up existing settings" "making a backup" "$output"
-check "the backup of the settings exists" "yes" "$([[ -f "${AGENT}/roles/devices/vars/main.yml.bak" ]] && echo yes)"
-OS=Darwin zbr "" setup > /dev/null
-check "macOS settings are created from the example" "same" \
-  "$(cmp -s "${AGENT}/roles/mac-devices/vars/main.yml" "${AGENT}/roles/mac-devices/vars/main.yml.original" && echo same)"
+check "the backup of the settings exists" "yes" "$([[ -f "${AGENT}/config/settings.yml.bak" ]] && echo yes)"
+check "the backup of the devices exists" "yes" "$([[ -f "${AGENT}/config/devices.yml.bak" ]] && echo yes)"
+mv "${AGENT}/config/devices.yml" "${WORK}/devices.yml"
+mkdir -p "${AGENT}/roles/mac-devices/vars"
+touch "${AGENT}/roles/mac-devices/vars/main.yml"
+output="$(OS=Darwin zbr "" setup)"
+check "macOS devices are created from the example" "same" \
+  "$(cmp -s "${AGENT}/config/devices.yml" "${AGENT}/config/mac-devices.yml.original" && echo same)"
+check_contains "the settings of an earlier version are reported" \
+  "'roles/mac-devices/vars/main.yml' of an earlier version overrides 'config/': move its settings to 'config/settings.yml'" "$output"
+rm -rf "${AGENT}/roles/mac-devices/vars" "${AGENT}/config/"*.bak
+mv "${WORK}/devices.yml" "${AGENT}/config/devices.yml"
 check_contains "unknown OS is rejected" "Unknown OS" "$(OS=FreeBSD zbr "" setup)"
 
 section "version"
@@ -192,7 +206,8 @@ section "status"
 output="$(AGENT_DIR="$AGENT" OS=Linux zbr "" status)"
 check_contains "ansible version" "ansible-playbook [core 2.21.5]" "$output"
 check_contains "zebrunner-farm location" "${WORK}/bin/zebrunner-farm" "$output"
-check_contains "Linux settings file" "${AGENT}/roles/devices/vars/main.yml" "$output"
+check_contains "settings file" "${AGENT}/config/settings.yml" "$output"
+check_contains "devices file" "${AGENT}/config/devices.yml" "$output"
 # a stub that behaves as a missing command, removing the stub would expose an ansible-playbook of the system
 cp "${WORK}/bin/ansible-playbook" "${WORK}/ansible-playbook"
 stub ansible-playbook 'echo "ansible-playbook: command not found" >&2; exit 127'
@@ -202,7 +217,7 @@ mkdir -p "${WORK}/home/Library/LaunchAgents"
 touch "${WORK}/home/Library/LaunchAgents/ZebrunnerDevicesListener.plist" "${WORK}/home/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
 output="$(AGENT_DIR="$AGENT" OS=Darwin zbr "" status)"
 check_contains "macOS deployed launch agents" "${WORK}/home/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" "$output"
-check_contains "macOS settings file" "${AGENT}/roles/mac-devices/vars/main.yml" "$output"
+check_contains "macOS settings file" "${AGENT}/config/settings.yml" "$output"
 
 section "join"
 # a fake MCloud: curl records its arguments, its stdin (the body or the headers) goes to ${WORK}/mcloud/<call>_input, it
@@ -223,9 +238,9 @@ if [[ "${exit_code:-0}" != "0" ]]; then
   exit "$exit_code"
 fi
 printf "%s\n%s" "$(cat "${STUB_DIR}/mcloud/${call}_answer")" "$(cat "${STUB_DIR}/mcloud/${call}_code")"'
-vars="${AGENT}/roles/devices/vars/main.yml"
+vars="${AGENT}/config/settings.yml"
 cp "$vars" "${WORK}/vars.before-join"
-cp "${AGENT}/roles/devices/vars/main.yml.original" "$vars"
+cp "${AGENT}/config/settings.yml.original" "$vars"
 pin="$(printf '%043d' 0 | tr 0 Q)="
 invite="mci1.$(printf '%043d' 0 | tr 0 i)"
 node_token="mcn1.build-ua.$(printf '%043d' 0 | tr 0 n)"
@@ -263,7 +278,7 @@ for line in 'MCLOUD_URL: "https://192.168.50.2:443"' "MCLOUD_TLS_PIN: \"${pin}\"
   check "join writes ${line%%:*}" "1" "$(grep -cxF -- "$line" "$vars")"
 done
 check "the settings are private" "600" "$(stat -c '%a' "$vars" 2> /dev/null || stat -f '%Lp' "$vars")"
-backup="$(find "$(dirname "$vars")" -name 'main.yml.bak-join-*' | head -1)"
+backup="$(find "$(dirname "$vars")" -name 'settings.yml.bak-join-*' | head -1)"
 check "the previous settings are kept, private too" "600" "$(stat -c '%a' "$backup" 2> /dev/null || stat -f '%Lp' "$backup")"
 check_not_contains "the token is not printed" "$node_token" "$output"
 check_not_contains "the invite is not printed" "$invite" "$output"
@@ -431,10 +446,12 @@ rm -f "${WORK}/devices.txt"
 # zebrunner-farm rendered with another STF_PROVIDER_HOST, then with the settings
 if command -v ansible > /dev/null 2>&1; then
   render "${AGENT}/roles/devices/templates/zebrunner-farm" "${WORK}/farm" --extra-vars "@${AGENT}/defaults/main.yml" \
-    --extra-vars "@${vars}" --extra-vars "STF_PROVIDER_HOST=185.237.20.136" || exit 1
+    --extra-vars "@${AGENT}/roles/devices/defaults/main.yml" --extra-vars "@${vars}" \
+    --extra-vars "@${AGENT}/config/devices.yml" --extra-vars "STF_PROVIDER_HOST=185.237.20.136" || exit 1
   check_contains "a deployment with other settings is reported" "zebrunner-farm is deployed with other values of STF_PROVIDER_HOST" "$(doctor_run)"
   render "${AGENT}/roles/devices/templates/zebrunner-farm" "${WORK}/farm" --extra-vars "@${AGENT}/defaults/main.yml" \
-    --extra-vars "@${vars}" || exit 1
+    --extra-vars "@${AGENT}/roles/devices/defaults/main.yml" --extra-vars "@${vars}" \
+    --extra-vars "@${AGENT}/config/devices.yml" || exit 1
   chmod 755 "${WORK}/farm"
   output="$(doctor_run)"
   check_contains "a deployment with the settings" "zebrunner-farm is deployed with the current settings" "$output"
@@ -455,12 +472,20 @@ sed -i.bak 's/^MCLOUD_NODE_TOKEN:.*/MCLOUD_NODE_TOKEN: "mcn1.x"/' "$vars" && rm 
 check_contains "an invalid token is a problem" "MCLOUD_NODE_TOKEN is not a token of ./zebrunner.sh join" "$(doctor_run)"
 chmod 644 "$vars"
 check_contains "readable settings are reported" "have secrets and are readable by other users (mode 644)" "$(doctor_run)"
-cp "${AGENT}/roles/devices/vars/main.yml.original" "$vars"
+cp "${AGENT}/config/settings.yml.original" "$vars"
 output="$(doctor_run)"
 check_contains "a host without the enrollment is reported" "this host is not enrolled, empty: MCLOUD_URL MCLOUD_TLS_PIN MCLOUD_NODE_TOKEN" "$output"
 check_contains "join is the fix" "./zebrunner.sh join with the join string of ./zebrunner.sh node-invite of mcloud" "$output"
+mkdir -p "${AGENT}/roles/devices/vars"
+touch "${AGENT}/roles/devices/vars/main.yml"
+check_contains "the settings of an earlier version are a problem" \
+  "roles/devices/vars/main.yml of an earlier version overrides config/settings.yml" "$(doctor_run)"
+rm -rf "${AGENT}/roles/devices/vars"
+mv "${AGENT}/config/devices.yml" "${WORK}/devices.yml"
+check_contains "no devices file" "config/devices.yml does not exist" "$(doctor_run)"
+mv "${WORK}/devices.yml" "${AGENT}/config/devices.yml"
 rm -f "$vars"
-check_contains "no settings" "roles/devices/vars/main.yml does not exist" "$(doctor_run)"
+check_contains "no settings" "config/settings.yml does not exist" "$(doctor_run)"
 mv "${WORK}/docker" "${WORK}/bin/docker"
 mv "${WORK}/netcheck.py" "${AGENT}/patch/netcheck.py"
 rm -f "${WORK}/bin/curl"
@@ -472,7 +497,7 @@ check "declined backup creates nothing" "0" "$(find "${AGENT}/backup" -name 'bak
 OS=Linux zbr "y\n" backup > /dev/null
 backup="$(cd "${AGENT}/backup" && ls -d bak_* 2> /dev/null)"
 check "backup dir is created" "1" "$(echo "$backup" | grep -c '^bak_')"
-for file in defaults/main.yml download/main.yml tasks/udev.yml templates/zebrunner-farm vars/main.yml; do
+for file in defaults/main.yml download/main.yml tasks/udev.yml templates/zebrunner-farm config/settings.yml config/devices.yml; do
   check "backup has ${file}" "yes" "$([[ -f "${AGENT}/backup/${backup}/${file}" ]] && echo yes)"
 done
 cp "${AGENT}/defaults/main.yml" "${WORK}/defaults.yml"
@@ -503,7 +528,9 @@ rm|-vf|/usr/local/bin/usbmuxd_watch
 rm|-vf|/etc/newsyslog.d/zebrunner-mcloud.conf
 rm|-vf|/usr/local/bin/zebrunner-farm
 rm|-vf|/usr/local/bin/mcloud-devices.txt" "$(calls sudo | grep '^rm|')"
-check "macOS: settings are removed" "no" "$([[ -f "${AGENT}/roles/mac-devices/vars/main.yml" ]] && echo yes || echo no)"
+check "macOS: settings are removed" "no no" \
+  "$([[ -f "${AGENT}/config/settings.yml" ]] && echo yes || echo no) $([[ -f "${AGENT}/config/devices.yml" ]] && echo yes || echo no)"
+touch "${AGENT}/config/settings.yml" "${AGENT}/config/devices.yml"
 
 reset_calls
 OS=Linux zbr "y\n" shutdown > /dev/null
@@ -513,6 +540,7 @@ rm|-vf|/etc/systemd/system/mcloud-device-restart@.service
 rm|-vf|/etc/systemd/system/mcloud-device-down@.service
 rm|-vf|/usr/local/bin/zebrunner-farm
 rm|-vf|/usr/local/bin/mcloud-devices.txt" "$(calls sudo | grep '^rm|')"
-check "Linux: settings are removed" "no" "$([[ -f "${AGENT}/roles/devices/vars/main.yml" ]] && echo yes || echo no)"
+check "Linux: settings are removed" "no no" \
+  "$([[ -f "${AGENT}/config/settings.yml" ]] && echo yes || echo no) $([[ -f "${AGENT}/config/devices.yml" ]] && echo yes || echo no)"
 
 finish
