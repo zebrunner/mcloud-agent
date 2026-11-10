@@ -13,29 +13,7 @@
     tasks_from: checks
   vars:
     common_os_role: devices
-    common_usb_android_adb_port: false
-
-# connection: usb (default), wireless, android-sim (an Android emulator) and proxy (iOS); the iOS simulators (ios-sim)
-# run on a macOS host only
-- name: Check the connection of each device
-  vars:
-    devices_connection: "{{ item.connection | default('usb') | string | lower }}"
-  ansible.builtin.assert:
-    that:
-      - devices_connection in ['usb', 'wireless', 'android-sim', 'proxy']
-      - devices_connection != 'android-sim' or item.os == 'android'
-      - devices_connection != 'proxy' or item.os == 'ios'
-      - devices_connection not in ['wireless', 'proxy'] or item.os == 'android' or (item.address | default('') | string | length) > 0
-    fail_msg: >-
-      Invalid connection '{{ devices_connection }}' of device '{{ item.name }}': usb, wireless (an iOS device needs address,
-      its IP), android-sim (an Android emulator started outside the farm, address is its adb address) or proxy (iOS,
-      needs address where its WebDriverAgent is published); the iOS simulators (ios-sim) run on a macOS host only.
-    success_msg: "Device '{{ item.name }}' connection '{{ devices_connection }}' is valid."
-    quiet: true
-  loop: "{{ devices }}"
-  loop_control:
-    label: "{{ item.name }}"
-  tags: [devices, precheck, validate]
+    common_os: linux
 
 # the settings have the secrets of the host: root (udev) and the group of the user only
 - name: Deploy 'zebrunner-farm'

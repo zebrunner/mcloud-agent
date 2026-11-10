@@ -2,7 +2,6 @@
 """The settings of the agent in YAML (README.md#settings): read with PyYAML, written line by line to keep the comments.
 
   settings.py dump <file>...              NAME=value of the top level settings, a later file overrides an earlier one
-  settings.py devices <file>              the number of the devices of devices:
   settings.py set <file> NAME=value...    sets the settings: the lines replaced, the missing ones at the end, mode 600
 
 zebrunner.sh runs it with a python with PyYAML (yaml_python of patch/utility.sh): python3 or the one of ansible.
@@ -61,15 +60,6 @@ def dump(paths):
     ]
 
 
-def devices(path):
-    value = load(path).get("devices")
-    if value is None:
-        return 0
-    if not isinstance(value, list):
-        raise SettingsError(f"devices: of {path} is not a list")
-    return len(value)
-
-
 def write_settings(path, settings, backup=None):
     """The settings in the file (the lines replaced, the missing ones at its end), mode 600, a copy to backup first.
 
@@ -108,8 +98,6 @@ def main(args):
     command = args[0] if args else ""
     if command == "dump" and len(args) > 1:
         print("\n".join(dump(args[1:])))
-    elif command == "devices" and len(args) == 2:
-        print(devices(args[1]))
     elif command == "set" and len(args) > 2 and all("=" in arg for arg in args[2:]):
         write_settings(args[1], dict(arg.split("=", 1) for arg in args[2:]))
     else:

@@ -45,11 +45,6 @@ check "invalid YAML fails" "1" "$?"
 check_contains "a list is not settings" "is not a mapping of settings" "$(echo "- a" > "${WORK}/list.yml" && settings dump "${WORK}/list.yml")"
 check_contains "a missing file is an error" "missing.yml" "$(settings dump "${WORK}/missing.yml")"
 
-section "devices"
-check "the devices are counted" "1" "$(settings devices "${WORK}/settings.yml")"
-check "no devices" "0" "$(settings devices "${WORK}/defaults.yml")"
-check_contains "devices: is a list" "is not a list" "$(echo "devices: a" > "${WORK}/devices.yml" && settings devices "${WORK}/devices.yml")"
-
 section "set"
 cp "${WORK}/settings.yml" "${WORK}/set.yml"
 settings set "${WORK}/set.yml" "PUBLIC_IP=mcloud.example.com" "MCLOUD_URL=https://10.0.0.1:443" "WDA_FILE=" > /dev/null
@@ -58,7 +53,7 @@ check "a line is replaced" 'PUBLIC_IP: "mcloud.example.com"' "$(grep '^PUBLIC_IP
 check "a missing setting is added at the end" 'MCLOUD_URL: "https://10.0.0.1:443"' "$(tail -n 1 "${WORK}/set.yml")"
 check "an empty value" "WDA_FILE:" "$(grep '^WDA_FILE' "${WORK}/set.yml")"
 check "the comments are kept" "# a comment" "$(grep '^# a comment' "${WORK}/set.yml")"
-check "the devices are kept" "1" "$(settings devices "${WORK}/set.yml")"
+check "the devices are kept" "  - id: a" "$(grep -- "- id: a" "${WORK}/set.yml")"
 check "the settings are private" "600" "$(stat -c '%a' "${WORK}/set.yml" 2> /dev/null || stat -f '%Lp' "${WORK}/set.yml")"
 check_contains "the values are read back" "MCLOUD_URL=https://10.0.0.1:443" "$(settings dump "${WORK}/set.yml")"
 printf 'PUBLIC_IP: a\nPUBLIC_IP: b\n' > "${WORK}/twice.yml"
