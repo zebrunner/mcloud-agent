@@ -82,15 +82,16 @@
     success_msg: "The host ports of the iOS simulators and the USB Android devices are unique."
   tags: [devices, precheck, validate]
 
-- name: Copy 'zebrunner-farm' script file
-  ansible.builtin.template:
-    src: zebrunner-farm
-    dest: /usr/local/bin/zebrunner-farm
-    # it has the secrets of the settings: the user (launchd runs it as the user) only
-    mode: "0700"
-    owner: "{{ lookup('env', 'USER') }}"
-    group: wheel
-  tags: [devices, files]
+# the settings have the secrets of the host: the user (launchd runs zebrunner-farm as the user) only
+- name: Deploy 'zebrunner-farm'
+  ansible.builtin.import_role:
+    name: common
+    tasks_from: farm
+  vars:
+    common_farm_os: macos
+    common_farm_owner: "{{ lookup('env', 'USER') }}"
+    common_farm_group: wheel
+    common_farm_env_mode: "0600"
 
 - name: Copy 'zebrunner-device-listener' script file
   ansible.builtin.template:

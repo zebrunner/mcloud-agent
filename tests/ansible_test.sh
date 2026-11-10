@@ -261,13 +261,13 @@ section "templates"
 for role in devices mac-devices; do
   render_farm "$role" "${WORK}/farm" || exit 1
   farm="$(cat "${WORK}/farm")"
-  check_contains "${role}: agent dir is rendered into zebrunner-farm" "export ZEBRUNNER_MCLOUD_AGENT_DIR=\"${REPO}\"" "$farm"
-  check_contains "${role}: relaxed security default" "RELAXED_SECURITY=\"true\"" "$farm"
-  check_contains "${role}: app size check default" "APPIUM_APP_SIZE_DISABLE=\"false\"" "$farm"
+  check_contains "${role}: agent dir is rendered into the settings of zebrunner-farm" "ZEBRUNNER_MCLOUD_AGENT_DIR=${REPO}" "$farm"
+  check_contains "${role}: relaxed security default" "APPIUM_RELAXED_SECURITY=true" "$farm"
+  check_contains "${role}: app size check default" "APPIUM_APP_SIZE_DISABLE=false" "$farm"
   render_farm "$role" "${WORK}/farm" --extra-vars '{"APPIUM_RELAXED_SECURITY": false, "APPIUM_APP_SIZE_DISABLE": true}' || exit 1
   farm="$(cat "${WORK}/farm")"
-  check_contains "${role}: relaxed security false is lower case" "RELAXED_SECURITY=\"false\"" "$farm"
-  check_contains "${role}: app size check true is lower case" "APPIUM_APP_SIZE_DISABLE=\"true\"" "$farm"
+  check_contains "${role}: relaxed security false is lower case" "APPIUM_RELAXED_SECURITY=false" "$farm"
+  check_contains "${role}: app size check true is lower case" "APPIUM_APP_SIZE_DISABLE=true" "$farm"
 done
 
 cat > "${WORK}/devices.yml" << 'EOF'

@@ -427,6 +427,8 @@ status() {
   fi
   echo "mcloud-devices.txt:               $(ls "/usr/local/bin/mcloud-devices.txt" 2> /dev/null || failed "File not found")"
   echo ""
+  echo "zebrunner-farm.env:               $(ls "/usr/local/etc/zebrunner-farm.env" 2> /dev/null || failed "File not found")"
+  echo ""
   echo "config/settings.yml:              $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/${SETTINGS_FILE}" 2> /dev/null || failed "File not found")"
   echo ""
   echo "config/devices.yml:               $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/${DEVICES_FILE}" 2> /dev/null || failed "File not found")"
@@ -564,6 +566,7 @@ shutdown() {
     sudo rm -vf /etc/systemd/system/mcloud-device-down@.service
   fi
   sudo rm -vf /usr/local/bin/zebrunner-farm
+  sudo rm -vf /usr/local/etc/zebrunner-farm.env
   sudo rm -vf /usr/local/bin/mcloud-devices.txt
 
   ### Final message

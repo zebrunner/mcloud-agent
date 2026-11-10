@@ -11,6 +11,8 @@ DOCTOR_ROLE=""
 # NAME=value of the settings: the values by default of the roles, versions.yml, config/settings.yml (patch/settings.py)
 DOCTOR_SETTINGS=""
 DOCTOR_FARM="${DOCTOR_FARM:-/usr/local/bin/zebrunner-farm}"
+# the settings of zebrunner-farm, rendered by the deploy
+DOCTOR_FARM_ENV="${DOCTOR_FARM_ENV:-/usr/local/etc/zebrunner-farm.env}"
 DOCTOR_DEVICES="${DOCTOR_DEVICES:-/usr/local/bin/mcloud-devices.txt}"
 
 # doctor_ok <message>: a passed check
@@ -285,24 +287,27 @@ doctor_deployment() {
     doctor_warn "zebrunner-farm is not deployed" "./zebrunner.sh ansible"
     return 0
   fi
-  # the variables of the containers and the settings they are rendered from
-  local pair
-  local env_name
-  local value
+  # the settings zebrunner-farm runs with: the env file of the deploy, sourced as zebrunner-farm does
+  local deployed
+  # $1 is expanded by the shell that sources the settings
+  # shellcheck disable=SC2016
+  if [[ ! -r "$DOCTOR_FARM_ENV" ]] || ! deployed="$(env -i PATH=/usr/bin:/bin /bin/bash -c 'set -a && source "$1" && env' _ "$DOCTOR_FARM_ENV" 2> /dev/null)"; then
+    doctor_warn "the settings of zebrunner-farm (${DOCTOR_FARM_ENV}) are not readable by $(whoami)" "./zebrunner.sh ansible"
+    return 0
+  fi
+  local line
+  local name
   local changed=()
-  for pair in STF_PROVIDER_HOST=STF_PROVIDER_HOST STF_PROVIDER_PUBLIC_IP=PUBLIC_IP SELENIUM_HOST=SELENIUM_HUB_HOST \
-    SELENIUM_PORT=SELENIUM_HUB_PORT STF_PROVIDER_CONNECT_SUB=STF_PROVIDER_CONNECT_SUB \
-    STF_PROVIDER_CONNECT_PUSH=STF_PROVIDER_CONNECT_PUSH NODE_REGISTRATION_TOKEN=MCLOUD_NODE_TOKEN \
-    STF_NODE_TOKEN=MCLOUD_NODE_TOKEN STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=STF_ZMQ_CURVE_SERVER_PUBLIC_KEY \
-    STF_ZMQ_CURVE_SECRET_KEY=STF_ZMQ_CURVE_SECRET_KEY REMOTE_CONNECT_HOST=REMOTE_CONNECT_HOST; do
-    env_name="${pair%%=*}"
-    value="$(setting "${pair#*=}")"
-    grep -qF -- "${env_name}=\"${value}\"" "$DOCTOR_FARM" || changed+=("${pair#*=}")
-  done
+  while IFS= read -r line; do
+    name="${line%%=*}"
+    # the settings of config/: the deployed value of every setting the env file has
+    grep -q "^${name}=" <<< "$DOCTOR_SETTINGS" || continue
+    [[ "${line#*=}" == "$(setting "$name")" ]] || changed+=("$name")
+  done <<< "$deployed"
   local mode
-  mode="$(file_mode "$DOCTOR_FARM")"
+  mode="$(file_mode "$DOCTOR_FARM_ENV")"
   if [[ -n "$mode" && "${mode: -1}" != "0" ]]; then
-    doctor_warn "zebrunner-farm has the secrets of the settings and is readable by every user (mode ${mode})" "./zebrunner.sh ansible deploys it readable by this user only"
+    doctor_warn "the settings of zebrunner-farm have the secrets of the host and are readable by every user (mode ${mode})" "./zebrunner.sh ansible deploys them readable by this user only"
   fi
   if [[ "$(count_values "${changed[@]}")" -gt 0 ]]; then
     doctor_warn "zebrunner-farm is deployed with other values of ${changed[*]}" \

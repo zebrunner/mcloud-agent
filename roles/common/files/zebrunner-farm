@@ -1,20 +1,36 @@
 #!/bin/bash
+# zebrunner-farm: the containers of the devices of a Linux or macOS host (README.md#devices-management). The same
+# script on both OS, deployed by ./zebrunner.sh ansible; udev (Linux) and launchd (macOS) run it without the env
+# variables of the user, so its settings come from the env file the deploy renders from config/settings.yml.
 
-# Rendered at deploy time: udev runs this script without the user's env variables
-export ZEBRUNNER_MCLOUD_AGENT_DIR="{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}"
+ZEBRUNNER_FARM_ENV="${ZEBRUNNER_FARM_ENV:-/usr/local/etc/zebrunner-farm.env}"
+if [[ ! -r "$ZEBRUNNER_FARM_ENV" ]]; then
+  echo "zebrunner-farm: the settings ${ZEBRUNNER_FARM_ENV} are not readable: deploy them with ./zebrunner.sh ansible" >&2
+  exit 1
+fi
+# FARM_OS (linux or macos), ZEBRUNNER_MCLOUD_AGENT_DIR, MCLOUD_DEVICES and the settings of the containers
+# shellcheck source=/dev/null
+source "$ZEBRUNNER_FARM_ENV"
 
 source "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/utility.sh"
 
-MCLOUD_DEVICES="/usr/local/bin/mcloud-devices.txt"
-STF_DOCKER_NETWORK="{{ STF_DOCKER_NETWORK }}"
+if [[ "$FARM_OS" == "macos" ]]; then
+  # Export docker env variables to avoid issues on macOS
+  export DOCKER_BUILDKIT=0
+  export COMPOSE_DOCKER_CLI_BUILD=0
+  # the images run on the platform of the Mac (arm64 on Apple Silicon: the STF provider of an iOS simulator hangs
+  # under emulation, the other ones are slower), but appium: its image is linux/amd64 only
+  unset DOCKER_DEFAULT_PLATFORM
+fi
 
 # with_device_lock <device> <command...>: the commands of one device run one at a time: the jobs of udev
 # (mcloud-device-restart@, mcloud-device-down@) and the manual calls do not change its containers together; a group of
-# devices (no device given) and a host without flock run without it
+# devices (no device given), macOS (no udev) and a host without flock run without it
 with_device_lock() {
   local device="$1"
   shift
-  if [[ -z "$device" || "$device" == "ios" || "$device" == "android" ]] || ! command -v flock > /dev/null 2>&1; then
+  if [[ -z "$device" || "$device" == "ios" || "$device" == "android" || "$FARM_OS" == "macos" ]] ||
+    ! command -v flock > /dev/null 2>&1; then
     "$@"
     return
   fi
@@ -82,32 +98,41 @@ get_device_fields() {
   dev_stf_min_port="${fields[6]}"
   dev_stf_max_port="${fields[7]}"
 
-  # Field 9 - 'connection': how the connector container reaches the device.
-  #   usb         - plugged into the host (udev starts and removes its containers)
-  #   wireless    - over the network: adb connect for Android, netmuxd of the connector for iOS
-  #   android-sim - an Android emulator started outside the farm (AVD, Genymotion, a container Android), adb connect to its address
-  #   ios-sim     - an iOS / tvOS simulator, on a macOS host only
+  # Field 9 - 'connection': how the connector container reaches the device. Docker of macOS has no USB, so there the
+  # connector takes a USB device from the host: usbmuxd (iOS) or the adb server (Android) of the host.
+  #   usb         - plugged into the host: Linux: passed into the connector, udev starts and removes its containers;
+  #                 macOS: iOS over usbmuxd of the host, Android over the adb server of the host
+  #   wireless    - over the network: Android over adb connect; iOS: netmuxd of the connector (Linux), usbmuxd of the
+  #                 host for a device paired with the Mac (macOS)
+  #   android-sim - an Android emulator started outside the farm (AVD, Genymotion, a container Android; an AVD of the
+  #                 Mac is host.docker.internal:5555), adb connect to its address
+  #   ios-sim     - an iOS / tvOS simulator of a macOS host, the connector runs xcrun simctl of the host over ssh
   #   proxy       - WebDriverAgent published by another tool, the connector relays it (iOS)
   # The non-usb devices have no udev rules, `zebrunner-farm start` creates their containers.
   dev_connection="${fields[8]:-usb}"
 
   # Fields 10 / 11 - 'device_wda_ipa_path' and 'device_wda_bundle_id'.
-  # Device specific WebDriverAgent path and bundle ID.
+  # Device specific WebDriverAgent path (the simulator build for a simulator) and bundle ID.
   dev_device_wda_ipa_path="${fields[9]}"
   if [[ "$dev_device_wda_ipa_path" == "/dev/null" || -z "$dev_device_wda_ipa_path" ]]; then
-    dev_device_wda_ipa_path="{{ WDA_FILE }}"
+    dev_device_wda_ipa_path="${WDA_FILE}"
+    if [[ "$dev_connection" == "ios-sim" ]]; then
+      dev_device_wda_ipa_path="${WDA_SIMULATOR_FILE}"
+    fi
   fi
   : "${dev_device_wda_ipa_path:='/dev/null'}"
 
   dev_device_wda_bundle_id="${fields[10]}"
   if [[ "$dev_device_wda_bundle_id" == "/dev/null" || -z "$dev_device_wda_bundle_id" ]]; then
-    dev_device_wda_bundle_id="{{ WDA_BUNDLEID }}"
+    dev_device_wda_bundle_id="${WDA_BUNDLEID}"
   fi
   : "${dev_device_wda_bundle_id:='com.facebook.WebDriverAgentRunner.xctrunner'}"
 
   # Fields 12 - 14 - 'address', 'wda_port' and 'mjpeg_port'.
-  # address: the IP of a wireless device (the id of an Android one by default) or the host of the proxied WebDriverAgent;
-  # wda_port and mjpeg_port: the ports of the proxied WebDriverAgent
+  # address: the adb address of a wireless Android device or of an emulator (the id by default), the IP of a wireless
+  # iOS device (Linux) or the host of the proxied WebDriverAgent;
+  # wda_port and mjpeg_port: the ports of WebDriverAgent on the host for a simulator (unique, a simulator shares the
+  # network of the host) or on the address for the proxy
   dev_address="${fields[11]}"
   dev_wda_port="${fields[12]}"
   dev_mjpeg_port="${fields[13]}"
@@ -121,50 +146,60 @@ get_device_fields() {
   dev_container="device-${dev_device_name}-${dev_udid}"
 }
 
-# create_containers: the containers of the device of get_device_fields running, one line per container
+# usb_present: 0 when the USB device of get_device_fields is plugged into the host: the symlink of udev (Linux), ioreg
+# (macOS)
+usb_present() {
+  if [[ "$FARM_OS" == "macos" ]]; then
+    ioreg -p IOUSB -w0 -l | grep -q "${dev_udid//-/}"
+  else
+    [[ -L "/dev/${dev_container}" ]]
+  fi
+}
+
+# usb_connected: 0 when the USB device of get_device_fields is plugged into the host: lsusb (Linux), ioreg (macOS)
+usb_connected() {
+  local tool="lsusb"
+  local connected_devices
+  if [[ "$FARM_OS" == "macos" ]]; then
+    tool="ioreg"
+    connected_devices="$(ioreg -p IOUSB -w0 -l 2> /dev/null)"
+  else
+    connected_devices="$(lsusb -v 2> /dev/null)"
+  fi
+  if grep -q "${dev_udid//-/}" <<< "$connected_devices"; then
+    echo "  connected over USB"
+    return 0
+  fi
+  failed "  NOT connected over USB (${tool}): the containers are not created."
+  return 1
+}
+
+# create_containers: the containers of the device of get_device_fields running, one line per container. The connector
+# is the only point of contact with the device: the STF and Appium containers --link to it and take adb (Android),
+# usbmuxd, WebDriverAgent and the shared tunnel (iOS) from it whatever the connection is. The arguments of one OS are
+# in arrays expanded as "${arr[@]+"${arr[@]}"}": macOS ships bash 3.2, where "${arr[@]}" of an EMPTY array is an
+# unbound-variable error under `set -u`; the portable form preserves the quoting of the elements.
 create_containers() {
   read_container_states
 
-  local usb_bus
-  usb_bus="$(readlink -f "/dev/${dev_container}")"
+  local macos=""
+  [[ "$FARM_OS" == "macos" ]] && macos="true"
 
-  # for the physically connected devices via usb
-  local ANDROID_DEVICE=""
-  local STF_DEVICE_UDID="$dev_udid"
-  # array, so an empty value expands to no argument at all instead of an empty "" one
-  local DEVICE_ARGS=(--device="/dev/${dev_container}:${usb_bus}")
-
-  if [[ "$dev_connection" == "android-sim" && "$dev_platform_name" != "android" ]]; then
-    failed "  The android-sim connection is for Android devices only. The containers will not be created."
-    return 1
+  # Linux: the USB device is passed into the connector by the symlink of udev
+  local usb_bus=""
+  local device_args=()
+  if [[ -z "$macos" ]]; then
+    usb_bus="$(readlink -f "/dev/${dev_container}")"
+    device_args=(--device="/dev/${dev_container}:${usb_bus}")
+    [[ "$dev_connection" == "usb" ]] || device_args=()
   fi
-  if [[ "$dev_connection" =~ ^(wireless|android-sim)$ && "$dev_platform_name" == "android" ]]; then
-    # the adb address of the device or of the emulator (the id by default), with the 5555 port unless it has a port
-    local address="${dev_address:-$dev_udid}"
-    [[ "$address" == *:* ]] || address="${address}:5555"
-    # provide ANDROID_DEVICE with the port to trigger remote adb connect on appium startup
-    ANDROID_DEVICE="$address"
-    # the port is appended to be able to rename device in STF
-    STF_DEVICE_UDID="$address"
-    # reset device arg as no symlink generated for the wireless device
-    DEVICE_ARGS=()
-  elif [[ "$dev_connection" != "usb" ]]; then
-    # the iOS device of the network or of another tool has no usb path
-    DEVICE_ARGS=()
-  else
-    local connected_devices
-    connected_devices="$(lsusb -v 2> /dev/null)"
-    if grep -q "${dev_udid//-/}" <<< "$connected_devices"; then
-      echo "  connected over USB"
-    else
-      failed "  NOT connected over USB (lsusb): the containers are not created."
-      return 1
-    fi
+  if [[ "$dev_connection" == "usb" ]]; then
+    usb_connected || return 1
   fi
 
   local S3_KEY_PATTERN=""
-  local TENANT="{{ S3_TENANT }}"
-  local BUCKET="{{ S3_BUCKET }}"
+  local TENANT="${S3_TENANT}"
+  local BUCKET="${S3_BUCKET}"
   if [[ -n "$BUCKET" ]]; then
     S3_KEY_PATTERN="s3://${BUCKET}${TENANT:+/${TENANT}}/artifacts/test-sessions"
   fi
@@ -178,22 +213,62 @@ create_containers() {
     fi
   fi
 
+  # macOS: the image of appium is linux/amd64 only
+  local platform_args=()
+  [[ -n "$macos" ]] && platform_args=(--platform linux/amd64)
+  local STF_DEVICE_UDID="$dev_udid"
+  local connector_args=()
+
   if [[ "$dev_platform_name" == "android" ]]; then
+    # Linux: the USB device (DEVICE_BUS) or the adb address (ANDROID_DEVICE) of the connector, and of appium for the
+    # remote adb connect on its startup; macOS: the adb server of the host or the adb address (connector_args)
+    local bus_args=()
+    local android_args=()
+    local address="${dev_address:-$dev_udid}"
+    # the adb address of the device or of the emulator (the id by default), with the 5555 port unless it has a port
+    [[ "$address" == *:* ]] || address="${address}:5555"
+    if [[ -n "$macos" ]]; then
+      case "$dev_connection" in
+      usb)
+        # the device stays on the adb server of the host, the connector forwards it to its own adb server
+        local adb_server="${ADB_SERVER_SOCKET_ADDRESS:-host.docker.internal:5037}"
+        connector_args=(-e ADB_TRANSPORT_SERVER="$adb_server" -e ADB_TRANSPORT_SERIAL="$dev_udid" -e ADB_TRANSPORT_PORT="$dev_adb_port")
+        STF_DEVICE_UDID="${adb_server%:*}:${dev_adb_port}"
+        ;;
+      wireless | android-sim)
+        connector_args=(-e ANDROID_DEVICE="$address")
+        STF_DEVICE_UDID="$address"
+        ;;
+      *)
+        failed "  Unsupported connection of an Android device: ${dev_connection}. The containers will not be created."
+        return 1
+        ;;
+      esac
+    else
+      local android_device=""
+      if [[ "$dev_connection" =~ ^(wireless|android-sim)$ ]]; then
+        android_device="$address"
+        # the port is appended to be able to rename device in STF
+        STF_DEVICE_UDID="$address"
+      fi
+      bus_args=("${device_args[@]+"${device_args[@]}"}" -e DEVICE_BUS="$usb_bus")
+      android_args=(-e ANDROID_DEVICE="$android_device")
+    fi
 
     ensure_container connector -itd \
       --log-driver=local \
       --log-opt max-size=256m \
       --log-opt max-file=2 \
       --net="$STF_DOCKER_NETWORK" \
-      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-      "${DEVICE_ARGS[@]}" \
-      -e DEVICE_BUS="$usb_bus" \
+      --restart "on-failure:${RESTARTS_LIMIT}" \
+      "${bus_args[@]+"${bus_args[@]}"}" \
       -v mcloud-key-volume:/root/.android \
       -v "${dev_container}":/tmp/log \
       -e PLATFORM_NAME="$dev_platform_name" \
-      -e ANDROID_DEVICE="$ANDROID_DEVICE" \
+      "${android_args[@]+"${android_args[@]}"}" \
       -e DEVICE_UDID="$STF_DEVICE_UDID" \
-      "{{ ANDROID_CONNECTOR_IMAGE }}:{{ ANDROID_CONNECTOR_VERSION }}" || return 1
+      "${connector_args[@]+"${connector_args[@]}"}" \
+      "${ANDROID_CONNECTOR_IMAGE}:${ANDROID_CONNECTOR_VERSION}" || return 1
 
     ensure_container stf -d \
       --log-driver=local \
@@ -204,41 +279,36 @@ create_containers() {
       -e STF_PROVIDER_ADB_HOST=connector \
       -e STF_PROVIDER_ADB_PORT=5037 \
       --health-start-period 60s \
-      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+      --restart "on-failure:${RESTARTS_LIMIT}" \
       -e PLATFORM_NAME="$dev_platform_name" \
       -e STF_PROVIDER_DEVICE_NAME="$dev_device_name" \
       -e DEVICE_UDID="$STF_DEVICE_UDID" \
-      -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
-      -e REMOTE_CONNECT_HOST="{{ REMOTE_CONNECT_HOST | default('', true) }}" \
-      -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}${dev_location:+_$dev_location}" \
+      -e STF_PROVIDER_HOST="${STF_PROVIDER_HOST}" \
+      -e REMOTE_CONNECT_HOST="${REMOTE_CONNECT_HOST}" \
+      -e STF_PROVIDER_NAME="${STF_PROVIDER_NAME}${dev_location:+_$dev_location}" \
       -e STF_PROVIDER_MIN_PORT="$dev_stf_min_port" \
       -e STF_PROVIDER_MAX_PORT="$dev_stf_max_port" \
       "${connect_args[@]+"${connect_args[@]}"}" \
       -p "${dev_stf_min_port}-${dev_stf_max_port}":"${dev_stf_min_port}-${dev_stf_max_port}" \
-      -e STF_PROVIDER_PUBLIC_IP="{{ PUBLIC_IP }}" \
-      -e PUBLIC_IP_PORT="{{ PUBLIC_IP_PORT }}" \
-      -e PUBLIC_IP_PROTOCOL="{{ PUBLIC_IP_PROTOCOL }}" \
-      -e STF_PROVIDER_CONNECT_SUB="{{ STF_PROVIDER_CONNECT_SUB }}" \
-      -e STF_PROVIDER_CONNECT_PUSH="{{ STF_PROVIDER_CONNECT_PUSH }}" \
-      -e STF_NODE_TOKEN="{{ MCLOUD_NODE_TOKEN }}" \
-      -e STF_ZMQ_CURVE_SERVER_PUBLIC_KEY="{{ STF_ZMQ_CURVE_SERVER_PUBLIC_KEY }}" \
-      -e STF_ZMQ_CURVE_SECRET_KEY="{{ STF_ZMQ_CURVE_SECRET_KEY }}" \
-      "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}" || return 1
-
-    #        Adb config env vars
-    #        -e ADB_SERVER_SOCKET=tcp:connector:5037 \
-    #        or
-    #        -e ANDROID_ADB_SERVER_ADDRESS=connector \
-    #        -e ANDROID_ADB_SERVER_PORT=5037 \
+      -e STF_PROVIDER_PUBLIC_IP="${PUBLIC_IP}" \
+      -e PUBLIC_IP_PORT="${PUBLIC_IP_PORT}" \
+      -e PUBLIC_IP_PROTOCOL="${PUBLIC_IP_PROTOCOL}" \
+      -e STF_PROVIDER_CONNECT_SUB="${STF_PROVIDER_CONNECT_SUB}" \
+      -e STF_PROVIDER_CONNECT_PUSH="${STF_PROVIDER_CONNECT_PUSH}" \
+      -e STF_NODE_TOKEN="${MCLOUD_NODE_TOKEN}" \
+      -e STF_ZMQ_CURVE_SERVER_PUBLIC_KEY="${STF_ZMQ_CURVE_SERVER_PUBLIC_KEY}" \
+      -e STF_ZMQ_CURVE_SECRET_KEY="${STF_ZMQ_CURVE_SECRET_KEY}" \
+      "${DEVICE_IMAGE}:${DEVICE_VERSION}" || return 1
 
     # APPIUM_RELAXED_SECURITY: the insecure features of Appium for every session, README.md#appium-security
     ensure_container appium -itd \
+      "${platform_args[@]+"${platform_args[@]}"}" \
       -m 1g \
       --log-driver=local \
       --log-opt max-size=256m \
       --log-opt max-file=2 \
       --net="$STF_DOCKER_NETWORK" \
-      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+      --restart "on-failure:${RESTARTS_LIMIT}" \
       --link "${dev_container}-stf":device \
       --link "${dev_container}-connector":connector \
       -v appium-storage-volume:/opt/appium-storage \
@@ -246,88 +316,146 @@ create_containers() {
       -e TASK_LOG=/tmp/log/appium.log \
       -e PLATFORM_NAME="$dev_platform_name" \
       -e DEVICE_CONNECTION="$dev_connection" \
-      -e ANDROID_DEVICE="$ANDROID_DEVICE" \
+      "${android_args[@]+"${android_args[@]}"}" \
       -e RETAIN_TASK=true \
       -e CONNECT_TO_GRID=true \
       -e RECORD_ARTIFACTS=true \
       -e CUSTOM_NODE_CONFIG=true \
-      -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
-      -e APPIUM_APP_SIZE_DISABLE="{{ APPIUM_APP_SIZE_DISABLE | string | lower }}" \
-      -e APPIUM_APP_FETCH_RETRIES="{{ APPIUM_APP_FETCH_RETRIES }}" \
-      -e APPIUM_MAX_LOCK_FILE_LIFETIME="{{ APPIUM_MAX_LOCK_FILE_LIFETIME }}" \
-      -e APPIUM_APP_WAITING_TIMEOUT="{{ APPIUM_APP_WAITING_TIMEOUT }}" \
-      -e SELENIUM_HOST="{{ SELENIUM_HUB_HOST }}" \
-      -e SELENIUM_PORT="{{ SELENIUM_HUB_PORT }}" \
-      -e NODE_REGISTRATION_TOKEN="{{ MCLOUD_NODE_TOKEN }}" \
+      -e STF_PROVIDER_HOST="${STF_PROVIDER_HOST}" \
+      -e APPIUM_APP_SIZE_DISABLE="${APPIUM_APP_SIZE_DISABLE}" \
+      -e APPIUM_APP_FETCH_RETRIES="${APPIUM_APP_FETCH_RETRIES}" \
+      -e APPIUM_MAX_LOCK_FILE_LIFETIME="${APPIUM_MAX_LOCK_FILE_LIFETIME}" \
+      -e APPIUM_APP_WAITING_TIMEOUT="${APPIUM_APP_WAITING_TIMEOUT}" \
+      -e SELENIUM_HOST="${SELENIUM_HUB_HOST}" \
+      -e SELENIUM_PORT="${SELENIUM_HUB_PORT}" \
+      -e NODE_REGISTRATION_TOKEN="${MCLOUD_NODE_TOKEN}" \
       -e DEFAULT_CAPABILITIES=true \
       -e DEVICE_NAME="$dev_device_name" \
       -e DEVICE_UDID="$STF_DEVICE_UDID" \
       -e ADB_PORT="$dev_remote_port" \
       -e APPIUM_PORT="$dev_appium_port" \
       -p "$dev_appium_port":"$dev_appium_port" \
-      -e RELAXED_SECURITY="{{ APPIUM_RELAXED_SECURITY | string | lower }}" \
+      -e RELAXED_SECURITY="${APPIUM_RELAXED_SECURITY}" \
       -e ADB_SERVER_SOCKET=tcp:connector:5037 \
       -e REMOTE_ADB_HOST=connector \
-      -e STF_API_URL="{{ STF_API_URL }}" \
-      -e STF_AUTH_TOKEN="{{ STF_AUTH_TOKEN }}" \
-      "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}" || return 1
-
-    ensure_container uploader -d \
-      --log-driver=local \
-      --log-opt max-size=256m \
-      --log-opt max-file=2 \
-      --net="$STF_DOCKER_NETWORK" \
-      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-      -v "${dev_container}":/tmp/log \
-      -e ENDPOINT_URL="{{ S3_ENDPOINT }}" \
-      -e S3_KEY_PATTERN="$S3_KEY_PATTERN" \
-      -e AWS_ACCESS_KEY_ID="{{ S3_ACCESS_KEY_ID }}" \
-      -e AWS_SECRET_ACCESS_KEY="{{ S3_SECRET }}" \
-      -e AWS_DEFAULT_REGION="{{ S3_REGION }}" \
-      "{{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }}" || return 1
+      -e STF_API_URL="${STF_API_URL}" \
+      -e STF_AUTH_TOKEN="${STF_AUTH_TOKEN}" \
+      "${APPIUM_IMAGE}:${APPIUM_VERSION}" || return 1
 
   elif [[ "$dev_platform_name" == "ios" ]]; then
 
     echo "  WDA: ${dev_device_wda_ipa_path} (${dev_device_wda_bundle_id})"
 
-    if [[ "$dev_connection" == "ios-sim" ]]; then
-      failed "  The iOS simulators run on a macOS host only. The containers will not be created."
-      return 1
-    fi
-    if [[ "$dev_connection" =~ ^(wireless|proxy)$ && -z "$dev_address" ]]; then
-      failed "  The ${dev_connection} iOS device needs its address in mcloud-devices.txt. The containers will not be created."
-      return 1
+    # WIRELESS=true: the device has no usbmuxd (a simulator or a proxied WebDriverAgent), the connector relays WDA
+    local wireless="false"
+    local wda_file_path="/tmp/zebrunner/WebDriverAgent.ipa"
+    local host_os="LINUX"
+    # the arguments of the OS: of the connector before HOST_OS (host_args) and after it (os_args), of STF and appium
+    # for WebDriverAgent of the connector (wda_args), of appium only (appium_args)
+    local host_args=()
+    local os_args=()
+    local wda_args=()
+    local appium_args=()
+    if [[ -n "$macos" ]]; then
+      host_os="DARWIN"
+      case "$dev_connection" in
+      usb | wireless)
+        # usbmuxd of the host knows the USB devices and the network ones paired with the Mac; the connector installs
+        # and starts WebDriverAgent over it
+        connector_args=(-e USBMUXD_SOCKET_ADDRESS="${USBMUXD_SOCKET_ADDRESS}" -e DEVICE_CONNECTION="$dev_connection")
+        ;;
+      proxy)
+        if [[ -z "$dev_address" ]]; then
+          failed "  The proxy device needs the address of its WebDriverAgent. The containers will not be created."
+          return 1
+        fi
+        connector_args=(-e DEVICE_CONNECTION=proxy -e DEVICE_ADDRESS="$dev_address"
+          -e DEVICE_WDA_PORT="${dev_wda_port:-8100}" -e DEVICE_MJPEG_PORT="${dev_mjpeg_port:-8101}")
+        wireless="true"
+        ;;
+      ios-sim)
+        if [[ -z "$dev_wda_port" ]]; then
+          failed "  The simulator needs wda_port: the unique port of its WebDriverAgent on the host. The containers will not be created."
+          return 1
+        fi
+        # the simulator build of WDA: a .app folder or its .zip, mounted with its own name
+        wda_file_path="/tmp/zebrunner/$(basename "$dev_device_wda_ipa_path")"
+        local ssh_key="${ZEBRUNNER_MCLOUD_AGENT_DIR}/ssh/id_ed25519"
+        connector_args=(-e DEVICE_CONNECTION=ios-sim -e HOST_SSH_USER="${HOST_SSH_USER}"
+          -e DEVICE_WDA_PORT="$dev_wda_port" -e DEVICE_MJPEG_PORT="${dev_mjpeg_port:-$((dev_wda_port + 1))}"
+          -v "${ssh_key}:/opt/zebrunner/ssh/id_ed25519:ro")
+        # xcrun of the host for XCUITest, over ssh through the connector
+        appium_args=(-e DEVICE_CONNECTION=ios-sim -e HOST_SSH_USER="${HOST_SSH_USER}"
+          -v "${ssh_key}:/opt/zebrunner/ssh/id_ed25519:ro")
+        wireless="true"
+        ;;
+      *)
+        failed "  Unsupported connection of an iOS device: ${dev_connection}. The containers will not be created."
+        return 1
+        ;;
+      esac
+      wda_args=(-e WDA_HOST=connector -e WDA_PORT=8100 -e WIRELESS="$wireless")
+    else
+      if [[ "$dev_connection" == "android-sim" ]]; then
+        failed "  The android-sim connection is for Android devices only. The containers will not be created."
+        return 1
+      fi
+      if [[ "$dev_connection" == "ios-sim" ]]; then
+        failed "  The iOS simulators run on a macOS host only. The containers will not be created."
+        return 1
+      fi
+      if [[ "$dev_connection" =~ ^(wireless|proxy)$ && -z "$dev_address" ]]; then
+        failed "  The ${dev_connection} iOS device needs its address in mcloud-devices.txt. The containers will not be created."
+        return 1
+      fi
+      # the other containers take usbmuxd, WebDriverAgent and the shared tunnel from the connector
+      # (GO_IOS_AGENT_HOST); a proxied WebDriverAgent has no usbmuxd (WIRELESS=true)
+      [[ "$dev_connection" == "proxy" ]] && wireless="true"
+      host_args=(--sysctl net.ipv6.conf.all.disable_ipv6=0)
+      os_args=("${device_args[@]+"${device_args[@]}"}" --cap-add=NET_ADMIN --device=/dev/net/tun)
+      connector_args=(-e DEVICE_CONNECTION="$dev_connection" -e DEVICE_ADDRESS="$dev_address")
+      [[ -n "$dev_wda_port" ]] && connector_args+=(-e DEVICE_WDA_PORT="$dev_wda_port")
+      [[ -n "$dev_mjpeg_port" ]] && connector_args+=(-e DEVICE_MJPEG_PORT="$dev_mjpeg_port")
+      connector_args+=(-e DEVICE_BUS="$usb_bus")
+      wda_args=(-e WDA_HOST=connector -e WIRELESS="$wireless")
     fi
 
-    # The connector is the only point of contact with the device: the other containers take usbmuxd, WebDriverAgent
-    # and the shared tunnel from it (GO_IOS_AGENT_HOST). A proxied WebDriverAgent has no usbmuxd (WIRELESS=true).
-    local connection_args=(-e DEVICE_CONNECTION="$dev_connection" -e DEVICE_ADDRESS="$dev_address")
-    [[ -n "$dev_wda_port" ]] && connection_args+=(-e DEVICE_WDA_PORT="$dev_wda_port")
-    [[ -n "$dev_mjpeg_port" ]] && connection_args+=(-e DEVICE_MJPEG_PORT="$dev_mjpeg_port")
-    local wireless="false"
-    [[ "$dev_connection" == "proxy" ]] && wireless="true"
+    # Linux: the connection before WDA_BUNDLEID, macOS: after DEVICE_UDID
+    local linux_connector_args=()
+    local macos_connector_args=()
+    if [[ -n "$macos" ]]; then
+      macos_connector_args=("${connector_args[@]+"${connector_args[@]}"}")
+    else
+      linux_connector_args=("${connector_args[@]+"${connector_args[@]}"}")
+    fi
 
     ensure_container connector -itd \
       --log-driver=local \
       --log-opt max-size=256m \
       --log-opt max-file=2 \
       --net="$STF_DOCKER_NETWORK" \
-      --sysctl net.ipv6.conf.all.disable_ipv6=0 \
-      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-      "${DEVICE_ARGS[@]}" \
-      --cap-add=NET_ADMIN \
-      --device=/dev/net/tun \
-      -e HOST_OS=LINUX \
-      "${connection_args[@]}" \
-      -e DEVICE_BUS="$usb_bus" \
+      "${host_args[@]+"${host_args[@]}"}" \
+      --restart "on-failure:${RESTARTS_LIMIT}" \
+      "${os_args[@]+"${os_args[@]}"}" \
+      -e HOST_OS="$host_os" \
+      "${linux_connector_args[@]+"${linux_connector_args[@]}"}" \
       -e WDA_BUNDLEID="$dev_device_wda_bundle_id" \
-      -e WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa \
+      -e WDA_FILE="$wda_file_path" \
       -v devimages_cache:/opt/zebrunner/devimages \
-      -v "${dev_device_wda_ipa_path}":/tmp/zebrunner/WebDriverAgent.ipa \
+      -v "${dev_device_wda_ipa_path}":"$wda_file_path" \
       -v "${dev_container}-lockdown":/var/lib/lockdown \
       -v "${dev_container}":/tmp/log \
-      -e DEVICE_UDID="$STF_DEVICE_UDID" \
-      "{{ IOS_CONNECTOR_IMAGE }}:{{ IOS_CONNECTOR_VERSION }}" || return 1
+      -e DEVICE_UDID="$dev_udid" \
+      "${macos_connector_args[@]+"${macos_connector_args[@]}"}" \
+      "${IOS_CONNECTOR_IMAGE}:${IOS_CONNECTOR_VERSION}" || return 1
+
+    # the GO_IOS_AGENT_HOST of the connector: Linux after WDA_HOST, macOS after WIRELESS
+    local stf_wda_args=()
+    if [[ -n "$macos" ]]; then
+      stf_wda_args=("${wda_args[@]}" -e GO_IOS_AGENT_HOST=connector)
+    else
+      stf_wda_args=(-e WDA_HOST=connector -e GO_IOS_AGENT_HOST=connector -e WIRELESS="$wireless")
+    fi
 
     # Linking with appium required to share usbmuxd via socat
     ensure_container stf -d \
@@ -335,46 +463,45 @@ create_containers() {
       --log-opt max-size=256m \
       --log-opt max-file=2 \
       --net="$STF_DOCKER_NETWORK" \
-      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
+      --restart "on-failure:${RESTARTS_LIMIT}" \
       --link "${dev_container}-connector":connector \
-      -e WDA_HOST=connector \
-      -e GO_IOS_AGENT_HOST=connector \
-      -e WIRELESS="$wireless" \
+      "${stf_wda_args[@]}" \
       -e WDA_WAIT_TIMEOUT=60 \
       -e PLATFORM_NAME="$dev_platform_name" \
       -e STF_PROVIDER_DEVICE_NAME="$dev_device_name" \
       -e DEVICE_UDID="$dev_udid" \
-      -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
-      -e REMOTE_CONNECT_HOST="{{ REMOTE_CONNECT_HOST | default('', true) }}" \
-      -e STF_PROVIDER_NAME="{{ STF_PROVIDER_NAME }}${dev_location:+_$dev_location}" \
+      -e STF_PROVIDER_HOST="${STF_PROVIDER_HOST}" \
+      -e REMOTE_CONNECT_HOST="${REMOTE_CONNECT_HOST}" \
+      -e STF_PROVIDER_NAME="${STF_PROVIDER_NAME}${dev_location:+_$dev_location}" \
       -e STF_PROVIDER_MIN_PORT="$dev_stf_min_port" \
       -e STF_PROVIDER_MAX_PORT="$dev_stf_max_port" \
       -p "${dev_stf_min_port}-${dev_stf_max_port}":"${dev_stf_min_port}-${dev_stf_max_port}" \
-      -e STF_PROVIDER_PUBLIC_IP="{{ PUBLIC_IP }}" \
-      -e PUBLIC_IP_PORT="{{ PUBLIC_IP_PORT }}" \
-      -e PUBLIC_IP_PROTOCOL="{{ PUBLIC_IP_PROTOCOL }}" \
-      -e STF_PROVIDER_CONNECT_SUB="{{ STF_PROVIDER_CONNECT_SUB }}" \
-      -e STF_PROVIDER_CONNECT_PUSH="{{ STF_PROVIDER_CONNECT_PUSH }}" \
-      -e STF_PROVIDER_CONNECT_APP_DEALER="{{ STF_PROVIDER_CONNECT_APP_DEALER }}" \
-      -e STF_PROVIDER_CONNECT_DEV_DEALER="{{ STF_PROVIDER_CONNECT_DEV_DEALER }}" \
-      -e STF_NODE_TOKEN="{{ MCLOUD_NODE_TOKEN }}" \
-      -e STF_ZMQ_CURVE_SERVER_PUBLIC_KEY="{{ STF_ZMQ_CURVE_SERVER_PUBLIC_KEY }}" \
-      -e STF_ZMQ_CURVE_SECRET_KEY="{{ STF_ZMQ_CURVE_SECRET_KEY }}" \
-      "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}" || return 1
+      -e STF_PROVIDER_PUBLIC_IP="${PUBLIC_IP}" \
+      -e PUBLIC_IP_PORT="${PUBLIC_IP_PORT}" \
+      -e PUBLIC_IP_PROTOCOL="${PUBLIC_IP_PROTOCOL}" \
+      -e STF_PROVIDER_CONNECT_SUB="${STF_PROVIDER_CONNECT_SUB}" \
+      -e STF_PROVIDER_CONNECT_PUSH="${STF_PROVIDER_CONNECT_PUSH}" \
+      -e STF_PROVIDER_CONNECT_APP_DEALER="${STF_PROVIDER_CONNECT_APP_DEALER}" \
+      -e STF_PROVIDER_CONNECT_DEV_DEALER="${STF_PROVIDER_CONNECT_DEV_DEALER}" \
+      -e STF_NODE_TOKEN="${MCLOUD_NODE_TOKEN}" \
+      -e STF_ZMQ_CURVE_SERVER_PUBLIC_KEY="${STF_ZMQ_CURVE_SERVER_PUBLIC_KEY}" \
+      -e STF_ZMQ_CURVE_SECRET_KEY="${STF_ZMQ_CURVE_SECRET_KEY}" \
+      "${DEVICE_IMAGE}:${DEVICE_VERSION}" || return 1
 
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
     ensure_container appium -itd \
+      "${platform_args[@]+"${platform_args[@]}"}" \
       -m 1g \
       --log-driver=local \
       --log-opt max-size=256m \
       --log-opt max-file=2 \
       --net="$STF_DOCKER_NETWORK" \
-      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-      "${DEVICE_ARGS[@]}" \
+      --restart "on-failure:${RESTARTS_LIMIT}" \
+      "${device_args[@]+"${device_args[@]}"}" \
       --link "${dev_container}-stf":device \
       --link "${dev_container}-connector":connector \
-      -e WDA_HOST=connector \
-      -e WIRELESS="$wireless" \
+      "${wda_args[@]}" \
+      "${appium_args[@]+"${appium_args[@]}"}" \
       -v appium-storage-volume:/opt/appium-storage \
       -v "${dev_container}":/tmp/log \
       -e TASK_LOG=/tmp/log/appium.log \
@@ -384,41 +511,41 @@ create_containers() {
       -e CONNECT_TO_GRID=true \
       -e RECORD_ARTIFACTS=true \
       -e CUSTOM_NODE_CONFIG=true \
-      -e STF_PROVIDER_HOST="{{ STF_PROVIDER_HOST }}" \
-      -e APPIUM_APP_SIZE_DISABLE="{{ APPIUM_APP_SIZE_DISABLE | string | lower }}" \
-      -e APPIUM_APP_FETCH_RETRIES="{{ APPIUM_APP_FETCH_RETRIES }}" \
-      -e APPIUM_MAX_LOCK_FILE_LIFETIME="{{ APPIUM_MAX_LOCK_FILE_LIFETIME }}" \
-      -e APPIUM_APP_WAITING_TIMEOUT="{{ APPIUM_APP_WAITING_TIMEOUT }}" \
-      -e SELENIUM_HOST="{{ SELENIUM_HUB_HOST }}" \
-      -e SELENIUM_PORT="{{ SELENIUM_HUB_PORT }}" \
-      -e NODE_REGISTRATION_TOKEN="{{ MCLOUD_NODE_TOKEN }}" \
+      -e STF_PROVIDER_HOST="${STF_PROVIDER_HOST}" \
+      -e APPIUM_APP_SIZE_DISABLE="${APPIUM_APP_SIZE_DISABLE}" \
+      -e APPIUM_APP_FETCH_RETRIES="${APPIUM_APP_FETCH_RETRIES}" \
+      -e APPIUM_MAX_LOCK_FILE_LIFETIME="${APPIUM_MAX_LOCK_FILE_LIFETIME}" \
+      -e APPIUM_APP_WAITING_TIMEOUT="${APPIUM_APP_WAITING_TIMEOUT}" \
+      -e SELENIUM_HOST="${SELENIUM_HUB_HOST}" \
+      -e SELENIUM_PORT="${SELENIUM_HUB_PORT}" \
+      -e NODE_REGISTRATION_TOKEN="${MCLOUD_NODE_TOKEN}" \
       -e DEFAULT_CAPABILITIES=true \
       -e DEVICE_NAME="$dev_device_name" \
       -e DEVICE_UDID="$dev_udid" \
       -e ADB_PORT="${dev_adb_port:-5037}" \
       -e APPIUM_PORT="$dev_appium_port" \
       -p "$dev_appium_port":"$dev_appium_port" \
-      -e RELAXED_SECURITY="{{ APPIUM_RELAXED_SECURITY | string | lower }}" \
-      "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}" || return 1
-
-    ensure_container uploader -d \
-      --log-driver=local \
-      --log-opt max-size=256m \
-      --log-opt max-file=2 \
-      --net="$STF_DOCKER_NETWORK" \
-      --restart "on-failure:{{ RESTARTS_LIMIT }}" \
-      -v "${dev_container}":/tmp/log \
-      -e ENDPOINT_URL="{{ S3_ENDPOINT }}" \
-      -e S3_KEY_PATTERN="$S3_KEY_PATTERN" \
-      -e AWS_ACCESS_KEY_ID="{{ S3_ACCESS_KEY_ID }}" \
-      -e AWS_SECRET_ACCESS_KEY="{{ S3_SECRET }}" \
-      -e AWS_DEFAULT_REGION="{{ S3_REGION }}" \
-      "{{ UPLOADER_IMAGE }}:{{ UPLOADER_VERSION }}" || return 1
+      -e RELAXED_SECURITY="${APPIUM_RELAXED_SECURITY}" \
+      "${APPIUM_IMAGE}:${APPIUM_VERSION}" || return 1
 
   else
-    echo "ERROR! Unsupported platform: ${dev_platform_name}"
+    failed "  Unsupported platform: ${dev_platform_name}"
     return 1
   fi
+
+  ensure_container uploader -d \
+    --log-driver=local \
+    --log-opt max-size=256m \
+    --log-opt max-file=2 \
+    --net="$STF_DOCKER_NETWORK" \
+    --restart "on-failure:${RESTARTS_LIMIT}" \
+    -v "${dev_container}":/tmp/log \
+    -e ENDPOINT_URL="${S3_ENDPOINT}" \
+    -e S3_KEY_PATTERN="$S3_KEY_PATTERN" \
+    -e AWS_ACCESS_KEY_ID="${S3_ACCESS_KEY_ID}" \
+    -e AWS_SECRET_ACCESS_KEY="${S3_SECRET}" \
+    -e AWS_DEFAULT_REGION="${S3_REGION}" \
+    "${UPLOADER_IMAGE}:${UPLOADER_VERSION}" || return 1
 }
 
 #### Containers
@@ -428,7 +555,7 @@ CONTAINER_STATES=""
 
 # read_container_states: CONTAINER_STATES of `docker ps -a`
 read_container_states() {
-  CONTAINER_STATES="$(docker ps -a --format '{{ '{{' }}.Names{{ '}}' }} {{ '{{' }}.State{{ '}}' }}' 2> /dev/null)"
+  CONTAINER_STATES="$(docker ps -a --format '{{.Names}} {{.State}}' 2> /dev/null)"
 }
 
 # container_state <name>: the state of the container (running, exited, ...), exists when docker gives none, nothing
@@ -845,26 +972,49 @@ status_device() {
   verify_containers
 }
 
-# start_device: the containers of the device of get_device_fields created and running; the USB devices that are not
-# plugged in (no symlink of udev) are skipped unless the device is named exactly
+# start_device: the containers of the device of get_device_fields created and running; on Linux the USB devices that
+# are not plugged in (no symlink of udev) are skipped unless the device is named exactly
 start_device() {
-  if [[ -z "$(single_device)" && "$dev_connection" == "usb" && ! -L "/dev/${dev_container}" ]]; then
+  if [[ "$FARM_OS" != "macos" && -z "$(single_device)" && "$dev_connection" == "usb" && ! -L "/dev/${dev_container}" ]]; then
     echo "  not plugged in: skipped, udev starts it when it is connected"
     return 0
   fi
   create_containers
 }
 
+# listener_applies: 0 when the command is for the iOS devices of macOS as a group (all the devices or ios): the
+# devices listener handles the USB iOS devices, stop and down unload it, start loads it
+listener_applies() {
+  [[ "$FARM_OS" == "macos" ]] || return 1
+  local selector
+  [[ "$(count "${SELECTORS[@]}")" -eq 0 ]] && return 0
+  for selector in "${SELECTORS[@]}"; do
+    [[ "$selector" == "ios" ]] && return 0
+  done
+  return 1
+}
+
+# epoch <docker time>: the seconds of a time of docker inspect (UTC), 0 for the zero time of a container never finished
+epoch() {
+  if [[ "$FARM_OS" != "macos" ]]; then
+    date -d "$1" "+%s"
+  elif [[ "$1" == 0001-01-01T00:00:00* ]]; then
+    echo 0
+  else
+    TZ=UTC date -j -f "%Y-%m-%dT%H:%M:%S" "${1%%.*}" "+%s"
+  fi
+}
+
 detect_uptime() {
   local started_at
-  started_at="$(docker inspect --format='{{ '{{' }}.State.StartedAt{{ '}}' }}' "$1")"
+  started_at="$(docker inspect --format='{{.State.StartedAt}}' "$1")"
   local finished_at
-  finished_at="$(docker inspect --format='{{ '{{' }}.State.FinishedAt{{ '}}' }}' "$1")"
+  finished_at="$(docker inspect --format='{{.State.FinishedAt}}' "$1")"
 
   local started_at_epoch
-  started_at_epoch="$(date -d "$started_at" "+%s")"
+  started_at_epoch="$(epoch "$started_at")"
   local finished_at_epoch
-  finished_at_epoch="$(date -d "$finished_at" "+%s")"
+  finished_at_epoch="$(epoch "$finished_at")"
 
   local uptime="UNKNOWN"
   if [[ "$started_at_epoch" -ge "$finished_at_epoch" ]]; then
@@ -882,19 +1032,19 @@ detect_uptime() {
 
 detect_state() {
   local device_state="UNKNOWN"
-  device_state="$(docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' "$1" 2> /dev/null)"
+  device_state="$(docker inspect --format='{{.State.Health.Status}}' "$1" 2> /dev/null)"
   echo "${device_state:-UNKNOWN}"
 }
 
 detect_status() {
   local device_status="UNKNOWN"
-  device_status="$(docker inspect --format='{{ '{{' }}.State.Status{{ '}}' }}' "$1" 2> /dev/null)"
+  device_status="$(docker inspect --format='{{.State.Status}}' "$1" 2> /dev/null)"
   echo "${device_status:-UNKNOWN}"
 }
 
 detect_restarts() {
   local device_restarts="UNKNOWN"
-  device_restarts="$(docker inspect --format='{{ '{{' }}.RestartCount{{ '}}' }}' "$1" 2> /dev/null)"
+  device_restarts="$(docker inspect --format='{{.RestartCount}}' "$1" 2> /dev/null)"
   echo "${device_restarts:-UNKNOWN}"
 }
 
@@ -902,7 +1052,7 @@ verify_containers() {
   local ps_out
   ps_out="$(docker ps -a)"
 
-  if [[ ! -L "/dev/${dev_container}" && "$dev_connection" == "usb" ]]; then
+  if [[ "$dev_connection" == "usb" ]] && ! usb_present; then
     failed "\n--- DISCONNECTED ---\n"
   else
     local stf_state="UNKNOWN"
@@ -1003,6 +1153,9 @@ farm_command() {
 
 # run_command <command>: the command for SELECTED, the docker network first for the new containers
 run_command() {
+  if [[ "$1" != "start" ]] && listener_applies; then
+    launchctl unload "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
+  fi
   if [[ "$1" == "start" || "$1" == "restart" ]]; then
     ensure_network
   fi
@@ -1010,6 +1163,10 @@ run_command() {
     restart_selected
   else
     run_selected "$1"
+  fi
+  # the listener is loaded after the last container, otherwise it starts the devices in parallel
+  if [[ "$1" == "start" || "$1" == "restart" ]] && listener_applies; then
+    launchctl load "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
   fi
 }
 

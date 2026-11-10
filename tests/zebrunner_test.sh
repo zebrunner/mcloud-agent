@@ -371,7 +371,8 @@ echo 200 > "${WORK}/mcloud/self_code"
 # doctor_run: ./zebrunner.sh doctor of a Linux host without the deployed files
 doctor_run() {
   printf '' | env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
-    FAKE_UNAME=Linux ZEBRUNNER_MCLOUD_AGENT_DIR="$AGENT" DOCTOR_FARM="${WORK}/farm" DOCTOR_DEVICES="${WORK}/devices.txt" ZEBRUNNER_PYTHON="$YAML_PYTHON" \
+    FAKE_UNAME=Linux ZEBRUNNER_MCLOUD_AGENT_DIR="$AGENT" DOCTOR_FARM="${WORK}/farm" DOCTOR_FARM_ENV="${WORK}/farm.env" DOCTOR_DEVICES="${WORK}/devices.txt" \
+    ZEBRUNNER_PYTHON="$YAML_PYTHON" \
     /bin/bash "${AGENT}/zebrunner.sh" doctor 2>&1
 }
 rm -f "${WORK}/farm" "${WORK}/devices.txt"
@@ -449,19 +450,29 @@ check_contains "no port of MCloud used by the devices" "the devices use no port 
 echo "192.168.30.2" > "${WORK}/net/local"
 rm -f "${WORK}/devices.txt"
 
-# zebrunner-farm rendered with another STF_PROVIDER_HOST, then with the settings
+# the settings of zebrunner-farm rendered with another STF_PROVIDER_HOST, then with the settings
 if command -v ansible > /dev/null 2>&1; then
-  render "${AGENT}/roles/devices/templates/zebrunner-farm" "${WORK}/farm" --extra-vars "@${AGENT}/versions.yml" \
-    --extra-vars "@${AGENT}/roles/common/defaults/main.yml" --extra-vars "@${AGENT}/roles/devices/defaults/main.yml" --extra-vars "@${vars}" \
-    --extra-vars "@${AGENT}/config/devices.yml" --extra-vars "STF_PROVIDER_HOST=185.237.20.136" || exit 1
+  # render_farm_env [ansible arguments...]: the settings of zebrunner-farm of the deploy of the current settings
+  render_farm_env() {
+    render "${AGENT}/roles/common/templates/zebrunner-farm.env" "${WORK}/farm.env" --extra-vars common_farm_os=linux \
+      --extra-vars "@${AGENT}/roles/common/defaults/main.yml" --extra-vars "@${AGENT}/roles/devices/defaults/main.yml" \
+      --extra-vars "@${AGENT}/versions.yml" --extra-vars "@${vars}" "$@"
+  }
+  cp "$FARM_SCRIPT" "${WORK}/farm"
+  render_farm_env --extra-vars "STF_PROVIDER_HOST=185.237.20.136" || exit 1
   check_contains "a deployment with other settings is reported" "zebrunner-farm is deployed with other values of STF_PROVIDER_HOST" "$(doctor_run)"
-  render "${AGENT}/roles/devices/templates/zebrunner-farm" "${WORK}/farm" --extra-vars "@${AGENT}/versions.yml" \
-    --extra-vars "@${AGENT}/roles/common/defaults/main.yml" --extra-vars "@${AGENT}/roles/devices/defaults/main.yml" --extra-vars "@${vars}" \
-    --extra-vars "@${AGENT}/config/devices.yml" || exit 1
-  chmod 755 "${WORK}/farm"
+  render_farm_env --extra-vars "DEVICE_VERSION=0.1" || exit 1
+  check_contains "a deployment with another version is reported" "zebrunner-farm is deployed with other values of DEVICE_VERSION" "$(doctor_run)"
+  render_farm_env || exit 1
+  chmod 644 "${WORK}/farm.env"
   output="$(doctor_run)"
   check_contains "a deployment with the settings" "zebrunner-farm is deployed with the current settings" "$output"
-  check_contains "a readable zebrunner-farm is reported" "zebrunner-farm has the secrets of the settings and is readable by every user" "$output"
+  check_contains "readable settings of zebrunner-farm are reported" \
+    "the settings of zebrunner-farm have the secrets of the host and are readable by every user (mode 644)" "$output"
+  chmod 600 "${WORK}/farm.env"
+  check_not_contains "private settings of zebrunner-farm" "readable by every user" "$(doctor_run)"
+  rm -f "${WORK}/farm.env"
+  check_contains "the settings of a deployment are missing" "the settings of zebrunner-farm (${WORK}/farm.env) are not readable" "$(doctor_run)"
   rm -f "${WORK}/farm"
 else
   skip_check "the settings of the deployed zebrunner-farm" "no ansible"
@@ -549,6 +560,7 @@ check "macOS: deployed files are removed" "rm|-vf|/usr/local/bin/zebrunner-devic
 rm|-vf|/usr/local/bin/usbmuxd_watch
 rm|-vf|/etc/newsyslog.d/zebrunner-mcloud.conf
 rm|-vf|/usr/local/bin/zebrunner-farm
+rm|-vf|/usr/local/etc/zebrunner-farm.env
 rm|-vf|/usr/local/bin/mcloud-devices.txt" "$(calls sudo | grep '^rm|')"
 check "macOS: settings are removed" "no no" \
   "$([[ -f "${AGENT}/config/settings.yml" ]] && echo yes || echo no) $([[ -f "${AGENT}/config/devices.yml" ]] && echo yes || echo no)"
@@ -561,6 +573,7 @@ check "Linux: udev rules and deployed files are removed" "rm|-vf|/etc/udev/rules
 rm|-vf|/etc/systemd/system/mcloud-device-restart@.service
 rm|-vf|/etc/systemd/system/mcloud-device-down@.service
 rm|-vf|/usr/local/bin/zebrunner-farm
+rm|-vf|/usr/local/etc/zebrunner-farm.env
 rm|-vf|/usr/local/bin/mcloud-devices.txt" "$(calls sudo | grep '^rm|')"
 check "Linux: settings are removed" "no no" \
   "$([[ -f "${AGENT}/config/settings.yml" ]] && echo yes || echo no) $([[ -f "${AGENT}/config/devices.yml" ]] && echo yes || echo no)"
