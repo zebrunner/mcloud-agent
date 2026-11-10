@@ -445,12 +445,12 @@ rm -f "${WORK}/devices.txt"
 
 # zebrunner-farm rendered with another STF_PROVIDER_HOST, then with the settings
 if command -v ansible > /dev/null 2>&1; then
-  render "${AGENT}/roles/devices/templates/zebrunner-farm" "${WORK}/farm" --extra-vars "@${AGENT}/defaults/main.yml" \
-    --extra-vars "@${AGENT}/roles/devices/defaults/main.yml" --extra-vars "@${vars}" \
+  render "${AGENT}/roles/devices/templates/zebrunner-farm" "${WORK}/farm" --extra-vars "@${AGENT}/versions.yml" \
+    --extra-vars "@${AGENT}/roles/common/defaults/main.yml" --extra-vars "@${AGENT}/roles/devices/defaults/main.yml" --extra-vars "@${vars}" \
     --extra-vars "@${AGENT}/config/devices.yml" --extra-vars "STF_PROVIDER_HOST=185.237.20.136" || exit 1
   check_contains "a deployment with other settings is reported" "zebrunner-farm is deployed with other values of STF_PROVIDER_HOST" "$(doctor_run)"
-  render "${AGENT}/roles/devices/templates/zebrunner-farm" "${WORK}/farm" --extra-vars "@${AGENT}/defaults/main.yml" \
-    --extra-vars "@${AGENT}/roles/devices/defaults/main.yml" --extra-vars "@${vars}" \
+  render "${AGENT}/roles/devices/templates/zebrunner-farm" "${WORK}/farm" --extra-vars "@${AGENT}/versions.yml" \
+    --extra-vars "@${AGENT}/roles/common/defaults/main.yml" --extra-vars "@${AGENT}/roles/devices/defaults/main.yml" --extra-vars "@${vars}" \
     --extra-vars "@${AGENT}/config/devices.yml" || exit 1
   chmod 755 "${WORK}/farm"
   output="$(doctor_run)"

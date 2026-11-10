@@ -47,12 +47,12 @@ setting_of() {
     sed -e 's/[[:space:]]#.*$//' -e 's/[[:space:]]*$//' -e 's/^"\(.*\)"$/\1/' -e "s/^'\\(.*\\)'\$/\\1/"
 }
 
-# setting <name>: the value of a setting: config/settings.yml, defaults/main.yml when the settings have no such line
+# setting <name>: the value of a setting: config/settings.yml, versions.yml when the settings have no such line
 setting() {
   if grep -q "^$1:" "$DOCTOR_VARS" 2> /dev/null; then
     setting_of "$DOCTOR_VARS" "$1"
   else
-    setting_of defaults/main.yml "$1"
+    setting_of versions.yml "$1"
   fi
 }
 

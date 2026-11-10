@@ -27,9 +27,11 @@ make_play() {
   local dir="${WORK}/play-$1"
   local part
   mkdir -p "${dir}/roles/$1" "${dir}/config"
-  for part in tasks templates files defaults; do
+  for part in tasks templates files defaults meta; do
     [[ -d "${REPO}/roles/$1/${part}" ]] && ln -s "${REPO}/roles/$1/${part}" "${dir}/roles/$1/${part}"
   done
+  # the dependency of the roles of the OS (meta/main.yml)
+  [[ -d "${REPO}/roles/$1/meta" ]] && ln -s "${REPO}/roles/common" "${dir}/roles/common"
   if [[ -f "${REPO}/config/$1.yml.original" ]]; then
     cp "${REPO}/config/$1.yml.original" "${dir}/config/devices.yml"
     sed -e "s/^MCLOUD_NODE_TOKEN:.*/MCLOUD_NODE_TOKEN: \"${node_token}\"/" \
@@ -46,9 +48,9 @@ make_play() {
   connection: local
   gather_subset: [min]
   vars_files:
-    - ${REPO}/defaults/main.yml
-    - [config/settings.yml, ${REPO}/defaults/main.yml]
-    - [config/devices.yml, ${REPO}/defaults/main.yml]
+    - ${REPO}/versions.yml
+    - [config/settings.yml, ${REPO}/versions.yml]
+    - [config/devices.yml, ${REPO}/versions.yml]
   vars:
     STF_DOCKER_NETWORK: infra
   roles:

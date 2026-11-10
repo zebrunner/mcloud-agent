@@ -71,9 +71,17 @@ The local settings of the host are in `config/`, out of git; `./zebrunner.sh set
 | `config/settings.yml` | the settings of the host, the same for Linux and macOS: the connection to MCloud of `./zebrunner.sh join`, S3, WebDriverAgent; mode 600, it has secrets | `config/settings.yml.original` |
 | `config/devices.yml` | the list of the devices (`devices:`) | `config/devices.yml.original` (Linux), `config/mac-devices.yml.original` (macOS) |
 
-The playbooks load `defaults/main.yml` (the images and their versions), then `config/settings.yml` and `config/devices.yml`: a setting of `config/settings.yml` overrides the one of `defaults/main.yml`. The values by default of the OS (`STF_PROVIDER_NAME`; `USBMUXD_SOCKET_ADDRESS`, `ADB_SERVER_SOCKET_ADDRESS` of macOS) are in `roles/devices/defaults/main.yml` and `roles/mac-devices/defaults/main.yml`, a line of `config/settings.yml` overrides them too. `./zebrunner.sh backup` keeps the two files of `config/` in a private folder `backup/bak_<time>_<random>/config/`, `restore` puts them back; the code of the agent is not in a backup, it comes from git (`git pull`).
+The other files of the settings are in git, do not change them: `git pull` brings their new values. A line of `config/settings.yml` overrides any of them:
 
-The earlier versions kept everything in `roles/devices/vars/main.yml` (Linux) or `roles/mac-devices/vars/main.yml` (macOS). Such a file overrides `config/`, so the deploy and `./zebrunner.sh doctor` refuse it: after `./zebrunner.sh setup` move its settings to `config/settings.yml` and its `devices:` to `config/devices.yml`, then remove it.
+| File | What it is |
+| --- | --- |
+| `versions.yml` | the images of the devices and their versions |
+| `roles/common/defaults/main.yml` | the values by default of both OS: the options of Appium (`APPIUM_RELAXED_SECURITY`, ...), `RESTARTS_LIMIT` |
+| `roles/devices/defaults/main.yml`, `roles/mac-devices/defaults/main.yml` | the values by default of the OS: `STF_PROVIDER_NAME`; `USBMUXD_SOCKET_ADDRESS`, `ADB_SERVER_SOCKET_ADDRESS` of macOS |
+
+The playbooks load them in this order: the values by default of the roles, `versions.yml`, `config/settings.yml`, `config/devices.yml`. `./zebrunner.sh backup` keeps the two files of `config/` in a private folder `backup/bak_<time>_<random>/config/`, `restore` puts them back; the code of the agent is not in a backup, it comes from git (`git pull`).
+
+The earlier versions kept everything in `roles/devices/vars/main.yml` (Linux) or `roles/mac-devices/vars/main.yml` (macOS). Such a file overrides `config/`, so the deploy and `./zebrunner.sh doctor` refuse it: after `./zebrunner.sh setup` move its settings to `config/settings.yml` and its `devices:` to `config/devices.yml`, then remove it. The images and the options of Appium were in `defaults/main.yml`, now `versions.yml` and `roles/common/defaults/main.yml`: before `git pull` put the changed lines of `defaults/main.yml` into `config/settings.yml` and drop the local change (`git checkout defaults/main.yml`).
 
 ## Node enrollment
 
@@ -108,10 +116,11 @@ Security:
 
 ## Run ansible playbook
 
-- The images of the devices are pinned in `defaults/main.yml`: `DEVICE_VERSION` (mcloud-device), `APPIUM_VERSION`,
+- The images of the devices are pinned in `versions.yml`: `DEVICE_VERSION` (mcloud-device), `APPIUM_VERSION`,
   `IOS_CONNECTOR_VERSION`, `ANDROID_CONNECTOR_VERSION` and `UPLOADER_VERSION`. mcloud-device must be the one of the STF
-  of [mcloud](https://github.com/zebrunner/mcloud) (`TAG_STF` of its `.env`).
-- [Optional] To compare images in the tests (the Appium images plugin) append the `-img` postfix to `APPIUM_VERSION`,
+  of [mcloud](https://github.com/zebrunner/mcloud) (`TAG_STF` of its `.env`). Another version is a line of
+  `config/settings.yml` (see [Settings](#settings)).
+- [Optional] To compare images in the tests (the Appium images plugin) append the `-img` postfix to `APPIUM_VERSION` in `config/settings.yml`,
   the `appium-image` stage of [appium](https://github.com/zebrunner/appium#build):
 
   ```yaml
@@ -251,7 +260,7 @@ The Appium node of a device registers in mcloud-grid with the token of this host
 
 The Appium port of a device (`appium_port`) is published on the host for mcloud-grid. Appium of the device answers only the requests of the grid, which carry the token of this host, and the ones of its own container: the others get `401` (also Appium Inspector and the WebSockets of the sessions, e.g. the logcat broadcast; use the grid, `/mcloud/wd/hub` of mcloud).
 
-`APPIUM_RELAXED_SECURITY` of `defaults/main.yml` is `true`: every session, also through the grid, gets the insecure features of Appium: `mobile: shell` (adb shell of the device), the Appium log of the earlier sessions of the device (`get_server_logs`), the emulator console, the screen streaming, the download of chromedriver. Set it to `false` when the tests do not need them.
+`APPIUM_RELAXED_SECURITY` of `roles/common/defaults/main.yml` is `true`: every session, also through the grid, gets the insecure features of Appium: `mobile: shell` (adb shell of the device), the Appium log of the earlier sessions of the device (`get_server_logs`), the emulator console, the screen streaming, the download of chromedriver. Set it to `false` in `config/settings.yml` when the tests do not need them.
 
 ### Devices management
 
@@ -326,7 +335,7 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
 | Symptom | Cause and fix |
 | --- | --- |
 | `./zebrunner.sh ansible` fails on `Pull Zebrunner images` and `Check that images failed to pull exist locally` with `denied: Your authorization token has expired` or `403 Forbidden` | an expired login to public.ecr.aws in `~/.docker/config.json` of the user: the images are public, `docker logout public.ecr.aws` (or log in again) |
-| the pull fails with `manifest unknown` | the tag of `defaults/main.yml` is not published, see the images of the current [mcloud](https://github.com/zebrunner/mcloud) |
+| the pull fails with `manifest unknown` | the tag of `versions.yml` (or of `config/settings.yml`) is not published, see the images of the current [mcloud](https://github.com/zebrunner/mcloud) |
 | Linux: the deploy passed, the devices plugged in before it have no containers | udev starts them on the next connection only: `zebrunner-farm start` |
 | `./zebrunner.sh join` stops with `the TLS key of the server is not the pinned one` | the join string is of another MCloud (or the address of the join string leads elsewhere), or a man in the middle; a new TLS key of MCloud needs a new join string |
 | `./zebrunner.sh join` stops with `MCloud refused the enrollment (HTTP 403)` | the invite is used, expired, replaced by a newer one of the label, or of another label: a new `./zebrunner.sh node-invite` on the MCloud server |

@@ -4,12 +4,12 @@
   become: true
   # the roles use ansible_facts['system'] only, hardware facts are slow on macOS (system_profiler)
   gather_subset: [min]
-  # the versions, then the settings of this host (README.md#settings): the later file overrides the earlier one; without
+  # the images and their versions, then the settings of this host (README.md#settings): the later file overrides the earlier one; without
   # a settings file the versions are loaded again and the precheck of the role asks for ./zebrunner.sh setup
   vars_files:
-    - defaults/main.yml
-    - [config/settings.yml, defaults/main.yml]
-    - [config/devices.yml, defaults/main.yml]
+    - versions.yml
+    - [config/settings.yml, versions.yml]
+    - [config/devices.yml, versions.yml]
   roles:
     - devices
     - download
