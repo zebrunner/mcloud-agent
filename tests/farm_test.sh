@@ -252,6 +252,9 @@ done
 check_not_contains "macOS: no default platform" "DOCKER_DEFAULT_PLATFORM=" "$(grep -v '^ *#' "$FARM_SCRIPT")"
 output="$(env -i PATH=/usr/bin:/bin ZEBRUNNER_FARM_ENV="${WORK}/missing.env" /bin/bash "$FARM_SCRIPT" status 2>&1)"
 check_contains "zebrunner-farm without its settings asks for the deploy" "the settings ${WORK}/missing.env are not readable: deploy them with ./zebrunner.sh ansible" "$output"
+output="$(farm devices version)"
+check_contains "zebrunner-farm runs zebrunner.sh of the agent of its settings" "DEVICE_VERSION:" "$output"
+check_not_contains "zebrunner.sh gets the agent dir from zebrunner-farm" "is not set" "$output"
 
 setup_case
 farm mac-devices stop AppleTV > /dev/null

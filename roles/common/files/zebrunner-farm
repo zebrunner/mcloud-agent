@@ -11,6 +11,8 @@ fi
 # FARM_OS (linux or macos), ZEBRUNNER_MCLOUD_AGENT_DIR, MCLOUD_DEVICES and the settings of the containers
 # shellcheck source=/dev/null
 source "$ZEBRUNNER_FARM_ENV"
+# `zebrunner-farm ansible` and `version` run zebrunner.sh of the agent, which needs it
+export ZEBRUNNER_MCLOUD_AGENT_DIR
 
 source "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/utility.sh"
 
