@@ -1,0 +1,4 @@
+---
+# the values by default and the checks shared by the roles of the OS
+dependencies:
+  - role: common

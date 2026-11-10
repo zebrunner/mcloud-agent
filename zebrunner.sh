@@ -427,7 +427,7 @@ status() {
   echo ""
   echo "config/devices.yml:               $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/${DEVICES_FILE}" 2> /dev/null || failed "File not found")"
   echo ""
-  echo "defaults/main.yml:                $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/defaults/main.yml" 2> /dev/null || failed "File not found")"
+  echo "versions.yml:                     $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/versions.yml" 2> /dev/null || failed "File not found")"
 
   delimiter
 }
@@ -575,10 +575,10 @@ version() {
     echo_warning "Environment variable '${MCLOUD_AGENT_DIR_NAME}' is not set"
     echo "Please, run './zebrunner.sh setup' first, or restart your terminal if you've already done so!"
     delimiter "*"
-    echo "Versions from 'defaults/main.yml' in the current directory:"
-    grep -i "version" "defaults/main.yml" | grep -v '^\s*#' || exit 1
+    echo "Versions from 'versions.yml' in the current directory:"
+    grep -i "version" "versions.yml" | grep -v '^\s*#' || exit 1
   else
-    grep -i "version" "${ZEBRUNNER_MCLOUD_AGENT_DIR}/defaults/main.yml" | grep -v '^\s*#'
+    grep -i "version" "${ZEBRUNNER_MCLOUD_AGENT_DIR}/versions.yml" | grep -v '^\s*#'
   fi
   delimiter
 }

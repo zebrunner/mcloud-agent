@@ -1,0 +1,17 @@
+---
+# The images of the devices and their versions (README.md#run-ansible-playbook): config/settings.yml overrides them
+
+DEVICE_IMAGE: public.ecr.aws/zebrunner/mcloud-device
+DEVICE_VERSION: 3.1
+
+APPIUM_IMAGE: public.ecr.aws/zebrunner/appium
+APPIUM_VERSION: 3.0
+
+UPLOADER_IMAGE: public.ecr.aws/zebrunner/uploader
+UPLOADER_VERSION: 3.6.2
+
+IOS_CONNECTOR_IMAGE: public.ecr.aws/zebrunner/mcloud-ios-connector
+IOS_CONNECTOR_VERSION: 2.0
+
+ANDROID_CONNECTOR_IMAGE: public.ecr.aws/zebrunner/mcloud-android-connector
+ANDROID_CONNECTOR_VERSION: 2.0

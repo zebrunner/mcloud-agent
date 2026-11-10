@@ -1,7 +1,7 @@
 ---
 # The settings of this host, the same for Linux and macOS (README.md#settings); the devices are in config/devices.yml.
-# The values by default of the OS (STF_PROVIDER_NAME, the sockets of the macOS host) are in roles/*/defaults/main.yml:
-# a line here overrides them.
+# A line here overrides the images of versions.yml and the values by default of roles/*/defaults/main.yml: the options of
+# Appium, STF_PROVIDER_NAME, the sockets of the macOS host.
 
 STF_DOCKER_NETWORK: infra
 
