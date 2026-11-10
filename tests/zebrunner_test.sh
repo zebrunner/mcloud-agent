@@ -5,6 +5,12 @@
 source "$(dirname "$0")/lib.sh"
 
 AGENT="${WORK}/repo"
+# a python with PyYAML for patch/settings.py: zbr runs zebrunner.sh without the PATH of the tests
+YAML_PYTHON="$(command -v "$(source "${REPO}/patch/utility.sh" && yaml_python)")"
+[[ -n "$YAML_PYTHON" ]] || {
+  echo "no python3 with PyYAML (make test installs it into .venv)"
+  exit 1
+}
 mkdir -p "$AGENT" "${WORK}/home"
 (cd "$REPO" && tar --exclude=.git -cf - .) | (cd "$AGENT" && tar -xf -)
 rm -rf "${AGENT}/backup/"bak_* "${AGENT}/config/"*.yml "${AGENT}/config/"*.yml.* "${AGENT}/roles/devices/vars" "${AGENT}/roles/mac-devices/vars"
@@ -38,7 +44,7 @@ zbr() {
   local input="$1"
   shift
   printf '%b' "$input" | env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb \
-    STUB_DIR="$WORK" FAKE_UNAME="${OS:-Linux}" ANSIBLE_EXIT="${ANSIBLE_EXIT:-0}" \
+    STUB_DIR="$WORK" FAKE_UNAME="${OS:-Linux}" ANSIBLE_EXIT="${ANSIBLE_EXIT:-0}" ZEBRUNNER_PYTHON="$YAML_PYTHON" \
     ${AGENT_DIR:+ZEBRUNNER_MCLOUD_AGENT_DIR=$AGENT_DIR} /bin/bash "${AGENT}/zebrunner.sh" "$@" 2>&1
 }
 
@@ -365,7 +371,7 @@ echo 200 > "${WORK}/mcloud/self_code"
 # doctor_run: ./zebrunner.sh doctor of a Linux host without the deployed files
 doctor_run() {
   printf '' | env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
-    FAKE_UNAME=Linux ZEBRUNNER_MCLOUD_AGENT_DIR="$AGENT" DOCTOR_FARM="${WORK}/farm" DOCTOR_DEVICES="${WORK}/devices.txt" \
+    FAKE_UNAME=Linux ZEBRUNNER_MCLOUD_AGENT_DIR="$AGENT" DOCTOR_FARM="${WORK}/farm" DOCTOR_DEVICES="${WORK}/devices.txt" ZEBRUNNER_PYTHON="$YAML_PYTHON" \
     /bin/bash "${AGENT}/zebrunner.sh" doctor 2>&1
 }
 rm -f "${WORK}/farm" "${WORK}/devices.txt"
@@ -484,6 +490,10 @@ rm -rf "${AGENT}/roles/devices/vars"
 mv "${AGENT}/config/devices.yml" "${WORK}/devices.yml"
 check_contains "no devices file" "config/devices.yml does not exist" "$(doctor_run)"
 mv "${WORK}/devices.yml" "${AGENT}/config/devices.yml"
+cp "$vars" "${WORK}/settings.yml"
+echo "PUBLIC_IP: [demo" >> "$vars"
+check_contains "settings of invalid YAML are a problem" "config/settings.yml is not valid YAML" "$(doctor_run)"
+cp "${WORK}/settings.yml" "$vars"
 rm -f "$vars"
 check_contains "no settings" "config/settings.yml does not exist" "$(doctor_run)"
 mv "${WORK}/docker" "${WORK}/bin/docker"

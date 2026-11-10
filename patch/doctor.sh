@@ -7,6 +7,9 @@ DOCTOR_PROBLEMS=0
 DOCTOR_WARNINGS=0
 DOCTOR_VARS=""
 DOCTOR_DEVICE_LIST=""
+DOCTOR_ROLE=""
+# NAME=value of the settings: the values by default of the roles, versions.yml, config/settings.yml (patch/settings.py)
+DOCTOR_SETTINGS=""
 DOCTOR_FARM="${DOCTOR_FARM:-/usr/local/bin/zebrunner-farm}"
 DOCTOR_DEVICES="${DOCTOR_DEVICES:-/usr/local/bin/mcloud-devices.txt}"
 
@@ -40,20 +43,9 @@ doctor_section() {
   echo "$1"
 }
 
-# setting_of <file> <name>: the value of a top level setting of a YAML file, without its quotes and comment
-setting_of() {
-  [[ -f "$1" ]] || return 0
-  sed -n "s/^$2:[[:space:]]*//p" "$1" | head -n 1 |
-    sed -e 's/[[:space:]]#.*$//' -e 's/[[:space:]]*$//' -e 's/^"\(.*\)"$/\1/' -e "s/^'\\(.*\\)'\$/\\1/"
-}
-
-# setting <name>: the value of a setting: config/settings.yml, versions.yml when the settings have no such line
+# setting <name>: the value of a setting as the playbooks load it (DOCTOR_SETTINGS of doctor_settings)
 setting() {
-  if grep -q "^$1:" "$DOCTOR_VARS" 2> /dev/null; then
-    setting_of "$DOCTOR_VARS" "$1"
-  else
-    setting_of versions.yml "$1"
-  fi
+  sed -n "s/^$1=//p" <<< "$DOCTOR_SETTINGS" | head -n 1
 }
 
 # probe <netcheck.py arguments...>: a network probe of patch/netcheck.py
@@ -138,6 +130,17 @@ doctor_settings() {
     doctor_fail "${DOCTOR_VARS} does not exist" "./zebrunner.sh setup"
     return 1
   fi
+  local python
+  if ! python="$(yaml_python)"; then
+    doctor_fail "no python3 with PyYAML: the settings are not checked" "install ansible (README.md#software-prerequisites), its python has PyYAML"
+    return 1
+  fi
+  if ! DOCTOR_SETTINGS="$("$python" patch/settings.py dump roles/common/defaults/main.yml "roles/${DOCTOR_ROLE}/defaults/main.yml" \
+    versions.yml "$DOCTOR_VARS" 2>&1)"; then
+    doctor_fail "$DOCTOR_SETTINGS" "fix the YAML of ${DOCTOR_VARS} (e.g. the quotes of a value with ':' or '#')"
+    DOCTOR_SETTINGS=""
+    return 1
+  fi
   local legacy
   legacy="$(legacy_settings_file)"
   if [[ -f "$legacy" ]]; then
@@ -168,10 +171,13 @@ doctor_settings() {
       doctor_fail "${name} is not a key of 64 hex characters" "./zebrunner.sh join with a new join string (README.md#node-enrollment)"
     fi
   done
+  local count
   if [[ ! -f "$DOCTOR_DEVICE_LIST" ]]; then
     doctor_fail "${DOCTOR_DEVICE_LIST} does not exist" "./zebrunner.sh setup"
-  elif grep -qE '^[[:space:]]*-[[:space:]]+id:' "$DOCTOR_DEVICE_LIST"; then
-    doctor_ok "$(grep -cE '^[[:space:]]*-[[:space:]]+id:' "$DOCTOR_DEVICE_LIST") devices are declared"
+  elif ! count="$("$python" patch/settings.py devices "$DOCTOR_DEVICE_LIST" 2>&1)"; then
+    doctor_fail "$count" "fix the YAML of ${DOCTOR_DEVICE_LIST}"
+  elif [[ "$count" -gt 0 ]]; then
+    doctor_ok "${count} devices are declared"
   else
     doctor_warn "no device is declared" "the devices of ${DOCTOR_DEVICE_LIST} (README.md#run-ansible-playbook)"
   fi
@@ -512,7 +518,8 @@ doctor() {
   DOCTOR_VARS="$SETTINGS_FILE"
   DOCTOR_DEVICE_LIST="$DEVICES_FILE"
   case "$(uname)" in
-  Linux | Darwin) ;;
+  Linux) DOCTOR_ROLE=devices ;;
+  Darwin) DOCTOR_ROLE=mac-devices ;;
   *)
     echo_warning "Unknown OS. Supported OS are Linux and macOS."
     return 1

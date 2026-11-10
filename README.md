@@ -36,6 +36,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 
 - Install docker: [Docker Engine](https://docs.docker.com/engine/install/) on Linux, [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) on macOS.
 - Install [ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html) 2.10+ (the playbooks use `ansible.builtin` module names, tested with ansible-core 2.21), e.g. `pip install ansible-core`.
+- python3 and curl: `./zebrunner.sh join` and `doctor` need them. They read and write the settings with PyYAML of `python3` or, without it there, of the python of ansible (`ansible-playbook --version` shows it); `ZEBRUNNER_PYTHON` sets another one.
 - macOS on Apple Silicon: install Rosetta 2 and let Docker Desktop use it: the image of appium is `linux/amd64` only and
   runs much slower under the QEMU emulation of Docker Desktop without it:
 
@@ -223,6 +224,7 @@ STF of MCloud accepts on its ZeroMQ ports only the enrolled device hosts: the CU
 `./zebrunner.sh doctor` checks the agent and tells what to fix, it changes nothing and prints no secret:
 
 - the host: `ZEBRUNNER_MCLOUD_AGENT_DIR`, docker, ansible, python3, lsusb (Linux), Rosetta 2 (Apple Silicon);
+- the YAML of `config/settings.yml` and `config/devices.yml`: doctor reads the settings as the playbooks load them (the values by default of the roles, `versions.yml`, `config/settings.yml`), a file that is not valid YAML is a problem;
 - the settings of `config/settings.yml`: the ones of `./zebrunner.sh join`, the formats of the token and of the CURVE keys, the file readable by other users, a `roles/.../vars/main.yml` of an earlier version; the devices of `config/devices.yml`;
 - the enrollment: it asks MCloud about this host (`GET /api/v1/nodes/self` of `MCLOUD_URL` with the token, over HTTPS to the pinned TLS key): enrolled and active (or unknown, revoked), its address in MCloud is `STF_PROVIDER_HOST`, the devices STF knows of it, which of them are bound to it and connected;
 - the deployment: `zebrunner-farm` rendered with the current settings (otherwise `./zebrunner.sh ansible`) and readable by this user only, the containers created with the current `STF_PROVIDER_HOST` (otherwise `zebrunner-farm restart`);

@@ -283,24 +283,23 @@ settings_file() {
   echo "$SETTINGS_FILE"
 }
 
-# ensure_curve_key <settings file>: STF_ZMQ_CURVE_SECRET_KEY of the settings made when it is empty, its public key in
-# CURVE_PUBLIC_KEY
+# ensure_curve_key <settings file> <python with PyYAML>: STF_ZMQ_CURVE_SECRET_KEY of the settings made when it is
+# empty, its public key in CURVE_PUBLIC_KEY
 ensure_curve_key() {
   local vars="$1"
+  local python="$2"
+  local settings
   local secret
   CURVE_PUBLIC_KEY=""
-  if ! grep -q '^STF_ZMQ_CURVE_SECRET_KEY:' "$vars"; then
-    echo_warning "'${vars}' has no STF_ZMQ_CURVE_SECRET_KEY line: add it as in '${vars}.original'."
-    return 1
-  fi
-  secret="$(sed -n 's/^STF_ZMQ_CURVE_SECRET_KEY:[[:space:]]*//p' "$vars" | tr -d "\"' ")"
+  settings="$("$python" patch/settings.py dump "$vars")" || return 1
+  secret="$(sed -n 's/^STF_ZMQ_CURVE_SECRET_KEY=//p' <<< "$settings")"
   if [[ -z "$secret" ]]; then
     secret="$(python3 patch/curve_keygen.py | sed -n 's/^secret=//p')"
     if [[ ! "$secret" =~ ^[0-9a-f]{64}$ ]]; then
       echo_warning "Unable to make the key with python3 patch/curve_keygen.py."
       return 1
     fi
-    sed -i.bak "s/^STF_ZMQ_CURVE_SECRET_KEY:.*/STF_ZMQ_CURVE_SECRET_KEY: \"${secret}\"/" "$vars" && rm -f "${vars}.bak"
+    "$python" patch/settings.py set "$vars" "STF_ZMQ_CURVE_SECRET_KEY=${secret}" || return 1
     echo "The key of this host is written to STF_ZMQ_CURVE_SECRET_KEY of '${vars}'."
   fi
   if ! CURVE_PUBLIC_KEY="$(python3 patch/curve_keygen.py "$secret" | sed -n 's/^public=//p')" || [[ -z "$CURVE_PUBLIC_KEY" ]]; then
@@ -318,8 +317,13 @@ join() {
     echo_warning "The enrollment needs python3 and curl."
     exit 1
   fi
-  ensure_curve_key "$vars" || exit 1
-  python3 patch/enroll.py "$vars" "$CURVE_PUBLIC_KEY" || exit 1
+  local python
+  if ! python="$(yaml_python)"; then
+    echo_warning "The enrollment needs a python3 with PyYAML: the one of ansible has it (README.md#software-prerequisites)."
+    exit 1
+  fi
+  ensure_curve_key "$vars" "$python" || exit 1
+  "$python" patch/enroll.py "$vars" "$CURVE_PUBLIC_KEY" || exit 1
   echo "
       Next: ./zebrunner.sh doctor checks the settings, ./zebrunner.sh ansible deploys them and zebrunner-farm restart
       recreates the containers of the devices with the token of this host."
