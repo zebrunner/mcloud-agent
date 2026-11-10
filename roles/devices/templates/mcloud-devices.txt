@@ -1,4 +1,0 @@
-{% for device in devices %}
-{% set connection = device.connection | default('usb') | string | lower %}
-{{ device.id | trim }}|{{ device.os }}|{{ device.name | trim | regex_replace('\\s+', '_') }}|{{ device.location | default('') }}|{{ device.appium_port }}|{{ device.adb_port | default('') }}|{{ device.min_port }}|{{ device.max_port }}|{{ connection }}|{{ device.wda_file | default('/dev/null') }}|{{ device.wda_bundleid | default('com.facebook.WebDriverAgentRunner.xctrunner') }}|{{ device.address | default('') }}|{{ device.wda_port | default('') }}|{{ device.mjpeg_port | default('') }}|{{ device.connect_port | default('') }}
-{% endfor %}

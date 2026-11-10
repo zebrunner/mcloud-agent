@@ -29,3 +29,13 @@
     owner: "{{ common_farm_owner }}"
     group: "{{ common_farm_group }}"
   tags: [devices, files]
+
+# the devices of zebrunner-farm (and of the units of udev of Linux): readable by every user, no secret
+- name: Copy devices details file
+  ansible.builtin.template:
+    src: mcloud-devices.txt
+    dest: /usr/local/bin/mcloud-devices.txt
+    mode: "0644"
+    owner: root
+    group: "{{ 'wheel' if common_farm_os == 'macos' else 'root' }}"
+  tags: [devices, files]

@@ -275,20 +275,15 @@ devices:
   - {id: sim, os: ios, name: Sim, appium_port: 19, adb_port: 20, min_port: 21, max_port: 22, connection: iOS-Sim, wda_port: 8110, mjpeg_port: 8111}
   - {id: phone, os: ios, name: WiFi, appium_port: 23, adb_port: 24, min_port: 25, max_port: 26, connection: wireless, address: 10.0.0.7}
 EOF
-render "${REPO}/roles/devices/templates/mcloud-devices.txt" "${WORK}/linux.txt" --extra-vars "@${WORK}/devices.yml" || exit 1
-check "Linux devices list" "R28M-1384YQY|android|Galaxy_S10||1|2|3|4|usb|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||||
-12345|android|Numeric||5|6|9|10|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||||7999
-abc|ios|Phone||11|12|13|14|usb|/wda.ipa|my.wda||8101||
-tv|ios|TV||15|16|17|18|proxy|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.6|||
-sim|ios|Sim||19|20|21|22|ios-sim|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||8110|8111|
-phone|ios|WiFi||23|24|25|26|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.7|||" "$(cat "${WORK}/linux.txt")"
-render "${REPO}/roles/mac-devices/templates/mcloud-devices.txt" "${WORK}/mac.txt" --extra-vars "@${WORK}/devices.yml" || exit 1
-check "macOS devices list" "R28M-1384YQY|android|Galaxy_S10||1|2|3|4|usb|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||||
-12345|android|Numeric||5|6|9|10|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||||7999
-abc|ios|Phone||11|12|13|14|usb|/wda.ipa|my.wda||8101||
-tv|ios|TV||15|16|17|18|proxy|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.6|||
-sim|ios|Sim||19|20|21|22|ios-sim|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner||8110|8111|
-phone|ios|WiFi||23|24|25|26|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.7|||" "$(cat "${WORK}/mac.txt")"
+render "${REPO}/roles/common/templates/mcloud-devices.txt" "${WORK}/devices.txt" --extra-vars "@${WORK}/devices.yml" || exit 1
+check "devices list: the fields key=value of every device" "id=R28M-1384YQY|os=android|name=Galaxy_S10|location=|appium_port=1|adb_port=2|min_port=3|max_port=4|connection=usb|wda_file=|wda_bundleid=|address=|wda_port=|mjpeg_port=|connect_port=
+id=12345|os=android|name=Numeric|location=|appium_port=5|adb_port=6|min_port=9|max_port=10|connection=wireless|wda_file=|wda_bundleid=|address=|wda_port=|mjpeg_port=|connect_port=7999
+id=abc|os=ios|name=Phone|location=|appium_port=11|adb_port=12|min_port=13|max_port=14|connection=usb|wda_file=/wda.ipa|wda_bundleid=my.wda|address=|wda_port=8101|mjpeg_port=|connect_port=
+id=tv|os=ios|name=TV|location=|appium_port=15|adb_port=16|min_port=17|max_port=18|connection=proxy|wda_file=|wda_bundleid=|address=10.0.0.6|wda_port=|mjpeg_port=|connect_port=
+id=sim|os=ios|name=Sim|location=|appium_port=19|adb_port=20|min_port=21|max_port=22|connection=ios-sim|wda_file=|wda_bundleid=|address=|wda_port=8110|mjpeg_port=8111|connect_port=
+id=phone|os=ios|name=WiFi|location=|appium_port=23|adb_port=24|min_port=25|max_port=26|connection=wireless|wda_file=|wda_bundleid=|address=10.0.0.7|wda_port=|mjpeg_port=|connect_port=" "$(grep -v '^#' "${WORK}/devices.txt")"
+check "devices list: the comment of its format" "# One device per line, its fields key=value separated by '|' in any order; an empty value is the value by default." \
+  "$(grep '^# One device' "${WORK}/devices.txt")"
 render "${REPO}/roles/devices/templates/90_mcloud.rules" "${WORK}/rules" --extra-vars "@${WORK}/devices.yml" || exit 1
 cat > "${WORK}/expected_rules" << 'EOF'
 SUBSYSTEM=="usb", ENV{ID_SERIAL_SHORT}=="R28M1384YQY", MODE="0666", SYMLINK+="device-Galaxy_S10-R28M-1384YQY"

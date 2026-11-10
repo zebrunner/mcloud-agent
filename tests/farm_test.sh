@@ -5,15 +5,15 @@
 source "$(dirname "$0")/lib.sh"
 require_cmd ansible
 
-# udid|platform|name|location|appium|adb|min|max|connection|wda file|wda bundle id|address|wda port|mjpeg port
+# the devices list of the deploy: the fields key=value separated by '|'
 cat > "${WORK}/devices.txt" << 'EOF'
-R28M1384YQY|android|Galaxy|loc|7421|7422|7425|7430|usb|/dev/null|x|||
-192.168.1.50|android|WiFi|loc|7431|7432|7435|7440|wireless|/dev/null|x|||
-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11|ios|iPhone_8_Plus|loc|7441|7442|7445|7450|usb|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|||
-aaaa1111|ios|AppleTV|loc|7451|7452|7455|7460|proxy|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|10.0.0.5|8100|
-bbbb2222|ios|iPhoneWiFi|loc|7461|7462|7465|7470|wireless|/dev/null|com.facebook.WebDriverAgentRunner.xctrunner|192.168.1.60||
-emu1|android|Emu|loc|7471|7472|7475|7480|android-sim|/dev/null|x|host.docker.internal:5557||
-B1B07E76|ios|Sim|loc|7481|7482|7485|7490|ios-sim|/tmp/wda-sim.zip|com.facebook.WebDriverAgentRunner.xctrunner||8110|
+id=R28M1384YQY|os=android|name=Galaxy|location=loc|appium_port=7421|adb_port=7422|min_port=7425|max_port=7430|connection=usb|wda_file=/dev/null|wda_bundleid=x|address=|wda_port=|mjpeg_port=|connect_port=
+id=192.168.1.50|os=android|name=WiFi|location=loc|appium_port=7431|adb_port=7432|min_port=7435|max_port=7440|connection=wireless|wda_file=/dev/null|wda_bundleid=x|address=|wda_port=|mjpeg_port=|connect_port=
+id=d6afc6b3a65584ca0813eb8957c6479b9b6ebb11|os=ios|name=iPhone_8_Plus|location=loc|appium_port=7441|adb_port=7442|min_port=7445|max_port=7450|connection=usb|wda_file=/dev/null|wda_bundleid=com.facebook.WebDriverAgentRunner.xctrunner|address=|wda_port=|mjpeg_port=|connect_port=
+id=aaaa1111|os=ios|name=AppleTV|location=loc|appium_port=7451|adb_port=7452|min_port=7455|max_port=7460|connection=proxy|wda_file=/dev/null|wda_bundleid=com.facebook.WebDriverAgentRunner.xctrunner|address=10.0.0.5|wda_port=8100|mjpeg_port=|connect_port=
+id=bbbb2222|os=ios|name=iPhoneWiFi|location=loc|appium_port=7461|adb_port=7462|min_port=7465|max_port=7470|connection=wireless|wda_file=/dev/null|wda_bundleid=com.facebook.WebDriverAgentRunner.xctrunner|address=192.168.1.60|wda_port=|mjpeg_port=|connect_port=
+id=emu1|os=android|name=Emu|location=loc|appium_port=7471|adb_port=7472|min_port=7475|max_port=7480|connection=android-sim|wda_file=/dev/null|wda_bundleid=x|address=host.docker.internal:5557|wda_port=|mjpeg_port=|connect_port=
+id=B1B07E76|os=ios|name=Sim|location=loc|appium_port=7481|adb_port=7482|min_port=7485|max_port=7490|connection=ios-sim|wda_file=/tmp/wda-sim.zip|wda_bundleid=com.facebook.WebDriverAgentRunner.xctrunner|address=|wda_port=8110|mjpeg_port=|connect_port=
 EOF
 IPHONE="device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"
 
@@ -207,6 +207,26 @@ for role in devices mac-devices; do
   render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
   sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
 done
+
+section "devices list"
+cp "${WORK}/devices.txt" "${WORK}/devices.saved"
+# the fields in another order, a comment, no wda_bundleid: WDA_BUNDLEID of the settings
+printf '# a comment\nconnection=proxy|address=10.0.0.5|wda_port=8100|max_port=7460|min_port=7455|appium_port=7451|name=AppleTV|os=ios|id=aaaa1111\n' \
+  > "${WORK}/devices.txt"
+setup_case
+render_farm mac-devices "${WORK}/farm-mac-devices.env" --extra-vars "WDA_BUNDLEID=my.global.wda" || exit 1
+sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-mac-devices.env"
+farm mac-devices start AppleTV > /dev/null
+check_contains "the fields of a device in any order" "|-e|DEVICE_CONNECTION=proxy|-e|DEVICE_ADDRESS=10.0.0.5|" \
+  "$(run_args "device-AppleTV-aaaa1111-connector")"
+check_contains "WDA_BUNDLEID of the settings for a device without wda_bundleid" "|-e|WDA_BUNDLEID=my.global.wda|" \
+  "$(run_args "device-AppleTV-aaaa1111-connector")"
+printf 'R28M1384YQY|android|Galaxy|loc|7421|7422|7425|7430|usb|/dev/null|x|||\n' > "${WORK}/devices.txt"
+check_contains "a devices list of an earlier version asks for the deploy" \
+  "The devices list ${WORK}/devices.txt is of an earlier version: deploy it with ./zebrunner.sh ansible" "$(farm devices status)"
+mv "${WORK}/devices.saved" "${WORK}/devices.txt"
+render_farm mac-devices "${WORK}/farm-mac-devices.env" || exit 1
+sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-mac-devices.env"
 
 section "macOS container creation"
 setup_case
@@ -486,7 +506,8 @@ done
 section "remote debug port"
 cp "${WORK}/devices.txt" "${WORK}/devices.saved"
 # WiFi: the port in the range, Emu: the port out of it
-sed -e 's/^\(192.168.1.50|.*\)$/\1|7436/' -e 's/^\(emu1|.*\)$/\1|7999/' "${WORK}/devices.saved" > "${WORK}/devices.txt"
+sed -e 's/^\(id=192.168.1.50|.*\)connect_port=$/\1connect_port=7436/' -e 's/^\(id=emu1|.*\)connect_port=$/\1connect_port=7999/' \
+  "${WORK}/devices.saved" > "${WORK}/devices.txt"
 for role in devices mac-devices; do
   setup_case
   farm "$role" start WiFi Emu -q > /dev/null

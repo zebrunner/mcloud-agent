@@ -1,0 +1,5 @@
+# The devices of zebrunner-farm, rendered by ./zebrunner.sh ansible from config/devices.yml: do not change them here.
+# One device per line, its fields key=value separated by '|' in any order; an empty value is the value by default.
+{% for device in devices %}
+id={{ device.id | trim }}|os={{ device.os }}|name={{ device.name | trim | regex_replace('\\s+', '_') }}|location={{ device.location | default('') }}|appium_port={{ device.appium_port }}|adb_port={{ device.adb_port | default('') }}|min_port={{ device.min_port }}|max_port={{ device.max_port }}|connection={{ device.connection | default('usb') | string | lower }}|wda_file={{ device.wda_file | default('') }}|wda_bundleid={{ device.wda_bundleid | default('') }}|address={{ device.address | default('') }}|wda_port={{ device.wda_port | default('') }}|mjpeg_port={{ device.mjpeg_port | default('') }}|connect_port={{ device.connect_port | default('') }}
+{% endfor %}
