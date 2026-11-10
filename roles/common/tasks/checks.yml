@@ -24,16 +24,6 @@
     success_msg: "No settings of an earlier version."
   tags: [devices, precheck]
 
-- name: Check 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable
-  ansible.builtin.assert:
-    that:
-      - lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') | length > 0
-    fail_msg: "You have to set up 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable in advance!"
-    success_msg: "'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable is defined."
-  tags: [devices, precheck]
-
-# the checks of the devices of devices.py (also of ./zebrunner.sh doctor), with the python of ansible: the devices as
-# JSON on stdin, its result in the message of an assert
 - name: Find duplicate device IDs or names
   ansible.builtin.command:
     argv: ["{{ ansible_playbook_python }}", "{{ role_path }}/files/devices.py", dedup, "{{ common_os }}"]

@@ -238,7 +238,7 @@
   block:
     - name: Create the ssh folder of the agent
       ansible.builtin.file:
-        path: "{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/ssh"
+        path: "{{ agent_dir }}/ssh"
         state: directory
         mode: "0700"
         owner: "{{ lookup('env', 'USER') }}"
@@ -256,13 +256,13 @@
           - -C
           - zebrunner-mcloud-simulators
           - -f
-          - "{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/ssh/id_ed25519"
-        creates: "{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/ssh/id_ed25519"
+          - "{{ agent_dir }}/ssh/id_ed25519"
+        creates: "{{ agent_dir }}/ssh/id_ed25519"
       become: false
 
     - name: Read the public ssh key of the simulators
       ansible.builtin.slurp:
-        src: "{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/ssh/id_ed25519.pub"
+        src: "{{ agent_dir }}/ssh/id_ed25519.pub"
       register: mac_devices_ssh_public_key
       become: false
 

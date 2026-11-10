@@ -10,6 +10,9 @@
     - versions.yml
     - [config/settings.yml, versions.yml]
     - [config/devices.yml, versions.yml]
+  vars:
+    # the folder of the agent: the playbooks are in it
+    agent_dir: "{{ playbook_dir }}"
   roles:
     - devices
     - download

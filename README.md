@@ -206,7 +206,7 @@ Security:
 
 `./zebrunner.sh` without arguments lists its commands:
 
-- `setup` - prepares the agent: the `ZEBRUNNER_MCLOUD_AGENT_DIR` variable in the shell profiles and the devices settings from the example.
+- `setup` - prepares the agent: the settings of `config/` from the examples. It changes no shell profile: `zebrunner.sh` knows its folder, `zebrunner-farm` has it in its settings, so `zebrunner-farm ansible` deploys again from any folder; the `ZEBRUNNER_MCLOUD_AGENT_DIR` line of the earlier versions is removed from the profiles.
 - `ansible [devices]` - deploys the agent, `devices` registers the devices only.
 - `status` - shows the state of the agent components: tools, Rosetta 2 of an Apple Silicon Mac, deployed files, launch agents.
 - `backup` and `restore` - save the settings of `config/` into the `backup` folder and restore them from it (see [Settings](#settings)); a backup of an earlier version (`vars/main.yml`) is moved by hand.
@@ -223,11 +223,11 @@ STF of MCloud accepts on its ZeroMQ ports only the enrolled device hosts: the CU
 
 `./zebrunner.sh doctor` checks the agent and tells what to fix, it changes nothing and prints no secret:
 
-- the host: `ZEBRUNNER_MCLOUD_AGENT_DIR`, docker, ansible, python3, lsusb (Linux), Rosetta 2 (Apple Silicon);
+- the host: docker, ansible, python3, lsusb (Linux), Rosetta 2 (Apple Silicon);
 - the YAML of `config/settings.yml` and `config/devices.yml`: doctor reads the settings as the playbooks load them (the values by default of the roles, `versions.yml`, `config/settings.yml`), a file that is not valid YAML is a problem;
 - the settings of `config/settings.yml`: the ones of `./zebrunner.sh join`, the formats of the token and of the CURVE keys, the file readable by other users, a `roles/.../vars/main.yml` of an earlier version; the devices of `config/devices.yml` with the checks of the deploy (unique ids and names, the obligatory settings, the host ports, the connections of the OS);
 - the enrollment: it asks MCloud about this host (`GET /api/v1/nodes/self` of `MCLOUD_URL` with the token, over HTTPS to the pinned TLS key): enrolled and active (or unknown, revoked), its address in MCloud is `STF_PROVIDER_HOST`, the devices STF knows of it, which of them are bound to it and connected;
-- the deployment: the settings of `zebrunner-farm` (`/usr/local/etc/zebrunner-farm.env`) are the current ones, also the versions of the images (otherwise `./zebrunner.sh ansible`) and readable by this user only, the containers created with the current `STF_PROVIDER_HOST` (otherwise `zebrunner-farm restart`);
+- the deployment: the settings of `zebrunner-farm` (`/usr/local/etc/zebrunner-farm.env`) are the ones of this folder and the current ones, also the versions of the images (otherwise `./zebrunner.sh ansible`) and readable by this user only, the containers created with the current `STF_PROVIDER_HOST` (otherwise `zebrunner-farm restart`);
 - the network: the name resolution and the ports of `PUBLIC_IP`, mcloud-grid and the ZeroMQ triproxies; `STF_PROVIDER_HOST` is an address of this host, or a public address of a NAT while the MCloud server is in the network of this host (see [Device hosts in a private network](#device-hosts-in-a-private-network)); MCloud on this machine and the devices using its ports (see [Devices on the MCloud server](#devices-on-the-mcloud-server));
 - the remote debug: with `REMOTE_CONNECT_HOST` the adb relay of mcloud accepts the remote debug ports of the Android devices (printed);
 - the devices: their containers, the refused grid registrations of Appium and the refused CURVE key in the logs of the last 30 minutes.

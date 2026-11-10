@@ -1,8 +1,10 @@
 #!/bin/bash
 
-# Define Mcloud Agent dir environment variable name
+# The folder of the agent: the one of this script, whatever the current folder and the environment are; the deploy
+# renders it into the settings of zebrunner-farm (README.md#settings)
 MCLOUD_AGENT_DIR_NAME="ZEBRUNNER_MCLOUD_AGENT_DIR"
 MCLOUD_AGENT_DIR_VALUE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export ZEBRUNNER_MCLOUD_AGENT_DIR="$MCLOUD_AGENT_DIR_VALUE"
 cd "${MCLOUD_AGENT_DIR_VALUE}" || exit
 
 # The settings of this host and its devices (README.md#settings)
@@ -33,44 +35,10 @@ running_device_containers() {
 setup() {
   delimiter "Setting up MCloud Agent"
 
-  ### Detect MCloud Agent directory and set environment variable
-  echo "Detected MCloud Agent directory: ${MCLOUD_AGENT_DIR_VALUE}"
-  # Apply the variable in the current session
-  echo "Applying env var '${MCLOUD_AGENT_DIR_NAME}=${MCLOUD_AGENT_DIR_VALUE}' in the current session"
-  export "$MCLOUD_AGENT_DIR_NAME"="$MCLOUD_AGENT_DIR_VALUE"
+  echo "MCloud Agent directory: ${MCLOUD_AGENT_DIR_VALUE}"
 
-  ### Install environment variable to shell profiles
-  delimiter "*"
-  # Array to hold target files
-  TARGET_FILES=()
-  echo "Shells found in this system:"
-  # Bash
-  if command -v bash > /dev/null 2>&1; then
-    echo "BASH"
-    TARGET_FILES+=("${HOME}/.bashrc" "${HOME}/.bash_profile")
-  fi
-  # Zsh
-  if command -v zsh > /dev/null 2>&1; then
-    echo "ZSH"
-    TARGET_FILES+=("${HOME}/.zshrc" "${HOME}/.zprofile")
-  fi
-  # Other
-  if [[ ${#TARGET_FILES[@]} -eq 0 ]]; then
-    echo "Other (Except 'BASH' or 'ZSH') shell detected"
-    TARGET_FILES+=("${HOME}/.profile")
-  fi
-  # Loop through target files and add or update the environment variable
-  delimiter "*"
-  echo "Adding '${MCLOUD_AGENT_DIR_NAME}=${MCLOUD_AGENT_DIR_VALUE}' to:"
-  for file in "${TARGET_FILES[@]}"; do
-    if [[ -f "$file" ]] && grep -q "^export ${MCLOUD_AGENT_DIR_NAME}=" "$file"; then
-      echo "$file"
-      sed -i.bak "s|^export ${MCLOUD_AGENT_DIR_NAME}=.*|export ${MCLOUD_AGENT_DIR_NAME}=${MCLOUD_AGENT_DIR_VALUE}|" "$file" && rm -f "${file}.bak"
-    else
-      echo "$file"
-      echo "export ${MCLOUD_AGENT_DIR_NAME}=${MCLOUD_AGENT_DIR_VALUE}" >> "$file"
-    fi
-  done
+  ### The variable of the earlier versions in the shell profiles is not used anymore
+  remove_profile_variable
 
   ### Create the settings of config/ according to OS
   delimiter "*"
@@ -97,36 +65,6 @@ setup() {
     echo_warning "'${legacy}' of an earlier version overrides 'config/': move its settings to '${vars}' and its devices: to '${devices}' (README.md#settings), then remove it."
   fi
 
-  ### Shell reload help message
-  delimiter "*"
-  current_shell="$(basename "$SHELL")"
-  echo "Current shell: ${current_shell}"
-  echo ""
-  warn "To apply the changes, please restart your terminal session or run the appropriate command below:"
-  case "$current_shell" in
-  bash)
-    if [[ -f "${HOME}/.bashrc" ]]; then
-      succeed ">\tsource ~/.bashrc"
-    elif [[ -f "${HOME}/.bash_profile" ]]; then
-      succeed ">\tsource ~/.bash_profile"
-    fi
-    ;;
-  zsh)
-    if [[ -f "${HOME}/.zshrc" ]]; then
-      succeed ">\tsource ~/.zshrc"
-    elif [[ -f "${HOME}/.zprofile" ]]; then
-      succeed ">\tsource ~/.zprofile"
-    fi
-    ;;
-  *)
-    if [[ -f "${HOME}/.profile" ]]; then
-      succeed ">\tsource ~/.profile"
-    fi
-    ;;
-  esac
-  echo ""
-  warn ">>> Changes in other shells will be applied automatically <<<"
-
   ### Rosetta 2 of an Apple Silicon Mac
   if [[ "$os" == "Darwin" ]]; then
     delimiter "*"
@@ -139,36 +77,28 @@ setup() {
   addresses="$(host_addresses)"
   echo "Next steps (https://github.com/zebrunner/mcloud-agent#node-enrollment):
 
-  1. Open a new terminal (or run the command above) to have ZEBRUNNER_MCLOUD_AGENT_DIR.
-
-  2. The administrator of MCloud invites this host on its server: ./zebrunner.sh node-invite <label> <address>, the
+  1. The administrator of MCloud invites this host on its server: ./zebrunner.sh node-invite <label> <address>, the
      address is the one the MCloud server connects to: the addresses of this host are ${addresses:-unknown}; in the
      network of the MCloud server the address there (on the MCloud server itself its LAN address, not 127.0.0.1).
 
-  3. Enroll this host: ./zebrunner.sh join and paste the join string of step 2. It writes the connection to MCloud
+  2. Enroll this host: ./zebrunner.sh join and paste the join string of step 1. It writes the connection to MCloud
      into '${vars}'.
 
-  4. Declare the devices in 'devices:' of '${devices}': the udid (adb devices, idevice_id -l), a unique name and
+  3. Declare the devices in 'devices:' of '${devices}': the udid (adb devices, idevice_id -l), a unique name and
      unique ports.
 
-  5. Check the settings, the enrollment and the network to MCloud: ./zebrunner.sh doctor
+  4. Check the settings, the enrollment and the network to MCloud: ./zebrunner.sh doctor
 
-  6. Deploy the agent: ./zebrunner.sh ansible
+  5. Deploy the agent: ./zebrunner.sh ansible
 
-  7. Start the devices: zebrunner-farm start, then zebrunner-farm status and ./zebrunner.sh doctor."
+  6. Start the devices: zebrunner-farm start, then zebrunner-farm status and ./zebrunner.sh doctor. zebrunner-farm
+     knows this folder: zebrunner-farm ansible deploys again from any folder."
 
   delimiter "Setting up MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished successfully"
 }
 
 ansible() {
   delimiter "Deploying MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
-
-  ### Check if the environment variable is set
-  if [[ -z "$ZEBRUNNER_MCLOUD_AGENT_DIR" ]]; then
-    echo_warning "Environment variable '${MCLOUD_AGENT_DIR_NAME}' is not set."
-    echo "Please, run './zebrunner.sh setup' first, or restart your terminal if you've already done so!"
-    exit 1
-  fi
 
   ### Check if the operating system is Linux or macOS
   delimiter "*"
@@ -249,6 +179,18 @@ stop_running_devices() {
   else
     echo "The containers keep running: run 'zebrunner-farm restart' after the deploy."
   fi
+}
+
+# remove_profile_variable: the ZEBRUNNER_MCLOUD_AGENT_DIR line of the earlier versions removed from the shell profiles:
+# zebrunner.sh knows its folder and zebrunner-farm has it in its settings
+remove_profile_variable() {
+  local file
+  for file in "${HOME}/.bashrc" "${HOME}/.bash_profile" "${HOME}/.zshrc" "${HOME}/.zprofile" "${HOME}/.profile"; do
+    if [[ -f "$file" ]] && grep -q "^export ${MCLOUD_AGENT_DIR_NAME}=" "$file"; then
+      echo "Removing the variable ${MCLOUD_AGENT_DIR_NAME} of an earlier version from ${file}"
+      sed -i.bak "/^export ${MCLOUD_AGENT_DIR_NAME}=.*/d" "$file" && rm -f "${file}.bak"
+    fi
+  done
 }
 
 # setup_file <example> <file>: the file made from the example (private: the settings have secrets), a backup <file>.bak
@@ -374,7 +316,7 @@ status() {
   delimiter "Status of MCloud Agent components"
 
   os="$(uname)" 2> /dev/null
-  echo "Env var for Mcloud Agent path:    $(env | grep "$MCLOUD_AGENT_DIR_NAME" 2> /dev/null || failed "$MCLOUD_AGENT_DIR_NAME not set")"
+  echo "MCloud Agent directory:           ${MCLOUD_AGENT_DIR_VALUE}"
   echo ""
   echo "Current OS:                       $(if [[ -n "$os" ]]; then echo "$os"; else failed "OS not detected"; fi)"
   echo ""
@@ -518,16 +460,8 @@ shutdown() {
     fi
   fi
 
-  ### Remove environment variable from shell profiles
-  delimiter "*"
-  echo "Removing var 'ZEBRUNNER_MCLOUD_AGENT_DIR' from shell profiles:"
-  TARGET_FILES+=("${HOME}/.bashrc" "${HOME}/.bash_profile" "${HOME}/.zshrc" "${HOME}/.zprofile" "${HOME}/.profile")
-  for file in "${TARGET_FILES[@]}"; do
-    if [[ -f "$file" ]] && grep -q "export ${MCLOUD_AGENT_DIR_NAME}=" "$file"; then
-      echo "$file"
-      sed -i.bak "/^export ${MCLOUD_AGENT_DIR_NAME}=.*/d" "$file" && rm -f "${file}.bak"
-    fi
-  done
+  ### The variable of the earlier versions in the shell profiles
+  remove_profile_variable
 
   ### Stop and remove containers
   delimiter "*"
@@ -578,15 +512,7 @@ shutdown() {
 
 version() {
   delimiter "Zebrunner MCloud Agent components versions for '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
-  if [[ -z "$ZEBRUNNER_MCLOUD_AGENT_DIR" ]]; then
-    echo_warning "Environment variable '${MCLOUD_AGENT_DIR_NAME}' is not set"
-    echo "Please, run './zebrunner.sh setup' first, or restart your terminal if you've already done so!"
-    delimiter "*"
-    echo "Versions from 'versions.yml' in the current directory:"
-    grep -i "version" "versions.yml" | grep -v '^\s*#' || exit 1
-  else
-    grep -i "version" "${ZEBRUNNER_MCLOUD_AGENT_DIR}/versions.yml" | grep -v '^\s*#'
-  fi
+  grep -i "version" "${ZEBRUNNER_MCLOUD_AGENT_DIR}/versions.yml" | grep -v '^\s*#' || exit 1
   delimiter
 }
 

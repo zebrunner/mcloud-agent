@@ -11,8 +11,8 @@ render() {
   local dest="$2"
   shift 2
   local output
-  output="$(ZEBRUNNER_MCLOUD_AGENT_DIR="$REPO" ansible localhost --connection local --module-name template \
-    --args "src=${src} dest=${dest}" "$@" 2>&1)" || {
+  output="$(ansible localhost --connection local --module-name template --args "src=${src} dest=${dest}" \
+    --extra-vars "agent_dir=${REPO}" "$@" 2>&1)" || {
     echo "$output"
     return 1
   }
