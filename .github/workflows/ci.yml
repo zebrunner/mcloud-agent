@@ -32,8 +32,11 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
+          cache: pip
+          cache-dependency-path: tests/requirements-lint.txt
+      # the version of tests/requirements-lint.txt (updated by dependabot), the one of `make lint` and `make test`
       - name: Install ansible
-        run: pip install ansible-core
+        run: pip install "$(grep '^ansible-core==' tests/requirements-lint.txt)"
       - name: Run tests
         run: tests/run_all.sh
         env:

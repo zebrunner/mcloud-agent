@@ -37,20 +37,21 @@ echo "ATTACH udid=BURST handle=2"
 echo "ATTACH udid=SLOW1 handle=3"
 echo "ATTACH udid=SLOW2 handle=4"
 echo "ATTACH udid=HANG handle=5"
-sleep 1.5; echo "DETACH udid=SLOW2 handle=4"
+sleep 2.5; echo "DETACH udid=SLOW2 handle=4"
 sleep 0.5; echo "DETACH udid=SLOW1 handle=3"
 sleep 1;   echo "ATTACH udid=SLOW2 handle=6"
 sleep 15
 EOF
-# an action takes 4 seconds, HANG never ends
+# an action takes 6 seconds, HANG never ends: the events of SLOW1 and SLOW2 come at least 1.5 seconds after the start
+# and before the end of their first action, also on a busy CI runner
 cat > "${WORK}/bin/zebrunner-farm" << 'EOF'
 #!/bin/bash
 echo "START $1 $2" >> "${STUB_DIR}/farm.log"
-if [[ "$2" == HANG ]]; then sleep 3013 & wait; else sleep 4; fi
+if [[ "$2" == HANG ]]; then sleep 3013 & wait; else sleep 6; fi
 echo "END $1 $2" >> "${STUB_DIR}/farm.log"
 EOF
 chmod +x "${WORK}/bin/"*
-run_listener 1 6
+run_listener 1 10
 
 check "a burst of events runs the newest action once" "START restart END restart" "$(actions BURST)"
 check "DETACH during restart waits for it" "START restart END restart START down END down" "$(actions SLOW1)"
