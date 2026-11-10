@@ -235,6 +235,14 @@ create_containers() {
   [[ -n "$macos" ]] && platform_args=(--platform linux/amd64)
   local STF_DEVICE_UDID="$dev_udid"
   local connector_args=()
+  # the arguments of the platform of the STF and appium containers, in their places of the shared calls below
+  local stf_head_args=()
+  local stf_dealer_args=()
+  local appium_head_args=()
+  local appium_cli_args=()
+  local appium_platform_args=()
+  local appium_tail_args=()
+  local appium_adb_port=""
 
   if [[ "$dev_platform_name" == "android" ]]; then
     # Linux: the USB device (DEVICE_BUS) or the adb address (ANDROID_DEVICE) of the connector, and of appium for the
@@ -287,77 +295,14 @@ create_containers() {
       "${connector_args[@]+"${connector_args[@]}"}" \
       "${ANDROID_CONNECTOR_IMAGE}:${ANDROID_CONNECTOR_VERSION}" || return 1
 
-    ensure_container stf -d \
-      --log-driver=local \
-      --log-opt max-size=256m \
-      --log-opt max-file=2 \
-      --net="$STF_DOCKER_NETWORK" \
-      --link "${dev_container}-connector":connector \
-      -e STF_PROVIDER_ADB_HOST=connector \
-      -e STF_PROVIDER_ADB_PORT=5037 \
-      --health-start-period 60s \
-      --restart "on-failure:${RESTARTS_LIMIT}" \
-      -e PLATFORM_NAME="$dev_platform_name" \
-      -e STF_PROVIDER_DEVICE_NAME="$dev_device_name" \
-      -e DEVICE_UDID="$STF_DEVICE_UDID" \
-      -e STF_PROVIDER_HOST="${STF_PROVIDER_HOST}" \
-      -e REMOTE_CONNECT_HOST="${REMOTE_CONNECT_HOST}" \
-      -e STF_PROVIDER_NAME="${STF_PROVIDER_NAME}${dev_location:+_$dev_location}" \
-      -e STF_PROVIDER_MIN_PORT="$dev_stf_min_port" \
-      -e STF_PROVIDER_MAX_PORT="$dev_stf_max_port" \
-      "${connect_args[@]+"${connect_args[@]}"}" \
-      -p "${dev_stf_min_port}-${dev_stf_max_port}":"${dev_stf_min_port}-${dev_stf_max_port}" \
-      -e STF_PROVIDER_PUBLIC_IP="${PUBLIC_IP}" \
-      -e PUBLIC_IP_PORT="${PUBLIC_IP_PORT}" \
-      -e PUBLIC_IP_PROTOCOL="${PUBLIC_IP_PROTOCOL}" \
-      -e STF_PROVIDER_CONNECT_SUB="${STF_PROVIDER_CONNECT_SUB}" \
-      -e STF_PROVIDER_CONNECT_PUSH="${STF_PROVIDER_CONNECT_PUSH}" \
-      -e STF_NODE_TOKEN="${MCLOUD_NODE_TOKEN}" \
-      -e STF_ZMQ_CURVE_SERVER_PUBLIC_KEY="${STF_ZMQ_CURVE_SERVER_PUBLIC_KEY}" \
-      -e STF_ZMQ_CURVE_SECRET_KEY="${STF_ZMQ_CURVE_SECRET_KEY}" \
-      "${DEVICE_IMAGE}:${DEVICE_VERSION}" || return 1
-
-    # APPIUM_RELAXED_SECURITY: the insecure features of Appium for every session, README.md#appium-security
-    ensure_container appium -itd \
-      "${platform_args[@]+"${platform_args[@]}"}" \
-      -m 1g \
-      --log-driver=local \
-      --log-opt max-size=256m \
-      --log-opt max-file=2 \
-      --net="$STF_DOCKER_NETWORK" \
-      --restart "on-failure:${RESTARTS_LIMIT}" \
-      --link "${dev_container}-stf":device \
-      --link "${dev_container}-connector":connector \
-      -v appium-storage-volume:/opt/appium-storage \
-      -v "${dev_container}":/tmp/log \
-      -e TASK_LOG=/tmp/log/appium.log \
-      -e PLATFORM_NAME="$dev_platform_name" \
-      -e DEVICE_CONNECTION="$dev_connection" \
-      "${android_args[@]+"${android_args[@]}"}" \
-      -e RETAIN_TASK=true \
-      -e CONNECT_TO_GRID=true \
-      -e RECORD_ARTIFACTS=true \
-      -e CUSTOM_NODE_CONFIG=true \
-      -e STF_PROVIDER_HOST="${STF_PROVIDER_HOST}" \
-      -e APPIUM_APP_SIZE_DISABLE="${APPIUM_APP_SIZE_DISABLE}" \
-      -e APPIUM_APP_FETCH_RETRIES="${APPIUM_APP_FETCH_RETRIES}" \
-      -e APPIUM_MAX_LOCK_FILE_LIFETIME="${APPIUM_MAX_LOCK_FILE_LIFETIME}" \
-      -e APPIUM_APP_WAITING_TIMEOUT="${APPIUM_APP_WAITING_TIMEOUT}" \
-      -e SELENIUM_HOST="${SELENIUM_HUB_HOST}" \
-      -e SELENIUM_PORT="${SELENIUM_HUB_PORT}" \
-      -e NODE_REGISTRATION_TOKEN="${MCLOUD_NODE_TOKEN}" \
-      -e DEFAULT_CAPABILITIES=true \
-      -e DEVICE_NAME="$dev_device_name" \
-      -e DEVICE_UDID="$STF_DEVICE_UDID" \
-      -e ADB_PORT="$dev_remote_port" \
-      -e APPIUM_PORT="$dev_appium_port" \
-      -p "$dev_appium_port":"$dev_appium_port" \
-      -e RELAXED_SECURITY="${APPIUM_RELAXED_SECURITY}" \
-      -e ADB_SERVER_SOCKET=tcp:connector:5037 \
-      -e REMOTE_ADB_HOST=connector \
-      -e STF_API_URL="${STF_API_URL}" \
-      -e STF_AUTH_TOKEN="${STF_AUTH_TOKEN}" \
-      "${APPIUM_IMAGE}:${APPIUM_VERSION}" || return 1
+    stf_head_args=(--link "${dev_container}-connector":connector -e STF_PROVIDER_ADB_HOST=connector -e STF_PROVIDER_ADB_PORT=5037
+      --health-start-period 60s --restart "on-failure:${RESTARTS_LIMIT}")
+    appium_head_args=(--link "${dev_container}-stf":device --link "${dev_container}-connector":connector)
+    appium_platform_args=(-e DEVICE_CONNECTION="$dev_connection" "${android_args[@]+"${android_args[@]}"}")
+    appium_adb_port="$dev_remote_port"
+    # the adb server of the connector, the STF API to move the device to Unhealthy
+    appium_tail_args=(-e ADB_SERVER_SOCKET=tcp:connector:5037 -e REMOTE_ADB_HOST=connector -e STF_API_URL="${STF_API_URL}"
+      -e STF_AUTH_TOKEN="${STF_AUTH_TOKEN}")
 
   elif [[ "$dev_platform_name" == "ios" ]]; then
 
@@ -475,80 +420,85 @@ create_containers() {
     fi
 
     # Linking with appium required to share usbmuxd via socat
-    ensure_container stf -d \
-      --log-driver=local \
-      --log-opt max-size=256m \
-      --log-opt max-file=2 \
-      --net="$STF_DOCKER_NETWORK" \
-      --restart "on-failure:${RESTARTS_LIMIT}" \
-      --link "${dev_container}-connector":connector \
-      "${stf_wda_args[@]}" \
-      -e WDA_WAIT_TIMEOUT=60 \
-      -e PLATFORM_NAME="$dev_platform_name" \
-      -e STF_PROVIDER_DEVICE_NAME="$dev_device_name" \
-      -e DEVICE_UDID="$dev_udid" \
-      -e STF_PROVIDER_HOST="${STF_PROVIDER_HOST}" \
-      -e REMOTE_CONNECT_HOST="${REMOTE_CONNECT_HOST}" \
-      -e STF_PROVIDER_NAME="${STF_PROVIDER_NAME}${dev_location:+_$dev_location}" \
-      -e STF_PROVIDER_MIN_PORT="$dev_stf_min_port" \
-      -e STF_PROVIDER_MAX_PORT="$dev_stf_max_port" \
-      -p "${dev_stf_min_port}-${dev_stf_max_port}":"${dev_stf_min_port}-${dev_stf_max_port}" \
-      -e STF_PROVIDER_PUBLIC_IP="${PUBLIC_IP}" \
-      -e PUBLIC_IP_PORT="${PUBLIC_IP_PORT}" \
-      -e PUBLIC_IP_PROTOCOL="${PUBLIC_IP_PROTOCOL}" \
-      -e STF_PROVIDER_CONNECT_SUB="${STF_PROVIDER_CONNECT_SUB}" \
-      -e STF_PROVIDER_CONNECT_PUSH="${STF_PROVIDER_CONNECT_PUSH}" \
-      -e STF_PROVIDER_CONNECT_APP_DEALER="${STF_PROVIDER_CONNECT_APP_DEALER}" \
-      -e STF_PROVIDER_CONNECT_DEV_DEALER="${STF_PROVIDER_CONNECT_DEV_DEALER}" \
-      -e STF_NODE_TOKEN="${MCLOUD_NODE_TOKEN}" \
-      -e STF_ZMQ_CURVE_SERVER_PUBLIC_KEY="${STF_ZMQ_CURVE_SERVER_PUBLIC_KEY}" \
-      -e STF_ZMQ_CURVE_SECRET_KEY="${STF_ZMQ_CURVE_SECRET_KEY}" \
-      "${DEVICE_IMAGE}:${DEVICE_VERSION}" || return 1
-
+    stf_head_args=(--restart "on-failure:${RESTARTS_LIMIT}" --link "${dev_container}-connector":connector "${stf_wda_args[@]}"
+      -e WDA_WAIT_TIMEOUT=60)
+    stf_dealer_args=(-e STF_PROVIDER_CONNECT_APP_DEALER="${STF_PROVIDER_CONNECT_APP_DEALER}"
+      -e STF_PROVIDER_CONNECT_DEV_DEALER="${STF_PROVIDER_CONNECT_DEV_DEALER}")
+    appium_head_args=("${device_args[@]+"${device_args[@]}"}" --link "${dev_container}-stf":device
+      --link "${dev_container}-connector":connector "${wda_args[@]}" "${appium_args[@]+"${appium_args[@]}"}")
+    appium_cli_args=(-e APPIUM_CLI="--session-override")
     # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
-    ensure_container appium -itd \
-      "${platform_args[@]+"${platform_args[@]}"}" \
-      -m 1g \
-      --log-driver=local \
-      --log-opt max-size=256m \
-      --log-opt max-file=2 \
-      --net="$STF_DOCKER_NETWORK" \
-      --restart "on-failure:${RESTARTS_LIMIT}" \
-      "${device_args[@]+"${device_args[@]}"}" \
-      --link "${dev_container}-stf":device \
-      --link "${dev_container}-connector":connector \
-      "${wda_args[@]}" \
-      "${appium_args[@]+"${appium_args[@]}"}" \
-      -v appium-storage-volume:/opt/appium-storage \
-      -v "${dev_container}":/tmp/log \
-      -e TASK_LOG=/tmp/log/appium.log \
-      -e APPIUM_CLI="--session-override" \
-      -e PLATFORM_NAME="$dev_platform_name" \
-      -e RETAIN_TASK=true \
-      -e CONNECT_TO_GRID=true \
-      -e RECORD_ARTIFACTS=true \
-      -e CUSTOM_NODE_CONFIG=true \
-      -e STF_PROVIDER_HOST="${STF_PROVIDER_HOST}" \
-      -e APPIUM_APP_SIZE_DISABLE="${APPIUM_APP_SIZE_DISABLE}" \
-      -e APPIUM_APP_FETCH_RETRIES="${APPIUM_APP_FETCH_RETRIES}" \
-      -e APPIUM_MAX_LOCK_FILE_LIFETIME="${APPIUM_MAX_LOCK_FILE_LIFETIME}" \
-      -e APPIUM_APP_WAITING_TIMEOUT="${APPIUM_APP_WAITING_TIMEOUT}" \
-      -e SELENIUM_HOST="${SELENIUM_HUB_HOST}" \
-      -e SELENIUM_PORT="${SELENIUM_HUB_PORT}" \
-      -e NODE_REGISTRATION_TOKEN="${MCLOUD_NODE_TOKEN}" \
-      -e DEFAULT_CAPABILITIES=true \
-      -e DEVICE_NAME="$dev_device_name" \
-      -e DEVICE_UDID="$dev_udid" \
-      -e ADB_PORT="${dev_adb_port:-5037}" \
-      -e APPIUM_PORT="$dev_appium_port" \
-      -p "$dev_appium_port":"$dev_appium_port" \
-      -e RELAXED_SECURITY="${APPIUM_RELAXED_SECURITY}" \
-      "${APPIUM_IMAGE}:${APPIUM_VERSION}" || return 1
+    appium_adb_port="${dev_adb_port:-5037}"
 
   else
     failed "  Unsupported platform: ${dev_platform_name}"
     return 1
   fi
+
+  ensure_container stf -d \
+    --log-driver=local \
+    --log-opt max-size=256m \
+    --log-opt max-file=2 \
+    --net="$STF_DOCKER_NETWORK" \
+    "${stf_head_args[@]}" \
+    -e PLATFORM_NAME="$dev_platform_name" \
+    -e STF_PROVIDER_DEVICE_NAME="$dev_device_name" \
+    -e DEVICE_UDID="$STF_DEVICE_UDID" \
+    -e STF_PROVIDER_HOST="${STF_PROVIDER_HOST}" \
+    -e REMOTE_CONNECT_HOST="${REMOTE_CONNECT_HOST}" \
+    -e STF_PROVIDER_NAME="${STF_PROVIDER_NAME}${dev_location:+_$dev_location}" \
+    -e STF_PROVIDER_MIN_PORT="$dev_stf_min_port" \
+    -e STF_PROVIDER_MAX_PORT="$dev_stf_max_port" \
+    "${connect_args[@]+"${connect_args[@]}"}" \
+    -p "${dev_stf_min_port}-${dev_stf_max_port}":"${dev_stf_min_port}-${dev_stf_max_port}" \
+    -e STF_PROVIDER_PUBLIC_IP="${PUBLIC_IP}" \
+    -e PUBLIC_IP_PORT="${PUBLIC_IP_PORT}" \
+    -e PUBLIC_IP_PROTOCOL="${PUBLIC_IP_PROTOCOL}" \
+    -e STF_PROVIDER_CONNECT_SUB="${STF_PROVIDER_CONNECT_SUB}" \
+    -e STF_PROVIDER_CONNECT_PUSH="${STF_PROVIDER_CONNECT_PUSH}" \
+    "${stf_dealer_args[@]+"${stf_dealer_args[@]}"}" \
+    -e STF_NODE_TOKEN="${MCLOUD_NODE_TOKEN}" \
+    -e STF_ZMQ_CURVE_SERVER_PUBLIC_KEY="${STF_ZMQ_CURVE_SERVER_PUBLIC_KEY}" \
+    -e STF_ZMQ_CURVE_SECRET_KEY="${STF_ZMQ_CURVE_SECRET_KEY}" \
+    "${DEVICE_IMAGE}:${DEVICE_VERSION}" || return 1
+
+  # APPIUM_RELAXED_SECURITY: the insecure features of Appium for every session, README.md#appium-security
+  ensure_container appium -itd \
+    "${platform_args[@]+"${platform_args[@]}"}" \
+    -m 1g \
+    --log-driver=local \
+    --log-opt max-size=256m \
+    --log-opt max-file=2 \
+    --net="$STF_DOCKER_NETWORK" \
+    --restart "on-failure:${RESTARTS_LIMIT}" \
+    "${appium_head_args[@]}" \
+    -v appium-storage-volume:/opt/appium-storage \
+    -v "${dev_container}":/tmp/log \
+    -e TASK_LOG=/tmp/log/appium.log \
+    "${appium_cli_args[@]+"${appium_cli_args[@]}"}" \
+    -e PLATFORM_NAME="$dev_platform_name" \
+    "${appium_platform_args[@]+"${appium_platform_args[@]}"}" \
+    -e RETAIN_TASK=true \
+    -e CONNECT_TO_GRID=true \
+    -e RECORD_ARTIFACTS=true \
+    -e CUSTOM_NODE_CONFIG=true \
+    -e STF_PROVIDER_HOST="${STF_PROVIDER_HOST}" \
+    -e APPIUM_APP_SIZE_DISABLE="${APPIUM_APP_SIZE_DISABLE}" \
+    -e APPIUM_APP_FETCH_RETRIES="${APPIUM_APP_FETCH_RETRIES}" \
+    -e APPIUM_MAX_LOCK_FILE_LIFETIME="${APPIUM_MAX_LOCK_FILE_LIFETIME}" \
+    -e APPIUM_APP_WAITING_TIMEOUT="${APPIUM_APP_WAITING_TIMEOUT}" \
+    -e SELENIUM_HOST="${SELENIUM_HUB_HOST}" \
+    -e SELENIUM_PORT="${SELENIUM_HUB_PORT}" \
+    -e NODE_REGISTRATION_TOKEN="${MCLOUD_NODE_TOKEN}" \
+    -e DEFAULT_CAPABILITIES=true \
+    -e DEVICE_NAME="$dev_device_name" \
+    -e DEVICE_UDID="$STF_DEVICE_UDID" \
+    -e ADB_PORT="$appium_adb_port" \
+    -e APPIUM_PORT="$dev_appium_port" \
+    -p "$dev_appium_port":"$dev_appium_port" \
+    -e RELAXED_SECURITY="${APPIUM_RELAXED_SECURITY}" \
+    "${appium_tail_args[@]+"${appium_tail_args[@]}"}" \
+    "${APPIUM_IMAGE}:${APPIUM_VERSION}" || return 1
 
   ensure_container uploader -d \
     --log-driver=local \
