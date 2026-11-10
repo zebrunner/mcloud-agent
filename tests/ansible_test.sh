@@ -53,6 +53,7 @@ make_play() {
     - [config/devices.yml, ${REPO}/versions.yml]
   vars:
     STF_DOCKER_NETWORK: infra
+    agent_dir: ${REPO}
   roles:
     - $1
 EOF
@@ -62,7 +63,7 @@ EOF
 playbook() {
   local role="$1"
   shift
-  (cd "${WORK}/play-${role}" && ZEBRUNNER_MCLOUD_AGENT_DIR="$REPO" PATH="${WORK}/bin:${PATH}" ansible-playbook play.yml "$@" < /dev/null 2>&1)
+  (cd "${WORK}/play-${role}" && env -u ZEBRUNNER_MCLOUD_AGENT_DIR PATH="${WORK}/bin:${PATH}" ansible-playbook play.yml "$@" < /dev/null 2>&1)
 }
 
 for role in devices mac-devices download; do
@@ -161,14 +162,9 @@ output="$(playbook "$OS_ROLE" --check --tags precheck)"
 check_contains "OS is compatible" "OS is compatible: $(uname)" "$output"
 check_contains "setup is done" "Setup is ready" "$output"
 check_contains "no settings of an earlier version" "No settings of an earlier version." "$output"
-check_contains "agent dir env variable is set" "env variable is defined" "$output"
 check_contains "prechecks pass" "failed=0" "$output"
 check_contains "the settings of the node enrollment pass" "The settings of the node enrollment are set." "$output"
 check_contains "the CURVE keys pass" "The CURVE keys of ZeroMQ are valid." "$output"
-output="$(cd "${WORK}/play-${OS_ROLE}" && env -u ZEBRUNNER_MCLOUD_AGENT_DIR ansible-playbook play.yml --check --tags precheck < /dev/null 2>&1)"
-check_contains "unset agent dir env variable fails" "You have to set up 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable in advance!" "$output"
-output="$(cd "${WORK}/play-${OS_ROLE}" && ZEBRUNNER_MCLOUD_AGENT_DIR="" ansible-playbook play.yml --check --tags precheck < /dev/null 2>&1)"
-check_contains "empty agent dir env variable fails" "You have to set up 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable in advance!" "$output"
 for file in settings devices; do
   mv "${WORK}/play-${OS_ROLE}/config/${file}.yml" "${WORK}/${file}.yml"
   check_contains "missing config/${file}.yml fails" "You have to set up services in advance using: ./zebrunner.sh setup!" \
@@ -334,7 +330,7 @@ check "log rotation of the listener log: owner, mode, 7 archives of 10 MB, bzip2
 if [[ "$(uname)" == "Darwin" ]] && sudo -n true 2> /dev/null; then
   mkdir -p "${WORK}/agent/logs"
   echo "line" > "${WORK}/agent/logs/listener.log"
-  ZEBRUNNER_MCLOUD_AGENT_DIR="${WORK}/agent" ansible localhost --connection local --module-name template \
+  ansible localhost --connection local --module-name template --extra-vars "agent_dir=${WORK}/agent" \
     --args "src=${REPO}/roles/mac-devices/templates/zebrunner-mcloud.newsyslog.conf dest=${WORK}/agent/newsyslog.conf" > /dev/null 2>&1
   output="$(sudo -n /usr/sbin/newsyslog -nvF -f "${WORK}/agent/newsyslog.conf" 2>&1)"
   check "newsyslog accepts the rotation settings" "0" "$?"

@@ -39,7 +39,8 @@ exit 0'
 record_stub zebrunner-farm
 
 # zbr <stdin text> <zebrunner.sh arguments...>: runs zebrunner.sh of the repo copy without the user's
-# environment; $OS sets uname, $AGENT_DIR the ZEBRUNNER_MCLOUD_AGENT_DIR variable when not empty
+# environment; $OS sets uname, $AGENT_DIR the ZEBRUNNER_MCLOUD_AGENT_DIR variable of the shell when not empty (it is
+# not used: zebrunner.sh knows its folder)
 zbr() {
   local input="$1"
   shift
@@ -48,8 +49,9 @@ zbr() {
     ${AGENT_DIR:+ZEBRUNNER_MCLOUD_AGENT_DIR=$AGENT_DIR} /bin/bash "${AGENT}/zebrunner.sh" "$@" 2>&1
 }
 
+# exports <profile>: the number of the lines of the variable of the earlier versions in the shell profile
 exports() {
-  grep -c "^export ZEBRUNNER_MCLOUD_AGENT_DIR=${AGENT}\$" "${WORK}/home/$1" 2> /dev/null || true
+  grep -c "^export ZEBRUNNER_MCLOUD_AGENT_DIR=" "${WORK}/home/$1" 2> /dev/null || true
 }
 
 section "help"
@@ -60,26 +62,26 @@ for command in setup ansible status backup restore shutdown version doctor join;
 done
 
 section "setup"
-echo "export ZEBRUNNER_MCLOUD_AGENT_DIR=/old/path" > "${WORK}/home/.bashrc"
+printf 'alias ll="ls -l"\nexport ZEBRUNNER_MCLOUD_AGENT_DIR=/old/path\n' > "${WORK}/home/.bashrc"
 output="$(OS=Linux zbr "" setup)"
-check "the agent dir replaces an old value in .bashrc" "1" "$(exports .bashrc)"
-check "the old value is gone" "0" "$(grep -c '/old/path' "${WORK}/home/.bashrc")"
-check "the agent dir is added to .bash_profile" "1" "$(exports .bash_profile)"
+check "the variable of an earlier version is removed from .bashrc" "0" "$(exports .bashrc)"
+check "the other lines of .bashrc are kept" 'alias ll="ls -l"' "$(cat "${WORK}/home/.bashrc")"
+check_contains "the removal is reported" "Removing the variable ZEBRUNNER_MCLOUD_AGENT_DIR of an earlier version from ${WORK}/home/.bashrc" "$output"
+check "no profile is created" "no" "$([[ -f "${WORK}/home/.bash_profile" ]] && echo yes || echo no)"
 check "the settings are created from the example" "same" \
   "$(cmp -s "${AGENT}/config/settings.yml" "${AGENT}/config/settings.yml.original" && echo same)"
 check "the settings are private" "600" "$(stat -c '%a' "${AGENT}/config/settings.yml" 2> /dev/null || stat -f '%Lp' "${AGENT}/config/settings.yml")"
 check "Linux devices are created from the example" "same" \
   "$(cmp -s "${AGENT}/config/devices.yml" "${AGENT}/config/devices.yml.original" && echo same)"
-check_not_contains "no settings of an earlier version" "earlier version" "$output"
-check_contains "the reload of the shell is suggested" "To apply the changes" "$output"
-check_contains "the invite is the next step" "2. The administrator of MCloud invites this host on its server: ./zebrunner.sh node-invite" "$output"
-check_contains "the join is the next step" "3. Enroll this host: ./zebrunner.sh join and paste the join string" "$output"
-check_contains "the devices are a step" "4. Declare the devices in 'devices:' of 'config/devices.yml'" "$output"
-check_contains "the doctor is a step" "5. Check the settings, the enrollment and the network to MCloud: ./zebrunner.sh doctor" "$output"
-check_contains "the deploy is a step" "6. Deploy the agent: ./zebrunner.sh ansible" "$output"
+check_not_contains "no settings of an earlier version" "overrides 'config/'" "$output"
+check_not_contains "no reload of the shell" "To apply the changes" "$output"
+check_contains "the invite is the next step" "1. The administrator of MCloud invites this host on its server: ./zebrunner.sh node-invite" "$output"
+check_contains "the join is the next step" "2. Enroll this host: ./zebrunner.sh join and paste the join string" "$output"
+check_contains "the devices are a step" "3. Declare the devices in 'devices:' of 'config/devices.yml'" "$output"
+check_contains "the doctor is a step" "4. Check the settings, the enrollment and the network to MCloud: ./zebrunner.sh doctor" "$output"
+check_contains "the deploy is a step" "5. Deploy the agent: ./zebrunner.sh ansible" "$output"
 check_not_contains "no manual settings" "variables.env" "$output"
 output="$(OS=Linux zbr "" setup)"
-check "a second setup does not duplicate the variable" "1" "$(exports .bashrc)"
 check_contains "a second setup backs up existing settings" "making a backup" "$output"
 check "the backup of the settings exists" "yes" "$([[ -f "${AGENT}/config/settings.yml.bak" ]] && echo yes)"
 check "the backup of the devices exists" "yes" "$([[ -f "${AGENT}/config/devices.yml.bak" ]] && echo yes)"
@@ -96,28 +98,30 @@ mv "${WORK}/devices.yml" "${AGENT}/config/devices.yml"
 check_contains "unknown OS is rejected" "Unknown OS" "$(OS=FreeBSD zbr "" setup)"
 
 section "version"
-check_contains "versions from the agent dir" "DEVICE_VERSION:" "$(AGENT_DIR="$AGENT" zbr "" version)"
-output="$(zbr "" version)"
-check_contains "missing agent dir variable is reported" "is not set" "$output"
-check_contains "versions from the current dir without the variable" "APPIUM_VERSION:" "$output"
+check_contains "versions of the folder of zebrunner.sh" "DEVICE_VERSION:" "$(zbr "" version)"
+output="$(cd / && AGENT_DIR=/old/path zbr "" version)"
+check_contains "versions of the folder of zebrunner.sh from any folder, whatever the variable" "APPIUM_VERSION:" "$output"
+check_not_contains "no variable is needed" "is not set" "$output"
 
 section "ansible"
-check_contains "ansible needs the agent dir variable" "is not set" "$(zbr "" ansible)"
 reset_calls
-AGENT_DIR="$AGENT" OS=Linux zbr "" ansible > /dev/null
+zbr "" ansible > /dev/null
+check_contains "ansible runs the playbook of the folder of zebrunner.sh without the variable" "|${AGENT}/devices.yml" "$(calls ansible-playbook)"
+reset_calls
+OS=Linux zbr "" ansible > /dev/null
 check "Linux playbook" "--ask-become-pass|--inventory|hosts|${AGENT}/devices.yml" "$(calls ansible-playbook)"
 reset_calls
-AGENT_DIR="$AGENT" OS=Darwin zbr "" ansible > /dev/null
+OS=Darwin zbr "" ansible > /dev/null
 check "macOS playbook" "--ask-become-pass|--inventory|hosts|${AGENT}/mac-devices.yml" "$(calls ansible-playbook)"
 reset_calls
-AGENT_DIR="$AGENT" OS=Darwin zbr "" ansible devices > /dev/null
+OS=Darwin zbr "" ansible devices > /dev/null
 check "devices registration only" "--ask-become-pass|--inventory|hosts|${AGENT}/mac-devices.yml|--tag|registerDevices" "$(calls ansible-playbook)"
 reset_calls
-AGENT_DIR="$AGENT" OS=Linux zbr "" ansible --user=bob --extra-vars "app_name=a b" > /dev/null
+OS=Linux zbr "" ansible --user=bob --extra-vars "app_name=a b" > /dev/null
 check "custom arguments keep their words" "--ask-become-pass|--inventory|hosts|--user=bob|--extra-vars|app_name=a b|${AGENT}/devices.yml" "$(calls ansible-playbook)"
-output="$(AGENT_DIR="$AGENT" OS=Linux zbr "" ansible)"
+output="$(OS=Linux zbr "" ansible)"
 check_contains "the deploy suggests zebrunner-farm start" "Run 'zebrunner-farm start'" "$output"
-check_not_contains "the registration of the devices does not" "zebrunner-farm start" "$(AGENT_DIR="$AGENT" OS=Linux zbr "" ansible devices)"
+check_not_contains "the registration of the devices does not" "zebrunner-farm start" "$(OS=Linux zbr "" ansible devices)"
 # sudo-rs of Ubuntu 25.10+: ansible does not recognize its password prompt, sudo.ws is the original sudo
 cp "${WORK}/bin/sudo" "${WORK}/sudo"
 # the stub body is expanded when the stub runs
@@ -127,19 +131,19 @@ stub sudo '(IFS="|"; echo "sudo|$*") >> "${STUB_DIR}/calls.log"
 exit 0'
 record_stub sudo.ws
 reset_calls
-output="$(AGENT_DIR="$AGENT" OS=Linux zbr "" ansible)"
+output="$(OS=Linux zbr "" ansible)"
 check "sudo-rs: ansible becomes root with sudo.ws" "--ask-become-pass|--inventory|hosts|--extra-vars|ansible_become_exe=sudo.ws|${AGENT}/devices.yml" "$(calls ansible-playbook)"
 check_contains "sudo-rs: sudo.ws is reported" "sudo is sudo-rs: ansible becomes root with sudo.ws" "$output"
 reset_calls
-AGENT_DIR="$AGENT" OS=Linux zbr "" ansible --extra-vars ansible_become_exe=/usr/local/bin/sudo > /dev/null
+OS=Linux zbr "" ansible --extra-vars ansible_become_exe=/usr/local/bin/sudo > /dev/null
 check "sudo-rs: the become_exe of the arguments is kept" "--ask-become-pass|--inventory|hosts|--extra-vars|ansible_become_exe=/usr/local/bin/sudo|${AGENT}/devices.yml" "$(calls ansible-playbook)"
 reset_calls
-AGENT_DIR="$AGENT" OS=Darwin zbr "" ansible > /dev/null
+OS=Darwin zbr "" ansible > /dev/null
 check "sudo-rs: macOS is not changed" "--ask-become-pass|--inventory|hosts|${AGENT}/mac-devices.yml" "$(calls ansible-playbook)"
 rm -f "${WORK}/bin/sudo.ws"
 if ! command -v sudo.ws > /dev/null 2>&1; then
   reset_calls
-  output="$(AGENT_DIR="$AGENT" OS=Linux zbr "" ansible)"
+  output="$(OS=Linux zbr "" ansible)"
   check "sudo-rs without sudo.ws: the playbook is run as is" "--ask-become-pass|--inventory|hosts|${AGENT}/devices.yml" "$(calls ansible-playbook)"
   check_contains "sudo-rs without sudo.ws: the original sudo is asked" "install the original sudo (sudo apt install sudo)" "$output"
 else
@@ -154,21 +158,21 @@ stub docker '(IFS="|"; echo "docker|$*") >> "${STUB_DIR}/calls.log"
 [[ "$1" == "ps" ]] && printf "%s\n" device-Galaxy-R28-connector device-Galaxy-R28-stf device-Pixel-45-appium node_exporter
 exit 0'
 reset_calls
-output="$(AGENT_DIR="$AGENT" OS=Linux zbr "\n" ansible)"
+output="$(OS=Linux zbr "\n" ansible)"
 check_contains "running containers are reported" "3 containers of the devices are running" "$output"
 check_contains "the devices of the running containers are listed" "device-Galaxy-R28" "$output"
 check "the default answer removes them with zebrunner-farm" "down" "$(calls zebrunner-farm)"
 check_contains "then the playbook runs" "${AGENT}/devices.yml" "$(calls ansible-playbook)"
 reset_calls
-output="$(AGENT_DIR="$AGENT" OS=Linux zbr "n\n" ansible)"
+output="$(OS=Linux zbr "n\n" ansible)"
 check "a declined removal keeps them" "" "$(calls zebrunner-farm)"
 check_contains "a declined removal suggests the restart" "run 'zebrunner-farm restart' after the deploy" "$output"
 check_contains "a declined removal deploys anyway" "${AGENT}/devices.yml" "$(calls ansible-playbook)"
 reset_calls
-AGENT_DIR="$AGENT" OS=Linux zbr "" ansible devices > /dev/null
+OS=Linux zbr "" ansible devices > /dev/null
 check "the registration of the devices keeps the containers" "" "$(calls zebrunner-farm)"
 mv "${WORK}/docker" "${WORK}/bin/docker"
-output="$(ANSIBLE_EXIT=2 AGENT_DIR="$AGENT" zbr "" ansible)"
+output="$(ANSIBLE_EXIT=2 zbr "" ansible)"
 check "failed playbook fails" "1" "$?"
 check_contains "failed playbook is reported" "Ansible playbook execution failed!" "$output"
 
@@ -183,8 +187,7 @@ rosetta() {
   local arm64="$1" installed="$2"
   shift 2
   printf '' | env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
-    FAKE_UNAME=Darwin FAKE_ARM64="$arm64" FAKE_ROSETTA="$installed" ZEBRUNNER_MCLOUD_AGENT_DIR="$AGENT" \
-    /bin/bash "${AGENT}/zebrunner.sh" "$@" 2>&1
+    FAKE_UNAME=Darwin FAKE_ARM64="$arm64" FAKE_ROSETTA="$installed" /bin/bash "${AGENT}/zebrunner.sh" "$@" 2>&1
 }
 settings_dir="${WORK}/home/Library/Group Containers/group.com.docker"
 mkdir -p "$settings_dir"
@@ -205,11 +208,11 @@ rm -rf "${WORK}/home/Library"
 check_not_contains "setup of an Intel Mac says nothing about Rosetta 2" "Rosetta" "$(rosetta 0 0 setup)"
 check_contains "status of an Intel Mac" "not needed (Intel Mac)" "$(rosetta 0 0 status)"
 check_not_contains "setup of Linux says nothing about Rosetta 2" "Rosetta" "$(OS=Linux zbr "" setup)"
-check_not_contains "status of Linux says nothing about Rosetta 2" "Rosetta" "$(AGENT_DIR="$AGENT" OS=Linux zbr "" status)"
+check_not_contains "status of Linux says nothing about Rosetta 2" "Rosetta" "$(OS=Linux zbr "" status)"
 rm -f "${WORK}/bin/sysctl" "${WORK}/bin/arch"
 
 section "status"
-output="$(AGENT_DIR="$AGENT" OS=Linux zbr "" status)"
+output="$(OS=Linux zbr "" status)"
 check_contains "ansible version" "ansible-playbook [core 2.21.5]" "$output"
 check_contains "zebrunner-farm location" "${WORK}/bin/zebrunner-farm" "$output"
 check_contains "settings file" "${AGENT}/config/settings.yml" "$output"
@@ -217,11 +220,11 @@ check_contains "devices file" "${AGENT}/config/devices.yml" "$output"
 # a stub that behaves as a missing command, removing the stub would expose an ansible-playbook of the system
 cp "${WORK}/bin/ansible-playbook" "${WORK}/ansible-playbook"
 stub ansible-playbook 'echo "ansible-playbook: command not found" >&2; exit 127'
-check_contains "missing ansible-playbook is reported" "'ansible-playbook' not found" "$(AGENT_DIR="$AGENT" zbr "" status)"
+check_contains "missing ansible-playbook is reported" "'ansible-playbook' not found" "$(zbr "" status)"
 mv "${WORK}/ansible-playbook" "${WORK}/bin/ansible-playbook"
 mkdir -p "${WORK}/home/Library/LaunchAgents"
 touch "${WORK}/home/Library/LaunchAgents/ZebrunnerDevicesListener.plist" "${WORK}/home/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
-output="$(AGENT_DIR="$AGENT" OS=Darwin zbr "" status)"
+output="$(OS=Darwin zbr "" status)"
 check_contains "macOS deployed launch agents" "${WORK}/home/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" "$output"
 check_contains "macOS settings file" "${AGENT}/config/settings.yml" "$output"
 
@@ -371,7 +374,7 @@ echo 200 > "${WORK}/mcloud/self_code"
 # doctor_run: ./zebrunner.sh doctor of a Linux host without the deployed files
 doctor_run() {
   printf '' | env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
-    FAKE_UNAME=Linux ZEBRUNNER_MCLOUD_AGENT_DIR="$AGENT" DOCTOR_FARM="${WORK}/farm" DOCTOR_FARM_ENV="${WORK}/farm.env" DOCTOR_DEVICES="${WORK}/devices.txt" \
+    FAKE_UNAME=Linux DOCTOR_FARM="${WORK}/farm" DOCTOR_FARM_ENV="${WORK}/farm.env" DOCTOR_DEVICES="${WORK}/devices.txt" \
     ZEBRUNNER_PYTHON="$YAML_PYTHON" \
     /bin/bash "${AGENT}/zebrunner.sh" doctor 2>&1
 }

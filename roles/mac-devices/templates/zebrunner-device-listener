@@ -13,7 +13,7 @@ LISTENER_STATE_DIR="${TMPDIR:-/tmp}/zebrunner-listener.$$"
 event_id=0
 # Messages and zebrunner-farm output are appended per write instead of keeping the file open,
 # so newsyslog can rotate it (/etc/newsyslog.d/zebrunner-mcloud.conf)
-LISTENER_LOG="{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/logs/listener.log"
+LISTENER_LOG="{{ agent_dir }}/logs/listener.log"
 
 log() {
   echo "[$(date -Iseconds)] - $*" >> "$LISTENER_LOG"

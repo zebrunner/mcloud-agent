@@ -90,14 +90,6 @@ check_endpoint() {
 # doctor_host: the tools of the agent
 doctor_host() {
   doctor_section "Host"
-  if [[ -z "$ZEBRUNNER_MCLOUD_AGENT_DIR" ]]; then
-    doctor_fail "ZEBRUNNER_MCLOUD_AGENT_DIR is not set" "./zebrunner.sh setup, then open a new terminal"
-  elif [[ "$ZEBRUNNER_MCLOUD_AGENT_DIR" != "$MCLOUD_AGENT_DIR_VALUE" ]]; then
-    doctor_warn "ZEBRUNNER_MCLOUD_AGENT_DIR is ${ZEBRUNNER_MCLOUD_AGENT_DIR}, not this folder ${MCLOUD_AGENT_DIR_VALUE}" \
-      "./zebrunner.sh setup in the folder of the agent, then open a new terminal"
-  else
-    doctor_ok "ZEBRUNNER_MCLOUD_AGENT_DIR is this folder"
-  fi
   if ! command -v docker > /dev/null 2>&1; then
     doctor_fail "docker is not installed" "install Docker (README.md#software-prerequisites)"
   elif ! docker info > /dev/null 2>&1; then
@@ -301,6 +293,12 @@ doctor_deployment() {
   if [[ ! -r "$DOCTOR_FARM_ENV" ]] || ! deployed="$(env -i PATH=/usr/bin:/bin /bin/bash -c 'set -a && source "$1" && env' _ "$DOCTOR_FARM_ENV" 2> /dev/null)"; then
     doctor_warn "the settings of zebrunner-farm (${DOCTOR_FARM_ENV}) are not readable by $(whoami)" "./zebrunner.sh ansible"
     return 0
+  fi
+  # zebrunner-farm runs the scripts and the ssh key of the folder of its deploy
+  local farm_dir
+  farm_dir="$(sed -n 's/^ZEBRUNNER_MCLOUD_AGENT_DIR=//p' <<< "$deployed")"
+  if [[ "$farm_dir" != "$MCLOUD_AGENT_DIR_VALUE" ]]; then
+    doctor_warn "zebrunner-farm is deployed from another folder: ${farm_dir}" "./zebrunner.sh ansible of this folder ${MCLOUD_AGENT_DIR_VALUE}"
   fi
   local line
   local name

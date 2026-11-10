@@ -19,7 +19,7 @@
       </array>
 
     <key>WorkingDirectory</key>
-      <string>{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}</string>
+      <string>{{ agent_dir }}</string>
 
     <key>UserName</key>
       <string>{{ lookup('env', 'USER') }}</string>
@@ -31,10 +31,10 @@
       <true/>
 
     <key>StandardErrorPath</key>
-      <string>{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/logs/listener.err.log</string>
+      <string>{{ agent_dir }}/logs/listener.err.log</string>
 
     <key>StandardOutPath</key>
-      <string>{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/logs/listener.log</string>
+      <string>{{ agent_dir }}/logs/listener.log</string>
 
   </dict>
 </plist>

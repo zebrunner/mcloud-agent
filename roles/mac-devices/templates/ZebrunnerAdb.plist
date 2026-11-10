@@ -26,7 +26,7 @@
       </array>
 
     <key>WorkingDirectory</key>
-      <string>{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}</string>
+      <string>{{ agent_dir }}</string>
 
     <key>UserName</key>
       <string>{{ lookup('env', 'USER') }}</string>
@@ -38,10 +38,10 @@
       <true/>
 
     <key>StandardErrorPath</key>
-      <string>{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/logs/adb.err.log</string>
+      <string>{{ agent_dir }}/logs/adb.err.log</string>
 
     <key>StandardOutPath</key>
-      <string>{{ lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') }}/logs/adb.log</string>
+      <string>{{ agent_dir }}/logs/adb.log</string>
 
   </dict>
 </plist>
