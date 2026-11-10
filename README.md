@@ -416,6 +416,12 @@ The `tests` folder covers zebrunner.sh, the ansible roles and templates, zebrunn
   > The linters of `tests/requirements-lint.txt` are installed into `.venv` automatically. On macOS install hadolint with `brew install hadolint`: the hadolint-py wheel for macOS is broken.
 
 - Run a part of the checks with `make lint`, `make test` or `make docker`, `make` lists the targets.
+- `tests/golden/farm-linux.txt` and `tests/golden/farm-macos.txt` are the `docker` and `launchctl` calls and the output of `zebrunner-farm` for every kind of device (`tests/farm_golden_test.sh`): a change of the containers fails the test. After an intended change regenerate them and review their diff in the pull request:
+
+  ```bash
+  UPDATE_GOLDEN=1 tests/farm_golden_test.sh
+  ```
+
 - The roles: `devices` (Linux) and `mac-devices` (macOS) deploy the agent of the OS; `common`, their dependency (`meta/main.yml`), has the values by default and the checks of the settings and the devices shared by both (`roles/common/tasks/checks.yml`, imported after the check of the OS: a check of one OS only stays in its role), and `zebrunner-farm` (`roles/common/tasks/farm.yml`): one static script of both OS (`roles/common/files/zebrunner-farm`, the branches of `FARM_OS`) with its settings rendered into an env file (`roles/common/templates/zebrunner-farm.env`); the tests run it with `ZEBRUNNER_FARM_ENV`; `download` pulls the images.
 - With `JUNIT_DIR` set, `tests/lint.sh` and every test write JUnit XML into it. CI publishes the results as annotations and a job summary, and keeps the XML files as artifacts.
 - The `usbmuxd_watch` binary of the `mac-devices` role is built from `roles/mac-devices/files/usbmuxd_watch.c` and the pinned release tarballs (sha256) of libplist, libimobiledevice-glue and libusbmuxd. After a change of the source or of a library version, rebuild it on macOS with the Xcode command line tools and commit it; the same Xcode builds the same binary byte for byte. CI builds it the same way and runs `tests/usbmuxd_watch_test.sh` on the result:
