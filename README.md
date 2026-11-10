@@ -122,6 +122,7 @@ Security:
 
 ## Run ansible playbook
 
+- `./zebrunner.sh ansible` runs `agent.yml` on both OS: its first play groups the hosts by their OS (`os_Linux`, `os_Darwin` of `hosts`), the next ones deploy the role of each OS.
 - The images of the devices are pinned in `versions.yml`: `DEVICE_VERSION` (mcloud-device), `APPIUM_VERSION`,
   `IOS_CONNECTOR_VERSION`, `ANDROID_CONNECTOR_VERSION` and `UPLOADER_VERSION`. mcloud-device must be the one of the STF
   of [mcloud](https://github.com/zebrunner/mcloud) (`TAG_STF` of its `.env`). Another version is a line of
@@ -384,18 +385,18 @@ Run `./zebrunner.sh doctor` first, see [Doctor](#doctor). Follow the below algor
 
 - If you have any problems running ansible:
   - Make sure you have sudo access and try to run ansible with sudo permissions.
-  - Try to run ansible commands manually (`<devices_file>` name is `mac-devices` on macOS  or `devices` on Linux servers)
+  - Try to run ansible commands manually: `agent.yml` deploys the role of the OS of the host (`devices` of Linux, `mac-devices` of macOS); `devices.yml` and `mac-devices.yml` of the earlier commands import it
 
   > To download the required components and register the devices:
 
   ```bash
-  ansible-playbook -vvv --ask-become-pass -i hosts <devices_file>.yml
+  ansible-playbook -vvv --ask-become-pass -i hosts agent.yml
   ```
 
   > To reregister the devices list only, you can use the following command:
 
   ```bash
-  ansible-playbook -vvv --ask-become-pass -i hosts <devices_file>.yml --tag registerDevices
+  ansible-playbook -vvv --ask-become-pass -i hosts agent.yml --tag registerDevices
   ```
 
   Ubuntu 25.10+ has sudo-rs as `sudo`: ansible does not recognize its password prompt and stops with "Timed out
@@ -406,7 +407,7 @@ Run `./zebrunner.sh doctor` first, see [Doctor](#doctor). Follow the below algor
 
   ```bash
   ansible-vault create become.yml    # with the line: ansible_become_password: PSWD
-  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars @become.yml --ask-vault-pass <devices_file>.yml
+  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars @become.yml --ask-vault-pass agent.yml
   ```
 
 ## Development

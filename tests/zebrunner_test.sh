@@ -106,19 +106,19 @@ check_not_contains "no variable is needed" "is not set" "$output"
 section "ansible"
 reset_calls
 zbr "" ansible > /dev/null
-check_contains "ansible runs the playbook of the folder of zebrunner.sh without the variable" "|${AGENT}/devices.yml" "$(calls ansible-playbook)"
+check_contains "ansible runs the playbook of the folder of zebrunner.sh without the variable" "|${AGENT}/agent.yml" "$(calls ansible-playbook)"
 reset_calls
 OS=Linux zbr "" ansible > /dev/null
-check "Linux playbook" "--ask-become-pass|--inventory|hosts|${AGENT}/devices.yml" "$(calls ansible-playbook)"
+check "Linux playbook" "--ask-become-pass|--inventory|hosts|${AGENT}/agent.yml" "$(calls ansible-playbook)"
 reset_calls
 OS=Darwin zbr "" ansible > /dev/null
-check "macOS playbook" "--ask-become-pass|--inventory|hosts|${AGENT}/mac-devices.yml" "$(calls ansible-playbook)"
+check "macOS playbook" "--ask-become-pass|--inventory|hosts|${AGENT}/agent.yml" "$(calls ansible-playbook)"
 reset_calls
 OS=Darwin zbr "" ansible devices > /dev/null
-check "devices registration only" "--ask-become-pass|--inventory|hosts|${AGENT}/mac-devices.yml|--tag|registerDevices" "$(calls ansible-playbook)"
+check "devices registration only" "--ask-become-pass|--inventory|hosts|${AGENT}/agent.yml|--tag|registerDevices" "$(calls ansible-playbook)"
 reset_calls
 OS=Linux zbr "" ansible --user=bob --extra-vars "app_name=a b" > /dev/null
-check "custom arguments keep their words" "--ask-become-pass|--inventory|hosts|--user=bob|--extra-vars|app_name=a b|${AGENT}/devices.yml" "$(calls ansible-playbook)"
+check "custom arguments keep their words" "--ask-become-pass|--inventory|hosts|--user=bob|--extra-vars|app_name=a b|${AGENT}/agent.yml" "$(calls ansible-playbook)"
 output="$(OS=Linux zbr "" ansible)"
 check_contains "the deploy suggests zebrunner-farm start" "Run 'zebrunner-farm start'" "$output"
 check_not_contains "the registration of the devices does not" "zebrunner-farm start" "$(OS=Linux zbr "" ansible devices)"
@@ -132,19 +132,19 @@ exit 0'
 record_stub sudo.ws
 reset_calls
 output="$(OS=Linux zbr "" ansible)"
-check "sudo-rs: ansible becomes root with sudo.ws" "--ask-become-pass|--inventory|hosts|--extra-vars|ansible_become_exe=sudo.ws|${AGENT}/devices.yml" "$(calls ansible-playbook)"
+check "sudo-rs: ansible becomes root with sudo.ws" "--ask-become-pass|--inventory|hosts|--extra-vars|ansible_become_exe=sudo.ws|${AGENT}/agent.yml" "$(calls ansible-playbook)"
 check_contains "sudo-rs: sudo.ws is reported" "sudo is sudo-rs: ansible becomes root with sudo.ws" "$output"
 reset_calls
 OS=Linux zbr "" ansible --extra-vars ansible_become_exe=/usr/local/bin/sudo > /dev/null
-check "sudo-rs: the become_exe of the arguments is kept" "--ask-become-pass|--inventory|hosts|--extra-vars|ansible_become_exe=/usr/local/bin/sudo|${AGENT}/devices.yml" "$(calls ansible-playbook)"
+check "sudo-rs: the become_exe of the arguments is kept" "--ask-become-pass|--inventory|hosts|--extra-vars|ansible_become_exe=/usr/local/bin/sudo|${AGENT}/agent.yml" "$(calls ansible-playbook)"
 reset_calls
 OS=Darwin zbr "" ansible > /dev/null
-check "sudo-rs: macOS is not changed" "--ask-become-pass|--inventory|hosts|${AGENT}/mac-devices.yml" "$(calls ansible-playbook)"
+check "sudo-rs: macOS is not changed" "--ask-become-pass|--inventory|hosts|${AGENT}/agent.yml" "$(calls ansible-playbook)"
 rm -f "${WORK}/bin/sudo.ws"
 if ! command -v sudo.ws > /dev/null 2>&1; then
   reset_calls
   output="$(OS=Linux zbr "" ansible)"
-  check "sudo-rs without sudo.ws: the playbook is run as is" "--ask-become-pass|--inventory|hosts|${AGENT}/devices.yml" "$(calls ansible-playbook)"
+  check "sudo-rs without sudo.ws: the playbook is run as is" "--ask-become-pass|--inventory|hosts|${AGENT}/agent.yml" "$(calls ansible-playbook)"
   check_contains "sudo-rs without sudo.ws: the original sudo is asked" "install the original sudo (sudo apt install sudo)" "$output"
 else
   skip_check "sudo-rs without sudo.ws" "sudo.ws of the system"
@@ -162,12 +162,12 @@ output="$(OS=Linux zbr "\n" ansible)"
 check_contains "running containers are reported" "3 containers of the devices are running" "$output"
 check_contains "the devices of the running containers are listed" "device-Galaxy-R28" "$output"
 check "the default answer removes them with zebrunner-farm" "down" "$(calls zebrunner-farm)"
-check_contains "then the playbook runs" "${AGENT}/devices.yml" "$(calls ansible-playbook)"
+check_contains "then the playbook runs" "${AGENT}/agent.yml" "$(calls ansible-playbook)"
 reset_calls
 output="$(OS=Linux zbr "n\n" ansible)"
 check "a declined removal keeps them" "" "$(calls zebrunner-farm)"
 check_contains "a declined removal suggests the restart" "run 'zebrunner-farm restart' after the deploy" "$output"
-check_contains "a declined removal deploys anyway" "${AGENT}/devices.yml" "$(calls ansible-playbook)"
+check_contains "a declined removal deploys anyway" "${AGENT}/agent.yml" "$(calls ansible-playbook)"
 reset_calls
 OS=Linux zbr "" ansible devices > /dev/null
 check "the registration of the devices keeps the containers" "" "$(calls zebrunner-farm)"

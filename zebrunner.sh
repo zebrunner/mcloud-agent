@@ -100,14 +100,13 @@ setup() {
 ansible() {
   delimiter "Deploying MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
 
-  ### Check if the operating system is Linux or macOS
+  ### Check if the operating system is Linux or macOS: agent.yml deploys the role of the OS
   delimiter "*"
+  file="${ZEBRUNNER_MCLOUD_AGENT_DIR}/agent.yml"
   if [[ "$(uname)" == "Linux" ]]; then
     echo "Operating system is Linux"
-    file="${ZEBRUNNER_MCLOUD_AGENT_DIR}/devices.yml"
   elif [[ "$(uname)" == "Darwin" ]]; then
     echo "Operating system is macOS"
-    file="${ZEBRUNNER_MCLOUD_AGENT_DIR}/mac-devices.yml"
   else
     echo_warning "This script is not running on a Linux or macOS system. Run ansible manually."
     exit 1
@@ -355,11 +354,7 @@ status() {
     echo "Loaded launchctl Zebrunner jobs:"
     launchctl list | grep -i zebrunner || failed "No loaded Zebrunner jobs found"
     echo ""
-    echo "MacOS ansible-playbook:           $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/mac-devices.yml" 2> /dev/null || failed "File not found")"
-    echo ""
   else
-    echo "Linux ansible-playbook:           $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/devices.yml" 2> /dev/null || failed "File not found")"
-    echo ""
     echo "90_mcloud.rules:                  $(ls /etc/udev/rules.d/90_mcloud.rules 2> /dev/null || failed "File not found")"
     echo ""
     echo "mcloud-device-restart@.service:   $(ls /etc/systemd/system/mcloud-device-restart@.service 2> /dev/null || failed "File not found")"
@@ -374,6 +369,8 @@ status() {
   echo "config/settings.yml:              $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/${SETTINGS_FILE}" 2> /dev/null || failed "File not found")"
   echo ""
   echo "config/devices.yml:               $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/${DEVICES_FILE}" 2> /dev/null || failed "File not found")"
+  echo ""
+  echo "ansible-playbook:                 $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/agent.yml" 2> /dev/null || failed "File not found")"
   echo ""
   echo "versions.yml:                     $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/versions.yml" 2> /dev/null || failed "File not found")"
 
