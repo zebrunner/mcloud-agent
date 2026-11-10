@@ -150,6 +150,12 @@ done << 'EOF'
 [{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 4, "connection": "wireless"}]=failed=0
 EOF
 
+# the shared checks of the role common with the parameters of the role of the OS
+extra='{"devices": [{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 4, "connect_port": 1}]}'
+check_contains "mac-devices: adb_port is obligatory for a USB Android device" "are obligatory, adb_port for a USB Android device;" \
+  "$(playbook mac-devices --tags validate --extra-vars "$extra")"
+check_contains "devices: adb_port is not obligatory" "max_port are obligatory;" "$(playbook devices --tags validate --extra-vars "$extra")"
+
 section "prechecks of ${OS_ROLE}"
 output="$(playbook "$OS_ROLE" --check --tags precheck)"
 check_contains "OS is compatible" "OS is compatible: $(uname)" "$output"

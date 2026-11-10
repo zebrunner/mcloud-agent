@@ -1,0 +1,168 @@
+---
+# The checks of the settings and the devices shared by the roles of the OS, imported by their tasks after the check of
+# the OS (import_role tasks_from: checks) with:
+#   common_os_role: the role of the OS (devices or mac-devices), its vars/main.yml is the settings of an earlier version
+#   common_usb_android_adb_port: true when a USB Android device needs adb_port (macOS: the adb server of the host)
+
+- name: Check setup completion
+  ansible.builtin.assert:
+    that:
+      - lookup('file', playbook_dir ~ '/config/settings.yml', errors='ignore') is not none
+      - lookup('file', playbook_dir ~ '/config/devices.yml', errors='ignore') is not none
+    fail_msg: "You have to set up services in advance using: ./zebrunner.sh setup!"
+    success_msg: "Setup is ready: 'config/settings.yml' and 'config/devices.yml' exist."
+  tags: [devices, precheck]
+
+# the vars of a role override the settings of config/: the settings of an earlier version are moved by hand
+- name: Check the settings of an earlier version
+  ansible.builtin.assert:
+    that:
+      - lookup('file', playbook_dir ~ '/roles/' ~ common_os_role ~ '/vars/main.yml', errors='ignore') is none
+    fail_msg: >-
+      roles/{{ common_os_role }}/vars/main.yml of an earlier version overrides config/: move its settings to
+      config/settings.yml and its devices: to config/devices.yml (README.md#settings), then remove it.
+    success_msg: "No settings of an earlier version."
+  tags: [devices, precheck]
+
+- name: Check 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable
+  ansible.builtin.assert:
+    that:
+      - lookup('env', 'ZEBRUNNER_MCLOUD_AGENT_DIR') | length > 0
+    fail_msg: "You have to set up 'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable in advance!"
+    success_msg: "'ZEBRUNNER_MCLOUD_AGENT_DIR' env variable is defined."
+  tags: [devices, precheck]
+
+- name: Collect all device IDs and names
+  ansible.builtin.set_fact:
+    common_all_ids: "{{ devices | map(attribute='id') | map('trim') | list }}"
+    common_all_names: "{{ devices | map(attribute='name') | map('trim') | map('regex_replace', '\\s+', '_') | list }}"
+  tags: [devices, precheck, dedup]
+
+- name: Count occurrences of each device id
+  ansible.builtin.set_fact:
+    common_id_counts: "{{ common_id_counts | default({}) | combine({item: (common_id_counts | default({}))[item] | default(0) + 1}) }}"
+  loop: "{{ common_all_ids }}"
+  tags: [devices, precheck, dedup]
+
+- name: Count occurrences of each device name
+  ansible.builtin.set_fact:
+    common_name_counts: "{{ common_name_counts | default({}) | combine({item: (common_name_counts | default({}))[item] | default(0) + 1}) }}"
+  loop: "{{ common_all_names }}"
+  tags: [devices, precheck, dedup]
+
+- name: Determine duplicate ids
+  ansible.builtin.set_fact:
+    common_dup_ids: "{{ common_id_counts | dict2items | selectattr('value', '>', 1) | map(attribute='key') | list }}"
+  tags: [devices, precheck, dedup]
+
+- name: Determine duplicate names
+  ansible.builtin.set_fact:
+    common_dup_names: "{{ common_name_counts | dict2items | selectattr('value', '>', 1) | map(attribute='key') | list }}"
+  tags: [devices, precheck, dedup]
+
+- name: Check for duplicate device IDs or names
+  ansible.builtin.assert:
+    that:
+      - common_dup_ids | length == 0
+      - common_dup_names | length == 0
+    fail_msg: "Duplicate devices found! Duplicate IDs: {{ common_dup_ids }} Duplicate Names: {{ common_dup_names }}"
+    success_msg: "All device IDs and names are unique."
+  tags: [devices, precheck, dedup]
+
+# the connection to MCloud of `./zebrunner.sh join` (README.md#node-enrollment): the token of this host, the CURVE keys
+# of ZeroMQ and the endpoints of MCloud
+- name: Check the settings of the node enrollment
+  vars:
+    common_enrollment_settings:
+      MCLOUD_NODE_TOKEN: "{{ MCLOUD_NODE_TOKEN | default('', true) | string | trim }}"
+      STF_PROVIDER_HOST: "{{ STF_PROVIDER_HOST | default('', true) | string | trim }}"
+      PUBLIC_IP: "{{ PUBLIC_IP | default('', true) | string | trim }}"
+      STF_PROVIDER_CONNECT_SUB: "{{ STF_PROVIDER_CONNECT_SUB | default('', true) | string | trim }}"
+      STF_PROVIDER_CONNECT_PUSH: "{{ STF_PROVIDER_CONNECT_PUSH | default('', true) | string | trim }}"
+      SELENIUM_HUB_HOST: "{{ SELENIUM_HUB_HOST | default('', true) | string | trim }}"
+      SELENIUM_HUB_PORT: "{{ SELENIUM_HUB_PORT | default('', true) | string | trim }}"
+      STF_ZMQ_CURVE_SERVER_PUBLIC_KEY: "{{ STF_ZMQ_CURVE_SERVER_PUBLIC_KEY | default('', true) | string | trim }}"
+      STF_ZMQ_CURVE_SECRET_KEY: "{{ STF_ZMQ_CURVE_SECRET_KEY | default('', true) | string | trim }}"
+    common_token: "{{ common_enrollment_settings.MCLOUD_NODE_TOKEN }}"
+    common_missing_settings: >-
+      {{ (['MCLOUD_NODE_TOKEN'] if (common_token != '' and common_token is not match('^mcn1[.][a-z0-9][a-z0-9-]{0,39}[.][A-Za-z0-9_-]{43}$')) else [])
+         + (common_enrollment_settings | dict2items | selectattr('value', 'equalto', '') | map(attribute='key') | list) }}
+  ansible.builtin.assert:
+    that: common_missing_settings | length == 0
+    fail_msg: >-
+      The settings of the node enrollment are missing or invalid in config/settings.yml: {{ common_missing_settings | join(', ') }}.
+      Enroll this host with ./zebrunner.sh join and the join string of ./zebrunner.sh node-invite of mcloud
+      (README.md#node-enrollment); ./zebrunner.sh doctor checks the settings.
+    success_msg: "The settings of the node enrollment are set."
+  tags: [devices, precheck, validate]
+
+# the ZeroMQ security of STF: the key of this host with the key of the server (README.md#zeromq-security)
+- name: Check the CURVE keys of ZeroMQ
+  vars:
+    curve_server_key: "{{ STF_ZMQ_CURVE_SERVER_PUBLIC_KEY | default('', true) | string }}"
+    curve_secret_key: "{{ STF_ZMQ_CURVE_SECRET_KEY | default('', true) | string }}"
+  ansible.builtin.assert:
+    that:
+      - curve_server_key is match('^[0-9a-fA-F]{64}$')
+      - curve_secret_key is match('^[0-9a-fA-F]{64}$')
+    fail_msg: >-
+      STF_ZMQ_CURVE_SERVER_PUBLIC_KEY must be the 64 hex characters of the STF server (in quotes) and
+      STF_ZMQ_CURVE_SECRET_KEY the 64 hex characters of the key of this host: run ./zebrunner.sh join.
+    success_msg: "The CURVE keys of ZeroMQ are valid."
+  tags: [devices, precheck, validate]
+
+- name: Check obligatory settings of each device
+  ansible.builtin.assert:
+    that:
+      - item.id is defined and item.name is defined
+      - item.os is defined and item.os in ['android', 'ios']
+      - item.appium_port is defined and item.min_port is defined and item.max_port is defined
+      - 0 < (item.appium_port | int) < 65536
+      - 0 < (item.min_port | int) <= (item.max_port | int) < 65536
+      - item.connect_port is not defined or (item.os == 'android' and 1023 < (item.connect_port | int) < 65536)
+      - >-
+        not common_usb_android_adb_port or item.adb_port is defined or item.os != 'android'
+        or (item.connection | default('usb') | string | lower) != 'usb'
+    fail_msg: >-
+      Invalid settings of device '{{ item.name | default(item.id) | default('?') }}':
+      id, name, os (android or ios), appium_port, min_port and max_port are obligatory{{
+      ', adb_port for a USB Android device' if common_usb_android_adb_port else '' }};
+      ports are 1-65535 and min_port is not greater than max_port; connect_port is of an Android device only, 1024-65535.
+    success_msg: "Device '{{ item.name | default(item.id) | default('?') }}' settings are valid."
+    quiet: true
+  loop: "{{ devices }}"
+  loop_control:
+    label: "{{ item.name | default(item.id) | default('?') }}"
+  tags: [devices, precheck, validate]
+
+# appium_port, the min_port-max_port range and a connect_port out of it are published on the host, other ports stay in
+# the containers
+- name: Collect host ports published by each device
+  vars:
+    common_range: "{{ range(item.min_port | int, (item.max_port | int) + 1) | list }}"
+    common_connect: "{{ [item.connect_port | int] if (item.connect_port is defined and (item.connect_port | int) not in common_range) else [] }}"
+  ansible.builtin.set_fact:
+    common_ports: "{{ (common_ports | default([])) + [[item.appium_port | int] + common_range + common_connect] }}"
+  loop: "{{ devices }}"
+  loop_control:
+    label: "{{ item.name }}"
+  tags: [devices, precheck, validate]
+
+- name: Check that devices do not share host ports
+  vars:
+    other_ports: "{{ (common_ports[:idx] + common_ports[idx + 1 :]) | flatten }}"
+    own_range: "{{ range(item.min_port | int, (item.max_port | int) + 1) | list }}"
+    own_connect: "{{ [item.connect_port | int] if item.connect_port is defined else [] }}"
+    shared_ports: "{{ common_ports[idx] | intersect(other_ports) | union([item.appium_port | int] | intersect(own_range + own_connect)) }}"
+  ansible.builtin.assert:
+    that: shared_ports | length == 0
+    fail_msg: >-
+      Host ports {{ shared_ports }} of device '{{ item.name }}' are used by another device
+      or by both its appium_port and min_port-max_port range or connect_port.
+    success_msg: "Host ports of device '{{ item.name }}' are not shared."
+    quiet: true
+  loop: "{{ devices }}"
+  loop_control:
+    index_var: idx
+    label: "{{ item.name }}"
+  tags: [devices, precheck, validate]
