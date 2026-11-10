@@ -125,7 +125,8 @@ doctor_host() {
   fi
 }
 
-# doctor_settings: the obligatory settings of config/settings.yml and their format, the devices of config/devices.yml
+# doctor_settings: the obligatory settings of config/settings.yml and their format, the checks of the devices of
+# config/devices.yml of the deploy
 doctor_settings() {
   doctor_section "Settings (${DOCTOR_VARS})"
   if [[ ! -f "$DOCTOR_VARS" ]]; then
@@ -173,13 +174,19 @@ doctor_settings() {
       doctor_fail "${name} is not a key of 64 hex characters" "./zebrunner.sh join with a new join string (README.md#node-enrollment)"
     fi
   done
+  # the checks of the deploy (roles/common/files/devices.py): the number of the devices or their problems
   local count
+  local farm_os=linux
+  [[ "$DOCTOR_ROLE" == "mac-devices" ]] && farm_os=macos
   if [[ ! -f "$DOCTOR_DEVICE_LIST" ]]; then
     doctor_fail "${DOCTOR_DEVICE_LIST} does not exist" "./zebrunner.sh setup"
-  elif ! count="$("$python" patch/settings.py devices "$DOCTOR_DEVICE_LIST" 2>&1)"; then
-    doctor_fail "$count" "fix the YAML of ${DOCTOR_DEVICE_LIST}"
+  elif ! count="$("$python" roles/common/files/devices.py file "$farm_os" "$DOCTOR_DEVICE_LIST" 2>&1)"; then
+    local problem
+    while IFS= read -r problem; do
+      doctor_fail "$problem" "fix the devices of ${DOCTOR_DEVICE_LIST} (README.md#run-ansible-playbook)"
+    done <<< "$count"
   elif [[ "$count" -gt 0 ]]; then
-    doctor_ok "${count} devices are declared"
+    doctor_ok "${count} devices are declared, their settings are valid"
   else
     doctor_warn "no device is declared" "the devices of ${DOCTOR_DEVICE_LIST} (README.md#run-ansible-playbook)"
   fi
