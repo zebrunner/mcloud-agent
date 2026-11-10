@@ -57,7 +57,7 @@ exports() {
 section "help"
 output="$(zbr "")"
 check_contains "help shows the usage" "Usage: ./zebrunner.sh [option]" "$output"
-for command in setup ansible status backup restore shutdown version doctor join migrate; do
+for command in setup ansible status backup restore shutdown version doctor join migrate autostart; do
   check_contains "help lists ${command}" "         ${command} " "$output"
 done
 
@@ -611,6 +611,56 @@ rm -rf "${AGENT}/roles/devices/vars" "${AGENT}/defaults" "${AGENT}/config/"*.bak
 mv "${WORK}/settings.saved" "${AGENT}/config/settings.yml"
 mv "${WORK}/devices.saved" "${AGENT}/config/devices.yml"
 
+section "autostart"
+# systemctl: is-enabled answers by ${WORK}/autostart_on, the other calls are recorded
+# the stub body is expanded when the stub runs
+# shellcheck disable=SC2016
+stub systemctl '(IFS="|"; echo "systemctl|$*") >> "${STUB_DIR}/calls.log"
+[[ "$1" == "is-enabled" ]] && { [[ -f "${STUB_DIR}/autostart_on" ]]; exit; }
+exit 0'
+reset_calls
+check_contains "Linux: autostart is off by default" "Autostart is off (by default)" "$(OS=Linux zbr "" autostart)"
+check "Linux: the status adds nothing" "" "$(calls sudo)"
+output="$(OS=Linux zbr "n\n" autostart enable)"
+check_contains "Linux: enable tells the unit" "creates /etc/systemd/system/mcloud-farm.service (mode 644)" "$output"
+check_contains "Linux: enable shows the content of the unit" "ExecStart=/usr/local/bin/zebrunner-farm start --quiet" "$output"
+check_contains "Linux: enable tells nothing starts now" "it runs at the next boot, nothing starts now" "$output"
+check "Linux: a declined enable changes nothing" "" "$(calls sudo)"
+OS=Linux zbr "y\n" autostart enable > /dev/null
+check "Linux: enable creates and enables the unit with sudo" "tee|/etc/systemd/system/mcloud-farm.service
+chmod|644|/etc/systemd/system/mcloud-farm.service
+systemctl|daemon-reload
+systemctl|enable|mcloud-farm.service" "$(calls sudo)"
+touch "${WORK}/autostart_on"
+check_contains "Linux: the status of the enabled autostart" "Autostart is on: /etc/systemd/system/mcloud-farm.service" "$(OS=Linux zbr "" autostart)"
+check_contains "Linux: status of the agent shows the autostart" "/etc/systemd/system/mcloud-farm.service" "$(OS=Linux zbr "" status)"
+reset_calls
+OS=Linux zbr "n\n" autostart disable > /dev/null
+check "Linux: a declined disable changes nothing" "" "$(calls sudo)"
+OS=Linux zbr "y\n" autostart disable > /dev/null
+check "Linux: disable removes the unit with sudo" "systemctl|disable|mcloud-farm.service
+rm|-f|/etc/systemd/system/mcloud-farm.service
+systemctl|daemon-reload" "$(calls sudo)"
+rm -f "${WORK}/autostart_on"
+
+plist="${WORK}/home/Library/LaunchAgents/ZebrunnerFarmStart.plist"
+output="$(OS=Darwin zbr "n\n" autostart enable)"
+check_contains "macOS: enable tells the launch agent" "It creates ${plist}: a launch agent" "$output"
+check_contains "macOS: enable shows its content" "exec /usr/local/bin/zebrunner-farm start --quiet" "$output"
+check "macOS: a declined enable creates nothing" "no" "$([[ -f "$plist" ]] && echo yes || echo no)"
+reset_calls
+OS=Darwin zbr "y\n" autostart enable > /dev/null
+check "macOS: enable creates the launch agent" "yes" "$([[ -f "$plist" ]] && echo yes)"
+check "macOS: the launch agent is valid XML" "ok" "$(python3 -c 'import plistlib, sys; plistlib.load(open(sys.argv[1], "rb")); print("ok")' "$plist" 2>&1)"
+check_contains "macOS: the launch agent logs into the agent dir" "${AGENT}/logs/autostart.log" "$(cat "$plist")"
+check "macOS: enable needs no sudo and loads nothing now" "" "$(calls sudo)$(calls launchctl)"
+check_contains "macOS: the status of the enabled autostart" "Autostart is on: ${plist}" "$(OS=Darwin zbr "" autostart)"
+OS=Darwin zbr "y\n" autostart disable > /dev/null
+check "macOS: disable removes the launch agent" "no" "$([[ -f "$plist" ]] && echo yes || echo no)"
+check_contains "macOS: disable unloads it" "bootout|" "$(calls launchctl)"
+check_contains "an unknown action shows the usage" "Usage: ./zebrunner.sh autostart [status|enable|disable]" "$(zbr "" autostart on)"
+OS=Darwin zbr "y\n" autostart enable > /dev/null
+
 section "shutdown"
 for profile in .bashrc .zshrc; do
   echo "export ZEBRUNNER_MCLOUD_AGENT_DIR=${AGENT}" > "${WORK}/home/${profile}"
@@ -622,7 +672,7 @@ check "declined shutdown keeps the launch agents" "yes" "$([[ -f "${WORK}/home/L
 
 reset_calls
 OS=Darwin zbr "y\n" shutdown > /dev/null
-check "macOS: launch agents are unloaded" "2" "$(calls launchctl | grep -c '^bootout|')"
+check "macOS: launch agents are unloaded: the listener, usbmuxd and the autostart" "3" "$(calls launchctl | grep -c '^bootout|')"
 check "macOS: launch agents are removed" "0" "$(find "${WORK}/home/Library/LaunchAgents" -name '*.plist' | wc -l | tr -d ' ')"
 check "macOS: the variable is removed from the profiles" "0 0" "$(exports .bashrc) $(exports .zshrc)"
 check "macOS: containers are removed" "down" "$(calls zebrunner-farm)"
@@ -633,6 +683,7 @@ rm|-vf|/etc/newsyslog.d/zebrunner-mcloud.conf
 rm|-vf|/usr/local/bin/zebrunner-farm
 rm|-vf|/usr/local/etc/zebrunner-farm.env
 rm|-vf|/usr/local/bin/mcloud-devices.txt" "$(calls sudo | grep '^rm|')"
+check "macOS: the autostart is removed" "no" "$([[ -f "${WORK}/home/Library/LaunchAgents/ZebrunnerFarmStart.plist" ]] && echo yes || echo no)"
 check "macOS: settings are removed" "no no" \
   "$([[ -f "${AGENT}/config/settings.yml" ]] && echo yes || echo no) $([[ -f "${AGENT}/config/devices.yml" ]] && echo yes || echo no)"
 touch "${AGENT}/config/settings.yml" "${AGENT}/config/devices.yml"
