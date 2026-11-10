@@ -43,8 +43,9 @@ settings='{"MCLOUD_NODE_TOKEN": "token", "STF_PROVIDER_HOST": "10.1.1.1", "PUBLI
 golden() {
   local role="$1"
   local args
-  USER=tester render_farm "$role" "${WORK}/farm.env" --extra-vars "$settings" || return 1
-  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm.env"
+  render_farm "$role" "${WORK}/farm.env" --extra-vars "$settings" || return 1
+  # the user of the deploy is the one of the test
+  sed -i.bak -e "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" -e "s|^HOST_SSH_USER=.*|HOST_SSH_USER=tester|" "${WORK}/farm.env"
   for args in "start R28M1384YQY" "start WiFi" "start iPhone_8_Plus" "start AppleTV" "start iPhoneWiFi" "start Emu" \
     "start Sim" "start" "stop" "restart android" "down ios" "status"; do
     reset_calls
