@@ -1,0 +1,47 @@
+---
+# The deploy of the agent of a Linux or macOS host (README.md#run-ansible-playbook): ./zebrunner.sh ansible runs it. The
+# first play groups the hosts by their OS, the next ones deploy the role of each OS with its own values by default.
+- name: Group the hosts by their OS
+  hosts: devices_servers
+  # the roles use ansible_facts['system'] only, hardware facts are slow on macOS (system_profiler)
+  gather_subset: [min]
+  tasks:
+    - name: Check OS compatibility
+      ansible.builtin.assert:
+        that: ansible_facts['system'] in ['Linux', 'Darwin']
+        fail_msg: "OS version is not compatible! The agent supports Linux and macOS (Darwin) only."
+        success_msg: "OS is compatible: {{ ansible_facts['system'] }}"
+      tags: [always]
+
+    - name: Group the host by its OS
+      ansible.builtin.group_by:
+        key: "os_{{ ansible_facts['system'] }}"
+      changed_when: false
+      tags: [always]
+
+- name: Deploy MCloud agent for the Android and iOS devices of a Linux server
+  hosts: os_Linux
+  become: true
+  gather_facts: false
+  # the images and their versions, then the settings of this host (README.md#settings): the later file overrides the
+  # earlier one; without a settings file the versions are loaded again and the precheck of the role asks for setup
+  vars_files: &settings
+    - versions.yml
+    - [config/settings.yml, versions.yml]
+    - [config/devices.yml, versions.yml]
+  vars: &agent
+    # the folder of the agent: the playbook is in it
+    agent_dir: "{{ playbook_dir }}"
+  roles:
+    - devices
+    - download
+
+- name: Deploy MCloud agent for the Android and iOS devices of a macOS host
+  hosts: os_Darwin
+  become: true
+  gather_facts: false
+  vars_files: *settings
+  vars: *agent
+  roles:
+    - mac-devices
+    - download

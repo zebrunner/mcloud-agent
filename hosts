@@ -1,2 +1,7 @@
 [devices_servers]
 localhost ansible_connection=local
+
+# the hosts of each OS, grouped by agent.yml
+[os_Linux]
+
+[os_Darwin]

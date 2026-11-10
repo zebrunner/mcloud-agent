@@ -70,6 +70,19 @@ for role in devices mac-devices download; do
   make_play "$role"
 done
 
+section "the playbook of both OS"
+# the tasks tagged always only: the check of the OS and the group of the host
+output="$(cd "$REPO" && ansible-playbook --inventory hosts agent.yml --tags never < /dev/null 2>&1)"
+check_contains "agent.yml: the OS is compatible" "OS is compatible: $(uname)" "$output"
+check_contains "agent.yml: the play of the OS has the host" "PLAY [Deploy MCloud agent for the Android and iOS devices of a $([[ "$OS_ROLE" == devices ]] && echo "Linux server" || echo "macOS host")]" "$output"
+check_contains "agent.yml: the play of the other OS has no host" "skipping: no hosts matched" "$output"
+check_not_contains "agent.yml: the groups of the OS are declared" "Could not match supplied host pattern" "$output"
+tasks="$(cd "$REPO" && ansible-playbook --inventory hosts agent.yml --list-tasks --tags registerDevices 2>&1)"
+check_contains "agent.yml: the role of Linux" "devices : Copy rules file" "$tasks"
+check_contains "agent.yml: the role of macOS" "mac-devices : Copy 'zebrunner-device-listener' script file" "$tasks"
+check_contains "devices.yml of the earlier commands imports agent.yml" "Group the hosts by their OS" \
+  "$(cd "$REPO" && ansible-playbook --inventory hosts devices.yml --list-tasks 2>&1)"
+
 section "registerDevices tag"
 for role in devices mac-devices; do
   tasks="$(playbook "$role" --list-tasks --tags registerDevices)"

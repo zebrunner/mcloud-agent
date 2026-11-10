@@ -1,18 +1,4 @@
 ---
-- name: Deploy MCloud agent for the iOS devices of a macOS host
-  hosts: devices_servers
-  become: true
-  # the roles use ansible_facts['system'] only, hardware facts are slow on macOS (system_profiler)
-  gather_subset: [min]
-  # the images and their versions, then the settings of this host (README.md#settings): the later file overrides the earlier one; without
-  # a settings file the versions are loaded again and the precheck of the role asks for ./zebrunner.sh setup
-  vars_files:
-    - versions.yml
-    - [config/settings.yml, versions.yml]
-    - [config/devices.yml, versions.yml]
-  vars:
-    # the folder of the agent: the playbooks are in it
-    agent_dir: "{{ playbook_dir }}"
-  roles:
-    - mac-devices
-    - download
+# The deploy of the agent of the earlier commands: agent.yml deploys the role of the OS of the host
+- name: Deploy MCloud agent
+  ansible.builtin.import_playbook: agent.yml

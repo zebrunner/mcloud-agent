@@ -16,7 +16,7 @@ project_checks() {
 
   section "ansible"
   run_check "ansible-lint" ansible-lint --strict
-  for playbook in devices.yml mac-devices.yml; do
+  for playbook in agent.yml devices.yml mac-devices.yml; do
     run_check "syntax of ${playbook}" ansible-playbook --syntax-check --inventory hosts "$playbook"
   done
 
