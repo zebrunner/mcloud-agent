@@ -71,7 +71,7 @@ The local settings of the host are in `config/`, out of git; `./zebrunner.sh set
 | `config/settings.yml` | the settings of the host, the same for Linux and macOS: the connection to MCloud of `./zebrunner.sh join`, S3, WebDriverAgent; mode 600, it has secrets | `config/settings.yml.original` |
 | `config/devices.yml` | the list of the devices (`devices:`) | `config/devices.yml.original` (Linux), `config/mac-devices.yml.original` (macOS) |
 
-The playbooks load `defaults/main.yml` (the images and their versions), then `config/settings.yml` and `config/devices.yml`: a setting of `config/settings.yml` overrides the one of `defaults/main.yml`. The values by default of the OS (`STF_PROVIDER_NAME`; `USBMUXD_SOCKET_ADDRESS`, `ADB_SERVER_SOCKET_ADDRESS` of macOS) are in `roles/devices/defaults/main.yml` and `roles/mac-devices/defaults/main.yml`, a line of `config/settings.yml` overrides them too. `./zebrunner.sh backup` and `restore` keep both files of `config/`.
+The playbooks load `defaults/main.yml` (the images and their versions), then `config/settings.yml` and `config/devices.yml`: a setting of `config/settings.yml` overrides the one of `defaults/main.yml`. The values by default of the OS (`STF_PROVIDER_NAME`; `USBMUXD_SOCKET_ADDRESS`, `ADB_SERVER_SOCKET_ADDRESS` of macOS) are in `roles/devices/defaults/main.yml` and `roles/mac-devices/defaults/main.yml`, a line of `config/settings.yml` overrides them too. `./zebrunner.sh backup` keeps the two files of `config/` in a private folder `backup/bak_<time>_<random>/config/`, `restore` puts them back; the code of the agent is not in a backup, it comes from git (`git pull`).
 
 The earlier versions kept everything in `roles/devices/vars/main.yml` (Linux) or `roles/mac-devices/vars/main.yml` (macOS). Such a file overrides `config/`, so the deploy and `./zebrunner.sh doctor` refuse it: after `./zebrunner.sh setup` move its settings to `config/settings.yml` and its `devices:` to `config/devices.yml`, then remove it.
 
@@ -199,7 +199,7 @@ Security:
 - `setup` - prepares the agent: the `ZEBRUNNER_MCLOUD_AGENT_DIR` variable in the shell profiles and the devices settings from the example.
 - `ansible [devices]` - deploys the agent, `devices` registers the devices only.
 - `status` - shows the state of the agent components: tools, Rosetta 2 of an Apple Silicon Mac, deployed files, launch agents.
-- `backup` and `restore` - save the settings into the `backup` folder and restore them from it.
+- `backup` and `restore` - save the settings of `config/` into the `backup` folder and restore them from it (see [Settings](#settings)); a backup of an earlier version (`vars/main.yml`) is moved by hand.
 - `shutdown` - removes the devices containers, the launch agents or udev rules, the deployed files, the settings and the environment variable (asks for confirmation).
 - `version` - shows the versions of the agent components.
 - `doctor` - checks the host, the settings, the deployment, the network to the MCloud server and the devices, and tells what to fix, see [Doctor](#doctor).

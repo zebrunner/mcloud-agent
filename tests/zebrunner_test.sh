@@ -497,15 +497,27 @@ check "declined backup creates nothing" "0" "$(find "${AGENT}/backup" -name 'bak
 OS=Linux zbr "y\n" backup > /dev/null
 backup="$(cd "${AGENT}/backup" && ls -d bak_* 2> /dev/null)"
 check "backup dir is created" "1" "$(echo "$backup" | grep -c '^bak_')"
-for file in defaults/main.yml download/main.yml tasks/udev.yml templates/zebrunner-farm config/settings.yml config/devices.yml; do
+for file in config/settings.yml config/devices.yml; do
   check "backup has ${file}" "yes" "$([[ -f "${AGENT}/backup/${backup}/${file}" ]] && echo yes)"
 done
-cp "${AGENT}/defaults/main.yml" "${WORK}/defaults.yml"
-echo "CHANGED: true" >> "${AGENT}/defaults/main.yml"
+check "backup has the settings only" "2" "$(find "${AGENT}/backup/${backup}" -type f | wc -l | tr -d ' ')"
+check "the backup is private" "700" "$(stat -c '%a' "${AGENT}/backup/${backup}" 2> /dev/null || stat -f '%Lp' "${AGENT}/backup/${backup}")"
+cp "${AGENT}/config/settings.yml" "${WORK}/settings.yml"
+cp "${AGENT}/config/devices.yml" "${WORK}/devices.yml"
+echo "CHANGED: true" >> "${AGENT}/config/settings.yml"
+rm "${AGENT}/config/devices.yml"
 output="$(OS=Linux zbr "y\n${backup}\n" restore)"
 check_contains "restore prints its header" "Restore MCloud Agent" "$output"
-check "restore brings the settings back" "same" "$(cmp -s "${AGENT}/defaults/main.yml" "${WORK}/defaults.yml" && echo same)"
+check "restore brings the settings back" "same" "$(cmp -s "${AGENT}/config/settings.yml" "${WORK}/settings.yml" && echo same)"
+check "restore brings the devices back" "same" "$(cmp -s "${AGENT}/config/devices.yml" "${WORK}/devices.yml" && echo same)"
 check_contains "restore asks again for an unknown backup" "does not exist" "$(OS=Linux zbr "y\nbak_none\n${backup}\n" restore)"
+OS=Linux zbr "y\n" restore > /dev/null
+check "restore stops at the end of the input" "1" "$?"
+mkdir -p "${AGENT}/backup/bak_old/vars"
+touch "${AGENT}/backup/bak_old/vars/main.yml"
+check_contains "a backup of an earlier version is explained" "is a backup of an earlier version: move the settings of its vars/main.yml" \
+  "$(OS=Linux zbr "y\nbak_old\n" restore)"
+rm -rf "${AGENT}/backup/bak_old"
 
 section "shutdown"
 for profile in .bashrc .zshrc; do
