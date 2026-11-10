@@ -18,6 +18,7 @@ config/*
 # the settings of the earlier versions, the playbooks refuse them
 roles/devices/vars/
 roles/mac-devices/vars/
+defaults/
 DeveloperDiskImages
 # the cache of patch/settings.py imported by patch/enroll.py
 __pycache__/

@@ -13,14 +13,14 @@
     success_msg: "Setup is ready: 'config/settings.yml' and 'config/devices.yml' exist."
   tags: [devices, precheck]
 
-# the vars of a role override the settings of config/: the settings of an earlier version are moved by hand
+# the vars of a role override the settings of config/: ./zebrunner.sh migrate moves the settings of an earlier version
 - name: Check the settings of an earlier version
   ansible.builtin.assert:
     that:
       - lookup('file', playbook_dir ~ '/roles/' ~ common_os_role ~ '/vars/main.yml', errors='ignore') is none
     fail_msg: >-
-      roles/{{ common_os_role }}/vars/main.yml of an earlier version overrides config/: move its settings to
-      config/settings.yml and its devices: to config/devices.yml (README.md#settings), then remove it.
+      roles/{{ common_os_role }}/vars/main.yml of an earlier version overrides config/: ./zebrunner.sh migrate moves its
+      settings to config/settings.yml and its devices: to config/devices.yml (README.md#settings).
     success_msg: "No settings of an earlier version."
   tags: [devices, precheck]
 

@@ -174,7 +174,7 @@ done
 mkdir -p "${WORK}/play-${OS_ROLE}/roles/${OS_ROLE}/vars"
 cp "${WORK}/play-${OS_ROLE}/config/settings.yml" "${WORK}/play-${OS_ROLE}/roles/${OS_ROLE}/vars/main.yml"
 check_contains "the settings of an earlier version fail" \
-  "roles/${OS_ROLE}/vars/main.yml of an earlier version overrides config/: move its settings to config/settings.yml" \
+  "roles/${OS_ROLE}/vars/main.yml of an earlier version overrides config/: ./zebrunner.sh migrate moves its settings to config/settings.yml" \
   "$(playbook "$OS_ROLE" --check --tags precheck)"
 rm -rf "${WORK}/play-${OS_ROLE}/roles/${OS_ROLE}/vars"
 output="$(playbook "$OS_ROLE" --check --tags precheck --extra-vars "@${REPO}/config/settings.yml.original")"

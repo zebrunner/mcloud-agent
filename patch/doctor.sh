@@ -140,7 +140,7 @@ doctor_settings() {
   legacy="$(legacy_settings_file)"
   if [[ -f "$legacy" ]]; then
     doctor_fail "${legacy} of an earlier version overrides ${DOCTOR_VARS}" \
-      "move its settings to ${DOCTOR_VARS} and its devices: to ${DOCTOR_DEVICE_LIST} (README.md#settings), then remove it"
+      "./zebrunner.sh migrate moves its settings to ${DOCTOR_VARS} and its devices: to ${DOCTOR_DEVICE_LIST} (README.md#settings)"
   fi
   local name
   local value

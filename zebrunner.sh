@@ -62,7 +62,7 @@ setup() {
   local legacy
   legacy="$(legacy_settings_file)"
   if [[ -f "$legacy" ]]; then
-    echo_warning "'${legacy}' of an earlier version overrides 'config/': move its settings to '${vars}' and its devices: to '${devices}' (README.md#settings), then remove it."
+    echo_warning "'${legacy}' of an earlier version overrides 'config/': ./zebrunner.sh migrate moves its settings to '${vars}' and its devices: to '${devices}' (README.md#settings)."
   fi
 
   ### Rosetta 2 of an Apple Silicon Mac
@@ -516,6 +516,40 @@ version() {
   delimiter
 }
 
+# migrate [file...]: the settings of an earlier version moved to config/ (README.md#settings): the files given (e.g.
+# vars/main.yml of a backup) or the ones of an earlier version in this folder; it shows the changes and asks first
+migrate() {
+  delimiter "Moving the settings of an earlier version to config/"
+  local python
+  if ! python="$(yaml_python)"; then
+    echo_warning "The migration needs a python3 with PyYAML: the one of ansible has it (README.md#software-prerequisites)."
+    exit 1
+  fi
+  local farm_os=linux
+  [[ "$(uname)" == "Darwin" ]] && farm_os=macos
+  local -a files=("$@")
+  if [[ "$(count_values "${files[@]}")" -eq 0 ]]; then
+    [[ -f "$(legacy_settings_file)" ]] && files+=("$(legacy_settings_file)")
+    [[ -f defaults/main.yml ]] && files+=(defaults/main.yml)
+  fi
+  if [[ "$(count_values "${files[@]}")" -eq 0 ]]; then
+    echo "No settings of an earlier version: nothing to migrate."
+    delimiter
+    return 0
+  fi
+  echo "The settings of an earlier version: ${files[*]}"
+  echo ""
+  local rc=0
+  "$python" patch/migrate.py plan "$farm_os" "${files[@]}" || rc=$?
+  [[ "$rc" -eq 0 || "$rc" -eq 3 ]] || exit 1
+  echo ""
+  confirm "" "      Write these changes to config/ and rename the files of an earlier version to *.migrated?" "n" || exit 0
+  "$python" patch/migrate.py apply "$farm_os" "${files[@]}" || exit 1
+  echo ""
+  warn "Check them with ./zebrunner.sh doctor, then deploy: ./zebrunner.sh ansible"
+  delimiter
+}
+
 echo_help() {
   delimiter "Zebrunner MCloud Agent help"
   echo "
@@ -529,7 +563,8 @@ echo_help() {
          shutdown             Stop and remove MCloud Agent containers, clear volumes and environment
          version              Version of MCloud Agent components
          doctor               Check the settings, the deployment and the network to MCloud, tell what to fix
-         join                 Enroll this host in MCloud with the join string of ./zebrunner.sh node-invite (stdin)"
+         join                 Enroll this host in MCloud with the join string of ./zebrunner.sh node-invite (stdin)
+         migrate [files...]   Move the settings of an earlier version to config/ (shows the changes, asks first)"
   echo_telegram
   delimiter
 }
@@ -561,6 +596,9 @@ doctor)
   ;;
 join)
   join
+  ;;
+migrate)
+  migrate "${@:2}"
   ;;
 *)
   echo_help
