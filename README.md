@@ -126,9 +126,11 @@ Security:
 - The images of the devices are pinned in `versions.yml`: `DEVICE_VERSION` (mcloud-device), `APPIUM_VERSION`,
   `IOS_CONNECTOR_VERSION`, `ANDROID_CONNECTOR_VERSION` and `UPLOADER_VERSION`. mcloud-device must be the one of the STF
   of [mcloud](https://github.com/zebrunner/mcloud) (`TAG_STF` of its `.env`). Another version is a line of
-  `config/settings.yml` (see [Settings](#settings)).
+  `config/settings.yml` (see [Settings](#settings)). On `develop` they are `<version>-develop-latest`, the newest image of
+  the `develop` of each repository (`UPLOADER_VERSION` is a release, artifacts-uploader has no such image); the deploy pulls
+  them again, a release pins its versions.
 - [Optional] To compare images in the tests (the Appium images plugin) append the `-img` postfix to `APPIUM_VERSION` in `config/settings.yml`,
-  the `appium-image` stage of [appium](https://github.com/zebrunner/appium#build):
+  the `appium-image` stage of [appium](https://github.com/zebrunner/appium#build) (a release only, `develop` publishes no `-img` image):
 
   ```yaml
   APPIUM_VERSION: 3.0-img
