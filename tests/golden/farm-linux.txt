@@ -158,98 +158,98 @@ docker|ps|-a|--format|{{.Names}} {{.State}}
 ### zebrunner-farm stop
 
 ==> Galaxy (R28M1384YQY, android, usb)
-  connector  stopped
   appium     stopped
-  stf        stopped
   uploader   stopped
+  stf        stopped
+  connector  stopped
 
 ==> WiFi (192.168.1.50, android, wireless)
-  connector  stopped
   appium     stopped
-  stf        stopped
   uploader   stopped
+  stf        stopped
+  connector  stopped
 
 ==> iPhone_8_Plus (d6afc6b3a65584ca0813eb8957c6479b9b6ebb11, ios, usb)
-  connector  stopped
   appium     stopped
-  stf        stopped
   uploader   stopped
+  stf        stopped
+  connector  stopped
 
 ==> AppleTV (aaaa1111, ios, proxy)
-  connector  stopped
   appium     stopped
-  stf        stopped
   uploader   stopped
+  stf        stopped
+  connector  stopped
 
 ==> iPhoneWiFi (bbbb2222, ios, wireless)
-  connector  stopped
   appium     stopped
-  stf        stopped
   uploader   stopped
+  stf        stopped
+  connector  stopped
 
 ==> Emu (emu1, android, android-sim)
-  connector  stopped
   appium     stopped
-  stf        stopped
   uploader   stopped
+  stf        stopped
+  connector  stopped
 
 ==> Sim (B1B07E76, ios, ios-sim)
-  connector  stopped
   appium     stopped
-  stf        stopped
   uploader   stopped
+  stf        stopped
+  connector  stopped
 ### calls
-docker|stop|device-Galaxy-R28M1384YQY-connector
-docker|stop|device-Galaxy-R28M1384YQY-appium
-docker|stop|device-Galaxy-R28M1384YQY-stf
-docker|stop|device-Galaxy-R28M1384YQY-uploader
-docker|stop|device-WiFi-192.168.1.50-connector
-docker|stop|device-WiFi-192.168.1.50-appium
-docker|stop|device-WiFi-192.168.1.50-stf
-docker|stop|device-WiFi-192.168.1.50-uploader
-docker|stop|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-connector
-docker|stop|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-appium
-docker|stop|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-stf
-docker|stop|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-uploader
-docker|stop|device-AppleTV-aaaa1111-connector
-docker|stop|device-AppleTV-aaaa1111-appium
-docker|stop|device-AppleTV-aaaa1111-stf
-docker|stop|device-AppleTV-aaaa1111-uploader
-docker|stop|device-iPhoneWiFi-bbbb2222-connector
-docker|stop|device-iPhoneWiFi-bbbb2222-appium
-docker|stop|device-iPhoneWiFi-bbbb2222-stf
-docker|stop|device-iPhoneWiFi-bbbb2222-uploader
-docker|stop|device-Emu-emu1-connector
-docker|stop|device-Emu-emu1-appium
-docker|stop|device-Emu-emu1-stf
-docker|stop|device-Emu-emu1-uploader
-docker|stop|device-Sim-B1B07E76-connector
-docker|stop|device-Sim-B1B07E76-appium
-docker|stop|device-Sim-B1B07E76-stf
-docker|stop|device-Sim-B1B07E76-uploader
+docker|stop|-t|40|device-Galaxy-R28M1384YQY-appium
+docker|stop|-t|130|device-Galaxy-R28M1384YQY-uploader
+docker|stop|-t|30|device-Galaxy-R28M1384YQY-stf
+docker|stop|-t|10|device-Galaxy-R28M1384YQY-connector
+docker|stop|-t|40|device-WiFi-192.168.1.50-appium
+docker|stop|-t|130|device-WiFi-192.168.1.50-uploader
+docker|stop|-t|30|device-WiFi-192.168.1.50-stf
+docker|stop|-t|10|device-WiFi-192.168.1.50-connector
+docker|stop|-t|40|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-appium
+docker|stop|-t|130|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-uploader
+docker|stop|-t|30|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-stf
+docker|stop|-t|10|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-connector
+docker|stop|-t|40|device-AppleTV-aaaa1111-appium
+docker|stop|-t|130|device-AppleTV-aaaa1111-uploader
+docker|stop|-t|30|device-AppleTV-aaaa1111-stf
+docker|stop|-t|10|device-AppleTV-aaaa1111-connector
+docker|stop|-t|40|device-iPhoneWiFi-bbbb2222-appium
+docker|stop|-t|130|device-iPhoneWiFi-bbbb2222-uploader
+docker|stop|-t|30|device-iPhoneWiFi-bbbb2222-stf
+docker|stop|-t|10|device-iPhoneWiFi-bbbb2222-connector
+docker|stop|-t|40|device-Emu-emu1-appium
+docker|stop|-t|130|device-Emu-emu1-uploader
+docker|stop|-t|30|device-Emu-emu1-stf
+docker|stop|-t|10|device-Emu-emu1-connector
+docker|stop|-t|40|device-Sim-B1B07E76-appium
+docker|stop|-t|130|device-Sim-B1B07E76-uploader
+docker|stop|-t|30|device-Sim-B1B07E76-stf
+docker|stop|-t|10|device-Sim-B1B07E76-connector
 ### zebrunner-farm restart android
 
 Removing the containers of 3 devices (batch restart)
 
 ==> Galaxy (R28M1384YQY, android, usb)
-  connector  no container
   appium     no container
-  stf        no container
   uploader   no container
+  stf        no container
+  connector  no container
   logs       volume removed
 
 ==> WiFi (192.168.1.50, android, wireless)
-  connector  no container
   appium     no container
-  stf        no container
   uploader   no container
+  stf        no container
+  connector  no container
   logs       volume removed
 
 ==> Emu (emu1, android, android-sim)
-  connector  no container
   appium     no container
-  stf        no container
   uploader   no container
+  stf        no container
+  connector  no container
   logs       volume removed
 
 Creating the containers of 3 devices again
@@ -270,20 +270,32 @@ Creating the containers of 3 devices again
   uploader   created id
 ### calls
 docker|network|inspect|infra
-docker|rm|-f|device-Galaxy-R28M1384YQY-connector
+docker|stop|-t|40|device-Galaxy-R28M1384YQY-appium
 docker|rm|-f|device-Galaxy-R28M1384YQY-appium
-docker|rm|-f|device-Galaxy-R28M1384YQY-stf
+docker|stop|-t|130|device-Galaxy-R28M1384YQY-uploader
 docker|rm|-f|device-Galaxy-R28M1384YQY-uploader
+docker|stop|-t|30|device-Galaxy-R28M1384YQY-stf
+docker|rm|-f|device-Galaxy-R28M1384YQY-stf
+docker|stop|-t|10|device-Galaxy-R28M1384YQY-connector
+docker|rm|-f|device-Galaxy-R28M1384YQY-connector
 docker|volume|rm|device-Galaxy-R28M1384YQY
-docker|rm|-f|device-WiFi-192.168.1.50-connector
+docker|stop|-t|40|device-WiFi-192.168.1.50-appium
 docker|rm|-f|device-WiFi-192.168.1.50-appium
-docker|rm|-f|device-WiFi-192.168.1.50-stf
+docker|stop|-t|130|device-WiFi-192.168.1.50-uploader
 docker|rm|-f|device-WiFi-192.168.1.50-uploader
+docker|stop|-t|30|device-WiFi-192.168.1.50-stf
+docker|rm|-f|device-WiFi-192.168.1.50-stf
+docker|stop|-t|10|device-WiFi-192.168.1.50-connector
+docker|rm|-f|device-WiFi-192.168.1.50-connector
 docker|volume|rm|device-WiFi-192.168.1.50
-docker|rm|-f|device-Emu-emu1-connector
+docker|stop|-t|40|device-Emu-emu1-appium
 docker|rm|-f|device-Emu-emu1-appium
-docker|rm|-f|device-Emu-emu1-stf
+docker|stop|-t|130|device-Emu-emu1-uploader
 docker|rm|-f|device-Emu-emu1-uploader
+docker|stop|-t|30|device-Emu-emu1-stf
+docker|rm|-f|device-Emu-emu1-stf
+docker|stop|-t|10|device-Emu-emu1-connector
+docker|rm|-f|device-Emu-emu1-connector
 docker|volume|rm|device-Emu-emu1
 docker|ps|-a|--format|{{.Names}} {{.State}}
 docker|run|-itd|--name|device-WiFi-192.168.1.50-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-e|DEVICE_BUS=/dev/bus/usb/001/002|-v|mcloud-key-volume:/root/.android|-v|device-WiFi-192.168.1.50:/tmp/log|-e|PLATFORM_NAME=android|-e|ANDROID_DEVICE=192.168.1.50:5555|-e|DEVICE_UDID=192.168.1.50:5555|public.ecr.aws/zebrunner/mcloud-android-connector:2.0-develop-latest
@@ -298,52 +310,68 @@ docker|run|-d|--name|device-Emu-emu1-uploader|--log-driver=local|--log-opt|max-s
 ### zebrunner-farm down ios
 
 ==> iPhone_8_Plus (d6afc6b3a65584ca0813eb8957c6479b9b6ebb11, ios, usb)
-  connector  no container
   appium     no container
-  stf        no container
   uploader   no container
+  stf        no container
+  connector  no container
   logs       volume removed
 
 ==> AppleTV (aaaa1111, ios, proxy)
-  connector  no container
   appium     no container
-  stf        no container
   uploader   no container
+  stf        no container
+  connector  no container
   logs       volume removed
 
 ==> iPhoneWiFi (bbbb2222, ios, wireless)
-  connector  no container
   appium     no container
-  stf        no container
   uploader   no container
+  stf        no container
+  connector  no container
   logs       volume removed
 
 ==> Sim (B1B07E76, ios, ios-sim)
-  connector  no container
   appium     no container
-  stf        no container
   uploader   no container
+  stf        no container
+  connector  no container
   logs       volume removed
 ### calls
-docker|rm|-f|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-connector
+docker|stop|-t|40|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-appium
 docker|rm|-f|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-appium
-docker|rm|-f|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-stf
+docker|stop|-t|130|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-uploader
 docker|rm|-f|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-uploader
+docker|stop|-t|30|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-stf
+docker|rm|-f|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-stf
+docker|stop|-t|10|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-connector
+docker|rm|-f|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-connector
 docker|volume|rm|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11
-docker|rm|-f|device-AppleTV-aaaa1111-connector
+docker|stop|-t|40|device-AppleTV-aaaa1111-appium
 docker|rm|-f|device-AppleTV-aaaa1111-appium
-docker|rm|-f|device-AppleTV-aaaa1111-stf
+docker|stop|-t|130|device-AppleTV-aaaa1111-uploader
 docker|rm|-f|device-AppleTV-aaaa1111-uploader
+docker|stop|-t|30|device-AppleTV-aaaa1111-stf
+docker|rm|-f|device-AppleTV-aaaa1111-stf
+docker|stop|-t|10|device-AppleTV-aaaa1111-connector
+docker|rm|-f|device-AppleTV-aaaa1111-connector
 docker|volume|rm|device-AppleTV-aaaa1111
-docker|rm|-f|device-iPhoneWiFi-bbbb2222-connector
+docker|stop|-t|40|device-iPhoneWiFi-bbbb2222-appium
 docker|rm|-f|device-iPhoneWiFi-bbbb2222-appium
-docker|rm|-f|device-iPhoneWiFi-bbbb2222-stf
+docker|stop|-t|130|device-iPhoneWiFi-bbbb2222-uploader
 docker|rm|-f|device-iPhoneWiFi-bbbb2222-uploader
+docker|stop|-t|30|device-iPhoneWiFi-bbbb2222-stf
+docker|rm|-f|device-iPhoneWiFi-bbbb2222-stf
+docker|stop|-t|10|device-iPhoneWiFi-bbbb2222-connector
+docker|rm|-f|device-iPhoneWiFi-bbbb2222-connector
 docker|volume|rm|device-iPhoneWiFi-bbbb2222
-docker|rm|-f|device-Sim-B1B07E76-connector
+docker|stop|-t|40|device-Sim-B1B07E76-appium
 docker|rm|-f|device-Sim-B1B07E76-appium
-docker|rm|-f|device-Sim-B1B07E76-stf
+docker|stop|-t|130|device-Sim-B1B07E76-uploader
 docker|rm|-f|device-Sim-B1B07E76-uploader
+docker|stop|-t|30|device-Sim-B1B07E76-stf
+docker|rm|-f|device-Sim-B1B07E76-stf
+docker|stop|-t|10|device-Sim-B1B07E76-connector
+docker|rm|-f|device-Sim-B1B07E76-connector
 docker|volume|rm|device-Sim-B1B07E76
 ### zebrunner-farm status
 

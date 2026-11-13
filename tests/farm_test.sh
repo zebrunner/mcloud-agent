@@ -284,11 +284,11 @@ check_not_contains "zebrunner.sh gets the agent dir from zebrunner-farm" "is not
 
 setup_case
 farm mac-devices stop AppleTV > /dev/null
-check "proxied device stop includes the connector" "connector appium stf uploader" \
+check "proxied device stop includes the connector" "appium uploader stf connector" \
   "$(calls docker | grep '^stop|' | sed 's/.*-//' | paste -s -d ' ' -)"
 setup_case
 farm mac-devices stop iPhone_8_Plus > /dev/null
-check "USB device stop includes the connector" "connector appium stf uploader" \
+check "USB device stop includes the connector" "appium uploader stf connector" \
   "$(calls docker | grep '^stop|' | sed 's/.*-//' | paste -s -d ' ' -)"
 
 setup_case
@@ -567,9 +567,17 @@ for role in devices mac-devices; do
   # the docker stub removes no container
   check_contains "${role}: down reports every container" "uploader   no container" "$output"
   check_contains "${role}: down reports the volume of the logs" "logs       volume removed" "$output"
+  # appium shares the recordings, the uploader uploads them, the volume of the logs is removed after them
+  check "${role}: down stops every container before its removal, appium and the uploader first, the volume last" \
+    "stop|-t|40|appium rm|-f|appium stop|-t|130|uploader rm|-f|uploader stop|-t|30|stf rm|-f|stf stop|-t|10|connector rm|-f|connector volume|rm|device-WiFi-192.168.1.50" \
+    "$(calls docker | grep -E '^(stop|rm|volume)\|' | sed 's/device-WiFi-192.168.1.50-//' | paste -s -d ' ' -)"
+  setup_case
   output="$(farm "$role" stop WiFi)"
   check_contains "${role}: stop reports every container" "appium     stopped" "$output"
   check_contains "${role}: the device is the header of its lines" "==> WiFi (192.168.1.50, android, wireless)" "$output"
+  check "${role}: stop waits for the recordings and their upload" \
+    "stop|-t|40|appium stop|-t|130|uploader stop|-t|30|stf stop|-t|10|connector" \
+    "$(calls docker | grep '^stop|' | sed 's/device-WiFi-192.168.1.50-//' | paste -s -d ' ' -)"
 done
 
 section "status"
@@ -629,17 +637,23 @@ if command -v flock > /dev/null 2>&1; then
   lock="${WORK}/mcloud-device-R28M1384YQY.lock"
   : > "$lock"
   # another zebrunner-farm (e.g. the restart of udev) keeps the device
-  flock "$lock" sleep 4 &
+  flock "$lock" sleep 8 &
   holder=$!
   sleep 0.5
   setup_case
   output="$(MCLOUD_LOCK_TIMEOUT=1 farm devices restart Galaxy)"
   check_contains "a command of a kept device (called by its name, locked by its id) waits, then gives up" \
     "another zebrunner-farm keeps the device Galaxy for too long" "$output"
-  check "a command of a kept device changes no container" "" "$(calls docker)"
+  check "a command of a kept device changes no container" "" "$(calls docker | grep -v '^network|')"
   setup_case
-  farm devices stop android > /dev/null
-  check_contains "the commands of a platform do not wait for a device" "stop|device-Galaxy-R28M1384YQY-appium" "$(calls docker)"
+  output="$(MCLOUD_LOCK_TIMEOUT=1 farm devices stop android)"
+  check_contains "a group waits for its kept device, then gives up" "another zebrunner-farm keeps the device Galaxy for too long" "$output"
+  check "a group does not change the containers of its kept device" "" "$(calls docker | grep 'device-Galaxy-')"
+  check_contains "a group runs the command for its other devices" "stop|-t|40|device-WiFi-192.168.1.50-appium" "$(calls docker)"
+  setup_case
+  MCLOUD_LOCK_TIMEOUT=1 farm devices restart android -q > /dev/null
+  check "the batch restart of a group does not change the containers of its kept device" "" "$(calls docker | grep 'device-Galaxy-')"
+  check_contains "the batch restart of a group restarts its other devices" "--name|device-WiFi-192.168.1.50-appium|" "$(calls docker)"
   wait "$holder"
   setup_case
   echo "iSerial R28M1384YQY" > "${WORK}/usb"

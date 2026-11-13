@@ -25,22 +25,17 @@ if [[ "$FARM_OS" == "macos" ]]; then
   unset DOCKER_DEFAULT_PLATFORM
 fi
 
-# with_device_lock <device> <command...>: the commands of one device run one at a time: the jobs of udev
-# (mcloud-device-restart@, mcloud-device-down@) and the manual calls do not change its containers together; a group of
-# devices (no device given), macOS (no udev) and a host without flock run without it
+# with_device_lock <udid> <command...>: the commands of one device run one at a time: the jobs of udev
+# (mcloud-device-restart@, mcloud-device-down@) and the manual calls of the device or of a group of devices do not
+# change its containers together; macOS (no udev) and a host without flock run without it
 with_device_lock() {
-  local device="$1"
+  local id="$1"
   shift
-  if [[ -z "$device" || "$device" == "ios" || "$device" == "android" || "$FARM_OS" == "macos" ]] ||
-    ! command -v flock > /dev/null 2>&1; then
+  if [[ -z "$id" || "$FARM_OS" == "macos" ]] || ! command -v flock > /dev/null 2>&1; then
     "$@"
     return
   fi
-  # the device by its id: udev names it by the id, a user may name it by its name
-  local id="$device"
-  if get_device_fields "$device" > /dev/null 2>&1; then
-    id="$dev_udid"
-  fi
+  # the lock of the id: udev names the device by its id
   local lock="${MCLOUD_LOCK_DIR:-/run/lock}/mcloud-device-${id//[^A-Za-z0-9._-]/_}.lock"
   # the file is shared by root (udev) and the users of docker
   [[ -e "$lock" ]] || (umask 000 && : >> "$lock") 2> /dev/null
@@ -50,7 +45,7 @@ with_device_lock() {
   fi
   (
     if ! flock -w "${MCLOUD_LOCK_TIMEOUT:-1800}" 9; then
-      failed "another zebrunner-farm keeps the device ${device} for too long"
+      failed "another zebrunner-farm keeps the device ${dev_device_name:-$id} for too long"
       exit 1
     fi
     "$@"
@@ -563,13 +558,28 @@ ensure_container() {
   esac
 }
 
+# the containers of a device in the order of their stop: appium shares the recordings of the active sessions, the
+# uploader uploads them, then STF and the connector the others take the device from
+STOP_ORDER=(appium uploader stf connector)
+
+# stop_timeout <role>: the seconds docker stop waits for the container before it kills it: appium stops ffmpeg of a
+# recording within 30 s, the uploader waits for the uploads up to its FINISH_TIMEOUT (120 s), STF disconnects the device
+stop_timeout() {
+  case "$1" in
+  appium) echo 40 ;;
+  uploader) echo 130 ;;
+  stf) echo 30 ;;
+  *) echo 10 ;;
+  esac
+}
+
 # stop_containers: the containers of the device stopped and kept, one line per container
 stop_containers() {
   local role
   local output
-  for role in connector appium stf uploader; do
+  for role in "${STOP_ORDER[@]}"; do
     printf '  %-10s ' "$role"
-    if output="$(docker stop "${dev_container}-${role}" 2>&1)"; then
+    if output="$(docker stop -t "$(stop_timeout "$role")" "${dev_container}-${role}" 2>&1)"; then
       echo "stopped"
     elif grep -qi "no such container" <<< "$output"; then
       echo "no container"
@@ -579,12 +589,15 @@ stop_containers() {
   done
 }
 
-# remove_containers: the containers of the device and the volume of its logs removed, one line per container
+# remove_containers: the containers of the device stopped as by stop_containers and removed, then the volume of its
+# logs (the uploader has finished with it), one line per container
 remove_containers() {
   local role
   local output
-  for role in connector appium stf uploader; do
+  for role in "${STOP_ORDER[@]}"; do
     printf '  %-10s ' "$role"
+    # the stop of no container fails, rm reports it
+    docker stop -t "$(stop_timeout "$role")" "${dev_container}-${role}" > /dev/null 2>&1
     # `docker rm -f` of no container succeeds without output (an error of the older docker versions)
     if output="$(docker rm -f "${dev_container}-${role}" 2>&1)" && [[ -n "$output" ]]; then
       echo "removed"
@@ -915,14 +928,19 @@ restart_selected() {
   run_selected start
 }
 
-# run_selected <command>: the command (start, stop, restart, down, status) for every device of SELECTED
+# run_selected <command>: the command (start, stop, restart, down, status) for every device of SELECTED, one at a time
+# with the other commands of the device (with_device_lock)
 run_selected() {
   local command="$1"
   local udid
   for udid in "${SELECTED[@]}"; do
     get_device_fields "$udid" || continue
     echo -e "\n==> ${dev_device_name} (${dev_udid}, ${dev_platform_name}, ${dev_connection})"
-    "${command}_device"
+    if [[ "$command" == "status" ]]; then
+      status_device
+    else
+      with_device_lock "$dev_udid" "${command}_device"
+    fi
   done
 }
 
@@ -1201,7 +1219,7 @@ farm_command() {
     echo "Cancelled."
     return 0
   fi
-  with_device_lock "$(single_device)" run_command "$command"
+  run_command "$command"
 }
 
 # run_command <command>: the command for SELECTED, the docker network first for the new containers
