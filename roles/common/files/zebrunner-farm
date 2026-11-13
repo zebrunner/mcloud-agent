@@ -142,12 +142,12 @@ get_device_fields() {
       dev_device_wda_ipa_path="${WDA_SIMULATOR_FILE}"
     fi
   fi
-  : "${dev_device_wda_ipa_path:='/dev/null'}"
+  : "${dev_device_wda_ipa_path:=/dev/null}"
 
   if [[ "$dev_device_wda_bundle_id" == "/dev/null" || -z "$dev_device_wda_bundle_id" ]]; then
     dev_device_wda_bundle_id="${WDA_BUNDLEID}"
   fi
-  : "${dev_device_wda_bundle_id:='com.facebook.WebDriverAgentRunner.xctrunner'}"
+  : "${dev_device_wda_bundle_id:=com.facebook.WebDriverAgentRunner.xctrunner}"
 
   # 'address', 'wda_port' and 'mjpeg_port':
   # address: the adb address of a wireless Android device or of an emulator (the id by default), the IP of a wireless
