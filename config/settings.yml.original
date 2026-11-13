@@ -3,7 +3,8 @@
 # A line here overrides the images of versions.yml and the values by default of roles/*/defaults/main.yml: the options of
 # Appium, STF_PROVIDER_NAME, the sockets of the macOS host.
 
-STF_DOCKER_NETWORK: infra
+# [OPTIONAL] the docker network of the containers of the devices, the deploy and zebrunner-farm create it; infra by default
+# STF_DOCKER_NETWORK: infra
 
 # The connection to MCloud: `./zebrunner.sh join` writes these settings (README.md#node-enrollment), do not change them
 # by hand; a new join string of `./zebrunner.sh node-invite` of mcloud replaces them. Keep this file private (mode 600).

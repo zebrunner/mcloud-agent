@@ -77,7 +77,7 @@ The other files of the settings are in git, do not change them: `git pull` bring
 | File | What it is |
 | --- | --- |
 | `versions.yml` | the images of the devices and their versions |
-| `roles/common/defaults/main.yml` | the values by default of both OS: the options of Appium (`APPIUM_RELAXED_SECURITY`, ...), `RESTARTS_LIMIT` |
+| `roles/common/defaults/main.yml` | the values by default of both OS: the options of Appium (`APPIUM_RELAXED_SECURITY`, ...), `RESTARTS_LIMIT`, `STF_DOCKER_NETWORK` (`infra`: the docker network of the containers of the devices, the deploy and `zebrunner-farm` create it), the empty optional settings (`STF_API_URL`, `STF_AUTH_TOKEN`, `S3_*`, `WDA_FILE`, `WDA_BUNDLEID`): a line of them removed from `config/settings.yml` is the value by default |
 | `roles/devices/defaults/main.yml`, `roles/mac-devices/defaults/main.yml` | the values by default of the OS: `STF_PROVIDER_NAME`; `USBMUXD_SOCKET_ADDRESS`, `ADB_SERVER_SOCKET_ADDRESS` of macOS |
 
 The playbooks load them in this order: the values by default of the roles, `versions.yml`, `config/settings.yml`, `config/devices.yml`. The deploy renders the settings zebrunner-farm runs with into `/usr/local/etc/zebrunner-farm.env`: udev and launchd run it without the environment of the user, a change of `config/` needs `./zebrunner.sh ansible` (`./zebrunner.sh doctor` reports the settings that differ). `./zebrunner.sh backup` keeps the two files of `config/` in a private folder `backup/bak_<time>_<random>/config/`, `restore` puts them back; the code of the agent is not in a backup, it comes from git (`git pull`).
