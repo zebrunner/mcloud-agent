@@ -1,5 +1,5 @@
 #!/bin/bash
-# patch/utility.sh helpers: confirm, random_string, delimiter, replace and the message helpers
+# patch/utility.sh helpers: confirm, random_string, delimiter and the message helpers
 source "$(dirname "$0")/lib.sh"
 source "${REPO}/patch/utility.sh"
 
@@ -60,12 +60,6 @@ check "titled delimiter has the terminal width" "$width" "${#line}"
 check_contains "titled delimiter shows the title" "==== Title text ==" "$line"
 output="$(env -u TERM bash -c "source '${REPO}/patch/utility.sh'; delimiter Title" 2>&1 | grep -v '^$')"
 check "without a terminal type the delimiter has the default width, no error" "80" "${#output}"
-
-section "replace"
-printf 'a=old\nb=old\n' > "${WORK}/file"
-replace "${WORK}/file" "old" "new"
-check "all occurrences are replaced" "a=new
-b=new" "$(cat "${WORK}/file")"
 
 section "messages"
 check "failed is red" $'\033[0;31mtext\033[0m' "$(failed text)"

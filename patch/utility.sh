@@ -5,10 +5,7 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-export_settings() {
-  export -p | grep "ZBR" > backup/settings.env
-}
-
+# random_string [length]: a random string of letters and digits, 48 characters by default
 random_string() {
   local length=48
   if [[ -n "$1" && $1 =~ ^[0-9]+$ ]]; then
@@ -23,28 +20,21 @@ random_string() {
   echo "${result:0:$length}"
 }
 
+# echo_warning <message>: the message as a warning for the person at the terminal
 echo_warning() {
   echo "
       WARNING! $1"
 }
 
+# echo_telegram: where to get help
 echo_telegram() {
   echo "
       For more help join telegram channel: https://t.me/zebrunner
       "
 }
 
-replace() {
-  #TODO: https://github.com/zebrunner/zebrunner/issues/328 organize debug logging for setup/replace
-  file="$1"
-  content="$(< "$file")" # read the file's content into
-  old="$2"
-  new="$3"
-  content="${content//"$old"/$new}"
-
-  printf '%s' "$content" > "$file" # write new content to disk
-}
-
+# confirm <message> <question> <default y|n>: asks the question until the answer is y or n, Enter is the default; 0 for
+# yes
 confirm() {
   local message="$1"
   local question="$2"
@@ -78,18 +68,22 @@ confirm() {
   done
 }
 
+# failed <message>: the message in red
 failed() {
   echo -e "${RED}${1}${NC}"
 }
 
+# warn <message>: the message in yellow
 warn() {
   echo -e "${YELLOW}${1}${NC}"
 }
 
+# succeed <message>: the message in green
 succeed() {
   echo -e "${GREEN}${1}${NC}"
 }
 
+# ask_for_sudo: asks for the password of sudo now (sudo -v), fails without sudo
 ask_for_sudo() {
   # Check for sudo permission
   if ! sudo -n true 2> /dev/null; then
@@ -104,6 +98,7 @@ ask_for_sudo() {
   fi
 }
 
+# delimiter [character] [text...]: a line of the character ('=' by default) over the width of the terminal, with the text
 delimiter() {
   local char="="
   local text=""
