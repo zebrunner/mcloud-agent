@@ -1,0 +1,4 @@
+---
+# the values by default of the settings (the Developer Disk Images)
+dependencies:
+  - role: common

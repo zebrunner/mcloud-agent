@@ -382,6 +382,14 @@ create_containers() {
       wda_args=(-e WDA_HOST=connector -e WIRELESS="$wireless")
     fi
 
+    # the Developer Disk Images the deploy clones (README.md#developer-disk-images), without them the connector
+    # downloads the images; a simulator needs none
+    local ddi_args=()
+    local ddi_dir="${DDI_DIR:-${ZEBRUNNER_MCLOUD_AGENT_DIR}/DeveloperDiskImages}"
+    if [[ "$DDI_ENABLED" != "false" && "$dev_connection" != "ios-sim" && -d "$ddi_dir" ]]; then
+      ddi_args=(-v "${ddi_dir}:/opt/zebrunner/ddi:ro")
+    fi
+
     # Linux: the connection before WDA_BUNDLEID, macOS: after DEVICE_UDID
     local linux_connector_args=()
     local macos_connector_args=()
@@ -404,6 +412,7 @@ create_containers() {
       -e WDA_BUNDLEID="$dev_device_wda_bundle_id" \
       -e WDA_FILE="$wda_file_path" \
       -v devimages_cache:/opt/zebrunner/devimages \
+      "${ddi_args[@]+"${ddi_args[@]}"}" \
       -v "${dev_device_wda_ipa_path}":"$wda_file_path" \
       -v "${dev_container}-lockdown":/var/lib/lockdown \
       -v "${dev_container}":/tmp/log \

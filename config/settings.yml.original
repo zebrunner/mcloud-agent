@@ -63,6 +63,14 @@ S3_REGION:
 # S3_SECRET: J33dNyeTDj
 # S3_REGION: us-east-1
 
+# [OPTIONAL] iOS: the Developer Disk Images the connectors mount (README.md#developer-disk-images): the deploy of a host
+# with iOS devices clones DDI_REPO at DDI_VERSION (a branch or a tag) into DDI_DIR, DeveloperDiskImages of the agent
+# folder by default; DDI_ENABLED: false leaves the images to the download of the connector
+# DDI_ENABLED: true
+# DDI_REPO: https://github.com/zebrunner/DeveloperDiskImage.git
+# DDI_VERSION: main
+# DDI_DIR: /opt/DeveloperDiskImages
+
 # Path to prebuild WebDriverAgent.ipa
 WDA_FILE:
 # macOS: path to the simulator build of WebDriverAgent for the simulators: a .app folder or its .zip, e.g.

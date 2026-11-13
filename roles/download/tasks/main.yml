@@ -35,3 +35,26 @@
   ansible.builtin.shell: docker network inspect "{{ STF_DOCKER_NETWORK }}" >/dev/null 2>&1 || docker network create "{{ STF_DOCKER_NETWORK }}"
   changed_when: false
   tags: [pull, download]
+
+# The Developer Disk Images of the iOS devices (README.md#developer-disk-images): a shallow clone, updated by every deploy,
+# as the user of the deploy, the owner of the agent folder. force: the commit fetched into a shallow clone is not a
+# descendant of the earlier one, and a local change is dropped. A failed clone or update does not stop the deploy: the
+# connector mounts the earlier checkout or downloads the images itself.
+- name: Clone the Developer Disk Images of the iOS devices
+  ansible.builtin.git:
+    repo: "{{ DDI_REPO }}"
+    dest: "{{ DDI_DIR | default('', true) or agent_dir ~ '/DeveloperDiskImages' }}"
+    version: "{{ DDI_VERSION }}"
+    depth: 1
+    force: true
+  become: false
+  when: DDI_ENABLED | bool and 'ios' in download_platforms
+  register: download_ddi
+  ignore_errors: true
+  tags: [pull, download]
+
+- name: Report the Developer Disk Images not updated
+  ansible.builtin.debug:
+    msg: "The Developer Disk Images of {{ DDI_REPO }} ({{ DDI_VERSION }}) are not updated: the connectors mount the earlier clone or download the images"
+  when: download_ddi is failed
+  tags: [pull, download]
