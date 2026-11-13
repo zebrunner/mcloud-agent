@@ -9,9 +9,9 @@
 ### calls
 docker|network|inspect|infra
 docker|ps|-a|--format|{{.Names}} {{.State}}
-docker|run|-itd|--name|device-Galaxy-R28M1384YQY-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--device=/dev/device-Galaxy-R28M1384YQY:/dev/bus/usb/001/002|-e|DEVICE_BUS=/dev/bus/usb/001/002|-v|mcloud-key-volume:/root/.android|-v|device-Galaxy-R28M1384YQY:/tmp/log|-e|PLATFORM_NAME=android|-e|ANDROID_DEVICE=|-e|DEVICE_UDID=R28M1384YQY|public.ecr.aws/zebrunner/mcloud-android-connector:2.0-develop-latest
+docker|run|-itd|--name|device-Galaxy-R28M1384YQY-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--device=/dev/device-Galaxy-R28M1384YQY:/dev/bus/usb/001/002|-e|DEVICE_BUS=/dev/bus/usb/001/002|-v|mcloud-key-volume:/root/.android|-v|device-Galaxy-R28M1384YQY:/tmp/log|-e|ANDROID_DEVICE=|public.ecr.aws/zebrunner/mcloud-android-connector:2.0-develop-latest
 docker|run|-d|--name|device-Galaxy-R28M1384YQY-stf|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--link|device-Galaxy-R28M1384YQY-connector:connector|-e|STF_PROVIDER_ADB_HOST=connector|-e|STF_PROVIDER_ADB_PORT=5037|--health-start-period|60s|--restart|on-failure:50|-e|PLATFORM_NAME=android|-e|STF_PROVIDER_DEVICE_NAME=Galaxy|-e|DEVICE_UDID=R28M1384YQY|-e|STF_PROVIDER_HOST=10.1.1.1|-e|REMOTE_CONNECT_HOST=relay.example.com|-e|STF_PROVIDER_NAME=mcloud-linux_loc|-e|STF_PROVIDER_MIN_PORT=7425|-e|STF_PROVIDER_MAX_PORT=7430|-p|7425-7430:7425-7430|-e|STF_PROVIDER_PUBLIC_IP=mcloud.example.com|-e|PUBLIC_IP_PORT=443|-e|PUBLIC_IP_PROTOCOL=https|-e|STF_PROVIDER_CONNECT_SUB=tcp://10.1.1.2:7250|-e|STF_PROVIDER_CONNECT_PUSH=tcp://10.1.1.2:7270|-e|STF_NODE_TOKEN=token|-e|STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=server-key|-e|STF_ZMQ_CURVE_SECRET_KEY=secret-key|public.ecr.aws/zebrunner/mcloud-device:3.1-develop-latest
-docker|run|-itd|--name|device-Galaxy-R28M1384YQY-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-Galaxy-R28M1384YQY-stf:device|--link|device-Galaxy-R28M1384YQY-connector:connector|-v|appium-storage-volume:/opt/appium-storage|-v|device-Galaxy-R28M1384YQY:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|PLATFORM_NAME=android|-e|DEVICE_CONNECTION=usb|-e|ANDROID_DEVICE=|-e|RETAIN_TASK=true|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|CUSTOM_NODE_CONFIG=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=Galaxy|-e|DEVICE_UDID=R28M1384YQY|-e|ADB_PORT=7426|-e|APPIUM_PORT=7421|-p|7421:7421|-e|RELAXED_SECURITY=true|-e|ADB_SERVER_SOCKET=tcp:connector:5037|-e|REMOTE_ADB_HOST=connector|-e|STF_API_URL=|-e|STF_AUTH_TOKEN=|public.ecr.aws/zebrunner/appium:3.1-develop-latest
+docker|run|-itd|--name|device-Galaxy-R28M1384YQY-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-Galaxy-R28M1384YQY-stf:device|--link|device-Galaxy-R28M1384YQY-connector:connector|-v|appium-storage-volume:/opt/appium-storage|-v|device-Galaxy-R28M1384YQY:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|PLATFORM_NAME=android|-e|DEVICE_CONNECTION=usb|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=Galaxy|-e|DEVICE_UDID=R28M1384YQY|-e|DEVICE_LOCATION=loc|-e|ADB_PORT=7426|-e|APPIUM_PORT=7421|-p|7421:7421|-e|RELAXED_SECURITY=true|-e|STF_API_URL=|-e|STF_AUTH_TOKEN=|-e|ADB_SERVER_SOCKET=tcp:connector:5037|-e|REMOTE_ADB_HOST=connector|public.ecr.aws/zebrunner/appium:3.1-develop-latest
 docker|run|-d|--name|device-Galaxy-R28M1384YQY-uploader|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-v|device-Galaxy-R28M1384YQY:/tmp/log|-e|ENDPOINT_URL=|-e|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|-e|AWS_ACCESS_KEY_ID=|-e|AWS_SECRET_ACCESS_KEY=s3 $ecret|-e|AWS_DEFAULT_REGION=|public.ecr.aws/zebrunner/uploader:3.6.2
 ### zebrunner-farm start WiFi
 
@@ -23,9 +23,9 @@ docker|run|-d|--name|device-Galaxy-R28M1384YQY-uploader|--log-driver=local|--log
 ### calls
 docker|network|inspect|infra
 docker|ps|-a|--format|{{.Names}} {{.State}}
-docker|run|-itd|--name|device-WiFi-192.168.1.50-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-e|DEVICE_BUS=/dev/bus/usb/001/002|-v|mcloud-key-volume:/root/.android|-v|device-WiFi-192.168.1.50:/tmp/log|-e|PLATFORM_NAME=android|-e|ANDROID_DEVICE=192.168.1.50:5555|-e|DEVICE_UDID=192.168.1.50:5555|public.ecr.aws/zebrunner/mcloud-android-connector:2.0-develop-latest
+docker|run|-itd|--name|device-WiFi-192.168.1.50-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-e|DEVICE_BUS=/dev/bus/usb/001/002|-v|mcloud-key-volume:/root/.android|-v|device-WiFi-192.168.1.50:/tmp/log|-e|ANDROID_DEVICE=192.168.1.50:5555|public.ecr.aws/zebrunner/mcloud-android-connector:2.0-develop-latest
 docker|run|-d|--name|device-WiFi-192.168.1.50-stf|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--link|device-WiFi-192.168.1.50-connector:connector|-e|STF_PROVIDER_ADB_HOST=connector|-e|STF_PROVIDER_ADB_PORT=5037|--health-start-period|60s|--restart|on-failure:50|-e|PLATFORM_NAME=android|-e|STF_PROVIDER_DEVICE_NAME=WiFi|-e|DEVICE_UDID=192.168.1.50:5555|-e|STF_PROVIDER_HOST=10.1.1.1|-e|REMOTE_CONNECT_HOST=relay.example.com|-e|STF_PROVIDER_NAME=mcloud-linux_loc|-e|STF_PROVIDER_MIN_PORT=7435|-e|STF_PROVIDER_MAX_PORT=7440|-e|STF_PROVIDER_CONNECT_PORT=7499|-p|7499:7499|-p|7435-7440:7435-7440|-e|STF_PROVIDER_PUBLIC_IP=mcloud.example.com|-e|PUBLIC_IP_PORT=443|-e|PUBLIC_IP_PROTOCOL=https|-e|STF_PROVIDER_CONNECT_SUB=tcp://10.1.1.2:7250|-e|STF_PROVIDER_CONNECT_PUSH=tcp://10.1.1.2:7270|-e|STF_NODE_TOKEN=token|-e|STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=server-key|-e|STF_ZMQ_CURVE_SECRET_KEY=secret-key|public.ecr.aws/zebrunner/mcloud-device:3.1-develop-latest
-docker|run|-itd|--name|device-WiFi-192.168.1.50-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-WiFi-192.168.1.50-stf:device|--link|device-WiFi-192.168.1.50-connector:connector|-v|appium-storage-volume:/opt/appium-storage|-v|device-WiFi-192.168.1.50:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|PLATFORM_NAME=android|-e|DEVICE_CONNECTION=wireless|-e|ANDROID_DEVICE=192.168.1.50:5555|-e|RETAIN_TASK=true|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|CUSTOM_NODE_CONFIG=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=WiFi|-e|DEVICE_UDID=192.168.1.50:5555|-e|ADB_PORT=7499|-e|APPIUM_PORT=7431|-p|7431:7431|-e|RELAXED_SECURITY=true|-e|ADB_SERVER_SOCKET=tcp:connector:5037|-e|REMOTE_ADB_HOST=connector|-e|STF_API_URL=|-e|STF_AUTH_TOKEN=|public.ecr.aws/zebrunner/appium:3.1-develop-latest
+docker|run|-itd|--name|device-WiFi-192.168.1.50-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-WiFi-192.168.1.50-stf:device|--link|device-WiFi-192.168.1.50-connector:connector|-v|appium-storage-volume:/opt/appium-storage|-v|device-WiFi-192.168.1.50:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|PLATFORM_NAME=android|-e|DEVICE_CONNECTION=wireless|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=WiFi|-e|DEVICE_UDID=192.168.1.50:5555|-e|DEVICE_LOCATION=loc|-e|ADB_PORT=7499|-e|APPIUM_PORT=7431|-p|7431:7431|-e|RELAXED_SECURITY=true|-e|STF_API_URL=|-e|STF_AUTH_TOKEN=|-e|ADB_SERVER_SOCKET=tcp:connector:5037|-e|REMOTE_ADB_HOST=connector|public.ecr.aws/zebrunner/appium:3.1-develop-latest
 docker|run|-d|--name|device-WiFi-192.168.1.50-uploader|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-v|device-WiFi-192.168.1.50:/tmp/log|-e|ENDPOINT_URL=|-e|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|-e|AWS_ACCESS_KEY_ID=|-e|AWS_SECRET_ACCESS_KEY=s3 $ecret|-e|AWS_DEFAULT_REGION=|public.ecr.aws/zebrunner/uploader:3.6.2
 ### zebrunner-farm start iPhone_8_Plus
 
@@ -39,9 +39,9 @@ docker|run|-d|--name|device-WiFi-192.168.1.50-uploader|--log-driver=local|--log-
 ### calls
 docker|network|inspect|infra
 docker|ps|-a|--format|{{.Names}} {{.State}}
-docker|run|-itd|--name|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--sysctl|net.ipv6.conf.all.disable_ipv6=0|--restart|on-failure:50|--device=/dev/device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11:/dev/bus/usb/001/002|--cap-add=NET_ADMIN|--device=/dev/net/tun|-e|HOST_OS=LINUX|-e|DEVICE_CONNECTION=usb|-e|DEVICE_ADDRESS=|-e|DEVICE_BUS=/dev/bus/usb/001/002|-e|WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner|-e|WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa|-v|devimages_cache:/opt/zebrunner/devimages|-v|/opt/wda.ipa:/tmp/zebrunner/WebDriverAgent.ipa|-v|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-lockdown:/var/lib/lockdown|-v|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11:/tmp/log|-e|DEVICE_UDID=d6afc6b3a65584ca0813eb8957c6479b9b6ebb11|public.ecr.aws/zebrunner/mcloud-ios-connector:2.0-develop-latest
+docker|run|-itd|--name|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--sysctl|net.ipv6.conf.all.disable_ipv6=0|--restart|on-failure:50|--device=/dev/device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11:/dev/bus/usb/001/002|--cap-add=NET_ADMIN|--device=/dev/net/tun|-e|HOST_OS=LINUX|-e|DEVICE_CONNECTION=usb|-e|DEVICE_ADDRESS=|-e|WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner|-e|WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa|-v|devimages_cache:/opt/zebrunner/devimages|-v|/opt/wda.ipa:/tmp/zebrunner/WebDriverAgent.ipa|-v|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-lockdown:/var/lib/lockdown|-v|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11:/tmp/log|-e|DEVICE_UDID=d6afc6b3a65584ca0813eb8957c6479b9b6ebb11|public.ecr.aws/zebrunner/mcloud-ios-connector:2.0-develop-latest
 docker|run|-d|--name|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-stf|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-connector:connector|-e|WDA_HOST=connector|-e|GO_IOS_AGENT_HOST=connector|-e|WIRELESS=false|-e|WDA_WAIT_TIMEOUT=60|-e|PLATFORM_NAME=ios|-e|STF_PROVIDER_DEVICE_NAME=iPhone_8_Plus|-e|DEVICE_UDID=d6afc6b3a65584ca0813eb8957c6479b9b6ebb11|-e|STF_PROVIDER_HOST=10.1.1.1|-e|REMOTE_CONNECT_HOST=relay.example.com|-e|STF_PROVIDER_NAME=mcloud-linux_loc|-e|STF_PROVIDER_MIN_PORT=7445|-e|STF_PROVIDER_MAX_PORT=7450|-p|7445-7450:7445-7450|-e|STF_PROVIDER_PUBLIC_IP=mcloud.example.com|-e|PUBLIC_IP_PORT=443|-e|PUBLIC_IP_PROTOCOL=https|-e|STF_PROVIDER_CONNECT_SUB=tcp://10.1.1.2:7250|-e|STF_PROVIDER_CONNECT_PUSH=tcp://10.1.1.2:7270|-e|STF_PROVIDER_CONNECT_APP_DEALER=tcp://10.1.1.2:7160|-e|STF_PROVIDER_CONNECT_DEV_DEALER=tcp://10.1.1.2:7260|-e|STF_NODE_TOKEN=token|-e|STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=server-key|-e|STF_ZMQ_CURVE_SECRET_KEY=secret-key|public.ecr.aws/zebrunner/mcloud-device:3.1-develop-latest
-docker|run|-itd|--name|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--device=/dev/device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11:/dev/bus/usb/001/002|--link|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-stf:device|--link|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-connector:connector|-e|WDA_HOST=connector|-e|WIRELESS=false|-v|appium-storage-volume:/opt/appium-storage|-v|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|APPIUM_CLI=--session-override|-e|PLATFORM_NAME=ios|-e|RETAIN_TASK=true|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|CUSTOM_NODE_CONFIG=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=iPhone_8_Plus|-e|DEVICE_UDID=d6afc6b3a65584ca0813eb8957c6479b9b6ebb11|-e|ADB_PORT=7442|-e|APPIUM_PORT=7441|-p|7441:7441|-e|RELAXED_SECURITY=true|public.ecr.aws/zebrunner/appium:3.1-develop-latest
+docker|run|-itd|--name|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-stf:device|--link|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-connector:connector|-e|WDA_HOST=connector|-e|WIRELESS=false|-v|appium-storage-volume:/opt/appium-storage|-v|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|APPIUM_CLI=--session-override|-e|PLATFORM_NAME=ios|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=iPhone_8_Plus|-e|DEVICE_UDID=d6afc6b3a65584ca0813eb8957c6479b9b6ebb11|-e|DEVICE_LOCATION=loc|-e|ADB_PORT=7442|-e|APPIUM_PORT=7441|-p|7441:7441|-e|RELAXED_SECURITY=true|-e|STF_API_URL=|-e|STF_AUTH_TOKEN=|public.ecr.aws/zebrunner/appium:3.1-develop-latest
 docker|run|-d|--name|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-uploader|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-v|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11:/tmp/log|-e|ENDPOINT_URL=|-e|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|-e|AWS_ACCESS_KEY_ID=|-e|AWS_SECRET_ACCESS_KEY=s3 $ecret|-e|AWS_DEFAULT_REGION=|public.ecr.aws/zebrunner/uploader:3.6.2
 ### zebrunner-farm start AppleTV
 
@@ -54,9 +54,9 @@ docker|run|-d|--name|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb
 ### calls
 docker|network|inspect|infra
 docker|ps|-a|--format|{{.Names}} {{.State}}
-docker|run|-itd|--name|device-AppleTV-aaaa1111-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--sysctl|net.ipv6.conf.all.disable_ipv6=0|--restart|on-failure:50|--cap-add=NET_ADMIN|--device=/dev/net/tun|-e|HOST_OS=LINUX|-e|DEVICE_CONNECTION=proxy|-e|DEVICE_ADDRESS=10.0.0.5|-e|DEVICE_WDA_PORT=8100|-e|DEVICE_BUS=/dev/bus/usb/001/002|-e|WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner|-e|WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa|-v|devimages_cache:/opt/zebrunner/devimages|-v|/opt/wda.ipa:/tmp/zebrunner/WebDriverAgent.ipa|-v|device-AppleTV-aaaa1111-lockdown:/var/lib/lockdown|-v|device-AppleTV-aaaa1111:/tmp/log|-e|DEVICE_UDID=aaaa1111|public.ecr.aws/zebrunner/mcloud-ios-connector:2.0-develop-latest
+docker|run|-itd|--name|device-AppleTV-aaaa1111-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--sysctl|net.ipv6.conf.all.disable_ipv6=0|--restart|on-failure:50|--cap-add=NET_ADMIN|--device=/dev/net/tun|-e|HOST_OS=LINUX|-e|DEVICE_CONNECTION=proxy|-e|DEVICE_ADDRESS=10.0.0.5|-e|DEVICE_WDA_PORT=8100|-e|WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner|-e|WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa|-v|devimages_cache:/opt/zebrunner/devimages|-v|/opt/wda.ipa:/tmp/zebrunner/WebDriverAgent.ipa|-v|device-AppleTV-aaaa1111-lockdown:/var/lib/lockdown|-v|device-AppleTV-aaaa1111:/tmp/log|-e|DEVICE_UDID=aaaa1111|public.ecr.aws/zebrunner/mcloud-ios-connector:2.0-develop-latest
 docker|run|-d|--name|device-AppleTV-aaaa1111-stf|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-AppleTV-aaaa1111-connector:connector|-e|WDA_HOST=connector|-e|GO_IOS_AGENT_HOST=connector|-e|WIRELESS=true|-e|WDA_WAIT_TIMEOUT=60|-e|PLATFORM_NAME=ios|-e|STF_PROVIDER_DEVICE_NAME=AppleTV|-e|DEVICE_UDID=aaaa1111|-e|STF_PROVIDER_HOST=10.1.1.1|-e|REMOTE_CONNECT_HOST=relay.example.com|-e|STF_PROVIDER_NAME=mcloud-linux_loc|-e|STF_PROVIDER_MIN_PORT=7455|-e|STF_PROVIDER_MAX_PORT=7460|-p|7455-7460:7455-7460|-e|STF_PROVIDER_PUBLIC_IP=mcloud.example.com|-e|PUBLIC_IP_PORT=443|-e|PUBLIC_IP_PROTOCOL=https|-e|STF_PROVIDER_CONNECT_SUB=tcp://10.1.1.2:7250|-e|STF_PROVIDER_CONNECT_PUSH=tcp://10.1.1.2:7270|-e|STF_PROVIDER_CONNECT_APP_DEALER=tcp://10.1.1.2:7160|-e|STF_PROVIDER_CONNECT_DEV_DEALER=tcp://10.1.1.2:7260|-e|STF_NODE_TOKEN=token|-e|STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=server-key|-e|STF_ZMQ_CURVE_SECRET_KEY=secret-key|public.ecr.aws/zebrunner/mcloud-device:3.1-develop-latest
-docker|run|-itd|--name|device-AppleTV-aaaa1111-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-AppleTV-aaaa1111-stf:device|--link|device-AppleTV-aaaa1111-connector:connector|-e|WDA_HOST=connector|-e|WIRELESS=true|-v|appium-storage-volume:/opt/appium-storage|-v|device-AppleTV-aaaa1111:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|APPIUM_CLI=--session-override|-e|PLATFORM_NAME=ios|-e|RETAIN_TASK=true|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|CUSTOM_NODE_CONFIG=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=AppleTV|-e|DEVICE_UDID=aaaa1111|-e|ADB_PORT=7452|-e|APPIUM_PORT=7451|-p|7451:7451|-e|RELAXED_SECURITY=true|public.ecr.aws/zebrunner/appium:3.1-develop-latest
+docker|run|-itd|--name|device-AppleTV-aaaa1111-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-AppleTV-aaaa1111-stf:device|--link|device-AppleTV-aaaa1111-connector:connector|-e|WDA_HOST=connector|-e|WIRELESS=true|-v|appium-storage-volume:/opt/appium-storage|-v|device-AppleTV-aaaa1111:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|APPIUM_CLI=--session-override|-e|PLATFORM_NAME=ios|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=AppleTV|-e|DEVICE_UDID=aaaa1111|-e|DEVICE_LOCATION=loc|-e|ADB_PORT=7452|-e|APPIUM_PORT=7451|-p|7451:7451|-e|RELAXED_SECURITY=true|-e|STF_API_URL=|-e|STF_AUTH_TOKEN=|public.ecr.aws/zebrunner/appium:3.1-develop-latest
 docker|run|-d|--name|device-AppleTV-aaaa1111-uploader|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-v|device-AppleTV-aaaa1111:/tmp/log|-e|ENDPOINT_URL=|-e|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|-e|AWS_ACCESS_KEY_ID=|-e|AWS_SECRET_ACCESS_KEY=s3 $ecret|-e|AWS_DEFAULT_REGION=|public.ecr.aws/zebrunner/uploader:3.6.2
 ### zebrunner-farm start iPhoneWiFi
 
@@ -69,9 +69,9 @@ docker|run|-d|--name|device-AppleTV-aaaa1111-uploader|--log-driver=local|--log-o
 ### calls
 docker|network|inspect|infra
 docker|ps|-a|--format|{{.Names}} {{.State}}
-docker|run|-itd|--name|device-iPhoneWiFi-bbbb2222-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--sysctl|net.ipv6.conf.all.disable_ipv6=0|--restart|on-failure:50|--cap-add=NET_ADMIN|--device=/dev/net/tun|-e|HOST_OS=LINUX|-e|DEVICE_CONNECTION=wireless|-e|DEVICE_ADDRESS=192.168.1.60|-e|DEVICE_BUS=/dev/bus/usb/001/002|-e|WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner|-e|WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa|-v|devimages_cache:/opt/zebrunner/devimages|-v|/opt/wda.ipa:/tmp/zebrunner/WebDriverAgent.ipa|-v|device-iPhoneWiFi-bbbb2222-lockdown:/var/lib/lockdown|-v|device-iPhoneWiFi-bbbb2222:/tmp/log|-e|DEVICE_UDID=bbbb2222|public.ecr.aws/zebrunner/mcloud-ios-connector:2.0-develop-latest
+docker|run|-itd|--name|device-iPhoneWiFi-bbbb2222-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--sysctl|net.ipv6.conf.all.disable_ipv6=0|--restart|on-failure:50|--cap-add=NET_ADMIN|--device=/dev/net/tun|-e|HOST_OS=LINUX|-e|DEVICE_CONNECTION=wireless|-e|DEVICE_ADDRESS=192.168.1.60|-e|WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner|-e|WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa|-v|devimages_cache:/opt/zebrunner/devimages|-v|/opt/wda.ipa:/tmp/zebrunner/WebDriverAgent.ipa|-v|device-iPhoneWiFi-bbbb2222-lockdown:/var/lib/lockdown|-v|device-iPhoneWiFi-bbbb2222:/tmp/log|-e|DEVICE_UDID=bbbb2222|public.ecr.aws/zebrunner/mcloud-ios-connector:2.0-develop-latest
 docker|run|-d|--name|device-iPhoneWiFi-bbbb2222-stf|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-iPhoneWiFi-bbbb2222-connector:connector|-e|WDA_HOST=connector|-e|GO_IOS_AGENT_HOST=connector|-e|WIRELESS=false|-e|WDA_WAIT_TIMEOUT=60|-e|PLATFORM_NAME=ios|-e|STF_PROVIDER_DEVICE_NAME=iPhoneWiFi|-e|DEVICE_UDID=bbbb2222|-e|STF_PROVIDER_HOST=10.1.1.1|-e|REMOTE_CONNECT_HOST=relay.example.com|-e|STF_PROVIDER_NAME=mcloud-linux_loc|-e|STF_PROVIDER_MIN_PORT=7465|-e|STF_PROVIDER_MAX_PORT=7470|-p|7465-7470:7465-7470|-e|STF_PROVIDER_PUBLIC_IP=mcloud.example.com|-e|PUBLIC_IP_PORT=443|-e|PUBLIC_IP_PROTOCOL=https|-e|STF_PROVIDER_CONNECT_SUB=tcp://10.1.1.2:7250|-e|STF_PROVIDER_CONNECT_PUSH=tcp://10.1.1.2:7270|-e|STF_PROVIDER_CONNECT_APP_DEALER=tcp://10.1.1.2:7160|-e|STF_PROVIDER_CONNECT_DEV_DEALER=tcp://10.1.1.2:7260|-e|STF_NODE_TOKEN=token|-e|STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=server-key|-e|STF_ZMQ_CURVE_SECRET_KEY=secret-key|public.ecr.aws/zebrunner/mcloud-device:3.1-develop-latest
-docker|run|-itd|--name|device-iPhoneWiFi-bbbb2222-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-iPhoneWiFi-bbbb2222-stf:device|--link|device-iPhoneWiFi-bbbb2222-connector:connector|-e|WDA_HOST=connector|-e|WIRELESS=false|-v|appium-storage-volume:/opt/appium-storage|-v|device-iPhoneWiFi-bbbb2222:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|APPIUM_CLI=--session-override|-e|PLATFORM_NAME=ios|-e|RETAIN_TASK=true|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|CUSTOM_NODE_CONFIG=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=iPhoneWiFi|-e|DEVICE_UDID=bbbb2222|-e|ADB_PORT=7462|-e|APPIUM_PORT=7461|-p|7461:7461|-e|RELAXED_SECURITY=true|public.ecr.aws/zebrunner/appium:3.1-develop-latest
+docker|run|-itd|--name|device-iPhoneWiFi-bbbb2222-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-iPhoneWiFi-bbbb2222-stf:device|--link|device-iPhoneWiFi-bbbb2222-connector:connector|-e|WDA_HOST=connector|-e|WIRELESS=false|-v|appium-storage-volume:/opt/appium-storage|-v|device-iPhoneWiFi-bbbb2222:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|APPIUM_CLI=--session-override|-e|PLATFORM_NAME=ios|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=iPhoneWiFi|-e|DEVICE_UDID=bbbb2222|-e|DEVICE_LOCATION=loc|-e|ADB_PORT=7462|-e|APPIUM_PORT=7461|-p|7461:7461|-e|RELAXED_SECURITY=true|-e|STF_API_URL=|-e|STF_AUTH_TOKEN=|public.ecr.aws/zebrunner/appium:3.1-develop-latest
 docker|run|-d|--name|device-iPhoneWiFi-bbbb2222-uploader|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-v|device-iPhoneWiFi-bbbb2222:/tmp/log|-e|ENDPOINT_URL=|-e|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|-e|AWS_ACCESS_KEY_ID=|-e|AWS_SECRET_ACCESS_KEY=s3 $ecret|-e|AWS_DEFAULT_REGION=|public.ecr.aws/zebrunner/uploader:3.6.2
 ### zebrunner-farm start Emu
 
@@ -83,9 +83,9 @@ docker|run|-d|--name|device-iPhoneWiFi-bbbb2222-uploader|--log-driver=local|--lo
 ### calls
 docker|network|inspect|infra
 docker|ps|-a|--format|{{.Names}} {{.State}}
-docker|run|-itd|--name|device-Emu-emu1-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-e|DEVICE_BUS=/dev/bus/usb/001/002|-v|mcloud-key-volume:/root/.android|-v|device-Emu-emu1:/tmp/log|-e|PLATFORM_NAME=android|-e|ANDROID_DEVICE=host.docker.internal:5557|-e|DEVICE_UDID=host.docker.internal:5557|public.ecr.aws/zebrunner/mcloud-android-connector:2.0-develop-latest
+docker|run|-itd|--name|device-Emu-emu1-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-e|DEVICE_BUS=/dev/bus/usb/001/002|-v|mcloud-key-volume:/root/.android|-v|device-Emu-emu1:/tmp/log|-e|ANDROID_DEVICE=host.docker.internal:5557|public.ecr.aws/zebrunner/mcloud-android-connector:2.0-develop-latest
 docker|run|-d|--name|device-Emu-emu1-stf|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--link|device-Emu-emu1-connector:connector|-e|STF_PROVIDER_ADB_HOST=connector|-e|STF_PROVIDER_ADB_PORT=5037|--health-start-period|60s|--restart|on-failure:50|-e|PLATFORM_NAME=android|-e|STF_PROVIDER_DEVICE_NAME=Emu|-e|DEVICE_UDID=host.docker.internal:5557|-e|STF_PROVIDER_HOST=10.1.1.1|-e|REMOTE_CONNECT_HOST=relay.example.com|-e|STF_PROVIDER_NAME=mcloud-linux_loc|-e|STF_PROVIDER_MIN_PORT=7475|-e|STF_PROVIDER_MAX_PORT=7480|-p|7475-7480:7475-7480|-e|STF_PROVIDER_PUBLIC_IP=mcloud.example.com|-e|PUBLIC_IP_PORT=443|-e|PUBLIC_IP_PROTOCOL=https|-e|STF_PROVIDER_CONNECT_SUB=tcp://10.1.1.2:7250|-e|STF_PROVIDER_CONNECT_PUSH=tcp://10.1.1.2:7270|-e|STF_NODE_TOKEN=token|-e|STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=server-key|-e|STF_ZMQ_CURVE_SECRET_KEY=secret-key|public.ecr.aws/zebrunner/mcloud-device:3.1-develop-latest
-docker|run|-itd|--name|device-Emu-emu1-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-Emu-emu1-stf:device|--link|device-Emu-emu1-connector:connector|-v|appium-storage-volume:/opt/appium-storage|-v|device-Emu-emu1:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|PLATFORM_NAME=android|-e|DEVICE_CONNECTION=android-sim|-e|ANDROID_DEVICE=host.docker.internal:5557|-e|RETAIN_TASK=true|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|CUSTOM_NODE_CONFIG=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=Emu|-e|DEVICE_UDID=host.docker.internal:5557|-e|ADB_PORT=7476|-e|APPIUM_PORT=7471|-p|7471:7471|-e|RELAXED_SECURITY=true|-e|ADB_SERVER_SOCKET=tcp:connector:5037|-e|REMOTE_ADB_HOST=connector|-e|STF_API_URL=|-e|STF_AUTH_TOKEN=|public.ecr.aws/zebrunner/appium:3.1-develop-latest
+docker|run|-itd|--name|device-Emu-emu1-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-Emu-emu1-stf:device|--link|device-Emu-emu1-connector:connector|-v|appium-storage-volume:/opt/appium-storage|-v|device-Emu-emu1:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|PLATFORM_NAME=android|-e|DEVICE_CONNECTION=android-sim|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=Emu|-e|DEVICE_UDID=host.docker.internal:5557|-e|DEVICE_LOCATION=loc|-e|ADB_PORT=7476|-e|APPIUM_PORT=7471|-p|7471:7471|-e|RELAXED_SECURITY=true|-e|STF_API_URL=|-e|STF_AUTH_TOKEN=|-e|ADB_SERVER_SOCKET=tcp:connector:5037|-e|REMOTE_ADB_HOST=connector|public.ecr.aws/zebrunner/appium:3.1-develop-latest
 docker|run|-d|--name|device-Emu-emu1-uploader|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-v|device-Emu-emu1:/tmp/log|-e|ENDPOINT_URL=|-e|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|-e|AWS_ACCESS_KEY_ID=|-e|AWS_SECRET_ACCESS_KEY=s3 $ecret|-e|AWS_DEFAULT_REGION=|public.ecr.aws/zebrunner/uploader:3.6.2
 ### zebrunner-farm start Sim
 
@@ -135,121 +135,121 @@ docker|ps|-a|--format|{{.Names}} {{.State}}
 ### calls
 docker|network|inspect|infra
 docker|ps|-a|--format|{{.Names}} {{.State}}
-docker|run|-itd|--name|device-WiFi-192.168.1.50-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-e|DEVICE_BUS=/dev/bus/usb/001/002|-v|mcloud-key-volume:/root/.android|-v|device-WiFi-192.168.1.50:/tmp/log|-e|PLATFORM_NAME=android|-e|ANDROID_DEVICE=192.168.1.50:5555|-e|DEVICE_UDID=192.168.1.50:5555|public.ecr.aws/zebrunner/mcloud-android-connector:2.0-develop-latest
+docker|run|-itd|--name|device-WiFi-192.168.1.50-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-e|DEVICE_BUS=/dev/bus/usb/001/002|-v|mcloud-key-volume:/root/.android|-v|device-WiFi-192.168.1.50:/tmp/log|-e|ANDROID_DEVICE=192.168.1.50:5555|public.ecr.aws/zebrunner/mcloud-android-connector:2.0-develop-latest
 docker|run|-d|--name|device-WiFi-192.168.1.50-stf|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--link|device-WiFi-192.168.1.50-connector:connector|-e|STF_PROVIDER_ADB_HOST=connector|-e|STF_PROVIDER_ADB_PORT=5037|--health-start-period|60s|--restart|on-failure:50|-e|PLATFORM_NAME=android|-e|STF_PROVIDER_DEVICE_NAME=WiFi|-e|DEVICE_UDID=192.168.1.50:5555|-e|STF_PROVIDER_HOST=10.1.1.1|-e|REMOTE_CONNECT_HOST=relay.example.com|-e|STF_PROVIDER_NAME=mcloud-linux_loc|-e|STF_PROVIDER_MIN_PORT=7435|-e|STF_PROVIDER_MAX_PORT=7440|-e|STF_PROVIDER_CONNECT_PORT=7499|-p|7499:7499|-p|7435-7440:7435-7440|-e|STF_PROVIDER_PUBLIC_IP=mcloud.example.com|-e|PUBLIC_IP_PORT=443|-e|PUBLIC_IP_PROTOCOL=https|-e|STF_PROVIDER_CONNECT_SUB=tcp://10.1.1.2:7250|-e|STF_PROVIDER_CONNECT_PUSH=tcp://10.1.1.2:7270|-e|STF_NODE_TOKEN=token|-e|STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=server-key|-e|STF_ZMQ_CURVE_SECRET_KEY=secret-key|public.ecr.aws/zebrunner/mcloud-device:3.1-develop-latest
-docker|run|-itd|--name|device-WiFi-192.168.1.50-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-WiFi-192.168.1.50-stf:device|--link|device-WiFi-192.168.1.50-connector:connector|-v|appium-storage-volume:/opt/appium-storage|-v|device-WiFi-192.168.1.50:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|PLATFORM_NAME=android|-e|DEVICE_CONNECTION=wireless|-e|ANDROID_DEVICE=192.168.1.50:5555|-e|RETAIN_TASK=true|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|CUSTOM_NODE_CONFIG=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=WiFi|-e|DEVICE_UDID=192.168.1.50:5555|-e|ADB_PORT=7499|-e|APPIUM_PORT=7431|-p|7431:7431|-e|RELAXED_SECURITY=true|-e|ADB_SERVER_SOCKET=tcp:connector:5037|-e|REMOTE_ADB_HOST=connector|-e|STF_API_URL=|-e|STF_AUTH_TOKEN=|public.ecr.aws/zebrunner/appium:3.1-develop-latest
+docker|run|-itd|--name|device-WiFi-192.168.1.50-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-WiFi-192.168.1.50-stf:device|--link|device-WiFi-192.168.1.50-connector:connector|-v|appium-storage-volume:/opt/appium-storage|-v|device-WiFi-192.168.1.50:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|PLATFORM_NAME=android|-e|DEVICE_CONNECTION=wireless|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=WiFi|-e|DEVICE_UDID=192.168.1.50:5555|-e|DEVICE_LOCATION=loc|-e|ADB_PORT=7499|-e|APPIUM_PORT=7431|-p|7431:7431|-e|RELAXED_SECURITY=true|-e|STF_API_URL=|-e|STF_AUTH_TOKEN=|-e|ADB_SERVER_SOCKET=tcp:connector:5037|-e|REMOTE_ADB_HOST=connector|public.ecr.aws/zebrunner/appium:3.1-develop-latest
 docker|run|-d|--name|device-WiFi-192.168.1.50-uploader|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-v|device-WiFi-192.168.1.50:/tmp/log|-e|ENDPOINT_URL=|-e|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|-e|AWS_ACCESS_KEY_ID=|-e|AWS_SECRET_ACCESS_KEY=s3 $ecret|-e|AWS_DEFAULT_REGION=|public.ecr.aws/zebrunner/uploader:3.6.2
 docker|ps|-a|--format|{{.Names}} {{.State}}
-docker|run|-itd|--name|device-AppleTV-aaaa1111-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--sysctl|net.ipv6.conf.all.disable_ipv6=0|--restart|on-failure:50|--cap-add=NET_ADMIN|--device=/dev/net/tun|-e|HOST_OS=LINUX|-e|DEVICE_CONNECTION=proxy|-e|DEVICE_ADDRESS=10.0.0.5|-e|DEVICE_WDA_PORT=8100|-e|DEVICE_BUS=/dev/bus/usb/001/002|-e|WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner|-e|WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa|-v|devimages_cache:/opt/zebrunner/devimages|-v|/opt/wda.ipa:/tmp/zebrunner/WebDriverAgent.ipa|-v|device-AppleTV-aaaa1111-lockdown:/var/lib/lockdown|-v|device-AppleTV-aaaa1111:/tmp/log|-e|DEVICE_UDID=aaaa1111|public.ecr.aws/zebrunner/mcloud-ios-connector:2.0-develop-latest
+docker|run|-itd|--name|device-AppleTV-aaaa1111-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--sysctl|net.ipv6.conf.all.disable_ipv6=0|--restart|on-failure:50|--cap-add=NET_ADMIN|--device=/dev/net/tun|-e|HOST_OS=LINUX|-e|DEVICE_CONNECTION=proxy|-e|DEVICE_ADDRESS=10.0.0.5|-e|DEVICE_WDA_PORT=8100|-e|WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner|-e|WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa|-v|devimages_cache:/opt/zebrunner/devimages|-v|/opt/wda.ipa:/tmp/zebrunner/WebDriverAgent.ipa|-v|device-AppleTV-aaaa1111-lockdown:/var/lib/lockdown|-v|device-AppleTV-aaaa1111:/tmp/log|-e|DEVICE_UDID=aaaa1111|public.ecr.aws/zebrunner/mcloud-ios-connector:2.0-develop-latest
 docker|run|-d|--name|device-AppleTV-aaaa1111-stf|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-AppleTV-aaaa1111-connector:connector|-e|WDA_HOST=connector|-e|GO_IOS_AGENT_HOST=connector|-e|WIRELESS=true|-e|WDA_WAIT_TIMEOUT=60|-e|PLATFORM_NAME=ios|-e|STF_PROVIDER_DEVICE_NAME=AppleTV|-e|DEVICE_UDID=aaaa1111|-e|STF_PROVIDER_HOST=10.1.1.1|-e|REMOTE_CONNECT_HOST=relay.example.com|-e|STF_PROVIDER_NAME=mcloud-linux_loc|-e|STF_PROVIDER_MIN_PORT=7455|-e|STF_PROVIDER_MAX_PORT=7460|-p|7455-7460:7455-7460|-e|STF_PROVIDER_PUBLIC_IP=mcloud.example.com|-e|PUBLIC_IP_PORT=443|-e|PUBLIC_IP_PROTOCOL=https|-e|STF_PROVIDER_CONNECT_SUB=tcp://10.1.1.2:7250|-e|STF_PROVIDER_CONNECT_PUSH=tcp://10.1.1.2:7270|-e|STF_PROVIDER_CONNECT_APP_DEALER=tcp://10.1.1.2:7160|-e|STF_PROVIDER_CONNECT_DEV_DEALER=tcp://10.1.1.2:7260|-e|STF_NODE_TOKEN=token|-e|STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=server-key|-e|STF_ZMQ_CURVE_SECRET_KEY=secret-key|public.ecr.aws/zebrunner/mcloud-device:3.1-develop-latest
-docker|run|-itd|--name|device-AppleTV-aaaa1111-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-AppleTV-aaaa1111-stf:device|--link|device-AppleTV-aaaa1111-connector:connector|-e|WDA_HOST=connector|-e|WIRELESS=true|-v|appium-storage-volume:/opt/appium-storage|-v|device-AppleTV-aaaa1111:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|APPIUM_CLI=--session-override|-e|PLATFORM_NAME=ios|-e|RETAIN_TASK=true|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|CUSTOM_NODE_CONFIG=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=AppleTV|-e|DEVICE_UDID=aaaa1111|-e|ADB_PORT=7452|-e|APPIUM_PORT=7451|-p|7451:7451|-e|RELAXED_SECURITY=true|public.ecr.aws/zebrunner/appium:3.1-develop-latest
+docker|run|-itd|--name|device-AppleTV-aaaa1111-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-AppleTV-aaaa1111-stf:device|--link|device-AppleTV-aaaa1111-connector:connector|-e|WDA_HOST=connector|-e|WIRELESS=true|-v|appium-storage-volume:/opt/appium-storage|-v|device-AppleTV-aaaa1111:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|APPIUM_CLI=--session-override|-e|PLATFORM_NAME=ios|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=AppleTV|-e|DEVICE_UDID=aaaa1111|-e|DEVICE_LOCATION=loc|-e|ADB_PORT=7452|-e|APPIUM_PORT=7451|-p|7451:7451|-e|RELAXED_SECURITY=true|-e|STF_API_URL=|-e|STF_AUTH_TOKEN=|public.ecr.aws/zebrunner/appium:3.1-develop-latest
 docker|run|-d|--name|device-AppleTV-aaaa1111-uploader|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-v|device-AppleTV-aaaa1111:/tmp/log|-e|ENDPOINT_URL=|-e|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|-e|AWS_ACCESS_KEY_ID=|-e|AWS_SECRET_ACCESS_KEY=s3 $ecret|-e|AWS_DEFAULT_REGION=|public.ecr.aws/zebrunner/uploader:3.6.2
 docker|ps|-a|--format|{{.Names}} {{.State}}
-docker|run|-itd|--name|device-iPhoneWiFi-bbbb2222-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--sysctl|net.ipv6.conf.all.disable_ipv6=0|--restart|on-failure:50|--cap-add=NET_ADMIN|--device=/dev/net/tun|-e|HOST_OS=LINUX|-e|DEVICE_CONNECTION=wireless|-e|DEVICE_ADDRESS=192.168.1.60|-e|DEVICE_BUS=/dev/bus/usb/001/002|-e|WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner|-e|WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa|-v|devimages_cache:/opt/zebrunner/devimages|-v|/opt/wda.ipa:/tmp/zebrunner/WebDriverAgent.ipa|-v|device-iPhoneWiFi-bbbb2222-lockdown:/var/lib/lockdown|-v|device-iPhoneWiFi-bbbb2222:/tmp/log|-e|DEVICE_UDID=bbbb2222|public.ecr.aws/zebrunner/mcloud-ios-connector:2.0-develop-latest
+docker|run|-itd|--name|device-iPhoneWiFi-bbbb2222-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--sysctl|net.ipv6.conf.all.disable_ipv6=0|--restart|on-failure:50|--cap-add=NET_ADMIN|--device=/dev/net/tun|-e|HOST_OS=LINUX|-e|DEVICE_CONNECTION=wireless|-e|DEVICE_ADDRESS=192.168.1.60|-e|WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner|-e|WDA_FILE=/tmp/zebrunner/WebDriverAgent.ipa|-v|devimages_cache:/opt/zebrunner/devimages|-v|/opt/wda.ipa:/tmp/zebrunner/WebDriverAgent.ipa|-v|device-iPhoneWiFi-bbbb2222-lockdown:/var/lib/lockdown|-v|device-iPhoneWiFi-bbbb2222:/tmp/log|-e|DEVICE_UDID=bbbb2222|public.ecr.aws/zebrunner/mcloud-ios-connector:2.0-develop-latest
 docker|run|-d|--name|device-iPhoneWiFi-bbbb2222-stf|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-iPhoneWiFi-bbbb2222-connector:connector|-e|WDA_HOST=connector|-e|GO_IOS_AGENT_HOST=connector|-e|WIRELESS=false|-e|WDA_WAIT_TIMEOUT=60|-e|PLATFORM_NAME=ios|-e|STF_PROVIDER_DEVICE_NAME=iPhoneWiFi|-e|DEVICE_UDID=bbbb2222|-e|STF_PROVIDER_HOST=10.1.1.1|-e|REMOTE_CONNECT_HOST=relay.example.com|-e|STF_PROVIDER_NAME=mcloud-linux_loc|-e|STF_PROVIDER_MIN_PORT=7465|-e|STF_PROVIDER_MAX_PORT=7470|-p|7465-7470:7465-7470|-e|STF_PROVIDER_PUBLIC_IP=mcloud.example.com|-e|PUBLIC_IP_PORT=443|-e|PUBLIC_IP_PROTOCOL=https|-e|STF_PROVIDER_CONNECT_SUB=tcp://10.1.1.2:7250|-e|STF_PROVIDER_CONNECT_PUSH=tcp://10.1.1.2:7270|-e|STF_PROVIDER_CONNECT_APP_DEALER=tcp://10.1.1.2:7160|-e|STF_PROVIDER_CONNECT_DEV_DEALER=tcp://10.1.1.2:7260|-e|STF_NODE_TOKEN=token|-e|STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=server-key|-e|STF_ZMQ_CURVE_SECRET_KEY=secret-key|public.ecr.aws/zebrunner/mcloud-device:3.1-develop-latest
-docker|run|-itd|--name|device-iPhoneWiFi-bbbb2222-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-iPhoneWiFi-bbbb2222-stf:device|--link|device-iPhoneWiFi-bbbb2222-connector:connector|-e|WDA_HOST=connector|-e|WIRELESS=false|-v|appium-storage-volume:/opt/appium-storage|-v|device-iPhoneWiFi-bbbb2222:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|APPIUM_CLI=--session-override|-e|PLATFORM_NAME=ios|-e|RETAIN_TASK=true|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|CUSTOM_NODE_CONFIG=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=iPhoneWiFi|-e|DEVICE_UDID=bbbb2222|-e|ADB_PORT=7462|-e|APPIUM_PORT=7461|-p|7461:7461|-e|RELAXED_SECURITY=true|public.ecr.aws/zebrunner/appium:3.1-develop-latest
+docker|run|-itd|--name|device-iPhoneWiFi-bbbb2222-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-iPhoneWiFi-bbbb2222-stf:device|--link|device-iPhoneWiFi-bbbb2222-connector:connector|-e|WDA_HOST=connector|-e|WIRELESS=false|-v|appium-storage-volume:/opt/appium-storage|-v|device-iPhoneWiFi-bbbb2222:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|APPIUM_CLI=--session-override|-e|PLATFORM_NAME=ios|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=iPhoneWiFi|-e|DEVICE_UDID=bbbb2222|-e|DEVICE_LOCATION=loc|-e|ADB_PORT=7462|-e|APPIUM_PORT=7461|-p|7461:7461|-e|RELAXED_SECURITY=true|-e|STF_API_URL=|-e|STF_AUTH_TOKEN=|public.ecr.aws/zebrunner/appium:3.1-develop-latest
 docker|run|-d|--name|device-iPhoneWiFi-bbbb2222-uploader|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-v|device-iPhoneWiFi-bbbb2222:/tmp/log|-e|ENDPOINT_URL=|-e|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|-e|AWS_ACCESS_KEY_ID=|-e|AWS_SECRET_ACCESS_KEY=s3 $ecret|-e|AWS_DEFAULT_REGION=|public.ecr.aws/zebrunner/uploader:3.6.2
 docker|ps|-a|--format|{{.Names}} {{.State}}
-docker|run|-itd|--name|device-Emu-emu1-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-e|DEVICE_BUS=/dev/bus/usb/001/002|-v|mcloud-key-volume:/root/.android|-v|device-Emu-emu1:/tmp/log|-e|PLATFORM_NAME=android|-e|ANDROID_DEVICE=host.docker.internal:5557|-e|DEVICE_UDID=host.docker.internal:5557|public.ecr.aws/zebrunner/mcloud-android-connector:2.0-develop-latest
+docker|run|-itd|--name|device-Emu-emu1-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-e|DEVICE_BUS=/dev/bus/usb/001/002|-v|mcloud-key-volume:/root/.android|-v|device-Emu-emu1:/tmp/log|-e|ANDROID_DEVICE=host.docker.internal:5557|public.ecr.aws/zebrunner/mcloud-android-connector:2.0-develop-latest
 docker|run|-d|--name|device-Emu-emu1-stf|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--link|device-Emu-emu1-connector:connector|-e|STF_PROVIDER_ADB_HOST=connector|-e|STF_PROVIDER_ADB_PORT=5037|--health-start-period|60s|--restart|on-failure:50|-e|PLATFORM_NAME=android|-e|STF_PROVIDER_DEVICE_NAME=Emu|-e|DEVICE_UDID=host.docker.internal:5557|-e|STF_PROVIDER_HOST=10.1.1.1|-e|REMOTE_CONNECT_HOST=relay.example.com|-e|STF_PROVIDER_NAME=mcloud-linux_loc|-e|STF_PROVIDER_MIN_PORT=7475|-e|STF_PROVIDER_MAX_PORT=7480|-p|7475-7480:7475-7480|-e|STF_PROVIDER_PUBLIC_IP=mcloud.example.com|-e|PUBLIC_IP_PORT=443|-e|PUBLIC_IP_PROTOCOL=https|-e|STF_PROVIDER_CONNECT_SUB=tcp://10.1.1.2:7250|-e|STF_PROVIDER_CONNECT_PUSH=tcp://10.1.1.2:7270|-e|STF_NODE_TOKEN=token|-e|STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=server-key|-e|STF_ZMQ_CURVE_SECRET_KEY=secret-key|public.ecr.aws/zebrunner/mcloud-device:3.1-develop-latest
-docker|run|-itd|--name|device-Emu-emu1-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-Emu-emu1-stf:device|--link|device-Emu-emu1-connector:connector|-v|appium-storage-volume:/opt/appium-storage|-v|device-Emu-emu1:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|PLATFORM_NAME=android|-e|DEVICE_CONNECTION=android-sim|-e|ANDROID_DEVICE=host.docker.internal:5557|-e|RETAIN_TASK=true|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|CUSTOM_NODE_CONFIG=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=Emu|-e|DEVICE_UDID=host.docker.internal:5557|-e|ADB_PORT=7476|-e|APPIUM_PORT=7471|-p|7471:7471|-e|RELAXED_SECURITY=true|-e|ADB_SERVER_SOCKET=tcp:connector:5037|-e|REMOTE_ADB_HOST=connector|-e|STF_API_URL=|-e|STF_AUTH_TOKEN=|public.ecr.aws/zebrunner/appium:3.1-develop-latest
+docker|run|-itd|--name|device-Emu-emu1-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-Emu-emu1-stf:device|--link|device-Emu-emu1-connector:connector|-v|appium-storage-volume:/opt/appium-storage|-v|device-Emu-emu1:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|PLATFORM_NAME=android|-e|DEVICE_CONNECTION=android-sim|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=Emu|-e|DEVICE_UDID=host.docker.internal:5557|-e|DEVICE_LOCATION=loc|-e|ADB_PORT=7476|-e|APPIUM_PORT=7471|-p|7471:7471|-e|RELAXED_SECURITY=true|-e|STF_API_URL=|-e|STF_AUTH_TOKEN=|-e|ADB_SERVER_SOCKET=tcp:connector:5037|-e|REMOTE_ADB_HOST=connector|public.ecr.aws/zebrunner/appium:3.1-develop-latest
 docker|run|-d|--name|device-Emu-emu1-uploader|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-v|device-Emu-emu1:/tmp/log|-e|ENDPOINT_URL=|-e|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|-e|AWS_ACCESS_KEY_ID=|-e|AWS_SECRET_ACCESS_KEY=s3 $ecret|-e|AWS_DEFAULT_REGION=|public.ecr.aws/zebrunner/uploader:3.6.2
 docker|ps|-a|--format|{{.Names}} {{.State}}
 ### zebrunner-farm stop
 
 ==> Galaxy (R28M1384YQY, android, usb)
-  connector  stopped
   appium     stopped
-  stf        stopped
   uploader   stopped
+  stf        stopped
+  connector  stopped
 
 ==> WiFi (192.168.1.50, android, wireless)
-  connector  stopped
   appium     stopped
-  stf        stopped
   uploader   stopped
+  stf        stopped
+  connector  stopped
 
 ==> iPhone_8_Plus (d6afc6b3a65584ca0813eb8957c6479b9b6ebb11, ios, usb)
-  connector  stopped
   appium     stopped
-  stf        stopped
   uploader   stopped
+  stf        stopped
+  connector  stopped
 
 ==> AppleTV (aaaa1111, ios, proxy)
-  connector  stopped
   appium     stopped
-  stf        stopped
   uploader   stopped
+  stf        stopped
+  connector  stopped
 
 ==> iPhoneWiFi (bbbb2222, ios, wireless)
-  connector  stopped
   appium     stopped
-  stf        stopped
   uploader   stopped
+  stf        stopped
+  connector  stopped
 
 ==> Emu (emu1, android, android-sim)
-  connector  stopped
   appium     stopped
-  stf        stopped
   uploader   stopped
+  stf        stopped
+  connector  stopped
 
 ==> Sim (B1B07E76, ios, ios-sim)
-  connector  stopped
   appium     stopped
-  stf        stopped
   uploader   stopped
+  stf        stopped
+  connector  stopped
 ### calls
-docker|stop|device-Galaxy-R28M1384YQY-connector
-docker|stop|device-Galaxy-R28M1384YQY-appium
-docker|stop|device-Galaxy-R28M1384YQY-stf
-docker|stop|device-Galaxy-R28M1384YQY-uploader
-docker|stop|device-WiFi-192.168.1.50-connector
-docker|stop|device-WiFi-192.168.1.50-appium
-docker|stop|device-WiFi-192.168.1.50-stf
-docker|stop|device-WiFi-192.168.1.50-uploader
-docker|stop|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-connector
-docker|stop|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-appium
-docker|stop|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-stf
-docker|stop|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-uploader
-docker|stop|device-AppleTV-aaaa1111-connector
-docker|stop|device-AppleTV-aaaa1111-appium
-docker|stop|device-AppleTV-aaaa1111-stf
-docker|stop|device-AppleTV-aaaa1111-uploader
-docker|stop|device-iPhoneWiFi-bbbb2222-connector
-docker|stop|device-iPhoneWiFi-bbbb2222-appium
-docker|stop|device-iPhoneWiFi-bbbb2222-stf
-docker|stop|device-iPhoneWiFi-bbbb2222-uploader
-docker|stop|device-Emu-emu1-connector
-docker|stop|device-Emu-emu1-appium
-docker|stop|device-Emu-emu1-stf
-docker|stop|device-Emu-emu1-uploader
-docker|stop|device-Sim-B1B07E76-connector
-docker|stop|device-Sim-B1B07E76-appium
-docker|stop|device-Sim-B1B07E76-stf
-docker|stop|device-Sim-B1B07E76-uploader
+docker|stop|-t|40|device-Galaxy-R28M1384YQY-appium
+docker|stop|-t|130|device-Galaxy-R28M1384YQY-uploader
+docker|stop|-t|30|device-Galaxy-R28M1384YQY-stf
+docker|stop|-t|10|device-Galaxy-R28M1384YQY-connector
+docker|stop|-t|40|device-WiFi-192.168.1.50-appium
+docker|stop|-t|130|device-WiFi-192.168.1.50-uploader
+docker|stop|-t|30|device-WiFi-192.168.1.50-stf
+docker|stop|-t|10|device-WiFi-192.168.1.50-connector
+docker|stop|-t|40|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-appium
+docker|stop|-t|130|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-uploader
+docker|stop|-t|30|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-stf
+docker|stop|-t|10|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-connector
+docker|stop|-t|40|device-AppleTV-aaaa1111-appium
+docker|stop|-t|130|device-AppleTV-aaaa1111-uploader
+docker|stop|-t|30|device-AppleTV-aaaa1111-stf
+docker|stop|-t|10|device-AppleTV-aaaa1111-connector
+docker|stop|-t|40|device-iPhoneWiFi-bbbb2222-appium
+docker|stop|-t|130|device-iPhoneWiFi-bbbb2222-uploader
+docker|stop|-t|30|device-iPhoneWiFi-bbbb2222-stf
+docker|stop|-t|10|device-iPhoneWiFi-bbbb2222-connector
+docker|stop|-t|40|device-Emu-emu1-appium
+docker|stop|-t|130|device-Emu-emu1-uploader
+docker|stop|-t|30|device-Emu-emu1-stf
+docker|stop|-t|10|device-Emu-emu1-connector
+docker|stop|-t|40|device-Sim-B1B07E76-appium
+docker|stop|-t|130|device-Sim-B1B07E76-uploader
+docker|stop|-t|30|device-Sim-B1B07E76-stf
+docker|stop|-t|10|device-Sim-B1B07E76-connector
 ### zebrunner-farm restart android
 
 Removing the containers of 3 devices (batch restart)
 
 ==> Galaxy (R28M1384YQY, android, usb)
-  connector  no container
   appium     no container
-  stf        no container
   uploader   no container
+  stf        no container
+  connector  no container
   logs       volume removed
 
 ==> WiFi (192.168.1.50, android, wireless)
-  connector  no container
   appium     no container
-  stf        no container
   uploader   no container
+  stf        no container
+  connector  no container
   logs       volume removed
 
 ==> Emu (emu1, android, android-sim)
-  connector  no container
   appium     no container
-  stf        no container
   uploader   no container
+  stf        no container
+  connector  no container
   logs       volume removed
 
 Creating the containers of 3 devices again
@@ -270,80 +270,108 @@ Creating the containers of 3 devices again
   uploader   created id
 ### calls
 docker|network|inspect|infra
-docker|rm|-f|device-Galaxy-R28M1384YQY-connector
+docker|stop|-t|40|device-Galaxy-R28M1384YQY-appium
 docker|rm|-f|device-Galaxy-R28M1384YQY-appium
-docker|rm|-f|device-Galaxy-R28M1384YQY-stf
+docker|stop|-t|130|device-Galaxy-R28M1384YQY-uploader
 docker|rm|-f|device-Galaxy-R28M1384YQY-uploader
+docker|stop|-t|30|device-Galaxy-R28M1384YQY-stf
+docker|rm|-f|device-Galaxy-R28M1384YQY-stf
+docker|stop|-t|10|device-Galaxy-R28M1384YQY-connector
+docker|rm|-f|device-Galaxy-R28M1384YQY-connector
 docker|volume|rm|device-Galaxy-R28M1384YQY
-docker|rm|-f|device-WiFi-192.168.1.50-connector
+docker|stop|-t|40|device-WiFi-192.168.1.50-appium
 docker|rm|-f|device-WiFi-192.168.1.50-appium
-docker|rm|-f|device-WiFi-192.168.1.50-stf
+docker|stop|-t|130|device-WiFi-192.168.1.50-uploader
 docker|rm|-f|device-WiFi-192.168.1.50-uploader
+docker|stop|-t|30|device-WiFi-192.168.1.50-stf
+docker|rm|-f|device-WiFi-192.168.1.50-stf
+docker|stop|-t|10|device-WiFi-192.168.1.50-connector
+docker|rm|-f|device-WiFi-192.168.1.50-connector
 docker|volume|rm|device-WiFi-192.168.1.50
-docker|rm|-f|device-Emu-emu1-connector
+docker|stop|-t|40|device-Emu-emu1-appium
 docker|rm|-f|device-Emu-emu1-appium
-docker|rm|-f|device-Emu-emu1-stf
+docker|stop|-t|130|device-Emu-emu1-uploader
 docker|rm|-f|device-Emu-emu1-uploader
+docker|stop|-t|30|device-Emu-emu1-stf
+docker|rm|-f|device-Emu-emu1-stf
+docker|stop|-t|10|device-Emu-emu1-connector
+docker|rm|-f|device-Emu-emu1-connector
 docker|volume|rm|device-Emu-emu1
 docker|ps|-a|--format|{{.Names}} {{.State}}
-docker|run|-itd|--name|device-WiFi-192.168.1.50-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-e|DEVICE_BUS=/dev/bus/usb/001/002|-v|mcloud-key-volume:/root/.android|-v|device-WiFi-192.168.1.50:/tmp/log|-e|PLATFORM_NAME=android|-e|ANDROID_DEVICE=192.168.1.50:5555|-e|DEVICE_UDID=192.168.1.50:5555|public.ecr.aws/zebrunner/mcloud-android-connector:2.0-develop-latest
+docker|run|-itd|--name|device-WiFi-192.168.1.50-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-e|DEVICE_BUS=/dev/bus/usb/001/002|-v|mcloud-key-volume:/root/.android|-v|device-WiFi-192.168.1.50:/tmp/log|-e|ANDROID_DEVICE=192.168.1.50:5555|public.ecr.aws/zebrunner/mcloud-android-connector:2.0-develop-latest
 docker|run|-d|--name|device-WiFi-192.168.1.50-stf|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--link|device-WiFi-192.168.1.50-connector:connector|-e|STF_PROVIDER_ADB_HOST=connector|-e|STF_PROVIDER_ADB_PORT=5037|--health-start-period|60s|--restart|on-failure:50|-e|PLATFORM_NAME=android|-e|STF_PROVIDER_DEVICE_NAME=WiFi|-e|DEVICE_UDID=192.168.1.50:5555|-e|STF_PROVIDER_HOST=10.1.1.1|-e|REMOTE_CONNECT_HOST=relay.example.com|-e|STF_PROVIDER_NAME=mcloud-linux_loc|-e|STF_PROVIDER_MIN_PORT=7435|-e|STF_PROVIDER_MAX_PORT=7440|-e|STF_PROVIDER_CONNECT_PORT=7499|-p|7499:7499|-p|7435-7440:7435-7440|-e|STF_PROVIDER_PUBLIC_IP=mcloud.example.com|-e|PUBLIC_IP_PORT=443|-e|PUBLIC_IP_PROTOCOL=https|-e|STF_PROVIDER_CONNECT_SUB=tcp://10.1.1.2:7250|-e|STF_PROVIDER_CONNECT_PUSH=tcp://10.1.1.2:7270|-e|STF_NODE_TOKEN=token|-e|STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=server-key|-e|STF_ZMQ_CURVE_SECRET_KEY=secret-key|public.ecr.aws/zebrunner/mcloud-device:3.1-develop-latest
-docker|run|-itd|--name|device-WiFi-192.168.1.50-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-WiFi-192.168.1.50-stf:device|--link|device-WiFi-192.168.1.50-connector:connector|-v|appium-storage-volume:/opt/appium-storage|-v|device-WiFi-192.168.1.50:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|PLATFORM_NAME=android|-e|DEVICE_CONNECTION=wireless|-e|ANDROID_DEVICE=192.168.1.50:5555|-e|RETAIN_TASK=true|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|CUSTOM_NODE_CONFIG=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=WiFi|-e|DEVICE_UDID=192.168.1.50:5555|-e|ADB_PORT=7499|-e|APPIUM_PORT=7431|-p|7431:7431|-e|RELAXED_SECURITY=true|-e|ADB_SERVER_SOCKET=tcp:connector:5037|-e|REMOTE_ADB_HOST=connector|-e|STF_API_URL=|-e|STF_AUTH_TOKEN=|public.ecr.aws/zebrunner/appium:3.1-develop-latest
+docker|run|-itd|--name|device-WiFi-192.168.1.50-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-WiFi-192.168.1.50-stf:device|--link|device-WiFi-192.168.1.50-connector:connector|-v|appium-storage-volume:/opt/appium-storage|-v|device-WiFi-192.168.1.50:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|PLATFORM_NAME=android|-e|DEVICE_CONNECTION=wireless|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=WiFi|-e|DEVICE_UDID=192.168.1.50:5555|-e|DEVICE_LOCATION=loc|-e|ADB_PORT=7499|-e|APPIUM_PORT=7431|-p|7431:7431|-e|RELAXED_SECURITY=true|-e|STF_API_URL=|-e|STF_AUTH_TOKEN=|-e|ADB_SERVER_SOCKET=tcp:connector:5037|-e|REMOTE_ADB_HOST=connector|public.ecr.aws/zebrunner/appium:3.1-develop-latest
 docker|run|-d|--name|device-WiFi-192.168.1.50-uploader|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-v|device-WiFi-192.168.1.50:/tmp/log|-e|ENDPOINT_URL=|-e|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|-e|AWS_ACCESS_KEY_ID=|-e|AWS_SECRET_ACCESS_KEY=s3 $ecret|-e|AWS_DEFAULT_REGION=|public.ecr.aws/zebrunner/uploader:3.6.2
 docker|ps|-a|--format|{{.Names}} {{.State}}
-docker|run|-itd|--name|device-Emu-emu1-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-e|DEVICE_BUS=/dev/bus/usb/001/002|-v|mcloud-key-volume:/root/.android|-v|device-Emu-emu1:/tmp/log|-e|PLATFORM_NAME=android|-e|ANDROID_DEVICE=host.docker.internal:5557|-e|DEVICE_UDID=host.docker.internal:5557|public.ecr.aws/zebrunner/mcloud-android-connector:2.0-develop-latest
+docker|run|-itd|--name|device-Emu-emu1-connector|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-e|DEVICE_BUS=/dev/bus/usb/001/002|-v|mcloud-key-volume:/root/.android|-v|device-Emu-emu1:/tmp/log|-e|ANDROID_DEVICE=host.docker.internal:5557|public.ecr.aws/zebrunner/mcloud-android-connector:2.0-develop-latest
 docker|run|-d|--name|device-Emu-emu1-stf|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--link|device-Emu-emu1-connector:connector|-e|STF_PROVIDER_ADB_HOST=connector|-e|STF_PROVIDER_ADB_PORT=5037|--health-start-period|60s|--restart|on-failure:50|-e|PLATFORM_NAME=android|-e|STF_PROVIDER_DEVICE_NAME=Emu|-e|DEVICE_UDID=host.docker.internal:5557|-e|STF_PROVIDER_HOST=10.1.1.1|-e|REMOTE_CONNECT_HOST=relay.example.com|-e|STF_PROVIDER_NAME=mcloud-linux_loc|-e|STF_PROVIDER_MIN_PORT=7475|-e|STF_PROVIDER_MAX_PORT=7480|-p|7475-7480:7475-7480|-e|STF_PROVIDER_PUBLIC_IP=mcloud.example.com|-e|PUBLIC_IP_PORT=443|-e|PUBLIC_IP_PROTOCOL=https|-e|STF_PROVIDER_CONNECT_SUB=tcp://10.1.1.2:7250|-e|STF_PROVIDER_CONNECT_PUSH=tcp://10.1.1.2:7270|-e|STF_NODE_TOKEN=token|-e|STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=server-key|-e|STF_ZMQ_CURVE_SECRET_KEY=secret-key|public.ecr.aws/zebrunner/mcloud-device:3.1-develop-latest
-docker|run|-itd|--name|device-Emu-emu1-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-Emu-emu1-stf:device|--link|device-Emu-emu1-connector:connector|-v|appium-storage-volume:/opt/appium-storage|-v|device-Emu-emu1:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|PLATFORM_NAME=android|-e|DEVICE_CONNECTION=android-sim|-e|ANDROID_DEVICE=host.docker.internal:5557|-e|RETAIN_TASK=true|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|CUSTOM_NODE_CONFIG=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=Emu|-e|DEVICE_UDID=host.docker.internal:5557|-e|ADB_PORT=7476|-e|APPIUM_PORT=7471|-p|7471:7471|-e|RELAXED_SECURITY=true|-e|ADB_SERVER_SOCKET=tcp:connector:5037|-e|REMOTE_ADB_HOST=connector|-e|STF_API_URL=|-e|STF_AUTH_TOKEN=|public.ecr.aws/zebrunner/appium:3.1-develop-latest
+docker|run|-itd|--name|device-Emu-emu1-appium|-m|1g|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|--link|device-Emu-emu1-stf:device|--link|device-Emu-emu1-connector:connector|-v|appium-storage-volume:/opt/appium-storage|-v|device-Emu-emu1:/tmp/log|-e|TASK_LOG=/tmp/log/appium.log|-e|PLATFORM_NAME=android|-e|DEVICE_CONNECTION=android-sim|-e|CONNECT_TO_GRID=true|-e|RECORD_ARTIFACTS=true|-e|STF_PROVIDER_HOST=10.1.1.1|-e|APPIUM_APP_SIZE_DISABLE=false|-e|APPIUM_APP_FETCH_RETRIES=2|-e|APPIUM_MAX_LOCK_FILE_LIFETIME=180|-e|APPIUM_APP_WAITING_TIMEOUT=90|-e|SELENIUM_HOST=10.1.1.2|-e|SELENIUM_PORT=4446|-e|NODE_REGISTRATION_TOKEN=token|-e|DEFAULT_CAPABILITIES=true|-e|DEVICE_NAME=Emu|-e|DEVICE_UDID=host.docker.internal:5557|-e|DEVICE_LOCATION=loc|-e|ADB_PORT=7476|-e|APPIUM_PORT=7471|-p|7471:7471|-e|RELAXED_SECURITY=true|-e|STF_API_URL=|-e|STF_AUTH_TOKEN=|-e|ADB_SERVER_SOCKET=tcp:connector:5037|-e|REMOTE_ADB_HOST=connector|public.ecr.aws/zebrunner/appium:3.1-develop-latest
 docker|run|-d|--name|device-Emu-emu1-uploader|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-v|device-Emu-emu1:/tmp/log|-e|ENDPOINT_URL=|-e|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|-e|AWS_ACCESS_KEY_ID=|-e|AWS_SECRET_ACCESS_KEY=s3 $ecret|-e|AWS_DEFAULT_REGION=|public.ecr.aws/zebrunner/uploader:3.6.2
 ### zebrunner-farm down ios
 
 ==> iPhone_8_Plus (d6afc6b3a65584ca0813eb8957c6479b9b6ebb11, ios, usb)
-  connector  no container
   appium     no container
-  stf        no container
   uploader   no container
+  stf        no container
+  connector  no container
   logs       volume removed
 
 ==> AppleTV (aaaa1111, ios, proxy)
-  connector  no container
   appium     no container
-  stf        no container
   uploader   no container
+  stf        no container
+  connector  no container
   logs       volume removed
 
 ==> iPhoneWiFi (bbbb2222, ios, wireless)
-  connector  no container
   appium     no container
-  stf        no container
   uploader   no container
+  stf        no container
+  connector  no container
   logs       volume removed
 
 ==> Sim (B1B07E76, ios, ios-sim)
-  connector  no container
   appium     no container
-  stf        no container
   uploader   no container
+  stf        no container
+  connector  no container
   logs       volume removed
 ### calls
-docker|rm|-f|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-connector
+docker|stop|-t|40|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-appium
 docker|rm|-f|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-appium
-docker|rm|-f|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-stf
+docker|stop|-t|130|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-uploader
 docker|rm|-f|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-uploader
+docker|stop|-t|30|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-stf
+docker|rm|-f|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-stf
+docker|stop|-t|10|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-connector
+docker|rm|-f|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-connector
 docker|volume|rm|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11
-docker|rm|-f|device-AppleTV-aaaa1111-connector
+docker|stop|-t|40|device-AppleTV-aaaa1111-appium
 docker|rm|-f|device-AppleTV-aaaa1111-appium
-docker|rm|-f|device-AppleTV-aaaa1111-stf
+docker|stop|-t|130|device-AppleTV-aaaa1111-uploader
 docker|rm|-f|device-AppleTV-aaaa1111-uploader
+docker|stop|-t|30|device-AppleTV-aaaa1111-stf
+docker|rm|-f|device-AppleTV-aaaa1111-stf
+docker|stop|-t|10|device-AppleTV-aaaa1111-connector
+docker|rm|-f|device-AppleTV-aaaa1111-connector
 docker|volume|rm|device-AppleTV-aaaa1111
-docker|rm|-f|device-iPhoneWiFi-bbbb2222-connector
+docker|stop|-t|40|device-iPhoneWiFi-bbbb2222-appium
 docker|rm|-f|device-iPhoneWiFi-bbbb2222-appium
-docker|rm|-f|device-iPhoneWiFi-bbbb2222-stf
+docker|stop|-t|130|device-iPhoneWiFi-bbbb2222-uploader
 docker|rm|-f|device-iPhoneWiFi-bbbb2222-uploader
+docker|stop|-t|30|device-iPhoneWiFi-bbbb2222-stf
+docker|rm|-f|device-iPhoneWiFi-bbbb2222-stf
+docker|stop|-t|10|device-iPhoneWiFi-bbbb2222-connector
+docker|rm|-f|device-iPhoneWiFi-bbbb2222-connector
 docker|volume|rm|device-iPhoneWiFi-bbbb2222
-docker|rm|-f|device-Sim-B1B07E76-connector
+docker|stop|-t|40|device-Sim-B1B07E76-appium
 docker|rm|-f|device-Sim-B1B07E76-appium
-docker|rm|-f|device-Sim-B1B07E76-stf
+docker|stop|-t|130|device-Sim-B1B07E76-uploader
 docker|rm|-f|device-Sim-B1B07E76-uploader
+docker|stop|-t|30|device-Sim-B1B07E76-stf
+docker|rm|-f|device-Sim-B1B07E76-stf
+docker|stop|-t|10|device-Sim-B1B07E76-connector
+docker|rm|-f|device-Sim-B1B07E76-connector
 docker|volume|rm|device-Sim-B1B07E76
 ### zebrunner-farm status
 
