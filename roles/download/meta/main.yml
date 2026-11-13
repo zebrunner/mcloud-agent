@@ -1,0 +1,4 @@
+---
+# the values by default of the settings (STF_DOCKER_NETWORK)
+dependencies:
+  - role: common

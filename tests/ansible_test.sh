@@ -52,7 +52,6 @@ make_play() {
     - [config/settings.yml, ${REPO}/versions.yml]
     - [config/devices.yml, ${REPO}/versions.yml]
   vars:
-    STF_DOCKER_NETWORK: infra
     agent_dir: ${REPO}
   roles:
     - $1
@@ -241,6 +240,7 @@ reset_calls
 output="$(playbook download)"
 check_contains "all images pulled" "failed=0" "$output"
 check "network is created after pulling" "1" "$(calls docker | grep -c '^network|')"
+check "the network of the value by default of STF_DOCKER_NETWORK" "network|inspect|infra" "$(calls docker | grep '^network|')"
 check "the images are pulled for the platform of the host" "4" "$(calls docker | grep -c '^pull|public.ecr.aws/')"
 check "appium is pulled for linux/amd64" "pull|--platform|linux/amd64|public.ecr.aws/zebrunner/appium:" \
   "$(calls docker | grep '^pull|.*appium:' | sed 's/:[^:]*$/:/')"
@@ -278,6 +278,26 @@ for role in devices mac-devices; do
   check_contains "${role}: relaxed security false is lower case" "APPIUM_RELAXED_SECURITY=false" "$farm"
   check_contains "${role}: app size check true is lower case" "APPIUM_APP_SIZE_DISABLE=true" "$farm"
 done
+
+# the optional settings removed from config/settings.yml: the values by default of the roles, no undefined variable
+grep -v -E '^(STF_DOCKER_NETWORK|STF_API_URL|STF_AUTH_TOKEN|S3_[A-Z_]+|WDA_FILE|WDA_BUNDLEID|WDA_SIMULATOR_FILE|REMOTE_CONNECT_HOST):' \
+  "${REPO}/config/settings.yml.original" > "${WORK}/required.yml"
+for role in devices mac-devices; do
+  if output="$(render "${REPO}/roles/common/templates/zebrunner-farm.env" "${WORK}/farm" --extra-vars common_farm_os=linux \
+    --extra-vars "@${REPO}/roles/common/defaults/main.yml" --extra-vars "@${REPO}/roles/${role}/defaults/main.yml" \
+    --extra-vars "@${REPO}/versions.yml" --extra-vars "@${WORK}/required.yml")"; then
+    farm="$(cat "${WORK}/farm")"
+    pass "${role}: the settings of zebrunner-farm without the optional settings"
+    check_contains "${role}: the docker network by default" "STF_DOCKER_NETWORK=infra" "$farm"
+    for name in STF_API_URL STF_AUTH_TOKEN S3_BUCKET S3_TENANT S3_ENDPOINT S3_ACCESS_KEY_ID S3_SECRET S3_REGION WDA_FILE WDA_BUNDLEID; do
+      check "${role}: ${name} is empty by default" "${name}=''" "$(grep "^${name}=" "${WORK}/farm")"
+    done
+  else
+    fail "${role}: the settings of zebrunner-farm without the optional settings" "the template failed" "$output"
+  fi
+done
+check "the example settings leave STF_DOCKER_NETWORK to the value by default" "" \
+  "$(grep '^STF_DOCKER_NETWORK:' "${REPO}/config/settings.yml.original")"
 
 cat > "${WORK}/devices.yml" << 'EOF'
 devices:
