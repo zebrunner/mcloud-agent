@@ -683,6 +683,7 @@ rm|-vf|/etc/newsyslog.d/zebrunner-mcloud.conf
 rm|-vf|/usr/local/bin/zebrunner-farm
 rm|-vf|/usr/local/etc/zebrunner-farm.env
 rm|-vf|/usr/local/bin/mcloud-devices.txt" "$(calls sudo | grep '^rm|')"
+check "macOS: no udev and systemd" "" "$(calls sudo | grep -E '^(udevadm|systemctl)\|')"
 check "macOS: the autostart is removed" "no" "$([[ -f "${WORK}/home/Library/LaunchAgents/ZebrunnerFarmStart.plist" ]] && echo yes || echo no)"
 check "macOS: settings are removed" "no no" \
   "$([[ -f "${AGENT}/config/settings.yml" ]] && echo yes || echo no) $([[ -f "${AGENT}/config/devices.yml" ]] && echo yes || echo no)"
@@ -697,6 +698,8 @@ rm|-vf|/etc/systemd/system/mcloud-device-down@.service
 rm|-vf|/usr/local/bin/zebrunner-farm
 rm|-vf|/usr/local/etc/zebrunner-farm.env
 rm|-vf|/usr/local/bin/mcloud-devices.txt" "$(calls sudo | grep '^rm|')"
+check "Linux: udev and systemd forget the removed rules and units" "udevadm|control|--reload
+systemctl|daemon-reload" "$(calls sudo | grep -E '^(udevadm|systemctl)\|')"
 check "Linux: settings are removed" "no no" \
   "$([[ -f "${AGENT}/config/settings.yml" ]] && echo yes || echo no) $([[ -f "${AGENT}/config/devices.yml" ]] && echo yes || echo no)"
 

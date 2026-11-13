@@ -503,6 +503,9 @@ shutdown() {
     sudo rm -vf /etc/udev/rules.d/90_mcloud.rules
     sudo rm -vf /etc/systemd/system/mcloud-device-restart@.service
     sudo rm -vf /etc/systemd/system/mcloud-device-down@.service
+    # udev and systemd keep the removed rules and units until they reload them
+    sudo udevadm control --reload
+    sudo systemctl daemon-reload
   fi
   sudo rm -vf /usr/local/bin/zebrunner-farm
   sudo rm -vf /usr/local/etc/zebrunner-farm.env
