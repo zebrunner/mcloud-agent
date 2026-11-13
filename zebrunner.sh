@@ -97,6 +97,8 @@ setup() {
   delimiter "Setting up MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished successfully"
 }
 
+# ansible [devices] [ansible-playbook arguments...]: deploys the agent (README.md#run-ansible-playbook); devices skips the
+# download of the images and keeps the running containers of the devices
 ansible() {
   delimiter "Deploying MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
 
@@ -114,14 +116,21 @@ ansible() {
 
   ### Make a list of arguments
   delimiter "*"
-  local -a args
-  if [[ -z "$1" ]]; then
-    args=("$file")
-  elif [[ "$1" == "devices" ]]; then
-    args=("$file" --tag registerDevices)
-  else
-    args=("$@" "$file")
+  # deploy: the run changes the deployment, the running containers of the devices keep the old one
+  local deploy="true"
+  local -a tags=()
+  if [[ "$1" == "devices" ]]; then
+    deploy=""
+    tags=(--tag registerDevices)
+    shift
   fi
+  local -a args=("$@" "$file" "${tags[@]+"${tags[@]}"}")
+  local arg
+  for arg in "$@"; do
+    case "$arg" in
+    --check | -C | --syntax-check | --list-tasks | --list-tags | --list-hosts) deploy="" ;;
+    esac
+  done
 
   ### sudo-rs (the sudo of Ubuntu 25.10+) wraps the password prompt, ansible does not recognize it and times out
   if [[ "$(uname)" == "Linux" && "$*" != *ansible_become_exe* ]] && sudo --version 2> /dev/null | grep -q '^sudo-rs'; then
@@ -134,7 +143,7 @@ ansible() {
   fi
 
   ### The running containers of the devices keep the old settings and images
-  if [[ "$1" != "devices" ]]; then
+  if [[ -n "$deploy" ]]; then
     stop_running_devices
   fi
 
@@ -148,7 +157,7 @@ ansible() {
     exit 1
   }
 
-  if [[ "$1" != "devices" ]]; then
+  if [[ -n "$deploy" ]]; then
     echo "Run 'zebrunner-farm start' to create the containers of the connected devices."
   fi
   delimiter "Deploying MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished successfully"
@@ -737,7 +746,7 @@ echo_help() {
       Usage: ./zebrunner.sh [option]
       Options:
          setup                Prepare MCloud Agent environment
-         ansible ['devices']  Deploy MCloud Agent with custom or predefined args
+         ansible [devices] [args...]  Deploy MCloud Agent: devices without the download of the images, args of ansible-playbook
          status               Status of MCloud Agent deployment
          backup               Backup MCloud Agent setup
          restore              Restore MCloud Agent setup
