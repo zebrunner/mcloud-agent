@@ -35,6 +35,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 ## Software prerequisites
 
 - Install docker: [Docker Engine](https://docs.docker.com/engine/install/) on Linux, [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) on macOS.
+- Linux: the user of the agent runs docker without sudo (the deploy pulls the images, `zebrunner.sh` and `zebrunner-farm` manage the containers as this user): `sudo usermod -aG docker $USER`, then log in again.
 - Install [ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html) 2.10+ (the playbooks use `ansible.builtin` module names, tested with ansible-core 2.21), e.g. `pip install ansible-core`.
 - python3 and curl: `./zebrunner.sh join` and `doctor` need them. They read and write the settings with PyYAML of `python3` or, without it there, of the python of ansible (`ansible-playbook --version` shows it); `ZEBRUNNER_PYTHON` sets another one.
 - macOS on Apple Silicon: install Rosetta 2 and let Docker Desktop use it: the image of appium is `linux/amd64` only and
@@ -357,7 +358,8 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
 
 | Symptom | Cause and fix |
 | --- | --- |
-| `./zebrunner.sh ansible` fails on `Pull Zebrunner images` and `Check that images failed to pull exist locally` with `denied: Your authorization token has expired` or `403 Forbidden` | an expired login to public.ecr.aws in `~/.docker/config.json` of the user: the images are public, `docker logout public.ecr.aws` (or log in again) |
+| `./zebrunner.sh ansible` fails on `Pull Zebrunner images` and `Check that images failed to pull exist locally` with `denied: Your authorization token has expired` or `403 Forbidden` | an expired login to public.ecr.aws in `~/.docker/config.json` of the user who runs the deploy (it pulls as this user, not as root): the images are public, `docker logout public.ecr.aws` (or log in again) |
+| Linux: `./zebrunner.sh ansible` fails on `Pull Zebrunner images` with `permission denied while trying to connect to the Docker daemon socket` | the user is not in the `docker` group: `sudo usermod -aG docker $USER`, log in again |
 | the pull fails with `manifest unknown` | the tag of `versions.yml` (or of `config/settings.yml`) is not published, see the images of the current [mcloud](https://github.com/zebrunner/mcloud) |
 | Linux: the deploy passed, the devices plugged in before it have no containers | udev starts them on the next connection only: `zebrunner-farm start` |
 | `./zebrunner.sh join` stops with `the TLS key of the server is not the pinned one` | the join string is of another MCloud (or the address of the join string leads elsewhere), or a man in the middle; a new TLS key of MCloud needs a new join string |
