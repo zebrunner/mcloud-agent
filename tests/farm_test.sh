@@ -676,6 +676,46 @@ check "uptime above a day shows days" "ok" "$([[ "$uptime" =~ ^1d\ 02:03:0[45]$ 
 uptime="$(DOCKER_STARTED_AT="$(iso_ago 7200)" DOCKER_FINISHED_AT="$(iso_ago 60)" uptime_of)"
 check "stopped container has unknown uptime" "UNKNOWN" "$uptime"
 
+section "Developer Disk Images"
+# ddi_mount <role> <device> <container prefix>: the DDI mount of the connector of a started device, empty without it
+ddi_mount() {
+  setup_case
+  echo "iSerial d6afc6b3a65584ca0813eb8957c6479b9b6ebb11" > "${WORK}/usb"
+  echo '"USB Serial Number" = "d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"' >> "${WORK}/usb"
+  farm "$1" start "$2" > /dev/null
+  run_args "${3}-connector" | tr '|' '\n' | grep ':/opt/zebrunner/ddi'
+}
+# a fake agent folder for the default DDI_DIR, with the scripts zebrunner-farm sources
+mkdir -p "${WORK}/agent"
+ln -s "${REPO}/patch" "${WORK}/agent/patch"
+for role in devices mac-devices; do
+  render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
+  check_contains "${role}: the DDI are on by default" $'\n'"DDI_ENABLED=true"$'\n' $'\n'"$(cat "${WORK}/farm-${role}.env")"$'\n'
+  check_contains "${role}: DDI_DIR is empty by default" "DDI_DIR=''" "$(cat "${WORK}/farm-${role}.env")"
+  sed -i.bak -e "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" \
+    -e "s|^ZEBRUNNER_MCLOUD_AGENT_DIR=.*|ZEBRUNNER_MCLOUD_AGENT_DIR=${WORK}/agent|" "${WORK}/farm-${role}.env"
+  rm -rf "${WORK}/agent/DeveloperDiskImages"
+  check "${role}: no folder, no mount" "" "$(ddi_mount "$role" iPhone_8_Plus "$IPHONE")"
+  mkdir -p "${WORK}/agent/DeveloperDiskImages"
+  check "${role}: the folder of the agent is mounted read-only" "${WORK}/agent/DeveloperDiskImages:/opt/zebrunner/ddi:ro" \
+    "$(ddi_mount "$role" iPhone_8_Plus "$IPHONE")"
+  check "${role}: the wireless iPhone gets it too" "${WORK}/agent/DeveloperDiskImages:/opt/zebrunner/ddi:ro" \
+    "$(ddi_mount "$role" iPhoneWiFi device-iPhoneWiFi-bbbb2222)"
+  check "${role}: the Android connector gets none" "" "$(ddi_mount "$role" WiFi device-WiFi-192.168.1.50)"
+  render_farm "$role" "${WORK}/farm-${role}.env" --extra-vars "DDI_DIR=${WORK}/ddi" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+  mkdir -p "${WORK}/ddi"
+  check "${role}: DDI_DIR is mounted" "${WORK}/ddi:/opt/zebrunner/ddi:ro" "$(ddi_mount "$role" iPhone_8_Plus "$IPHONE")"
+  render_farm "$role" "${WORK}/farm-${role}.env" --extra-vars '{"DDI_ENABLED": false}' --extra-vars "DDI_DIR=${WORK}/ddi" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+  check_contains "${role}: DDI_ENABLED false is lower case" "DDI_ENABLED=false" "$(cat "${WORK}/farm-${role}.env")"
+  check "${role}: DDI_ENABLED false mounts nothing" "" "$(ddi_mount "$role" iPhone_8_Plus "$IPHONE")"
+done
+render_farm mac-devices "${WORK}/farm-mac-devices.env" --extra-vars "DDI_DIR=${WORK}/ddi" || exit 1
+sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-mac-devices.env"
+check "a simulator gets none" "" "$(ddi_mount mac-devices Sim device-Sim-B1B07E76)"
+check "the proxied device gets it" "${WORK}/ddi:/opt/zebrunner/ddi:ro" "$(ddi_mount mac-devices AppleTV device-AppleTV-aaaa1111)"
+
 section "help"
 output="$(farm devices)"
 check_contains "help describes the devices argument" "Devices: udid or name of a whitelisted device, a group: ios, android, usb" "$output"

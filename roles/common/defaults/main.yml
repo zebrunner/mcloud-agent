@@ -15,3 +15,11 @@ APPIUM_MAX_LOCK_FILE_LIFETIME: 180
 APPIUM_APP_WAITING_TIMEOUT: 90
 
 RESTARTS_LIMIT: 50
+
+# The Developer Disk Images of the iOS devices (README.md#developer-disk-images): the deploy of a host with iOS devices
+# clones DDI_REPO at DDI_VERSION (a branch or a tag) into DDI_DIR (DeveloperDiskImages of the agent folder when empty),
+# zebrunner-farm mounts it into the iOS connectors read-only; false leaves the images to the download of go-ios
+DDI_ENABLED: true
+DDI_REPO: https://github.com/zebrunner/DeveloperDiskImage.git
+DDI_VERSION: main
+DDI_DIR:

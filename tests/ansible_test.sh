@@ -1,6 +1,7 @@
 #!/bin/bash
 # Ansible roles: registerDevices tag, duplicates check, prechecks and file tasks of the role of the
-# current OS (check mode), the images download with a stubbed docker, and the rendered templates.
+# current OS (check mode), the images download with a stubbed docker, the clone of the Developer Disk Images and the
+# rendered templates.
 source "$(dirname "$0")/lib.sh"
 require_cmd ansible-playbook
 
@@ -237,6 +238,18 @@ exit 0
 EOF
 chmod +x "${WORK}/bin/docker"
 export STUB_DIR="$WORK"
+# the Developer Disk Images: a local repository instead of GitHub, cloned into the work folder
+ddi_commit() {
+  mkdir -p "${WORK}/ddi-origin/$1"
+  echo "$1" > "${WORK}/ddi-origin/$1/DeveloperDiskImage.dmg"
+  git -C "${WORK}/ddi-origin" add -A
+  git -C "${WORK}/ddi-origin" -c user.name=test -c user.email=test@example.com commit -q -m "$1"
+}
+git init -q -b main "${WORK}/ddi-origin"
+ddi_commit DeveloperDiskImages/15.0
+git -C "${WORK}/ddi-origin" tag v1
+ddi_commit DeveloperDiskImages/16.7
+printf 'DDI_REPO: "file://%s"\nDDI_DIR: "%s"\n' "${WORK}/ddi-origin" "${WORK}/ddi" > "${WORK}/play-download/config/settings.yml"
 reset_calls
 output="$(playbook download)"
 check_contains "all images pulled" "failed=0" "$output"
@@ -265,6 +278,36 @@ output="$(FAIL_PULL=appium playbook download)"
 check_contains "missing image stops the deploy" "No such image: public.ecr.aws/zebrunner/appium" "$output"
 check "deploy stops before the network" "0" "$(calls docker | grep -c '^network|')"
 check_contains "check mode skips the pulls" "failed=0" "$(FAIL_PULL=appium playbook download --check)"
+
+section "Developer Disk Images"
+ddi="${WORK}/ddi/DeveloperDiskImages"
+# ddi_versions <folder>: the versions of the images of a clone
+ddi_versions() {
+  find "$1" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; 2> /dev/null | sort | paste -s -d ' ' -
+}
+check "the images are cloned without a list of devices" "15.0 16.7" "$(ddi_versions "$ddi")"
+check "the clone is shallow" "true" "$(git -C "${WORK}/ddi" rev-parse --is-shallow-repository 2> /dev/null)"
+ddi_commit DeveloperDiskImages/17.0
+output="$(playbook download --extra-vars '{"devices": [{"id": "a", "os": "ios"}]}')"
+check_contains "the update for the iOS devices" "failed=0" "$output"
+check "the iOS devices: the clone is updated" "15.0 16.7 17.0" "$(ddi_versions "$ddi")"
+echo "local" > "${ddi}/16.7/DeveloperDiskImage.dmg"
+playbook download > /dev/null
+check "a local change is dropped" "DeveloperDiskImages/16.7" "$(cat "${ddi}/16.7/DeveloperDiskImage.dmg")"
+output="$(playbook download --extra-vars '{"devices": [{"id": "a", "os": "ios"}], "DDI_VERSION": "v1"}')"
+check "DDI_VERSION: a tag" "15.0" "$(ddi_versions "$ddi")"
+rm -rf "${WORK}/ddi"
+output="$(playbook download --extra-vars '{"devices": [{"id": "a", "os": "android"}]}')"
+check "the Android devices: no clone" "no" "$([[ -e "${WORK}/ddi" ]] && echo yes || echo no)"
+output="$(playbook download --extra-vars '{"devices": [{"id": "a", "os": "ios"}], "DDI_ENABLED": false}')"
+check "DDI_ENABLED false: no clone" "no" "$([[ -e "${WORK}/ddi" ]] && echo yes || echo no)"
+mkdir -p "${WORK}/agent"
+output="$(playbook download --extra-vars "{\"devices\": [{\"id\": \"a\", \"os\": \"ios\"}], \"DDI_DIR\": \"\", \"agent_dir\": \"${WORK}/agent\"}")"
+check "DDI_DIR empty: DeveloperDiskImages of the agent folder" "15.0 16.7 17.0" \
+  "$(ddi_versions "${WORK}/agent/DeveloperDiskImages/DeveloperDiskImages")"
+output="$(playbook download --extra-vars "{\"devices\": [{\"id\": \"a\", \"os\": \"ios\"}], \"DDI_REPO\": \"file://${WORK}/missing\"}")"
+check_contains "a failed clone is reported" "The Developer Disk Images of file://${WORK}/missing (main) are not updated" "$output"
+check_contains "a failed clone does not stop the deploy" "failed=0" "$output"
 
 section "templates"
 for role in devices mac-devices; do

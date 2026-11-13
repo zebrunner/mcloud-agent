@@ -77,7 +77,7 @@ The other files of the settings are in git, do not change them: `git pull` bring
 | File | What it is |
 | --- | --- |
 | `versions.yml` | the images of the devices and their versions |
-| `roles/common/defaults/main.yml` | the values by default of both OS: the options of Appium (`APPIUM_RELAXED_SECURITY`, ...), `RESTARTS_LIMIT` |
+| `roles/common/defaults/main.yml` | the values by default of both OS: the options of Appium (`APPIUM_RELAXED_SECURITY`, ...), `RESTARTS_LIMIT`, the [Developer Disk Images](#developer-disk-images) (`DDI_*`) |
 | `roles/devices/defaults/main.yml`, `roles/mac-devices/defaults/main.yml` | the values by default of the OS: `STF_PROVIDER_NAME`; `USBMUXD_SOCKET_ADDRESS`, `ADB_SERVER_SOCKET_ADDRESS` of macOS |
 
 The playbooks load them in this order: the values by default of the roles, `versions.yml`, `config/settings.yml`, `config/devices.yml`. The deploy renders the settings zebrunner-farm runs with into `/usr/local/etc/zebrunner-farm.env`: udev and launchd run it without the environment of the user, a change of `config/` needs `./zebrunner.sh ansible` (`./zebrunner.sh doctor` reports the settings that differ). `./zebrunner.sh backup` keeps the two files of `config/` in a private folder `backup/bak_<time>_<random>/config/`, `restore` puts them back; the code of the agent is not in a backup, it comes from git (`git pull`).
@@ -345,6 +345,21 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
    > to override WDA_FILE artifacts per each device use `wda_file` and `wda_bundleid` iOS device properties and re-execute ansible playbook.
 10. The device connector installs WebDriverAgent from the ipa on Linux and on macOS (over usbmuxd of the host), a WebDriverAgent started on macOS by the host is used as is.
 
+#### Developer Disk Images
+
+The connector mounts the Developer Disk Image of the iOS version of the device before WebDriverAgent starts. The deploy of a host with iOS devices (`./zebrunner.sh ansible`, the `download` role) clones the images of Xcode of [zebrunner/DeveloperDiskImage](https://github.com/zebrunner/DeveloperDiskImage) (shallow, about 1 GB) and updates them on every deploy; `zebrunner-farm` mounts the folder read-only into the connectors of the iOS devices but the simulators (`/opt/zebrunner/ddi`, `DDI_DIR` of [mcloud-ios-connector](https://github.com/zebrunner/mcloud-ios-connector#readme)). Without the folder, or without the image of the device in it, the connector downloads the image with go-ios as before (`ios image auto`, the internet).
+
+| Setting | Default | What it is |
+| --- | --- | --- |
+| `DDI_ENABLED` | `true` | `false`: no clone and no mount, the connector downloads the images |
+| `DDI_REPO` | `https://github.com/zebrunner/DeveloperDiskImage.git` | the repository of the images, e.g. a mirror of the network of the host |
+| `DDI_VERSION` | `main` | its branch or tag |
+| `DDI_DIR` | `DeveloperDiskImages` of the agent folder (out of git) | the folder of the clone, an absolute path of its own: every deploy resets it to `DDI_VERSION` |
+
+- A host with Android devices only clones nothing. A failed clone or update (no access to the repository) is reported (`The Developer Disk Images ... are not updated`) and does not stop the deploy: the connectors mount the earlier clone or download the images.
+- A new folder is mounted into the connectors created after it: `zebrunner-farm restart ios` recreates them.
+- Do not change the clone: the next deploy drops a local change of it.
+
 ### SmartTestFarm
 
 - Open in your browser `http://<PUBLIC_IP>/stf`, authenticate yourself based on preconfigured auth system.
@@ -443,7 +458,7 @@ The `tests` folder covers zebrunner.sh, the ansible roles and templates, zebrunn
   UPDATE_GOLDEN=1 tests/farm_golden_test.sh
   ```
 
-- The roles: `devices` (Linux) and `mac-devices` (macOS) deploy the agent of the OS; `common`, their dependency (`meta/main.yml`), has the values by default and the checks of the settings and the devices shared by both (`roles/common/tasks/checks.yml`, imported after the check of the OS; the checks of the devices of both OS are `roles/common/files/devices.py`, run by the deploy with the python of ansible and by `./zebrunner.sh doctor`), and `zebrunner-farm` (`roles/common/tasks/farm.yml`): one static script of both OS (`roles/common/files/zebrunner-farm`, the branches of `FARM_OS`) with its settings rendered into an env file (`roles/common/templates/zebrunner-farm.env`); the tests run it with `ZEBRUNNER_FARM_ENV`; `download` pulls the images.
+- The roles: `devices` (Linux) and `mac-devices` (macOS) deploy the agent of the OS; `common`, their dependency (`meta/main.yml`), has the values by default and the checks of the settings and the devices shared by both (`roles/common/tasks/checks.yml`, imported after the check of the OS; the checks of the devices of both OS are `roles/common/files/devices.py`, run by the deploy with the python of ansible and by `./zebrunner.sh doctor`), and `zebrunner-farm` (`roles/common/tasks/farm.yml`): one static script of both OS (`roles/common/files/zebrunner-farm`, the branches of `FARM_OS`) with its settings rendered into an env file (`roles/common/templates/zebrunner-farm.env`); the tests run it with `ZEBRUNNER_FARM_ENV`; `download` pulls the images and clones the Developer Disk Images of the iOS devices (also with `common` as its dependency).
 - With `JUNIT_DIR` set, `tests/lint.sh` and every test write JUnit XML into it. CI publishes the results as annotations and a job summary, and keeps the XML files as artifacts.
 - The `usbmuxd_watch` binary of the `mac-devices` role is built from `roles/mac-devices/files/usbmuxd_watch.c` and the pinned release tarballs (sha256) of libplist, libimobiledevice-glue and libusbmuxd. After a change of the source or of a library version, rebuild it on macOS with the Xcode command line tools and commit it; the same Xcode builds the same binary byte for byte. CI builds it the same way and runs `tests/usbmuxd_watch_test.sh` on the result:
 
