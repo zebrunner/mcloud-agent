@@ -240,10 +240,12 @@ ensure_curve_key() {
       echo_warning "Unable to make the key with python3 patch/curve_keygen.py."
       return 1
     fi
-    "$python" patch/settings.py set "$vars" "STF_ZMQ_CURVE_SECRET_KEY=${secret}" || return 1
+    # the secret key on stdin: the arguments of a process are visible to every user (printf is a builtin)
+    printf 'STF_ZMQ_CURVE_SECRET_KEY=%s\n' "$secret" | "$python" patch/settings.py set "$vars" - || return 1
     echo "The key of this host is written to STF_ZMQ_CURVE_SECRET_KEY of '${vars}'."
   fi
-  if ! CURVE_PUBLIC_KEY="$(python3 patch/curve_keygen.py "$secret" | sed -n 's/^public=//p')" || [[ -z "$CURVE_PUBLIC_KEY" ]]; then
+  if ! CURVE_PUBLIC_KEY="$(printf '%s\n' "$secret" | python3 patch/curve_keygen.py - | sed -n 's/^public=//p')" ||
+    [[ -z "$CURVE_PUBLIC_KEY" ]]; then
     echo_warning "STF_ZMQ_CURVE_SECRET_KEY of '${vars}' is not a key of 64 hex characters."
     return 1
   fi
