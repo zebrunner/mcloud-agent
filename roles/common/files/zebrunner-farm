@@ -563,13 +563,28 @@ ensure_container() {
   esac
 }
 
+# the containers of a device in the order of their stop: appium shares the recordings of the active sessions, the
+# uploader uploads them, then STF and the connector the others take the device from
+STOP_ORDER=(appium uploader stf connector)
+
+# stop_timeout <role>: the seconds docker stop waits for the container before it kills it: appium stops ffmpeg of a
+# recording within 30 s, the uploader waits for the uploads up to its FINISH_TIMEOUT (120 s), STF disconnects the device
+stop_timeout() {
+  case "$1" in
+  appium) echo 40 ;;
+  uploader) echo 130 ;;
+  stf) echo 30 ;;
+  *) echo 10 ;;
+  esac
+}
+
 # stop_containers: the containers of the device stopped and kept, one line per container
 stop_containers() {
   local role
   local output
-  for role in connector appium stf uploader; do
+  for role in "${STOP_ORDER[@]}"; do
     printf '  %-10s ' "$role"
-    if output="$(docker stop "${dev_container}-${role}" 2>&1)"; then
+    if output="$(docker stop -t "$(stop_timeout "$role")" "${dev_container}-${role}" 2>&1)"; then
       echo "stopped"
     elif grep -qi "no such container" <<< "$output"; then
       echo "no container"
@@ -579,12 +594,15 @@ stop_containers() {
   done
 }
 
-# remove_containers: the containers of the device and the volume of its logs removed, one line per container
+# remove_containers: the containers of the device stopped as by stop_containers and removed, then the volume of its
+# logs (the uploader has finished with it), one line per container
 remove_containers() {
   local role
   local output
-  for role in connector appium stf uploader; do
+  for role in "${STOP_ORDER[@]}"; do
     printf '  %-10s ' "$role"
+    # the stop of no container fails, rm reports it
+    docker stop -t "$(stop_timeout "$role")" "${dev_container}-${role}" > /dev/null 2>&1
     # `docker rm -f` of no container succeeds without output (an error of the older docker versions)
     if output="$(docker rm -f "${dev_container}-${role}" 2>&1)" && [[ -n "$output" ]]; then
       echo "removed"

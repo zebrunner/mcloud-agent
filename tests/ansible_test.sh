@@ -317,6 +317,10 @@ check_contains "a disconnection cancels an unfinished restart" "Conflicts=mcloud
   "$(cat "${WORK}/restart.service")"
 check_contains "a connection cancels an unfinished down" "Conflicts=mcloud-device-restart@%i.service" \
   "$(cat "${WORK}/down.service")"
+# the listener of macOS runs zebrunner-farm restart and down of its USB iOS devices as the units of Linux
+check "the macOS listener waits for an action as long as the restart unit of Linux" \
+  "$(($(sed -n 's/^TimeoutStartSec=\([0-9]*\)min$/\1/p' "${WORK}/restart.service") * 60))" \
+  "$(sed -n 's/^ACTION_TIMEOUT_SECONDS=//p' "${REPO}/roles/mac-devices/templates/zebrunner-device-listener")"
 if command -v systemd-analyze > /dev/null 2>&1; then
   # verify needs an executable ExecStart: zebrunner-farm is not installed on the test host, a stub replaces it
   stub zebrunner-farm "exit 0"
