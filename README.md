@@ -149,16 +149,16 @@ Security:
   ./zebrunner.sh ansible
   ```
 
-  > To reregister the devices list only, you can use the following command:
+  > To deploy again without the download of the images, e.g. after a change of `config/devices.yml`, use the command below. It runs the whole role of the OS (the checks, `zebrunner-farm` and its settings, the list of the devices, the udev rules and the systemd units) and keeps the running containers of the devices: `zebrunner-farm restart <devices>` creates them with the new settings.
 
   ```bash
   ./zebrunner.sh ansible devices
   ```
 
-  > To provide extra arguments, e.g. another user, you can use the below command. The sudo password is asked interactively: do not pass it in the command line, where it stays in the shell history and is visible in the processes list.
+  > The arguments after `ansible` or `ansible devices` are passed to ansible-playbook, e.g. `-vvv`; a run that changes nothing (`--check`, `--syntax-check`, `--list-tasks`) does not offer to remove the running containers. The agent is deployed for the user who runs `./zebrunner.sh` (the inventory `hosts` connects locally, the files and the launch agents are of its `USER` and `HOME`), so `--user` has no effect: run it as that user. The sudo password is asked interactively: do not pass it in the command line, where it stays in the shell history and is visible in the processes list.
 
   ```bash
-  ./zebrunner.sh ansible --user=USERNAME
+  ./zebrunner.sh ansible devices -vvv
   ```
 
 - Running containers of the devices keep the settings and the images they were created with: `./zebrunner.sh ansible` lists them and offers to remove them first (`zebrunner-farm down`, Enter is yes), otherwise run `zebrunner-farm restart` after the deploy.
@@ -186,16 +186,16 @@ Security:
   ./zebrunner.sh ansible
   ```
 
-  > To reregister the devices list only, you can use the following command:
+  > To deploy again without the download of the images, e.g. after a change of `config/devices.yml`, use the command below. It runs the whole role of the OS (the checks, `zebrunner-farm` and its settings, the list of the devices, the launch agents) and keeps the running containers of the devices: `zebrunner-farm restart <devices>` creates them with the new settings.
 
   ```bash
   ./zebrunner.sh ansible devices
   ```
 
-  > To provide extra arguments, e.g. another user, you can use the below command. The sudo password is asked interactively: do not pass it in the command line, where it stays in the shell history and is visible in the processes list.
+  > The arguments after `ansible` or `ansible devices` are passed to ansible-playbook, e.g. `-vvv`; a run that changes nothing (`--check`, `--syntax-check`, `--list-tasks`) does not offer to remove the running containers. The agent is deployed for the user who runs `./zebrunner.sh` (the inventory `hosts` connects locally, the files and the launch agents are of its `USER` and `HOME`), so `--user` has no effect: run it as that user. The sudo password is asked interactively: do not pass it in the command line, where it stays in the shell history and is visible in the processes list.
 
   ```bash
-  ./zebrunner.sh ansible --user=USERNAME
+  ./zebrunner.sh ansible devices -vvv
   ```
 
 - Devices management script is deployed to /usr/local/bin/zebrunner-farm (the same script on Linux and macOS), its settings to /usr/local/etc/zebrunner-farm.env (see [Settings](#settings)).
@@ -215,7 +215,7 @@ Security:
 `./zebrunner.sh` without arguments lists its commands:
 
 - `setup` - prepares the agent: the settings of `config/` from the examples. It changes no shell profile: `zebrunner.sh` knows its folder, `zebrunner-farm` has it in its settings, so `zebrunner-farm ansible` deploys again from any folder; the `ZEBRUNNER_MCLOUD_AGENT_DIR` line of the earlier versions is removed from the profiles.
-- `ansible [devices]` - deploys the agent, `devices` registers the devices only.
+- `ansible [devices] [arguments]` - deploys the agent, `devices` without the download of the images and keeping the running containers of the devices, the arguments are of ansible-playbook (see [Run ansible playbook](#run-ansible-playbook)).
 - `status` - shows the state of the agent components: tools, Rosetta 2 of an Apple Silicon Mac, deployed files, launch agents.
 - `backup` and `restore` - save the settings of `config/` into the `backup` folder and restore them from it (see [Settings](#settings)); a backup of an earlier version (`vars/main.yml`, `defaults/main.yml`) goes to `config/` with `./zebrunner.sh migrate <its files>`.
 - `shutdown` - removes the devices containers, the launch agents or udev rules, the deployed files, the settings and the environment variable (asks for confirmation).
@@ -407,7 +407,7 @@ Run `./zebrunner.sh doctor` first, see [Doctor](#doctor). Follow the below algor
   ansible-playbook -vvv --ask-become-pass -i hosts agent.yml
   ```
 
-  > To reregister the devices list only, you can use the following command:
+  > To deploy without the download of the images (the role of the OS only):
 
   ```bash
   ansible-playbook -vvv --ask-become-pass -i hosts agent.yml --tag registerDevices

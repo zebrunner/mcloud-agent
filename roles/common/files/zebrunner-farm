@@ -1151,7 +1151,7 @@ echo_help() {
           restart [devices]    Remove and create again the containers of the devices: --batch (default) removes
                                the containers of all of them, then creates them; --rolling device by device
           down [devices]       Stop and remove the containers of the devices
-          ansible ['devices']  Run ansible-playbook script with custom or predefined args
+          ansible [devices] [args...]  ./zebrunner.sh ansible: deploy the agent again, args of ansible-playbook
           version              Show version of MCloud Agent components
       Devices: udid or name of a whitelisted device, a group: ios, android, usb, wireless, android-sim, ios-sim,
       proxy, or a pattern of the udids, names and locations in quotes ('Samsung_*'); several ones separated by spaces
