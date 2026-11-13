@@ -129,6 +129,17 @@ for role in devices mac-devices; do
 [{"id": "a", "name": "A", "os": "android", "appium_port": 7421, "min_port": 7425, "max_port": 7430, "connect_port": 80, "connection": "wireless"}]=Invalid settings of device 'A'
 [{"id": "a", "name": "A", "os": "android", "appium_port": 7421, "min_port": 7425, "max_port": 7430, "connect_port": 7421, "connection": "wireless"}]=Host ports [7421] of device 'A'
 [{"id": "a", "name": "A", "os": "android", "appium_port": 7421, "min_port": 7425, "max_port": 7430, "connect_port": 7499, "connection": "wireless"}, {"id": "b", "name": "B", "os": "android", "appium_port": 7431, "min_port": 7495, "max_port": 7500, "connection": "wireless"}]=Host ports [7499] of device 'B'
+[{"id": " 00008101-000A1D0E3C38001E ", "name": " iPhone 12 ", "location": "lab-2.rack_1", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 3}]=failed=0
+[{"id": "emulator-5554", "name": "Emu", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 6, "connection": "wireless"}]=failed=0
+[{"id": "10.0.0.7:5555", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 6, "connection": "wireless"}]=Invalid id '10.0.0.7:5555' of device 'A'
+[{"id": "a", "name": "A|B", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6}]=Invalid name 'A|B' of device 'A|B'
+[{"id": "a", "name": "-A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6}]=Invalid name '-A' of device '-A'
+[{"id": "a/b", "name": "", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6}]=Invalid id 'a/b', name '' of device ''
+[{"id": "a", "name": "A", "location": "NYC, 2nd floor", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6}]=Invalid location 'NYC, 2nd floor' of device 'A'
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 5, "connection": "wireless"}]=The range min_port-max_port of device 'A' has 3 ports
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 6, "connect_port": 1024, "connection": "wireless"}]=failed=0
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 1024, "max_port": 1027, "connect_port": 1024, "connection": "wireless"}]=The range min_port-max_port of device 'A' has 4 ports
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 1024, "max_port": 1028, "connect_port": 1024, "connection": "wireless"}]=failed=0
 EOF
 done
 while IFS='=' read -r devices expected; do
@@ -139,14 +150,14 @@ done << 'EOF'
 [{"id": "a", "name": "TV", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "proxy"}]=Invalid connection 'proxy' of device 'TV'
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "bluetooth"}]=Invalid connection 'bluetooth' of device 'A'
 [{"id": "a", "name": "Sim", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "ios-sim"}]=Invalid connection 'ios-sim' of device 'Sim'
-[{"id": "a", "name": "Sim", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "ios-sim", "wda_port": 8110}]=Invalid connection 'ios-sim' of device 'Sim'
+[{"id": "a", "name": "Sim", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 6, "connection": "ios-sim", "wda_port": 8110}]=Invalid connection 'ios-sim' of device 'Sim'
 [{"id": "a", "name": "Emu", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "android-sim"}]=Invalid connection 'android-sim' of device 'Emu'
-[{"id": "a", "name": "Sim", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "ios-sim", "wda_port": 8110}, {"id": "b", "name": "Emu", "os": "android", "appium_port": 5, "adb_port": 6, "min_port": 7, "max_port": 8, "connection": "android-sim", "address": "host.docker.internal:5555"}]=failed=0
+[{"id": "a", "name": "Sim", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "ios-sim", "wda_port": 8110}, {"id": "b", "name": "Emu", "os": "android", "appium_port": 5, "adb_port": 6, "min_port": 7, "max_port": 10, "connection": "android-sim", "address": "host.docker.internal:5555"}]=failed=0
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "simulator", "wda_port": 8110}]=Invalid connection 'simulator' of device 'A'
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "ios-sim", "wda_port": 8110}, {"id": "b", "name": "B", "os": "ios", "appium_port": 5, "adb_port": 6, "min_port": 7, "max_port": 8, "connection": "ios-sim", "wda_port": 8111}]=The host ports [8110, 8111, 8111, 8112] of the iOS simulators
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 8110, "adb_port": 2, "min_port": 3, "max_port": 4}, {"id": "b", "name": "B", "os": "ios", "appium_port": 5, "adb_port": 6, "min_port": 7, "max_port": 8, "connection": "ios-sim", "wda_port": 8110}]=The host ports [8110, 8111] of the iOS simulators
-[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "adb_port": 7422, "min_port": 3, "max_port": 4}, {"id": "b", "name": "B", "os": "android", "appium_port": 5, "adb_port": 7422, "min_port": 7, "max_port": 8}]=The host ports [7422, 7422] of the iOS simulators
-[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "adb_port": 7422, "min_port": 3, "max_port": 4}, {"id": "b", "name": "B", "os": "android", "appium_port": 5, "adb_port": 7422, "min_port": 7, "max_port": 8, "connection": "wireless"}]=failed=0
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "adb_port": 7422, "min_port": 3, "max_port": 6}, {"id": "b", "name": "B", "os": "android", "appium_port": 7, "adb_port": 7422, "min_port": 8, "max_port": 11}]=The host ports [7422, 7422] of the iOS simulators
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "adb_port": 7422, "min_port": 3, "max_port": 6}, {"id": "b", "name": "B", "os": "android", "appium_port": 7, "adb_port": 7422, "min_port": 8, "max_port": 11, "connection": "wireless"}]=failed=0
 [{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 4}]=Invalid settings of device 'A'
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 4}]=failed=0
 EOF
@@ -155,13 +166,13 @@ while IFS='=' read -r devices expected; do
 done << 'EOF'
 [{"id": "a", "name": "WiFi", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "wireless"}]=Invalid connection 'wireless' of device 'WiFi'
 [{"id": "a", "name": "WiFi", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "wireless", "address": "10.0.0.7"}]=failed=0
-[{"id": "a", "name": "WiFi", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "wireless"}]=failed=0
+[{"id": "a", "name": "WiFi", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 6, "connection": "wireless"}]=failed=0
 [{"id": "a", "name": "Sim", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "ios-sim", "wda_port": 8110}]=Invalid connection 'ios-sim' of device 'Sim'
-[{"id": "a", "name": "Emu", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "android-sim", "address": "10.0.0.9:5555"}]=failed=0
+[{"id": "a", "name": "Emu", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 6, "connection": "android-sim", "address": "10.0.0.9:5555"}]=failed=0
 [{"id": "a", "name": "Emu", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "android-sim"}]=Invalid connection 'android-sim' of device 'Emu'
-[{"id": "a", "name": "Emu", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "emulator"}]=Invalid connection 'emulator' of device 'Emu'
+[{"id": "a", "name": "Emu", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 6, "connection": "emulator"}]=Invalid connection 'emulator' of device 'Emu'
 [{"id": "a", "name": "TV", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "proxy", "address": "10.0.0.5"}]=failed=0
-[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 4, "connection": "wireless"}]=failed=0
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 6, "connection": "wireless"}]=failed=0
 EOF
 
 # the shared checks of the role common with the parameters of the role of the OS
