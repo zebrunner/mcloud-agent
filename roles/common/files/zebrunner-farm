@@ -245,8 +245,8 @@ create_containers() {
   local appium_adb_port=""
 
   if [[ "$dev_platform_name" == "android" ]]; then
-    # Linux: the USB device (DEVICE_BUS) or the adb address (ANDROID_DEVICE) of the connector, and of appium for the
-    # remote adb connect on its startup; macOS: the adb server of the host or the adb address (connector_args)
+    # Linux: the USB device (DEVICE_BUS) or the adb address (ANDROID_DEVICE) of the connector; macOS: the adb server of
+    # the host or the adb address (connector_args)
     local bus_args=()
     local android_args=()
     local address="${dev_address:-$dev_udid}"
@@ -289,20 +289,17 @@ create_containers() {
       "${bus_args[@]+"${bus_args[@]}"}" \
       -v mcloud-key-volume:/root/.android \
       -v "${dev_container}":/tmp/log \
-      -e PLATFORM_NAME="$dev_platform_name" \
       "${android_args[@]+"${android_args[@]}"}" \
-      -e DEVICE_UDID="$STF_DEVICE_UDID" \
       "${connector_args[@]+"${connector_args[@]}"}" \
       "${ANDROID_CONNECTOR_IMAGE}:${ANDROID_CONNECTOR_VERSION}" || return 1
 
     stf_head_args=(--link "${dev_container}-connector":connector -e STF_PROVIDER_ADB_HOST=connector -e STF_PROVIDER_ADB_PORT=5037
       --health-start-period 60s --restart "on-failure:${RESTARTS_LIMIT}")
     appium_head_args=(--link "${dev_container}-stf":device --link "${dev_container}-connector":connector)
-    appium_platform_args=(-e DEVICE_CONNECTION="$dev_connection" "${android_args[@]+"${android_args[@]}"}")
+    appium_platform_args=(-e DEVICE_CONNECTION="$dev_connection")
     appium_adb_port="$dev_remote_port"
-    # the adb server of the connector, the STF API to move the device to Unhealthy
-    appium_tail_args=(-e ADB_SERVER_SOCKET=tcp:connector:5037 -e REMOTE_ADB_HOST=connector -e STF_API_URL="${STF_API_URL}"
-      -e STF_AUTH_TOKEN="${STF_AUTH_TOKEN}")
+    # the adb server of the connector
+    appium_tail_args=(-e ADB_SERVER_SOCKET=tcp:connector:5037 -e REMOTE_ADB_HOST=connector)
 
   elif [[ "$dev_platform_name" == "ios" ]]; then
 
@@ -378,7 +375,6 @@ create_containers() {
       connector_args=(-e DEVICE_CONNECTION="$dev_connection" -e DEVICE_ADDRESS="$dev_address")
       [[ -n "$dev_wda_port" ]] && connector_args+=(-e DEVICE_WDA_PORT="$dev_wda_port")
       [[ -n "$dev_mjpeg_port" ]] && connector_args+=(-e DEVICE_MJPEG_PORT="$dev_mjpeg_port")
-      connector_args+=(-e DEVICE_BUS="$usb_bus")
       wda_args=(-e WDA_HOST=connector -e WIRELESS="$wireless")
     fi
 
@@ -424,10 +420,11 @@ create_containers() {
       -e WDA_WAIT_TIMEOUT=60)
     stf_dealer_args=(-e STF_PROVIDER_CONNECT_APP_DEALER="${STF_PROVIDER_CONNECT_APP_DEALER}"
       -e STF_PROVIDER_CONNECT_DEV_DEALER="${STF_PROVIDER_CONNECT_DEV_DEALER}")
-    appium_head_args=("${device_args[@]+"${device_args[@]}"}" --link "${dev_container}-stf":device
-      --link "${dev_container}-connector":connector "${wda_args[@]}" "${appium_args[@]+"${appium_args[@]}"}")
+    # appium takes usbmuxd from the connector, not the USB device
+    appium_head_args=(--link "${dev_container}-stf":device --link "${dev_container}-connector":connector "${wda_args[@]}"
+      "${appium_args[@]+"${appium_args[@]}"}")
     appium_cli_args=(-e APPIUM_CLI="--session-override")
-    # candidates for removal: ADB_PORT, STF_PROVIDER_MAX_PORT
+    # adb_port of the node capabilities of appium
     appium_adb_port="${dev_adb_port:-5037}"
 
   else
@@ -462,7 +459,9 @@ create_containers() {
     -e STF_ZMQ_CURVE_SECRET_KEY="${STF_ZMQ_CURVE_SECRET_KEY}" \
     "${DEVICE_IMAGE}:${DEVICE_VERSION}" || return 1
 
-  # APPIUM_RELAXED_SECURITY: the insecure features of Appium for every session, README.md#appium-security
+  # APPIUM_RELAXED_SECURITY: the insecure features of Appium for every session, README.md#appium-security; STF_API_URL and
+  # STF_AUTH_TOKEN: appium of both platforms moves the device to Unhealthy in STF on the errors of the device;
+  # DEVICE_LOCATION: the recording card of the videos
   ensure_container appium -itd \
     "${platform_args[@]+"${platform_args[@]}"}" \
     -m 1g \
@@ -478,10 +477,8 @@ create_containers() {
     "${appium_cli_args[@]+"${appium_cli_args[@]}"}" \
     -e PLATFORM_NAME="$dev_platform_name" \
     "${appium_platform_args[@]+"${appium_platform_args[@]}"}" \
-    -e RETAIN_TASK=true \
     -e CONNECT_TO_GRID=true \
     -e RECORD_ARTIFACTS=true \
-    -e CUSTOM_NODE_CONFIG=true \
     -e STF_PROVIDER_HOST="${STF_PROVIDER_HOST}" \
     -e APPIUM_APP_SIZE_DISABLE="${APPIUM_APP_SIZE_DISABLE}" \
     -e APPIUM_APP_FETCH_RETRIES="${APPIUM_APP_FETCH_RETRIES}" \
@@ -493,10 +490,13 @@ create_containers() {
     -e DEFAULT_CAPABILITIES=true \
     -e DEVICE_NAME="$dev_device_name" \
     -e DEVICE_UDID="$STF_DEVICE_UDID" \
+    -e DEVICE_LOCATION="$dev_location" \
     -e ADB_PORT="$appium_adb_port" \
     -e APPIUM_PORT="$dev_appium_port" \
     -p "$dev_appium_port":"$dev_appium_port" \
     -e RELAXED_SECURITY="${APPIUM_RELAXED_SECURITY}" \
+    -e STF_API_URL="${STF_API_URL}" \
+    -e STF_AUTH_TOKEN="${STF_AUTH_TOKEN}" \
     "${appium_tail_args[@]+"${appium_tail_args[@]}"}" \
     "${APPIUM_IMAGE}:${APPIUM_VERSION}" || return 1
 

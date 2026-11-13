@@ -359,6 +359,42 @@ for role in devices mac-devices; do
   sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
 done
 
+section "the environment of the containers"
+for role in devices mac-devices; do
+  render_farm "$role" "${WORK}/farm-${role}.env" --extra-vars "STF_API_URL=https://mcloud.example.com/api/v1 STF_AUTH_TOKEN=stf-token" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+  # <name>:<container prefix> of an Android and an iOS device
+  for device in WiFi:device-WiFi-192.168.1.50 AppleTV:device-AppleTV-aaaa1111; do
+    setup_case
+    farm "$role" start "${device%%:*}" > /dev/null
+    appium="$(run_args "${device#*:}-appium")"
+    check_contains "${role}: ${device%%:*}: appium reports the errors of the device to STF" \
+      "|STF_API_URL=https://mcloud.example.com/api/v1|-e|STF_AUTH_TOKEN=stf-token|" "$appium"
+    check_contains "${role}: ${device%%:*}: appium knows the location for the recording card" "|DEVICE_LOCATION=loc|" "$appium"
+    for env in RETAIN_TASK CUSTOM_NODE_CONFIG ANDROID_DEVICE=; do
+      check_not_contains "${role}: ${device%%:*}: appium gets no ${env%=}, it does not read it" "|${env}" "$appium"
+    done
+  done
+  setup_case
+  farm "$role" start WiFi > /dev/null
+  connector="$(run_args device-WiFi-192.168.1.50-connector)"
+  check_contains "${role}: the Android connector is created" "|ANDROID_DEVICE=192.168.1.50:5555|" "$connector"
+  for env in PLATFORM_NAME DEVICE_UDID; do
+    check_not_contains "${role}: the Android connector gets no ${env}, it does not read it" "|${env}=" "$connector"
+  done
+
+  render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+done
+setup_case
+echo "iSerial d6afc6b3a65584ca0813eb8957c6479b9b6ebb11" > "${WORK}/usb"
+farm devices start iPhone_8_Plus > /dev/null
+connector="$(run_args "${IPHONE}-connector")"
+check_contains "Linux: the USB iPhone is passed into the connector" "|--device=/dev/${IPHONE}:" "$connector"
+check_not_contains "Linux: the iOS connector gets no DEVICE_BUS, it does not read it" "|DEVICE_BUS=" "$connector"
+check_not_contains "Linux: appium of a USB iPhone takes usbmuxd from the connector, not the USB device" "--device=" \
+  "$(run_args "${IPHONE}-appium")"
+
 section "macOS device listener"
 for command in start stop down; do
   for filter in "" ios android iPhone_8_Plus; do
