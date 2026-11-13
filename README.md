@@ -421,7 +421,7 @@ Run `./zebrunner.sh doctor` first, see [Doctor](#doctor). Follow the below algor
 
   ```bash
   ansible-vault create become.yml    # with the line: ansible_become_password: PSWD
-  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars @become.yml --ask-vault-pass agent.yml
+  ansible-playbook -vvv -i hosts --extra-vars @become.yml --ask-vault-pass agent.yml
   ```
 
 ## Development
