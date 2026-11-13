@@ -69,3 +69,19 @@ jobs:
         run: tests/usbmuxd_watch_test.sh
         env:
           USBMUXD_WATCH: ${{ runner.temp }}/usbmuxd_watch
+          JUNIT_DIR: ${{ runner.temp }}/junit
+      - name: Tests report
+        if: ${{ !cancelled() }}
+        uses: mikepenz/action-junit-report@a16be3a69023e9bd7e748ede768b3282ea7b30ce # v6.7.1
+        with:
+          report_paths: ${{ runner.temp }}/junit/*.xml
+          check_name: usbmuxd_watch report
+          annotate_only: true
+          detailed_summary: true
+          require_tests: true
+      - name: Upload tests JUnit XML
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-usbmuxd-watch
+          path: ${{ runner.temp }}/junit/

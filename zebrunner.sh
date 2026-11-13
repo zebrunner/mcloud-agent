@@ -32,6 +32,7 @@ running_device_containers() {
   docker ps --filter name=device- --format '{{.Names}}' 2> /dev/null | grep -E -- '-(connector|stf|appium|uploader)$'
 }
 
+# setup: the settings of config/ from the examples (README.md#clone-and-setup), then the next steps
 setup() {
   delimiter "Setting up MCloud Agent"
 
@@ -311,6 +312,7 @@ rosetta_report() {
   esac
 }
 
+# status: the state of the components of the agent: the tools, the deployed files, the launch agents
 status() {
   delimiter "Status of MCloud Agent components"
 
@@ -379,6 +381,7 @@ status() {
   delimiter
 }
 
+# shutdown: removes the containers of the devices, the deployed files and the settings after a confirmation
 shutdown() {
   delimiter "Shutting down MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
 
@@ -515,6 +518,7 @@ shutdown() {
   delimiter "Shutting down MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished"
 }
 
+# version: the versions of the images of versions.yml
 version() {
   delimiter "Zebrunner MCloud Agent components versions for '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
   grep -i "version" "${ZEBRUNNER_MCLOUD_AGENT_DIR}/versions.yml" | grep -v '^\s*#' || exit 1
@@ -731,6 +735,7 @@ migrate() {
   delimiter
 }
 
+# echo_help: the usage of zebrunner.sh
 echo_help() {
   delimiter "Zebrunner MCloud Agent help"
   echo "
