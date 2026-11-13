@@ -265,6 +265,13 @@ output="$(FAIL_PULL=appium playbook download)"
 check_contains "missing image stops the deploy" "No such image: public.ecr.aws/zebrunner/appium" "$output"
 check "deploy stops before the network" "0" "$(calls docker | grep -c '^network|')"
 check_contains "check mode skips the pulls" "failed=0" "$(FAIL_PULL=appium playbook download --check)"
+# the plays of agent.yml become root: docker runs as the user all the same, become of a task would call the stub and fail
+stub become "(IFS='|'; echo \"become|\$*\") >> '${WORK}/calls.log'; exit 1"
+reset_calls
+output="$(playbook download --become --extra-vars "ansible_become_exe=${WORK}/bin/become")"
+check_contains "the pulls of a play that becomes root pass" "failed=0" "$output"
+check "docker runs as the user, not as root" "" "$(calls become)"
+check "docker runs as the user: the pulls" "4" "$(calls docker | grep -c '^pull|public.ecr.aws/')"
 
 section "templates"
 for role in devices mac-devices; do

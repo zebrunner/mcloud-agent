@@ -35,17 +35,16 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 ## Software prerequisites
 
 - Install docker: [Docker Engine](https://docs.docker.com/engine/install/) on Linux, [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) on macOS.
-- Install [ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html) 2.10+ (the playbooks use `ansible.builtin` module names, tested with ansible-core 2.21), e.g. `pip install ansible-core`.
+- Linux: the user of the agent runs docker without sudo (the deploy pulls the images, `zebrunner.sh` and `zebrunner-farm` manage the containers as this user): `sudo usermod -aG docker $USER`, then log in again.
+- Install [ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html) 2.10+ (the playbooks use `ansible.builtin` module names, tested with ansible-core 2.22, the version of CI in `tests/requirements-lint.txt`), e.g. `pip install ansible-core`.
 - python3 and curl: `./zebrunner.sh join` and `doctor` need them. They read and write the settings with PyYAML of `python3` or, without it there, of the python of ansible (`ansible-playbook --version` shows it); `ZEBRUNNER_PYTHON` sets another one.
-- macOS on Apple Silicon: install Rosetta 2 and let Docker Desktop use it: the image of appium is `linux/amd64` only and
-  runs much slower under the QEMU emulation of Docker Desktop without it:
+- macOS on Apple Silicon: install Rosetta 2 and let Docker Desktop use it: the image of appium is `linux/amd64` only and runs much slower under the QEMU emulation of Docker Desktop without it:
 
   ```bash
   softwareupdate --install-rosetta --agree-to-license
   ```
 
-  then turn on *Use Rosetta for x86_64/amd64 emulation on Apple Silicon* in Docker Desktop (Settings, General) and
-  restart it. `./zebrunner.sh setup` and `./zebrunner.sh status` report it.
+  then turn on *Use Rosetta for x86_64/amd64 emulation on Apple Silicon* in Docker Desktop (Settings, General) and restart it. `./zebrunner.sh setup` and `./zebrunner.sh status` report it.
 - macOS: install socat utility to share usbmuxd websocket into the device containers
   > valid path to socat binary should be `/usr/local/bin/socat`
   > on Apple Silicon Homebrew installs it to `/opt/homebrew/bin/socat`, link it: `sudo ln -s /opt/homebrew/bin/socat /usr/local/bin/socat`
@@ -123,17 +122,12 @@ Security:
 ## Run ansible playbook
 
 - `./zebrunner.sh ansible` runs `agent.yml` on both OS: its first play groups the hosts by their OS (`os_Linux`, `os_Darwin` of `hosts`), the next ones deploy the role of each OS.
-- The images of the devices are pinned in `versions.yml`: `DEVICE_VERSION` (mcloud-device), `APPIUM_VERSION`,
-  `IOS_CONNECTOR_VERSION`, `ANDROID_CONNECTOR_VERSION` and `UPLOADER_VERSION`. mcloud-device must be the one of the STF
-  of [mcloud](https://github.com/zebrunner/mcloud) (`TAG_STF` of its `.env`). Another version is a line of
-  `config/settings.yml` (see [Settings](#settings)). On `develop` they are `<version>-develop-latest`, the newest image of
-  the `develop` of each repository (`UPLOADER_VERSION` is a release, artifacts-uploader has no such image); the deploy pulls
-  them again, a release pins its versions.
-- [Optional] To compare images in the tests (the Appium images plugin) append the `-img` postfix to `APPIUM_VERSION` in `config/settings.yml`,
-  the `appium-image` stage of [appium](https://github.com/zebrunner/appium#build) (a release only, `develop` publishes no `-img` image):
+- The images of the devices are pinned in `versions.yml`: `DEVICE_VERSION` (mcloud-device), `APPIUM_VERSION`, `IOS_CONNECTOR_VERSION`, `ANDROID_CONNECTOR_VERSION` and `UPLOADER_VERSION`. mcloud-device must be the one of the STF of [mcloud](https://github.com/zebrunner/mcloud) (`TAG_STF` of its `.env`). Another version is a line of `config/settings.yml` (see [Settings](#settings)). On `develop` they are `<version>-develop-latest`, the newest image of the `develop` of each repository (`UPLOADER_VERSION` is a release, artifacts-uploader has no such image); the deploy pulls them again, a release pins its versions.
+- [Optional] To compare images in the tests (the Appium images plugin) appium needs the image of its `appium-image` stage, the `-img` postfix of its version. It is not published: build it with [appium](https://github.com/zebrunner/appium#build) (`make build VERSION=3.1.1-img TARGET=appium-image`) on every device host (the deploy keeps a local image it cannot pull) or push it to a registry of yours, and set it in `config/settings.yml`:
 
   ```yaml
-  APPIUM_VERSION: 3.0-img
+  APPIUM_IMAGE: registry.example.com/zebrunner/appium
+  APPIUM_VERSION: 3.1.1-img
   ```
 
   > The published appium images: <https://gallery.ecr.aws/zebrunner/appium>
@@ -162,8 +156,7 @@ Security:
   ```
 
 - Running containers of the devices keep the settings and the images they were created with: `./zebrunner.sh ansible` lists them and offers to remove them first (`zebrunner-farm down`, Enter is yes), otherwise run `zebrunner-farm restart` after the deploy.
-- Run `zebrunner-farm start` to create the containers of the devices connected before the deploy and of the wireless,
-  emulator and proxy devices: udev starts the containers of a USB device on its next connection only.
+- Run `zebrunner-farm start` to create the containers of the devices connected before the deploy and of the wireless, emulator and proxy devices: udev starts the containers of a USB device on its next connection only.
 - Devices management script is deployed to /usr/local/bin/zebrunner-farm (the same script on Linux and macOS), its settings to /usr/local/etc/zebrunner-farm.env (see [Settings](#settings)).
 - Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules: a connection of a USB device starts the systemd unit `mcloud-device-restart@<id>`, a disconnection `mcloud-device-down@<id>` (`/etc/systemd/system`), which run `zebrunner-farm restart` or `down` for it. udev only queues the job: its programs are killed after the event (180 s), the containers may need longer (the images are pulled). A disconnection cancels an unfinished restart and the other way round.
 - The commands of one device (`zebrunner-farm start`, `stop`, `restart`, `down <device>`, the units of udev) run one at a time (`flock`, `/run/lock/mcloud-device-<id>.lock`): one waits for up to 30 minutes for another.
@@ -199,9 +192,7 @@ Security:
   ```
 
 - Devices management script is deployed to /usr/local/bin/zebrunner-farm (the same script on Linux and macOS), its settings to /usr/local/etc/zebrunner-farm.env (see [Settings](#settings)).
-- The containers run on the platform of the Mac, arm64 on Apple Silicon (the STF provider of an iOS simulator hangs
-  under emulation, the other ones are slower), but appium: its image is `linux/amd64` only (see
-  [appium](https://github.com/zebrunner/appium#limitations)), emulated by Docker Desktop with Rosetta 2 on Apple Silicon.
+- The containers run on the platform of the Mac, arm64 on Apple Silicon (the STF provider of an iOS simulator hangs under emulation, the other ones are slower), but appium: its image is `linux/amd64` only (see [appium](https://github.com/zebrunner/appium#limitations)), emulated by Docker Desktop with Rosetta 2 on Apple Silicon.
 - Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt, rendered from `config/devices.yml`: one device per line, its fields `key=value` (the keys of `config/devices.yml`) separated by `|`; an empty value is the value by default (`wda_file`, `wda_bundleid`: `WDA_FILE`, `WDA_BUNDLEID` of the settings).
 - Deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist to share usbmuxd into the device containers
 - USB Android devices: deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerAdb.plist, the adb server of the host (`brew install android-platform-tools`); the connectors take the devices from it, the containers of a USB Android device are created by `zebrunner-farm start` (the devices listener handles iOS only).
@@ -272,7 +263,7 @@ The devices can be on the MCloud server itself (mcloud and mcloud-agent on one m
 
 - `AGENTS_ADDRESS` of `.env` of mcloud is the LAN address of the machine, so is the address of the invite (`./zebrunner.sh node-invite <label> <LAN address>`): not `127.0.0.1` or `localhost`, which the containers of mcloud cannot reach the devices with (MCloud refuses them);
 - the devices share the `infra` network with mcloud and reach the published ports of MCloud on that address;
-- the ports of the devices (`appium_port`, `min_port`-`max_port`, `connect_port`) are not the ports of MCloud: its HTTPS port (`STF_PORT`), 4446 (mcloud-grid), 7160, 7250, 7260, 7270 (the triproxies of STF) and the remote debug ports of the adb relay; `./zebrunner.sh doctor` reports the collisions.
+- the ports of the devices (`appium_port`, `min_port`-`max_port`, `connect_port`) are not the ports of MCloud: its HTTPS port (`STF_PORT`), 4446 (mcloud-grid), 7160, 7250, 7260, 7270 (the triproxies of STF) and the remote debug ports of the adb relay (`ADB_RELAY_PORTS` of mcloud); `./zebrunner.sh doctor` reports the collisions with the HTTPS port, the hub and the triproxies, not with `ADB_RELAY_PORTS`, which it does not know: keep them out of the ranges of the devices of this machine.
 
 ### Grid registration
 
@@ -333,6 +324,8 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
    git clone https://github.com/zebrunner/WebDriverAgent.git
    ```
 
+   The fork also builds it from the command line, without the steps 2-8: `bash Scripts/zebrunner-build.sh --help` (`--sdk device` for the devices, `--sdk sim` for the simulators, signed with `--code-sign yes --team-id <team>`). The installable `.ipa` of a device build comes with [zebrunner/WebDriverAgent#17](https://github.com/zebrunner/WebDriverAgent/pull/17); an earlier device build is a `.zip` of the `.app`: put it into `Payload/` as in the steps 6-8.
+
 2. Open **WebDriverAgent.xcodeproj** in Xcode.
 3. Ensure a team is selected before building the application. To do this, go to *Targets* and select each target (one at a time). There should be a field for assigning team certificates to the target.
 4. Remove your **WebDriverAgent** folder from *DerivedData* and run *Clean build folder* (just in case).
@@ -344,6 +337,8 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
 9. Share built ipa via WDA_FILE variable in config/settings.yml file.
    > to override WDA_FILE artifacts per each device use `wda_file` and `wda_bundleid` iOS device properties and re-execute ansible playbook.
 10. The device connector installs WebDriverAgent from the ipa on Linux and on macOS (over usbmuxd of the host), a WebDriverAgent started on macOS by the host is used as is.
+11. The bundle id is `com.facebook.WebDriverAgentRunner.xctrunner` (`WDA_BUNDLEID` by default): Xcode appends `.xctrunner` to the bundle id of the runner, so a build with another one (`--bundle-id <id>` of `Scripts/zebrunner-build.sh`, `PRODUCT_BUNDLE_IDENTIFIER`) needs `WDA_BUNDLEID: <id>.xctrunner` (or `wda_bundleid` of the device).
+12. The iOS simulators of macOS take the unsigned simulator build (`WDA_SIMULATOR_FILE` or `wda_file` of the device, a `.app` folder or its `.zip`): `WebDriverAgentRunner-Build-Sim-arm64.zip` of the [appium/WebDriverAgent releases](https://github.com/appium/WebDriverAgent/releases) (upstream, without the changes of the fork) or `bash Scripts/zebrunner-build.sh --sdk sim` of the fork.
 
 ### SmartTestFarm
 
@@ -357,13 +352,14 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
 
 | Symptom | Cause and fix |
 | --- | --- |
-| `./zebrunner.sh ansible` fails on `Pull Zebrunner images` and `Check that images failed to pull exist locally` with `denied: Your authorization token has expired` or `403 Forbidden` | an expired login to public.ecr.aws in `~/.docker/config.json` of the user: the images are public, `docker logout public.ecr.aws` (or log in again) |
+| `./zebrunner.sh ansible` fails on `Pull Zebrunner images` and `Check that images failed to pull exist locally` with `denied: Your authorization token has expired` or `403 Forbidden` | an expired login to public.ecr.aws in `~/.docker/config.json` of the user who runs the deploy (it pulls as this user, not as root): the images are public, `docker logout public.ecr.aws` (or log in again) |
+| Linux: `./zebrunner.sh ansible` fails on `Pull Zebrunner images` with `permission denied while trying to connect to the Docker daemon socket` | the user is not in the `docker` group: `sudo usermod -aG docker $USER`, log in again |
 | the pull fails with `manifest unknown` | the tag of `versions.yml` (or of `config/settings.yml`) is not published, see the images of the current [mcloud](https://github.com/zebrunner/mcloud) |
 | Linux: the deploy passed, the devices plugged in before it have no containers | udev starts them on the next connection only: `zebrunner-farm start` |
 | `./zebrunner.sh join` stops with `the TLS key of the server is not the pinned one` | the join string is of another MCloud (or the address of the join string leads elsewhere), or a man in the middle; a new TLS key of MCloud needs a new join string |
 | `./zebrunner.sh join` stops with `MCloud refused the enrollment (HTTP 403)` | the invite is used, expired, replaced by a newer one of the label, or of another label: a new `./zebrunner.sh node-invite` on the MCloud server |
 | the containers are healthy, the devices are not in STF | `./zebrunner.sh doctor`: MCloud does not know or revoked this host (a new invite and `./zebrunner.sh join`), its address in MCloud is not `STF_PROVIDER_HOST`, the devices are not bound to it (the containers created before `join`: `./zebrunner.sh ansible`, `zebrunner-farm restart`); the STF triproxies log `Refused the ZeroMQ client ... with the unknown key` for a key MCloud does not know, see [ZeroMQ security](#zeromq-security) |
-| the devices are in STF, not in the grid; Appium logs `An attempt to register with the grid was unsuccessful` | the reason is in the log of Appium (`device-<name>-<udid>-appium`) or of `mcloud-grid`: `is not reachable from the hub` - `STF_PROVIDER_HOST` and `appium_port` are not reachable from the MCloud server (in its network the address of this host there, see [Device hosts in a private network](#device-hosts-in-a-private-network)); an unknown or revoked node token, or a node url whose host is not the address of the invite - `./zebrunner.sh doctor`, see [Grid registration](#grid-registration) |
+| the devices are in STF, not in the grid; Appium logs `An attempt to register with the grid <hub URL> was unsuccessful` | the reason is in the log of Appium (`device-<name>-<udid>-appium`) or of `mcloud-grid`: `is not reachable from the hub` - `STF_PROVIDER_HOST` and `appium_port` are not reachable from the MCloud server (in its network the address of this host there, see [Device hosts in a private network](#device-hosts-in-a-private-network)); an unknown or revoked node token, or a node url whose host is not the address of the invite - `./zebrunner.sh doctor`, see [Grid registration](#grid-registration) |
 | the screenshots or the app installs of the devices fail | MCloud refuses the token of this host (`./zebrunner.sh doctor`), or `PUBLIC_IP` is not reachable from this host (e.g. the public address of a server of the same network behind a NAT without hairpin: resolve it to its address in the network) |
 | the uploader container exits with `Required S3 arguments are missed! Integration with S3 will be disabled.` | no `S3_*` settings: the videos and logs stay on the host, set them to upload the artifacts |
 | macOS: an iOS simulator is not in STF, the log of its `-stf` container stops after `connecting to WdaMjpeg` | the amd64 mcloud-device under emulation: the arm64 one of a multi-platform mcloud-device image is needed on Apple Silicon (`docker image inspect <image> --format '{{.Architecture}}'`) |
@@ -413,9 +409,7 @@ Run `./zebrunner.sh doctor` first, see [Doctor](#doctor). Follow the below algor
   ansible-playbook -vvv --ask-become-pass -i hosts agent.yml --tag registerDevices
   ```
 
-  Ubuntu 25.10+ has sudo-rs as `sudo`: ansible does not recognize its password prompt and stops with "Timed out
-  waiting for become success or become password prompt". `./zebrunner.sh ansible` uses `sudo.ws` (the original sudo,
-  `sudo apt install sudo`) then, add `--extra-vars ansible_become_exe=sudo.ws` to the commands above.
+  Ubuntu 25.10+ has sudo-rs as `sudo`: ansible does not recognize its password prompt and stops with "Timed out waiting for become success or become password prompt". `./zebrunner.sh ansible` uses `sudo.ws` (the original sudo, `sudo apt install sudo`) then, add `--extra-vars ansible_become_exe=sudo.ws` to the commands above.
 
   > To run it non-interactively, keep the sudo password in an ansible-vault encrypted file instead of the command line (use `--vault-password-file` instead of `--ask-vault-pass` for automation):
 
@@ -445,7 +439,7 @@ The `tests` folder covers zebrunner.sh, the ansible roles and templates, zebrunn
 
 - The roles: `devices` (Linux) and `mac-devices` (macOS) deploy the agent of the OS; `common`, their dependency (`meta/main.yml`), has the values by default and the checks of the settings and the devices shared by both (`roles/common/tasks/checks.yml`, imported after the check of the OS; the checks of the devices of both OS are `roles/common/files/devices.py`, run by the deploy with the python of ansible and by `./zebrunner.sh doctor`), and `zebrunner-farm` (`roles/common/tasks/farm.yml`): one static script of both OS (`roles/common/files/zebrunner-farm`, the branches of `FARM_OS`) with its settings rendered into an env file (`roles/common/templates/zebrunner-farm.env`); the tests run it with `ZEBRUNNER_FARM_ENV`; `download` pulls the images.
 - With `JUNIT_DIR` set, `tests/lint.sh` and every test write JUnit XML into it. CI publishes the results as annotations and a job summary, and keeps the XML files as artifacts.
-- The `usbmuxd_watch` binary of the `mac-devices` role is built from `roles/mac-devices/files/usbmuxd_watch.c` and the pinned release tarballs (sha256) of libplist, libimobiledevice-glue and libusbmuxd. After a change of the source or of a library version, rebuild it on macOS with the Xcode command line tools and commit it; the same Xcode builds the same binary byte for byte. CI builds it the same way and runs `tests/usbmuxd_watch_test.sh` on the result:
+- The `usbmuxd_watch` binary of the `mac-devices` role is built from `roles/mac-devices/files/usbmuxd_watch.c` and the pinned release tarballs (sha256) of libplist, libimobiledevice-glue and libusbmuxd. After a change of the source or of a library version, rebuild it on macOS with the Xcode command line tools and commit it. CI builds it the same way on its macOS runner and runs `tests/usbmuxd_watch_test.sh` on the result; it does not compare the result with the committed binary, which another Xcode builds differently:
 
   ```bash
   scripts/build_usbmuxd_watch.sh
