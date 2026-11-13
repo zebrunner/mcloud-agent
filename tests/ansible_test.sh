@@ -347,13 +347,31 @@ else
   skip_check "newsyslog dry run" "needs macOS and passwordless sudo"
 fi
 
-for plist in ZebrunnerDevicesListener ZebrunnerUsbmuxd; do
-  render "${REPO}/roles/mac-devices/templates/${plist}.plist" "${WORK}/${plist}.plist" || exit 1
+for plist in ZebrunnerDevicesListener ZebrunnerUsbmuxd ZebrunnerAdb; do
+  render "${REPO}/roles/mac-devices/templates/${plist}.plist" "${WORK}/${plist}.plist" \
+    --extra-vars "@${REPO}/roles/mac-devices/defaults/main.yml" --extra-vars "mac_devices_adb_path=/opt/homebrew/bin/adb" || exit 1
   check_contains "${plist}: runs in the agent dir" "<string>${REPO}</string>" "$(cat "${WORK}/${plist}.plist")"
   check_contains "${plist}: logs into the agent dir" "<string>${REPO}/logs/" "$(cat "${WORK}/${plist}.plist")"
   if command -v plutil > /dev/null 2>&1; then
     check "${plist}: valid plist" "${WORK}/${plist}.plist: OK" "$(plutil -lint "${WORK}/${plist}.plist")"
   fi
 done
+# the launch agents listen on the ports of the addresses the containers reach them with
+check_contains "socat of usbmuxd listens on the port of USBMUXD_SOCKET_ADDRESS" "<string>TCP-LISTEN:2222,reuseaddr,fork,bind=127.0.0.1</string>" \
+  "$(cat "${WORK}/ZebrunnerUsbmuxd.plist")"
+check_contains "the adb server listens on the port of ADB_SERVER_SOCKET_ADDRESS" "<string>-P</string>
+        <string>5037</string>" "$(cat "${WORK}/ZebrunnerAdb.plist")"
+render "${REPO}/roles/mac-devices/templates/ZebrunnerUsbmuxd.plist" "${WORK}/usbmuxd.plist" \
+  --extra-vars "USBMUXD_SOCKET_ADDRESS=host.docker.internal:2345" || exit 1
+check_contains "socat of usbmuxd listens on another port of USBMUXD_SOCKET_ADDRESS" "<string>TCP-LISTEN:2345," "$(cat "${WORK}/usbmuxd.plist")"
+render "${REPO}/roles/mac-devices/templates/ZebrunnerAdb.plist" "${WORK}/adb.plist" \
+  --extra-vars "ADB_SERVER_SOCKET_ADDRESS=host.docker.internal:5038 mac_devices_adb_path=adb" || exit 1
+check_contains "the adb server listens on another port of ADB_SERVER_SOCKET_ADDRESS" "<string>5038</string>" "$(cat "${WORK}/adb.plist")"
+for address in USBMUXD_SOCKET_ADDRESS=host.docker.internal ADB_SERVER_SOCKET_ADDRESS=host.docker.internal:70000 USBMUXD_SOCKET_ADDRESS=:2222; do
+  check_contains "mac-devices: an invalid ${address} fails" "USBMUXD_SOCKET_ADDRESS and ADB_SERVER_SOCKET_ADDRESS are <host>:<port>" \
+    "$(playbook mac-devices --tags validate --extra-vars "$address")"
+done
+check_contains "mac-devices: the addresses of the settings pass" "failed=0" \
+  "$(playbook mac-devices --tags validate --extra-vars "USBMUXD_SOCKET_ADDRESS=10.0.0.5:2345 ADB_SERVER_SOCKET_ADDRESS=host.docker.internal:5038")"
 
 finish
