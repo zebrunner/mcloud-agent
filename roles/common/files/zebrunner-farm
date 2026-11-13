@@ -42,8 +42,9 @@ with_device_lock() {
     id="$dev_udid"
   fi
   local lock="${MCLOUD_LOCK_DIR:-/run/lock}/mcloud-device-${id//[^A-Za-z0-9._-]/_}.lock"
-  # the file is shared by root (udev) and the users of docker
-  [[ -e "$lock" ]] || (umask 000 && : >> "$lock") 2> /dev/null
+  # the file is shared by root (udev) and the users of docker: flock needs it readable only. noclobber creates it with
+  # O_EXCL, which follows no symlink planted in the world-writable lock directory
+  [[ -e "$lock" ]] || (set -C && umask 022 && : > "$lock") 2> /dev/null
   if [[ ! -r "$lock" ]]; then
     "$@"
     return

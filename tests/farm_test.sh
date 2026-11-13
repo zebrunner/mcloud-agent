@@ -681,4 +681,24 @@ output="$(farm devices)"
 check_contains "help describes the devices argument" "Devices: udid or name of a whitelisted device, a group: ios, android, usb" "$output"
 check_contains "help describes the exclusion" "-x, -e, --exclude <devices>" "$output"
 
+section "the lock file of a device"
+if command -v flock > /dev/null 2>&1; then
+  lock="${WORK}/mcloud-device-192.168.1.50.lock"
+  rm -f "$lock"
+  setup_case
+  farm devices stop WiFi > /dev/null
+  check "the lock file is readable by the users of docker, writable by its owner only" "644" \
+    "$(stat -c '%a' "$lock" 2> /dev/null || stat -f '%Lp' "$lock")"
+  rm -f "$lock"
+  # a symlink planted in the world-writable lock directory
+  ln -s "${WORK}/planted" "$lock"
+  setup_case
+  farm devices stop WiFi > /dev/null
+  check "the lock creates no file through a symlink" "no" "$([[ -e "${WORK}/planted" ]] && echo yes || echo no)"
+  check_contains "the device runs its command without its lock file" "device-WiFi-192.168.1.50-appium" "$(calls docker | grep '^stop|')"
+  rm -f "$lock"
+else
+  skip_check "the lock file of a device" "no flock (util-linux)"
+fi
+
 finish

@@ -263,8 +263,14 @@ enroll_answer() {
 enroll_answer "$node_token" 192.168.30.2 > "${WORK}/mcloud/enroll_answer"
 echo 200 > "${WORK}/mcloud/enroll_code"
 reset_calls
-output="$(OS=Linux zbr "${join_string}\n" join)"
+# the pythons of zebrunner.sh record their arguments: the secret key of the host is in none of them
+real_python3="$(command -v python3)"
+stub python3 "printf '%s\\n' \"\$*\" >> '${WORK}/python-args.log'; exec '${real_python3}' \"\$@\""
+stub yaml-python "printf '%s\\n' \"\$*\" >> '${WORK}/python-args.log'; exec '${YAML_PYTHON}' \"\$@\""
+: > "${WORK}/python-args.log"
+output="$(OS=Linux YAML_PYTHON="${WORK}/bin/yaml-python" zbr "${join_string}\n" join)"
 check "join enrolls the host" "0" "$?"
+rm -f "${WORK}/bin/python3" "${WORK}/bin/yaml-python"
 check_contains "join reports the label and the address" "enrolled in MCloud 192.168.50.2 as build-ua, its address is 192.168.30.2" "$output"
 check_contains "the enrollment goes to MCloud over HTTPS with the pinned key only" "--pinnedpubkey|sha256//${pin}|" "$(calls curl)"
 check_contains "the enrollment URL" "https://192.168.50.2:443/api/v1/nodes/enroll" "$(calls curl)"
@@ -275,10 +281,15 @@ check_contains "the body has the label" "\"label\": \"build-ua\"" "$body"
 secret="$(sed -n 's/^STF_ZMQ_CURVE_SECRET_KEY: "\(.*\)"$/\1/p' "$vars")"
 check "join makes the CURVE key of the host" "64" "${#secret}"
 check_contains "the body has the public key of the host" \
-  "\"publicKey\": \"$(python3 "${REPO}/patch/curve_keygen.py" "$secret" | sed -n 's/^public=//p')\"" "$body"
+  "\"publicKey\": \"$(printf '%s\n' "$secret" | python3 "${REPO}/patch/curve_keygen.py" - | sed -n 's/^public=//p')\"" "$body"
 check_not_contains "the secret key is not sent" "$secret" "$body"
 check "the script makes the public key of RFC 7748" "public=8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a" \
-  "$(python3 "${REPO}/patch/curve_keygen.py" 77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a | head -1)"
+  "$(echo 77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a | python3 "${REPO}/patch/curve_keygen.py" - | head -1)"
+check_contains "the script takes no secret key as an argument, every user sees them" "usage:" \
+  "$(python3 "${REPO}/patch/curve_keygen.py" 77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a 2>&1)"
+check_contains "the script refuses an invalid secret key" "must be 64 hex characters" "$(echo abc | python3 "${REPO}/patch/curve_keygen.py" - 2>&1)"
+check "the secret key of the host is in no argument of python" "" "$(grep -F -- "$secret" "${WORK}/python-args.log")"
+check_contains "the arguments of python are recorded" "patch/settings.py set config/settings.yml -" "$(cat "${WORK}/python-args.log")"
 for line in 'MCLOUD_URL: "https://192.168.50.2:443"' "MCLOUD_TLS_PIN: \"${pin}\"" "MCLOUD_NODE_TOKEN: \"${node_token}\"" \
   "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY: \"${server_key}\"" 'PUBLIC_IP: "demo.zebrunner.farm"' 'PUBLIC_IP_PORT: "443"' \
   'PUBLIC_IP_PROTOCOL: "https"' 'STF_PROVIDER_CONNECT_SUB: "tcp://192.168.50.2:7250"' \
