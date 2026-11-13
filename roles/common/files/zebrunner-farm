@@ -25,22 +25,17 @@ if [[ "$FARM_OS" == "macos" ]]; then
   unset DOCKER_DEFAULT_PLATFORM
 fi
 
-# with_device_lock <device> <command...>: the commands of one device run one at a time: the jobs of udev
-# (mcloud-device-restart@, mcloud-device-down@) and the manual calls do not change its containers together; a group of
-# devices (no device given), macOS (no udev) and a host without flock run without it
+# with_device_lock <udid> <command...>: the commands of one device run one at a time: the jobs of udev
+# (mcloud-device-restart@, mcloud-device-down@) and the manual calls of the device or of a group of devices do not
+# change its containers together; macOS (no udev) and a host without flock run without it
 with_device_lock() {
-  local device="$1"
+  local id="$1"
   shift
-  if [[ -z "$device" || "$device" == "ios" || "$device" == "android" || "$FARM_OS" == "macos" ]] ||
-    ! command -v flock > /dev/null 2>&1; then
+  if [[ -z "$id" || "$FARM_OS" == "macos" ]] || ! command -v flock > /dev/null 2>&1; then
     "$@"
     return
   fi
-  # the device by its id: udev names it by the id, a user may name it by its name
-  local id="$device"
-  if get_device_fields "$device" > /dev/null 2>&1; then
-    id="$dev_udid"
-  fi
+  # the lock of the id: udev names the device by its id
   local lock="${MCLOUD_LOCK_DIR:-/run/lock}/mcloud-device-${id//[^A-Za-z0-9._-]/_}.lock"
   # the file is shared by root (udev) and the users of docker
   [[ -e "$lock" ]] || (umask 000 && : >> "$lock") 2> /dev/null
@@ -50,7 +45,7 @@ with_device_lock() {
   fi
   (
     if ! flock -w "${MCLOUD_LOCK_TIMEOUT:-1800}" 9; then
-      failed "another zebrunner-farm keeps the device ${device} for too long"
+      failed "another zebrunner-farm keeps the device ${dev_device_name:-$id} for too long"
       exit 1
     fi
     "$@"
@@ -933,14 +928,19 @@ restart_selected() {
   run_selected start
 }
 
-# run_selected <command>: the command (start, stop, restart, down, status) for every device of SELECTED
+# run_selected <command>: the command (start, stop, restart, down, status) for every device of SELECTED, one at a time
+# with the other commands of the device (with_device_lock)
 run_selected() {
   local command="$1"
   local udid
   for udid in "${SELECTED[@]}"; do
     get_device_fields "$udid" || continue
     echo -e "\n==> ${dev_device_name} (${dev_udid}, ${dev_platform_name}, ${dev_connection})"
-    "${command}_device"
+    if [[ "$command" == "status" ]]; then
+      status_device
+    else
+      with_device_lock "$dev_udid" "${command}_device"
+    fi
   done
 }
 
@@ -1219,7 +1219,7 @@ farm_command() {
     echo "Cancelled."
     return 0
   fi
-  with_device_lock "$(single_device)" run_command "$command"
+  run_command "$command"
 }
 
 # run_command <command>: the command for SELECTED, the docker network first for the new containers
