@@ -278,6 +278,10 @@ The devices can be on the MCloud server itself (mcloud and mcloud-agent on one m
 
 The Appium node of a device registers in mcloud-grid with the token of this host (`MCLOUD_NODE_TOKEN`, passed to appium as `NODE_REGISTRATION_TOKEN`): the hub accepts it only when STF knows the token of an active host whose address is the host of the node url (`STF_PROVIDER_HOST`), checks it again every minute and sends it back to this node only with every request, see [mcloud-grid](https://github.com/zebrunner/mcloud-grid#node-registration). A revoked host is unregistered.
 
+### Docker network
+
+The docker network of the containers of the devices (`STF_DOCKER_NETWORK`, `infra` by default) is trusted: every container on it reaches the ports of the connectors without authentication, the adb server of every Android device and, of every iOS device, usbmuxd (`2222`), WebDriverAgent and MJPEG and the go-ios tunnel API and port ([mcloud-ios-connector](https://github.com/zebrunner/mcloud-ios-connector#network)); attach only the containers of the farm (and of mcloud on the same machine) to it.
+
 ### Appium security
 
 The Appium port of a device (`appium_port`) is published on the host for mcloud-grid. Appium of the device answers only the requests of the grid, which carry the token of this host, and the ones of its own container: the others get `401` (also Appium Inspector and the WebSockets of the sessions, e.g. the logcat broadcast; use the grid, `/mcloud/wd/hub` of mcloud).
