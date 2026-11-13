@@ -1,7 +1,7 @@
 # Zebrunner Device Farm (Android and iOS agent)
 
 The agent runs the containers of every device of a Linux or macOS server: the connector (the only point of contact with
-the device), STF, Appium and the artifacts uploader. The connector takes the device whatever its connection is, the STF and
+the device), STF, Appium and the artifacts uploader (with S3, see [Recordings](#recordings)). The connector takes the device whatever its connection is, the STF and
 Appium containers always take adb, usbmuxd and WebDriverAgent from it.
 
 | Device | Connection | Linux | macOS |
@@ -284,6 +284,10 @@ The Appium port of a device (`appium_port`) is published on the host for mcloud-
 
 `APPIUM_RELAXED_SECURITY` of `roles/common/defaults/main.yml` is `true`: every session, also through the grid, gets the insecure features of Appium: `mobile: shell` (adb shell of the device), the Appium log of the earlier sessions of the device (`get_server_logs`), the emulator console, the screen streaming, the download of chromedriver. Set it to `false` in `config/settings.yml` when the tests do not need them.
 
+### Recordings
+
+With S3 (`S3_BUCKET` and the other `S3_*` settings of `config/settings.yml`) appium records the video of every session and the uploader container of the device uploads it with the logs of the session to `s3://<S3_BUCKET>[/<S3_TENANT>]/artifacts/test-sessions/<session id>/`. Without `S3_BUCKET` appium records no video (`RECORD_ARTIFACTS=false`) and the device has no uploader: there is nothing to upload to, the videos filled the disk. Appium still keeps the log of every session in a folder of the volume of the logs of the device, the volume is removed with the containers (`zebrunner-farm restart`, `down`, a disconnection of a USB device). A change of S3 needs `./zebrunner.sh ansible` and `zebrunner-farm restart`.
+
 ### Devices management
 
 `zebrunner-farm <command> [devices...] [-x|--exclude <devices>]... [-q|--quiet] [--batch|--rolling] [--json]` manages the containers of the devices: `status`, `start` (creates the missing containers, starts the stopped ones, keeps the running ones), `stop`, `restart` (removes and creates them again) and `down` (removes them).
@@ -366,7 +370,7 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
 | the containers are healthy, the devices are not in STF | `./zebrunner.sh doctor`: MCloud does not know or revoked this host (a new invite and `./zebrunner.sh join`), its address in MCloud is not `STF_PROVIDER_HOST`, the devices are not bound to it (the containers created before `join`: `./zebrunner.sh ansible`, `zebrunner-farm restart`); the STF triproxies log `Refused the ZeroMQ client ... with the unknown key` for a key MCloud does not know, see [ZeroMQ security](#zeromq-security) |
 | the devices are in STF, not in the grid; Appium logs `An attempt to register with the grid was unsuccessful` | the reason is in the log of Appium (`device-<name>-<udid>-appium`) or of `mcloud-grid`: `is not reachable from the hub` - `STF_PROVIDER_HOST` and `appium_port` are not reachable from the MCloud server (in its network the address of this host there, see [Device hosts in a private network](#device-hosts-in-a-private-network)); an unknown or revoked node token, or a node url whose host is not the address of the invite - `./zebrunner.sh doctor`, see [Grid registration](#grid-registration) |
 | the screenshots or the app installs of the devices fail | MCloud refuses the token of this host (`./zebrunner.sh doctor`), or `PUBLIC_IP` is not reachable from this host (e.g. the public address of a server of the same network behind a NAT without hairpin: resolve it to its address in the network) |
-| the uploader container exits with `Required S3 arguments are missed! Integration with S3 will be disabled.` | no `S3_*` settings: the videos and logs stay on the host, set them to upload the artifacts |
+| no video of the sessions, the devices have no `-uploader` container | no `S3_BUCKET` in `config/settings.yml`: appium records no video and the devices get no uploader, see [Recordings](#recordings) |
 | macOS: an iOS simulator is not in STF, the log of its `-stf` container stops after `connecting to WdaMjpeg` | the amd64 mcloud-device under emulation: the arm64 one of a multi-platform mcloud-device image is needed on Apple Silicon (`docker image inspect <image> --format '{{.Architecture}}'`) |
 
 Run `./zebrunner.sh doctor` first, see [Doctor](#doctor). Follow the below algorithm to identify any configuration issues with MCloud agent:

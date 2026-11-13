@@ -49,7 +49,8 @@ REMOTE_CONNECT_HOST:
 STF_API_URL:
 STF_AUTH_TOKEN:
 
-# [OPTIONAL] S3 compatible storage for video recordings.
+# [OPTIONAL] S3 compatible storage for the videos and the logs of the sessions: without S3_BUCKET appium records no
+# video and the devices have no uploader (README.md#recordings)
 S3_BUCKET:
 S3_TENANT:
 S3_ENDPOINT:

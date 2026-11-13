@@ -175,7 +175,7 @@ check_contains "proxied WDA has no usbmuxd for appium" "|WIRELESS=true|" "$(run_
 
 setup_case
 farm devices start Emu > /dev/null
-check "Android emulator gets the containers of a device, the farm does not create it" "connector stf appium uploader" \
+check "Android emulator gets the containers of a device, the farm does not create it" "connector stf appium" \
   "$(calls docker | grep '^run|' | grep -o -- '--name|device-Emu-emu1-[a-z]*' | sed 's/.*-//' | paste -s -d ' ' -)"
 connector="$(run_args device-Emu-emu1-connector)"
 check_contains "Android emulator is connected by its adb address" "|ANDROID_DEVICE=host.docker.internal:5557|" "$connector"
@@ -238,7 +238,7 @@ section "macOS container creation"
 setup_case
 echo '"USB Serial Number" = "d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"' > "${WORK}/usb"
 output="$(farm mac-devices start iPhone_8_Plus)"
-check "USB iPhone gets all containers" "connector stf appium uploader" \
+check "USB iPhone gets all containers" "connector stf appium" \
   "$(calls docker | grep '^run|' | grep -o -- "--name|${IPHONE}-[a-z]*" | sed 's/.*-//' | paste -s -d ' ' -)"
 check_contains "appium links the stf container" "|--link|${IPHONE}-stf:device|" "$(run_args "${IPHONE}-appium")"
 check_contains "appium links the connector" "|--link|${IPHONE}-connector:connector|" "$(run_args "${IPHONE}-appium")"
@@ -248,7 +248,7 @@ setup_case
 echo "${IPHONE}-stf" > "${WORK}/docker_ps"
 echo '"USB Serial Number" = "d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"' > "${WORK}/usb"
 farm mac-devices start iPhone_8_Plus > /dev/null
-check "existing container is not created again" "connector appium uploader" \
+check "existing container is not created again" "connector appium" \
   "$(calls docker | grep '^run|' | grep -o -- "--name|${IPHONE}-[a-z]*" | sed 's/.*-//' | paste -s -d ' ' -)"
 
 setup_case
@@ -260,7 +260,7 @@ check "the containers after a failed one are not created" "connector stf appium"
 
 setup_case
 farm mac-devices start AppleTV > /dev/null
-check "proxied device gets a connector too" "connector stf appium uploader" \
+check "proxied device gets a connector too" "connector stf appium" \
   "$(calls docker | grep '^run|' | grep -o -- '--name|device-AppleTV-aaaa1111-[a-z]*' | sed 's/.*-//' | paste -s -d ' ' -)"
 check_contains "proxied WDA is relayed by the connector on macOS" \
   "|DEVICE_CONNECTION=proxy|-e|DEVICE_ADDRESS=10.0.0.5|-e|DEVICE_WDA_PORT=8100|-e|DEVICE_MJPEG_PORT=8101|" \
@@ -329,7 +329,7 @@ check_contains "wireless android of macOS is connected over adb tcp" "|ANDROID_D
 
 setup_case
 farm mac-devices start Emu > /dev/null
-check "Android emulator of macOS gets the containers of a device" "connector stf appium uploader" \
+check "Android emulator of macOS gets the containers of a device" "connector stf appium" \
   "$(calls docker | grep '^run|' | grep -o -- '--name|device-Emu-emu1-[a-z]*' | sed 's/.*-//' | paste -s -d ' ' -)"
 check_contains "Android emulator of macOS is connected by its adb address" "|ANDROID_DEVICE=host.docker.internal:5557|" \
   "$(run_args device-Emu-emu1-connector)"
@@ -394,6 +394,25 @@ check_contains "Linux: the USB iPhone is passed into the connector" "|--device=/
 check_not_contains "Linux: the iOS connector gets no DEVICE_BUS, it does not read it" "|DEVICE_BUS=" "$connector"
 check_not_contains "Linux: appium of a USB iPhone takes usbmuxd from the connector, not the USB device" "--device=" \
   "$(run_args "${IPHONE}-appium")"
+
+section "recordings"
+# the example settings have no S3: appium records no video, the device has no uploader
+for role in devices mac-devices; do
+  setup_case
+  farm "$role" start WiFi > /dev/null
+  check "${role}: without S3 the device has no uploader" "connector stf appium" \
+    "$(calls docker | grep '^run|' | grep -o -- '--name|device-WiFi-192.168.1.50-[a-z]*' | sed 's/.*-//' | paste -s -d ' ' -)"
+  check_contains "${role}: without S3 appium records no video" "|RECORD_ARTIFACTS=false|" "$(run_args device-WiFi-192.168.1.50-appium)"
+  render_farm "$role" "${WORK}/farm-${role}.env" --extra-vars "S3_BUCKET=bucket S3_TENANT=tenant" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+  setup_case
+  farm "$role" start WiFi > /dev/null
+  check_contains "${role}: with S3 appium records the sessions" "|RECORD_ARTIFACTS=true|" "$(run_args device-WiFi-192.168.1.50-appium)"
+  check_contains "${role}: with S3 the uploader uploads them" "|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|" \
+    "$(run_args device-WiFi-192.168.1.50-uploader)"
+  render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+done
 
 section "macOS device listener"
 for command in start stop down; do
@@ -596,7 +615,7 @@ for role in devices mac-devices; do
   check_contains "${role}: a stopped container is started" "stf        started" "$output"
   check_contains "${role}: a missing container is created" "appium     created" "$output"
   check "${role}: only the stopped container is started" "start|device-WiFi-192.168.1.50-stf" "$(calls docker | grep '^start|')"
-  check "${role}: only the missing containers are created" "appium uploader" \
+  check "${role}: only the missing containers are created" "appium" \
     "$(calls docker | grep '^run|' | grep -o -- '--name|device-WiFi-192.168.1.50-[a-z]*' | sed 's/.*-//' | paste -s -d ' ' -)"
   setup_case
   output="$(farm "$role" down WiFi)"
