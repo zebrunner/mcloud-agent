@@ -15,3 +15,19 @@ APPIUM_MAX_LOCK_FILE_LIFETIME: 180
 APPIUM_APP_WAITING_TIMEOUT: 90
 
 RESTARTS_LIMIT: 50
+
+# the docker network of the containers of the devices, the deploy and zebrunner-farm create it
+STF_DOCKER_NETWORK: infra
+
+# the optional settings of config/settings.yml.original, empty: off (an empty WDA_FILE and WDA_BUNDLEID are the values
+# by default of zebrunner-farm)
+STF_API_URL: ""
+STF_AUTH_TOKEN: ""
+S3_BUCKET: ""
+S3_TENANT: ""
+S3_ENDPOINT: ""
+S3_ACCESS_KEY_ID: ""
+S3_SECRET: ""
+S3_REGION: ""
+WDA_FILE: ""
+WDA_BUNDLEID: ""
