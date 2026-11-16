@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""The CURVE key pair of the device host for the ZeroMQ security of STF (zebrunner/stf ZEBRUNNER.md#zeromq).
+"""A CURVE key pair for the ZeroMQ security of STF (zebrunner/stf ZEBRUNNER.md#zeromq).
 
 Prints `public=<key>` and `secret=<key>`, the keys are 64 hex characters, the same as `stf curve-keygen`: a new pair, or
 with `-` the pair of the secret key read from stdin (not an argument: the arguments of a process are visible to every
-user). X25519 of RFC 7748 in pure Python: the device hosts have Python for ansible, not the cryptography package or an
-X25519 openssl (macOS).
+user). X25519 of RFC 7748 in pure Python: the hosts of mcloud and mcloud-agent have Python, not always the cryptography
+package or an openssl with X25519 (the LibreSSL of macOS).
+Synced from zebrunner/mcloud-conventions (shared/patch/), change it there.
 """
 
 import os
