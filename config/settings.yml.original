@@ -43,7 +43,9 @@ REMOTE_CONNECT_HOST:
 # host.docker.internal:5037 by default
 # ADB_SERVER_SOCKET_ADDRESS: host.docker.internal:5037
 
-# [OPTIONAL] STF integration settings to move devices into Unhealthy state
+# [OPTIONAL] the STF API: appium of the Android and iOS devices moves a device to Unhealthy in STF (no space left,
+# unfinished setup, ...) or notes its error. STF_API_URL is <STF>/api/v1, e.g. https://mcloud.example.com/api/v1 (the
+# PUBLIC_IP of MCloud), STF_AUTH_TOKEN is an access token of an admin of STF (Settings, Keys)
 STF_API_URL:
 STF_AUTH_TOKEN:
 
