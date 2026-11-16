@@ -3,7 +3,9 @@
 # $$ scopes tags to this run only, avoids clashing with a stale prior incarnation
 LISTENER_TAG_PREFIX="usb-debounce:$$"
 DEBOUNCE_SECONDS=5
-ACTION_TIMEOUT_SECONDS=100
+# as TimeoutStartSec of mcloud-device-restart@ of Linux: the images may be pulled, the stop of the containers waits for
+# the recordings and their upload (README.md#devices-management)
+ACTION_TIMEOUT_SECONDS=1800
 # an action holds its device lock at most ACTION_TIMEOUT_SECONDS plus the time to kill it,
 # so an older lock was left by a job killed before releasing it
 LOCK_STALE_SECONDS=$((ACTION_TIMEOUT_SECONDS + 10))

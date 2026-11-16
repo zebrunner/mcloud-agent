@@ -11,7 +11,7 @@ require_os Darwin
 run_listener() {
   rm -rf "${WORK}/tmp" "${WORK}/farm.log" "${WORK}/listener.log"*
   mkdir -p "${WORK}/tmp"
-  sed -e "s/^DEBOUNCE_SECONDS=5\$/DEBOUNCE_SECONDS=$1/" -e "s/^ACTION_TIMEOUT_SECONDS=100\$/ACTION_TIMEOUT_SECONDS=$2/" \
+  sed -e "s/^DEBOUNCE_SECONDS=5\$/DEBOUNCE_SECONDS=$1/" -e "s/^ACTION_TIMEOUT_SECONDS=1800\$/ACTION_TIMEOUT_SECONDS=$2/" \
     -e "s|^LISTENER_LOG=.*|LISTENER_LOG=\"${WORK}/listener.log\"|" \
     "${REPO}/roles/mac-devices/templates/zebrunner-device-listener" > "${WORK}/listener"
   env -i HOME="$HOME" TMPDIR="${WORK}/tmp" STUB_DIR="$WORK" PATH="${WORK}/bin:/bin:/usr/bin:/usr/sbin:/sbin" \
