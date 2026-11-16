@@ -40,3 +40,42 @@
   become: false
   changed_when: false
   tags: [pull, download]
+
+# The Developer Disk Images of the iOS devices (README.md#developer-disk-images): a shallow sparse clone, updated by every
+# deploy, as the user of the deploy, the owner of the agent folder. The checkout holds the images the connector mounts only
+# (DeveloperDiskImages, PersonalizedImages/*_Personalized), not the Cryptex ones; the blobs of the other paths are not
+# fetched (--filter=blob:none). ansible.builtin.git has no sparse checkout, hence git itself; the patterns of
+# core.sparseCheckout (not "git sparse-checkout") work with the git of Ubuntu 20.04 too, read-tree applies them to an
+# earlier full clone. checkout -f: the commit fetched into a shallow clone is not a descendant of the earlier one, and a
+# local change is dropped. A failed clone or update does not stop the deploy: the connector mounts the earlier checkout
+# or downloads the images itself.
+- name: Clone the Developer Disk Images of the iOS devices
+  ansible.builtin.shell: |  # noqa: command-instead-of-module
+    set -eu
+    dest={{ (DDI_DIR | default('', true) or agent_dir ~ '/DeveloperDiskImages') | quote }}
+    mkdir -p "$dest"
+    cd "$dest"
+    git init -q .
+    git remote remove origin 2> /dev/null || true
+    git remote add origin {{ DDI_REPO | quote }}
+    before="$(git rev-parse -q --verify HEAD || true)"
+    git config core.sparseCheckout true
+    printf '%s\n' '/*' '!/*/' '/DeveloperDiskImages/' '/PersonalizedImages/*_Personalized/' > .git/info/sparse-checkout
+    git fetch -q --depth 1 --filter=blob:none origin {{ DDI_VERSION | quote }}
+    git checkout -q -f --detach FETCH_HEAD
+    git read-tree -mu HEAD
+    [ "$before" = "$(git rev-parse HEAD)" ] || echo updated
+  args:
+    executable: /bin/bash
+  become: false
+  when: DDI_ENABLED | bool and 'ios' in download_platforms
+  register: download_ddi
+  changed_when: "'updated' in download_ddi.stdout"
+  ignore_errors: true
+  tags: [pull, download]
+
+- name: Report the Developer Disk Images not updated
+  ansible.builtin.debug:
+    msg: "The Developer Disk Images of {{ DDI_REPO }} ({{ DDI_VERSION }}) are not updated: the connectors mount the earlier clone or download the images"
+  when: download_ddi is failed
+  tags: [pull, download]
