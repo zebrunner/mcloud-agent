@@ -119,6 +119,9 @@ check "devices registration only" "--ask-become-pass|--inventory|hosts|${AGENT}/
 reset_calls
 OS=Linux zbr "" ansible --user=bob --extra-vars "app_name=a b" > /dev/null
 check "custom arguments keep their words" "--ask-become-pass|--inventory|hosts|--user=bob|--extra-vars|app_name=a b|${AGENT}/agent.yml" "$(calls ansible-playbook)"
+reset_calls
+OS=Linux zbr "" ansible devices -vvv --extra-vars "app_name=a b" > /dev/null
+check "the registration of the devices keeps the custom arguments" "--ask-become-pass|--inventory|hosts|-vvv|--extra-vars|app_name=a b|${AGENT}/agent.yml|--tag|registerDevices" "$(calls ansible-playbook)"
 output="$(OS=Linux zbr "" ansible)"
 check_contains "the deploy suggests zebrunner-farm start" "Run 'zebrunner-farm start'" "$output"
 check_not_contains "the registration of the devices does not" "zebrunner-farm start" "$(OS=Linux zbr "" ansible devices)"
@@ -171,6 +174,16 @@ check_contains "a declined removal deploys anyway" "${AGENT}/agent.yml" "$(calls
 reset_calls
 OS=Linux zbr "" ansible devices > /dev/null
 check "the registration of the devices keeps the containers" "" "$(calls zebrunner-farm)"
+for dry in --check -C --syntax-check --list-tasks; do
+  reset_calls
+  output="$(OS=Linux zbr "" ansible -v "$dry")"
+  check "a run with ${dry} keeps the containers" "" "$(calls zebrunner-farm)"
+  check_not_contains "a run with ${dry} asks nothing" "containers of the devices are running" "$output"
+  check_not_contains "a run with ${dry} suggests no zebrunner-farm start" "zebrunner-farm start" "$output"
+done
+reset_calls
+output="$(OS=Linux zbr "\n" ansible --tags files)"
+check "a deploy with arguments offers the removal" "down" "$(calls zebrunner-farm)"
 mv "${WORK}/docker" "${WORK}/bin/docker"
 output="$(ANSIBLE_EXIT=2 zbr "" ansible)"
 check "failed playbook fails" "1" "$?"
