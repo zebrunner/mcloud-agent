@@ -53,7 +53,6 @@ make_play() {
     - [config/settings.yml, ${REPO}/versions.yml]
     - [config/devices.yml, ${REPO}/versions.yml]
   vars:
-    STF_DOCKER_NETWORK: infra
     agent_dir: ${REPO}
   roles:
     - $1
@@ -130,6 +129,17 @@ for role in devices mac-devices; do
 [{"id": "a", "name": "A", "os": "android", "appium_port": 7421, "min_port": 7425, "max_port": 7430, "connect_port": 80, "connection": "wireless"}]=Invalid settings of device 'A'
 [{"id": "a", "name": "A", "os": "android", "appium_port": 7421, "min_port": 7425, "max_port": 7430, "connect_port": 7421, "connection": "wireless"}]=Host ports [7421] of device 'A'
 [{"id": "a", "name": "A", "os": "android", "appium_port": 7421, "min_port": 7425, "max_port": 7430, "connect_port": 7499, "connection": "wireless"}, {"id": "b", "name": "B", "os": "android", "appium_port": 7431, "min_port": 7495, "max_port": 7500, "connection": "wireless"}]=Host ports [7499] of device 'B'
+[{"id": " 00008101-000A1D0E3C38001E ", "name": " iPhone 12 ", "location": "lab-2.rack_1", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 3}]=failed=0
+[{"id": "emulator-5554", "name": "Emu", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 6, "connection": "wireless"}]=failed=0
+[{"id": "10.0.0.7:5555", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 6, "connection": "wireless"}]=Invalid id '10.0.0.7:5555' of device 'A'
+[{"id": "a", "name": "A|B", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6}]=Invalid name 'A|B' of device 'A|B'
+[{"id": "a", "name": "-A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6}]=Invalid name '-A' of device '-A'
+[{"id": "a/b", "name": "", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6}]=Invalid id 'a/b', name '' of device ''
+[{"id": "a", "name": "A", "location": "NYC, 2nd floor", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6}]=Invalid location 'NYC, 2nd floor' of device 'A'
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 5, "connection": "wireless"}]=The range min_port-max_port of device 'A' has 3 ports
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 6, "connect_port": 1024, "connection": "wireless"}]=failed=0
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 1024, "max_port": 1027, "connect_port": 1024, "connection": "wireless"}]=The range min_port-max_port of device 'A' has 4 ports
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 1024, "max_port": 1028, "connect_port": 1024, "connection": "wireless"}]=failed=0
 EOF
 done
 while IFS='=' read -r devices expected; do
@@ -140,14 +150,14 @@ done << 'EOF'
 [{"id": "a", "name": "TV", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "proxy"}]=Invalid connection 'proxy' of device 'TV'
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "bluetooth"}]=Invalid connection 'bluetooth' of device 'A'
 [{"id": "a", "name": "Sim", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "ios-sim"}]=Invalid connection 'ios-sim' of device 'Sim'
-[{"id": "a", "name": "Sim", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "ios-sim", "wda_port": 8110}]=Invalid connection 'ios-sim' of device 'Sim'
+[{"id": "a", "name": "Sim", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 6, "connection": "ios-sim", "wda_port": 8110}]=Invalid connection 'ios-sim' of device 'Sim'
 [{"id": "a", "name": "Emu", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "android-sim"}]=Invalid connection 'android-sim' of device 'Emu'
-[{"id": "a", "name": "Sim", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "ios-sim", "wda_port": 8110}, {"id": "b", "name": "Emu", "os": "android", "appium_port": 5, "adb_port": 6, "min_port": 7, "max_port": 8, "connection": "android-sim", "address": "host.docker.internal:5555"}]=failed=0
+[{"id": "a", "name": "Sim", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "ios-sim", "wda_port": 8110}, {"id": "b", "name": "Emu", "os": "android", "appium_port": 5, "adb_port": 6, "min_port": 7, "max_port": 10, "connection": "android-sim", "address": "host.docker.internal:5555"}]=failed=0
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "simulator", "wda_port": 8110}]=Invalid connection 'simulator' of device 'A'
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "ios-sim", "wda_port": 8110}, {"id": "b", "name": "B", "os": "ios", "appium_port": 5, "adb_port": 6, "min_port": 7, "max_port": 8, "connection": "ios-sim", "wda_port": 8111}]=The host ports [8110, 8111, 8111, 8112] of the iOS simulators
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 8110, "adb_port": 2, "min_port": 3, "max_port": 4}, {"id": "b", "name": "B", "os": "ios", "appium_port": 5, "adb_port": 6, "min_port": 7, "max_port": 8, "connection": "ios-sim", "wda_port": 8110}]=The host ports [8110, 8111] of the iOS simulators
-[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "adb_port": 7422, "min_port": 3, "max_port": 4}, {"id": "b", "name": "B", "os": "android", "appium_port": 5, "adb_port": 7422, "min_port": 7, "max_port": 8}]=The host ports [7422, 7422] of the iOS simulators
-[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "adb_port": 7422, "min_port": 3, "max_port": 4}, {"id": "b", "name": "B", "os": "android", "appium_port": 5, "adb_port": 7422, "min_port": 7, "max_port": 8, "connection": "wireless"}]=failed=0
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "adb_port": 7422, "min_port": 3, "max_port": 6}, {"id": "b", "name": "B", "os": "android", "appium_port": 7, "adb_port": 7422, "min_port": 8, "max_port": 11}]=The host ports [7422, 7422] of the iOS simulators
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "adb_port": 7422, "min_port": 3, "max_port": 6}, {"id": "b", "name": "B", "os": "android", "appium_port": 7, "adb_port": 7422, "min_port": 8, "max_port": 11, "connection": "wireless"}]=failed=0
 [{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 4}]=Invalid settings of device 'A'
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 4}]=failed=0
 EOF
@@ -156,13 +166,13 @@ while IFS='=' read -r devices expected; do
 done << 'EOF'
 [{"id": "a", "name": "WiFi", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "wireless"}]=Invalid connection 'wireless' of device 'WiFi'
 [{"id": "a", "name": "WiFi", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "wireless", "address": "10.0.0.7"}]=failed=0
-[{"id": "a", "name": "WiFi", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "wireless"}]=failed=0
+[{"id": "a", "name": "WiFi", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 6, "connection": "wireless"}]=failed=0
 [{"id": "a", "name": "Sim", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "ios-sim", "wda_port": 8110}]=Invalid connection 'ios-sim' of device 'Sim'
-[{"id": "a", "name": "Emu", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "android-sim", "address": "10.0.0.9:5555"}]=failed=0
+[{"id": "a", "name": "Emu", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 6, "connection": "android-sim", "address": "10.0.0.9:5555"}]=failed=0
 [{"id": "a", "name": "Emu", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "android-sim"}]=Invalid connection 'android-sim' of device 'Emu'
-[{"id": "a", "name": "Emu", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "emulator"}]=Invalid connection 'emulator' of device 'Emu'
+[{"id": "a", "name": "Emu", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 6, "connection": "emulator"}]=Invalid connection 'emulator' of device 'Emu'
 [{"id": "a", "name": "TV", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "proxy", "address": "10.0.0.5"}]=failed=0
-[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 4, "connection": "wireless"}]=failed=0
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 6, "connection": "wireless"}]=failed=0
 EOF
 
 # the shared checks of the role common with the parameters of the role of the OS
@@ -257,6 +267,7 @@ reset_calls
 output="$(playbook download)"
 check_contains "all images pulled" "failed=0" "$output"
 check "network is created after pulling" "1" "$(calls docker | grep -c '^network|')"
+check "the network of the value by default of STF_DOCKER_NETWORK" "network|inspect|infra" "$(calls docker | grep '^network|')"
 check "the images are pulled for the platform of the host" "4" "$(calls docker | grep -c '^pull|public.ecr.aws/')"
 check "appium is pulled for linux/amd64" "pull|--platform|linux/amd64|public.ecr.aws/zebrunner/appium:" \
   "$(calls docker | grep '^pull|.*appium:' | sed 's/:[^:]*$/:/')"
@@ -281,6 +292,13 @@ output="$(FAIL_PULL=appium playbook download)"
 check_contains "missing image stops the deploy" "No such image: public.ecr.aws/zebrunner/appium" "$output"
 check "deploy stops before the network" "0" "$(calls docker | grep -c '^network|')"
 check_contains "check mode skips the pulls" "failed=0" "$(FAIL_PULL=appium playbook download --check)"
+# the plays of agent.yml become root: docker runs as the user all the same, become of a task would call the stub and fail
+stub become "(IFS='|'; echo \"become|\$*\") >> '${WORK}/calls.log'; exit 1"
+reset_calls
+output="$(playbook download --become --extra-vars "ansible_become_exe=${WORK}/bin/become")"
+check_contains "the pulls of a play that becomes root pass" "failed=0" "$output"
+check "docker runs as the user, not as root" "" "$(calls become)"
+check "docker runs as the user: the pulls" "4" "$(calls docker | grep -c '^pull|public.ecr.aws/')"
 
 section "Developer Disk Images"
 ddi="${WORK}/ddi/DeveloperDiskImages"
@@ -336,6 +354,26 @@ for role in devices mac-devices; do
   check_contains "${role}: app size check true is lower case" "APPIUM_APP_SIZE_DISABLE=true" "$farm"
 done
 
+# the optional settings removed from config/settings.yml: the values by default of the roles, no undefined variable
+grep -v -E '^(STF_DOCKER_NETWORK|STF_API_URL|STF_AUTH_TOKEN|S3_[A-Z_]+|WDA_FILE|WDA_BUNDLEID|WDA_SIMULATOR_FILE|REMOTE_CONNECT_HOST):' \
+  "${REPO}/config/settings.yml.original" > "${WORK}/required.yml"
+for role in devices mac-devices; do
+  if output="$(render "${REPO}/roles/common/templates/zebrunner-farm.env" "${WORK}/farm" --extra-vars common_farm_os=linux \
+    --extra-vars "@${REPO}/roles/common/defaults/main.yml" --extra-vars "@${REPO}/roles/${role}/defaults/main.yml" \
+    --extra-vars "@${REPO}/versions.yml" --extra-vars "@${WORK}/required.yml")"; then
+    farm="$(cat "${WORK}/farm")"
+    pass "${role}: the settings of zebrunner-farm without the optional settings"
+    check_contains "${role}: the docker network by default" "STF_DOCKER_NETWORK=infra" "$farm"
+    for name in STF_API_URL STF_AUTH_TOKEN S3_BUCKET S3_TENANT S3_ENDPOINT S3_ACCESS_KEY_ID S3_SECRET S3_REGION WDA_FILE WDA_BUNDLEID; do
+      check "${role}: ${name} is empty by default" "${name}=''" "$(grep "^${name}=" "${WORK}/farm")"
+    done
+  else
+    fail "${role}: the settings of zebrunner-farm without the optional settings" "the template failed" "$output"
+  fi
+done
+check "the example settings leave STF_DOCKER_NETWORK to the value by default" "" \
+  "$(grep '^STF_DOCKER_NETWORK:' "${REPO}/config/settings.yml.original")"
+
 cat > "${WORK}/devices.yml" << 'EOF'
 devices:
   - {id: " R28M-1384YQY ", os: android, name: " Galaxy S10 ", appium_port: 1, adb_port: 2, min_port: 3, max_port: 4}
@@ -374,6 +412,10 @@ check_contains "a disconnection cancels an unfinished restart" "Conflicts=mcloud
   "$(cat "${WORK}/restart.service")"
 check_contains "a connection cancels an unfinished down" "Conflicts=mcloud-device-restart@%i.service" \
   "$(cat "${WORK}/down.service")"
+# the listener of macOS runs zebrunner-farm restart and down of its USB iOS devices as the units of Linux
+check "the macOS listener waits for an action as long as the restart unit of Linux" \
+  "$(($(sed -n 's/^TimeoutStartSec=\([0-9]*\)min$/\1/p' "${WORK}/restart.service") * 60))" \
+  "$(sed -n 's/^ACTION_TIMEOUT_SECONDS=//p' "${REPO}/roles/mac-devices/templates/zebrunner-device-listener")"
 if command -v systemd-analyze > /dev/null 2>&1; then
   # verify needs an executable ExecStart: zebrunner-farm is not installed on the test host, a stub replaces it
   stub zebrunner-farm "exit 0"
@@ -404,13 +446,31 @@ else
   skip_check "newsyslog dry run" "needs macOS and passwordless sudo"
 fi
 
-for plist in ZebrunnerDevicesListener ZebrunnerUsbmuxd; do
-  render "${REPO}/roles/mac-devices/templates/${plist}.plist" "${WORK}/${plist}.plist" || exit 1
+for plist in ZebrunnerDevicesListener ZebrunnerUsbmuxd ZebrunnerAdb; do
+  render "${REPO}/roles/mac-devices/templates/${plist}.plist" "${WORK}/${plist}.plist" \
+    --extra-vars "@${REPO}/roles/mac-devices/defaults/main.yml" --extra-vars "mac_devices_adb_path=/opt/homebrew/bin/adb" || exit 1
   check_contains "${plist}: runs in the agent dir" "<string>${REPO}</string>" "$(cat "${WORK}/${plist}.plist")"
   check_contains "${plist}: logs into the agent dir" "<string>${REPO}/logs/" "$(cat "${WORK}/${plist}.plist")"
   if command -v plutil > /dev/null 2>&1; then
     check "${plist}: valid plist" "${WORK}/${plist}.plist: OK" "$(plutil -lint "${WORK}/${plist}.plist")"
   fi
 done
+# the launch agents listen on the ports of the addresses the containers reach them with
+check_contains "socat of usbmuxd listens on the port of USBMUXD_SOCKET_ADDRESS" "<string>TCP-LISTEN:2222,reuseaddr,fork,bind=127.0.0.1</string>" \
+  "$(cat "${WORK}/ZebrunnerUsbmuxd.plist")"
+check_contains "the adb server listens on the port of ADB_SERVER_SOCKET_ADDRESS" "<string>-P</string>
+        <string>5037</string>" "$(cat "${WORK}/ZebrunnerAdb.plist")"
+render "${REPO}/roles/mac-devices/templates/ZebrunnerUsbmuxd.plist" "${WORK}/usbmuxd.plist" \
+  --extra-vars "USBMUXD_SOCKET_ADDRESS=host.docker.internal:2345" || exit 1
+check_contains "socat of usbmuxd listens on another port of USBMUXD_SOCKET_ADDRESS" "<string>TCP-LISTEN:2345," "$(cat "${WORK}/usbmuxd.plist")"
+render "${REPO}/roles/mac-devices/templates/ZebrunnerAdb.plist" "${WORK}/adb.plist" \
+  --extra-vars "ADB_SERVER_SOCKET_ADDRESS=host.docker.internal:5038 mac_devices_adb_path=adb" || exit 1
+check_contains "the adb server listens on another port of ADB_SERVER_SOCKET_ADDRESS" "<string>5038</string>" "$(cat "${WORK}/adb.plist")"
+for address in USBMUXD_SOCKET_ADDRESS=host.docker.internal ADB_SERVER_SOCKET_ADDRESS=host.docker.internal:70000 USBMUXD_SOCKET_ADDRESS=:2222; do
+  check_contains "mac-devices: an invalid ${address} fails" "USBMUXD_SOCKET_ADDRESS and ADB_SERVER_SOCKET_ADDRESS are <host>:<port>" \
+    "$(playbook mac-devices --tags validate --extra-vars "$address")"
+done
+check_contains "mac-devices: the addresses of the settings pass" "failed=0" \
+  "$(playbook mac-devices --tags validate --extra-vars "USBMUXD_SOCKET_ADDRESS=10.0.0.5:2345 ADB_SERVER_SOCKET_ADDRESS=host.docker.internal:5038")"
 
 finish

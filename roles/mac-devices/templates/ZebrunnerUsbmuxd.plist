@@ -13,10 +13,12 @@
     <key>Label</key>
       <string>com.zebrunner.usbmuxd</string>
 
+    <!-- usbmuxd of the host for the containers: they reach this port of USBMUXD_SOCKET_ADDRESS through
+         host.docker.internal -->
     <key>ProgramArguments</key>
       <array>
         <string>/usr/local/bin/socat</string>
-        <string>TCP-LISTEN:2222,reuseaddr,fork,bind=127.0.0.1</string>
+        <string>TCP-LISTEN:{{ USBMUXD_SOCKET_ADDRESS | regex_replace('^.*:', '') }},reuseaddr,fork,bind=127.0.0.1</string>
         <string>UNIX-CONNECT:/var/run/usbmuxd</string>
       </array>
 

@@ -19,6 +19,14 @@ CONNECTIONS = {
 }
 
 
+# the ids, names and locations go into the names of the containers, the volumes, the udev symlinks and the
+# systemd units, mcloud-devices.txt ('|' separated fields) and the device patterns of zebrunner-farm (' ' or ',')
+VALUE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
+# STF of Android takes the ports of a device from min_port-max_port in a group of 4 (lib/units/provider of stf),
+# without the fixed connect_port (lib/util/zebrunner-connect-port.ts of stf)
+STF_PORTS = 4
+
+
 class DevicesError(Exception):
     pass
 
@@ -51,10 +59,20 @@ def unique(values):
     return list(dict.fromkeys(values))
 
 
+def device_id(device):
+    """The id of mcloud-devices.txt: trimmed."""
+    return str(device.get("id", "")).strip()
+
+
+def device_name(device):
+    """The name of mcloud-devices.txt: trimmed, the spaces as '_'."""
+    return re.sub(r"\s+", "_", str(device.get("name", "")).strip())
+
+
 def dedup(devices):
-    """The ids (trimmed) and the names (trimmed, the spaces as '_') used by more than one device."""
-    ids = [str(device.get("id", "")).strip() for device in devices]
-    names = [re.sub(r"\s+", "_", str(device.get("name", "")).strip()) for device in devices]
+    """The ids and the names of mcloud-devices.txt used by more than one device."""
+    ids = [device_id(device) for device in devices]
+    names = [device_name(device) for device in devices]
     dup_ids = [value for value in unique(ids) if ids.count(value) > 1]
     dup_names = [value for value in unique(names) if names.count(value) > 1]
     if dup_ids or dup_names:
@@ -85,6 +103,26 @@ def settings_problems(devices, farm_os):
                 f"Invalid settings of device '{label(device)}': id, name, os (android or ios), appium_port, min_port "
                 f"and max_port are obligatory{obligatory}; ports are 1-65535 and min_port is not greater than "
                 "max_port; connect_port is of an Android device only, 1024-65535."
+            )
+            continue
+        values = {"id": device_id(device), "name": device_name(device), "location": text(device, "location")}
+        invalid = [
+            f"{key} '{value}'"
+            for key, value in values.items()
+            if (value or key != "location") and not VALUE.fullmatch(value)
+        ]
+        if invalid:
+            problems.append(
+                f"Invalid {', '.join(invalid)} of device '{label(device)}': letters, digits, '_', '.' and '-', the "
+                "first one a letter or a digit (the spaces of a name become '_'); a wireless Android device at "
+                "ip:port has its id without ':' and the address in address."
+            )
+        ports = range(to_int(device["min_port"]), to_int(device["max_port"]) + 1)
+        needed = STF_PORTS + (1 if "connect_port" in device and to_int(device["connect_port"]) in ports else 0)
+        if device["os"] == "android" and len(ports) < needed:
+            problems.append(
+                f"The range min_port-max_port of device '{label(device)}' has {len(ports)} ports: STF of an Android "
+                f"device needs {STF_PORTS} besides connect_port."
             )
     return problems
 

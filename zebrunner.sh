@@ -97,6 +97,8 @@ setup() {
   delimiter "Setting up MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished successfully"
 }
 
+# ansible [devices] [ansible-playbook arguments...]: deploys the agent (README.md#run-ansible-playbook); devices skips the
+# download of the images and keeps the running containers of the devices
 ansible() {
   delimiter "Deploying MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
 
@@ -114,14 +116,21 @@ ansible() {
 
   ### Make a list of arguments
   delimiter "*"
-  local -a args
-  if [[ -z "$1" ]]; then
-    args=("$file")
-  elif [[ "$1" == "devices" ]]; then
-    args=("$file" --tag registerDevices)
-  else
-    args=("$@" "$file")
+  # deploy: the run changes the deployment, the running containers of the devices keep the old one
+  local deploy="true"
+  local -a tags=()
+  if [[ "$1" == "devices" ]]; then
+    deploy=""
+    tags=(--tag registerDevices)
+    shift
   fi
+  local -a args=("$@" "$file" "${tags[@]+"${tags[@]}"}")
+  local arg
+  for arg in "$@"; do
+    case "$arg" in
+    --check | -C | --syntax-check | --list-tasks | --list-tags | --list-hosts) deploy="" ;;
+    esac
+  done
 
   ### sudo-rs (the sudo of Ubuntu 25.10+) wraps the password prompt, ansible does not recognize it and times out
   if [[ "$(uname)" == "Linux" && "$*" != *ansible_become_exe* ]] && sudo --version 2> /dev/null | grep -q '^sudo-rs'; then
@@ -134,7 +143,7 @@ ansible() {
   fi
 
   ### The running containers of the devices keep the old settings and images
-  if [[ "$1" != "devices" ]]; then
+  if [[ -n "$deploy" ]]; then
     stop_running_devices
   fi
 
@@ -148,7 +157,7 @@ ansible() {
     exit 1
   }
 
-  if [[ "$1" != "devices" ]]; then
+  if [[ -n "$deploy" ]]; then
     echo "Run 'zebrunner-farm start' to create the containers of the connected devices."
   fi
   delimiter "Deploying MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished successfully"
@@ -190,6 +199,19 @@ remove_profile_variable() {
       sed -i.bak "/^export ${MCLOUD_AGENT_DIR_NAME}=.*/d" "$file" && rm -f "${file}.bak"
     fi
   done
+}
+
+# remove_simulators_ssh_key: the ssh key of the iOS simulators (the mac-devices role) and its line of
+# ~/.ssh/authorized_keys removed, the key gives a shell of the user
+remove_simulators_ssh_key() {
+  local keys="${HOME}/.ssh/authorized_keys"
+  if [[ -f "$keys" ]] && grep -q "zebrunner-mcloud-simulators$" "$keys"; then
+    echo "Removing the ssh key of the simulators from ${keys}"
+    sed -i.bak "/zebrunner-mcloud-simulators$/d" "$keys" && rm -f "${keys}.bak"
+  fi
+  if [[ -d "${ZEBRUNNER_MCLOUD_AGENT_DIR}/ssh" ]]; then
+    rm -rvf "${ZEBRUNNER_MCLOUD_AGENT_DIR}/ssh"
+  fi
 }
 
 # setup_file <example> <file>: the file made from the example (private: the settings have secrets), a backup <file>.bak
@@ -240,10 +262,12 @@ ensure_curve_key() {
       echo_warning "Unable to make the key with python3 patch/curve_keygen.py."
       return 1
     fi
-    "$python" patch/settings.py set "$vars" "STF_ZMQ_CURVE_SECRET_KEY=${secret}" || return 1
+    # the secret key on stdin: the arguments of a process are visible to every user (printf is a builtin)
+    printf 'STF_ZMQ_CURVE_SECRET_KEY=%s\n' "$secret" | "$python" patch/settings.py set "$vars" - || return 1
     echo "The key of this host is written to STF_ZMQ_CURVE_SECRET_KEY of '${vars}'."
   fi
-  if ! CURVE_PUBLIC_KEY="$(python3 patch/curve_keygen.py "$secret" | sed -n 's/^public=//p')" || [[ -z "$CURVE_PUBLIC_KEY" ]]; then
+  if ! CURVE_PUBLIC_KEY="$(printf '%s\n' "$secret" | python3 patch/curve_keygen.py - | sed -n 's/^public=//p')" ||
+    [[ -z "$CURVE_PUBLIC_KEY" ]]; then
     echo_warning "STF_ZMQ_CURVE_SECRET_KEY of '${vars}' is not a key of 64 hex characters."
     return 1
   fi
@@ -462,6 +486,9 @@ shutdown() {
   ### The variable of the earlier versions in the shell profiles
   remove_profile_variable
 
+  ### The ssh key of the iOS simulators
+  remove_simulators_ssh_key
+
   ### The autostart of the devices after a reboot
   if autostart_enabled || [[ -f "$(autostart_file)" ]]; then
     echo "Removing the autostart: $(autostart_file)"
@@ -503,6 +530,9 @@ shutdown() {
     sudo rm -vf /etc/udev/rules.d/90_mcloud.rules
     sudo rm -vf /etc/systemd/system/mcloud-device-restart@.service
     sudo rm -vf /etc/systemd/system/mcloud-device-down@.service
+    # udev and systemd keep the removed rules and units until they reload them
+    sudo udevadm control --reload
+    sudo systemctl daemon-reload
   fi
   sudo rm -vf /usr/local/bin/zebrunner-farm
   sudo rm -vf /usr/local/etc/zebrunner-farm.env
@@ -737,7 +767,7 @@ echo_help() {
       Usage: ./zebrunner.sh [option]
       Options:
          setup                Prepare MCloud Agent environment
-         ansible ['devices']  Deploy MCloud Agent with custom or predefined args
+         ansible [devices] [args...]  Deploy MCloud Agent: devices without the download of the images, args of ansible-playbook
          status               Status of MCloud Agent deployment
          backup               Backup MCloud Agent setup
          restore              Restore MCloud Agent setup

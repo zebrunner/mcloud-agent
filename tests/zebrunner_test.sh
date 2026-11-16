@@ -119,6 +119,9 @@ check "devices registration only" "--ask-become-pass|--inventory|hosts|${AGENT}/
 reset_calls
 OS=Linux zbr "" ansible --user=bob --extra-vars "app_name=a b" > /dev/null
 check "custom arguments keep their words" "--ask-become-pass|--inventory|hosts|--user=bob|--extra-vars|app_name=a b|${AGENT}/agent.yml" "$(calls ansible-playbook)"
+reset_calls
+OS=Linux zbr "" ansible devices -vvv --extra-vars "app_name=a b" > /dev/null
+check "the registration of the devices keeps the custom arguments" "--ask-become-pass|--inventory|hosts|-vvv|--extra-vars|app_name=a b|${AGENT}/agent.yml|--tag|registerDevices" "$(calls ansible-playbook)"
 output="$(OS=Linux zbr "" ansible)"
 check_contains "the deploy suggests zebrunner-farm start" "Run 'zebrunner-farm start'" "$output"
 check_not_contains "the registration of the devices does not" "zebrunner-farm start" "$(OS=Linux zbr "" ansible devices)"
@@ -171,6 +174,16 @@ check_contains "a declined removal deploys anyway" "${AGENT}/agent.yml" "$(calls
 reset_calls
 OS=Linux zbr "" ansible devices > /dev/null
 check "the registration of the devices keeps the containers" "" "$(calls zebrunner-farm)"
+for dry in --check -C --syntax-check --list-tasks; do
+  reset_calls
+  output="$(OS=Linux zbr "" ansible -v "$dry")"
+  check "a run with ${dry} keeps the containers" "" "$(calls zebrunner-farm)"
+  check_not_contains "a run with ${dry} asks nothing" "containers of the devices are running" "$output"
+  check_not_contains "a run with ${dry} suggests no zebrunner-farm start" "zebrunner-farm start" "$output"
+done
+reset_calls
+output="$(OS=Linux zbr "\n" ansible --tags files)"
+check "a deploy with arguments offers the removal" "down" "$(calls zebrunner-farm)"
 mv "${WORK}/docker" "${WORK}/bin/docker"
 output="$(ANSIBLE_EXIT=2 zbr "" ansible)"
 check "failed playbook fails" "1" "$?"
@@ -263,8 +276,14 @@ enroll_answer() {
 enroll_answer "$node_token" 192.168.30.2 > "${WORK}/mcloud/enroll_answer"
 echo 200 > "${WORK}/mcloud/enroll_code"
 reset_calls
-output="$(OS=Linux zbr "${join_string}\n" join)"
+# the pythons of zebrunner.sh record their arguments: the secret key of the host is in none of them
+real_python3="$(command -v python3)"
+stub python3 "printf '%s\\n' \"\$*\" >> '${WORK}/python-args.log'; exec '${real_python3}' \"\$@\""
+stub yaml-python "printf '%s\\n' \"\$*\" >> '${WORK}/python-args.log'; exec '${YAML_PYTHON}' \"\$@\""
+: > "${WORK}/python-args.log"
+output="$(OS=Linux YAML_PYTHON="${WORK}/bin/yaml-python" zbr "${join_string}\n" join)"
 check "join enrolls the host" "0" "$?"
+rm -f "${WORK}/bin/python3" "${WORK}/bin/yaml-python"
 check_contains "join reports the label and the address" "enrolled in MCloud 192.168.50.2 as build-ua, its address is 192.168.30.2" "$output"
 check_contains "the enrollment goes to MCloud over HTTPS with the pinned key only" "--pinnedpubkey|sha256//${pin}|" "$(calls curl)"
 check_contains "the enrollment URL" "https://192.168.50.2:443/api/v1/nodes/enroll" "$(calls curl)"
@@ -275,10 +294,15 @@ check_contains "the body has the label" "\"label\": \"build-ua\"" "$body"
 secret="$(sed -n 's/^STF_ZMQ_CURVE_SECRET_KEY: "\(.*\)"$/\1/p' "$vars")"
 check "join makes the CURVE key of the host" "64" "${#secret}"
 check_contains "the body has the public key of the host" \
-  "\"publicKey\": \"$(python3 "${REPO}/patch/curve_keygen.py" "$secret" | sed -n 's/^public=//p')\"" "$body"
+  "\"publicKey\": \"$(printf '%s\n' "$secret" | python3 "${REPO}/patch/curve_keygen.py" - | sed -n 's/^public=//p')\"" "$body"
 check_not_contains "the secret key is not sent" "$secret" "$body"
 check "the script makes the public key of RFC 7748" "public=8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a" \
-  "$(python3 "${REPO}/patch/curve_keygen.py" 77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a | head -1)"
+  "$(echo 77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a | python3 "${REPO}/patch/curve_keygen.py" - | head -1)"
+check_contains "the script takes no secret key as an argument, every user sees them" "usage:" \
+  "$(python3 "${REPO}/patch/curve_keygen.py" 77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a 2>&1)"
+check_contains "the script refuses an invalid secret key" "must be 64 hex characters" "$(echo abc | python3 "${REPO}/patch/curve_keygen.py" - 2>&1)"
+check "the secret key of the host is in no argument of python" "" "$(grep -F -- "$secret" "${WORK}/python-args.log")"
+check_contains "the arguments of python are recorded" "patch/settings.py set config/settings.yml -" "$(cat "${WORK}/python-args.log")"
 for line in 'MCLOUD_URL: "https://192.168.50.2:443"' "MCLOUD_TLS_PIN: \"${pin}\"" "MCLOUD_NODE_TOKEN: \"${node_token}\"" \
   "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY: \"${server_key}\"" 'PUBLIC_IP: "demo.zebrunner.farm"' 'PUBLIC_IP_PORT: "443"' \
   'PUBLIC_IP_PROTOCOL: "https"' 'STF_PROVIDER_CONNECT_SUB: "tcp://192.168.50.2:7250"' \
@@ -671,7 +695,13 @@ check "declined shutdown keeps the variable" "1" "$(exports .zshrc)"
 check "declined shutdown keeps the launch agents" "yes" "$([[ -f "${WORK}/home/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" ]] && echo yes)"
 
 reset_calls
+mkdir -p "${WORK}/home/.ssh" "${AGENT}/ssh"
+printf 'ssh-ed25519 AAAA other@host\nrestrict ssh-ed25519 BBBB zebrunner-mcloud-simulators\n' > "${WORK}/home/.ssh/authorized_keys"
+touch "${AGENT}/ssh/id_ed25519" "${AGENT}/ssh/id_ed25519.pub"
 OS=Darwin zbr "y\n" shutdown > /dev/null
+check "macOS: the ssh key of the simulators is unauthorized, the other keys are kept" "ssh-ed25519 AAAA other@host" \
+  "$(cat "${WORK}/home/.ssh/authorized_keys")"
+check "macOS: the ssh key of the simulators is removed" "no" "$([[ -e "${AGENT}/ssh" ]] && echo yes || echo no)"
 check "macOS: launch agents are unloaded: the listener, usbmuxd and the autostart" "3" "$(calls launchctl | grep -c '^bootout|')"
 check "macOS: launch agents are removed" "0" "$(find "${WORK}/home/Library/LaunchAgents" -name '*.plist' | wc -l | tr -d ' ')"
 check "macOS: the variable is removed from the profiles" "0 0" "$(exports .bashrc) $(exports .zshrc)"
@@ -683,6 +713,7 @@ rm|-vf|/etc/newsyslog.d/zebrunner-mcloud.conf
 rm|-vf|/usr/local/bin/zebrunner-farm
 rm|-vf|/usr/local/etc/zebrunner-farm.env
 rm|-vf|/usr/local/bin/mcloud-devices.txt" "$(calls sudo | grep '^rm|')"
+check "macOS: no udev and systemd" "" "$(calls sudo | grep -E '^(udevadm|systemctl)\|')"
 check "macOS: the autostart is removed" "no" "$([[ -f "${WORK}/home/Library/LaunchAgents/ZebrunnerFarmStart.plist" ]] && echo yes || echo no)"
 check "macOS: settings are removed" "no no" \
   "$([[ -f "${AGENT}/config/settings.yml" ]] && echo yes || echo no) $([[ -f "${AGENT}/config/devices.yml" ]] && echo yes || echo no)"
@@ -697,6 +728,8 @@ rm|-vf|/etc/systemd/system/mcloud-device-down@.service
 rm|-vf|/usr/local/bin/zebrunner-farm
 rm|-vf|/usr/local/etc/zebrunner-farm.env
 rm|-vf|/usr/local/bin/mcloud-devices.txt" "$(calls sudo | grep '^rm|')"
+check "Linux: udev and systemd forget the removed rules and units" "udevadm|control|--reload
+systemctl|daemon-reload" "$(calls sudo | grep -E '^(udevadm|systemctl)\|')"
 check "Linux: settings are removed" "no no" \
   "$([[ -f "${AGENT}/config/settings.yml" ]] && echo yes || echo no) $([[ -f "${AGENT}/config/devices.yml" ]] && echo yes || echo no)"
 

@@ -2,8 +2,9 @@
 """The CURVE key pair of the device host for the ZeroMQ security of STF (zebrunner/stf ZEBRUNNER.md#zeromq).
 
 Prints `public=<key>` and `secret=<key>`, the keys are 64 hex characters, the same as `stf curve-keygen`: a new pair, or
-the pair of the secret key given as the argument. X25519 of RFC 7748 in pure Python: the device hosts have Python for
-ansible, not the cryptography package or an X25519 openssl (macOS).
+with `-` the pair of the secret key read from stdin (not an argument: the arguments of a process are visible to every
+user). X25519 of RFC 7748 in pure Python: the device hosts have Python for ansible, not the cryptography package or an
+X25519 openssl (macOS).
 """
 
 import os
@@ -45,14 +46,15 @@ def x25519_base(secret: bytes) -> bytes:
 
 
 def main() -> int:
-    if len(sys.argv) > 2:
-        print(f"usage: {sys.argv[0]} [<secret key>]", file=sys.stderr)
+    if len(sys.argv) > 2 or (len(sys.argv) == 2 and sys.argv[1] != "-"):
+        print(f"usage: {sys.argv[0]} [-]  (-: the secret key from stdin)", file=sys.stderr)
         return 2
     if len(sys.argv) == 2:
-        if not re.fullmatch(r"[0-9a-fA-F]{64}", sys.argv[1]):
+        key = sys.stdin.read().strip()
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", key):
             print("The secret key must be 64 hex characters", file=sys.stderr)
             return 1
-        secret = bytes.fromhex(sys.argv[1])
+        secret = bytes.fromhex(key)
     else:
         secret = os.urandom(32)
     print(f"public={x25519_base(secret).hex()}")

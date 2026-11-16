@@ -1,3 +1,5 @@
+# the agent is deployed on this host for the user who runs ansible-playbook (its USER and HOME): the connection is
+# local, --user has no effect
 [devices_servers]
 localhost ansible_connection=local
 

@@ -63,5 +63,35 @@ check_contains "a value that is not read back is refused" "the settings PUBLIC_I
 check "a refused value changes nothing" "same" "$(cmp -s "${WORK}/twice.yml" "${WORK}/twice.before" && echo same)"
 check_contains "a lower case name is refused" "invalid setting" "$(settings set "${WORK}/set.yml" "name=x")"
 check_contains "no arguments print the usage" "settings.py dump <file>" "$(settings set "${WORK}/set.yml")"
+printf 'S3_SECRET=s3cr3t: #x\nMCLOUD_NODE_TOKEN=mcn1.a.b\n' | "$python" "${REPO}/patch/settings.py" set "${WORK}/set.yml" - > /dev/null
+check "set reads the settings of stdin" "0" "$?"
+check_contains "a secret of stdin" "S3_SECRET=s3cr3t: #x" "$(settings dump "${WORK}/set.yml")"
+check_contains "another setting of stdin" "MCLOUD_NODE_TOKEN=mcn1.a.b" "$(settings dump "${WORK}/set.yml")"
+check_contains "stdin without NAME=value prints the usage" "settings.py dump <file>" \
+  "$(echo "x" | "$python" "${REPO}/patch/settings.py" set "${WORK}/set.yml" - 2>&1)"
+
+section "private files"
+# the modes of the files when their text is written: an existing file readable by others is private before it
+cp "${WORK}/settings.yml" "${WORK}/open.yml"
+chmod 644 "${WORK}/open.yml"
+: > "${WORK}/open.yml.bak"
+chmod 644 "${WORK}/open.yml.bak"
+output="$(cd "${REPO}/patch" && "$python" -c '
+import os, stat, sys
+import settings
+modes = []
+fdopen = os.fdopen
+def recording_fdopen(fd, *args, **kwargs):
+    modes.append(oct(stat.S_IMODE(os.fstat(fd).st_mode)))
+    return fdopen(fd, *args, **kwargs)
+os.fdopen = recording_fdopen
+os.umask(0)
+settings.write_private(sys.argv[1], "PUBLIC_IP: x\n", sys.argv[1] + ".bak")
+print(" ".join(modes))
+' "${WORK}/open.yml" 2>&1)"
+check "the backup and the file are private before their text is written" "0o600 0o600" "$output"
+check "the backup has the previous text" "same" "$(cmp -s "${WORK}/open.yml.bak" "${WORK}/settings.yml" && echo same)"
+check "the file is private" "600" "$(stat -c '%a' "${WORK}/open.yml" 2> /dev/null || stat -f '%Lp' "${WORK}/open.yml")"
+check "the backup is private" "600" "$(stat -c '%a' "${WORK}/open.yml.bak" 2> /dev/null || stat -f '%Lp' "${WORK}/open.yml.bak")"
 
 finish

@@ -1,7 +1,7 @@
 # Zebrunner Device Farm (Android and iOS agent)
 
 The agent runs the containers of every device of a Linux or macOS server: the connector (the only point of contact with
-the device), STF, Appium and the artifacts uploader. The connector takes the device whatever its connection is, the STF and
+the device), STF, Appium and the artifacts uploader (with S3, see [Recordings](#recordings)). The connector takes the device whatever its connection is, the STF and
 Appium containers always take adb, usbmuxd and WebDriverAgent from it.
 
 | Device | Connection | Linux | macOS |
@@ -35,6 +35,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
 ## Software prerequisites
 
 - Install docker: [Docker Engine](https://docs.docker.com/engine/install/) on Linux, [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) on macOS.
+- Linux: the user of the agent runs docker without sudo (the deploy pulls the images, `zebrunner.sh` and `zebrunner-farm` manage the containers as this user): `sudo usermod -aG docker $USER`, then log in again.
 - Install [ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html) 2.10+ (the playbooks use `ansible.builtin` module names, tested with ansible-core 2.21), e.g. `pip install ansible-core`.
 - python3 and curl: `./zebrunner.sh join` and `doctor` need them. They read and write the settings with PyYAML of `python3` or, without it there, of the python of ansible (`ansible-playbook --version` shows it); `ZEBRUNNER_PYTHON` sets another one.
 - macOS on Apple Silicon: install Rosetta 2 and let Docker Desktop use it: the image of appium is `linux/amd64` only and
@@ -77,7 +78,7 @@ The other files of the settings are in git, do not change them: `git pull` bring
 | File | What it is |
 | --- | --- |
 | `versions.yml` | the images of the devices and their versions |
-| `roles/common/defaults/main.yml` | the values by default of both OS: the options of Appium (`APPIUM_RELAXED_SECURITY`, ...), `RESTARTS_LIMIT`, the [Developer Disk Images](#developer-disk-images) (`DDI_*`) |
+| `roles/common/defaults/main.yml` | the values by default of both OS: the options of Appium (`APPIUM_RELAXED_SECURITY`, ...), `RESTARTS_LIMIT`, `STF_DOCKER_NETWORK` (`infra`: the docker network of the containers of the devices, the deploy and `zebrunner-farm` create it), the empty optional settings (`STF_API_URL`, `STF_AUTH_TOKEN`, `S3_*`, `WDA_FILE`, `WDA_BUNDLEID`): a line of them removed from `config/settings.yml` is the value by default, the [Developer Disk Images](#developer-disk-images) (`DDI_*`) |
 | `roles/devices/defaults/main.yml`, `roles/mac-devices/defaults/main.yml` | the values by default of the OS: `STF_PROVIDER_NAME`; `USBMUXD_SOCKET_ADDRESS`, `ADB_SERVER_SOCKET_ADDRESS` of macOS |
 
 The playbooks load them in this order: the values by default of the roles, `versions.yml`, `config/settings.yml`, `config/devices.yml`. The deploy renders the settings zebrunner-farm runs with into `/usr/local/etc/zebrunner-farm.env`: udev and launchd run it without the environment of the user, a change of `config/` needs `./zebrunner.sh ansible` (`./zebrunner.sh doctor` reports the settings that differ). `./zebrunner.sh backup` keeps the two files of `config/` in a private folder `backup/bak_<time>_<random>/config/`, `restore` puts them back; the code of the agent is not in a backup, it comes from git (`git pull`).
@@ -142,23 +143,23 @@ Security:
 
 - update `config/settings.yml` and `config/devices.yml` files according to the obligatory/optional comments inside (see [Settings](#settings)).
   > Register all whitelisted Android and iOS devices with their udids!
-  > The deploy validates the devices: obligatory settings, unique ids and names, and host ports (`appium_port`, `min_port`-`max_port`, `connect_port`) not shared by devices. `adb_port` is not used on Linux; `connect_port` (optional, Android) is the remote debug port of STF.
+  > The deploy validates the devices: obligatory settings, the characters of the ids, names and locations (letters, digits, `_`, `.`, `-`), unique ids and names, the size of `min_port`-`max_port` (4 ports of an Android device besides `connect_port`), and host ports (`appium_port`, `min_port`-`max_port`, `connect_port`) not shared by devices. `adb_port` is not used on Linux; `connect_port` (optional, Android) is the remote debug port of STF.
 - Run ansible-playbook script to download the required components (the connector of the platforms of the registered devices only) and set up udev rules:
 
   ```bash
   ./zebrunner.sh ansible
   ```
 
-  > To reregister the devices list only, you can use the following command:
+  > To deploy again without the download of the images, e.g. after a change of `config/devices.yml`, use the command below. It runs the whole role of the OS (the checks, `zebrunner-farm` and its settings, the list of the devices, the udev rules and the systemd units) and keeps the running containers of the devices: `zebrunner-farm restart <devices>` creates them with the new settings.
 
   ```bash
   ./zebrunner.sh ansible devices
   ```
 
-  > To provide extra arguments, e.g. another user, you can use the below command. The sudo password is asked interactively: do not pass it in the command line, where it stays in the shell history and is visible in the processes list.
+  > The arguments after `ansible` or `ansible devices` are passed to ansible-playbook, e.g. `-vvv`; a run that changes nothing (`--check`, `--syntax-check`, `--list-tasks`) does not offer to remove the running containers. The agent is deployed for the user who runs `./zebrunner.sh` (the inventory `hosts` connects locally, the files and the launch agents are of its `USER` and `HOME`), so `--user` has no effect: run it as that user. The sudo password is asked interactively: do not pass it in the command line, where it stays in the shell history and is visible in the processes list.
 
   ```bash
-  ./zebrunner.sh ansible --user=USERNAME
+  ./zebrunner.sh ansible devices -vvv
   ```
 
 - Running containers of the devices keep the settings and the images they were created with: `./zebrunner.sh ansible` lists them and offers to remove them first (`zebrunner-farm down`, Enter is yes), otherwise run `zebrunner-farm restart` after the deploy.
@@ -166,7 +167,7 @@ Security:
   emulator and proxy devices: udev starts the containers of a USB device on its next connection only.
 - Devices management script is deployed to /usr/local/bin/zebrunner-farm (the same script on Linux and macOS), its settings to /usr/local/etc/zebrunner-farm.env (see [Settings](#settings)).
 - Udev rules with whitelisted devices are in /etc/udev/rules.d/90_mcloud.rules: a connection of a USB device starts the systemd unit `mcloud-device-restart@<id>`, a disconnection `mcloud-device-down@<id>` (`/etc/systemd/system`), which run `zebrunner-farm restart` or `down` for it. udev only queues the job: its programs are killed after the event (180 s), the containers may need longer (the images are pulled). A disconnection cancels an unfinished restart and the other way round.
-- The commands of one device (`zebrunner-farm start`, `stop`, `restart`, `down <device>`, the units of udev) run one at a time (`flock`, `/run/lock/mcloud-device-<id>.lock`): one waits for up to 30 minutes for another.
+- The commands of one device (`zebrunner-farm start`, `stop`, `restart`, `down` of the device or of a group with it, the units of udev) run one at a time (`flock`, `/run/lock/mcloud-device-<id>.lock`): one waits for up to 30 minutes for another, a group takes its devices one by one.
 - Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt, rendered from `config/devices.yml`: one device per line, its fields `key=value` (the keys of `config/devices.yml`) separated by `|`; an empty value is the value by default (`wda_file`, `wda_bundleid`: `WDA_FILE`, `WDA_BUNDLEID` of the settings).
 - Usbmuxd service is stopped and masked (disabled).
 - Wireless, emulator and proxy devices have no udev rules: `zebrunner-farm start` creates their containers.
@@ -179,23 +180,23 @@ Security:
 
 - update `config/settings.yml` and `config/devices.yml` files according to the obligatory/optional comments inside (see [Settings](#settings)).
   > Register all whitelisted Android and iOS devices (phones, tablets, TVs or simulators) with their udids and connections!
-  > The deploy validates the devices: obligatory settings, unique ids and names, the connections, host ports (`appium_port`, `min_port`-`max_port`, `connect_port`, `wda_port` and `mjpeg_port` of the iOS simulators, `adb_port` of the USB Android devices) not shared by devices.
+  > The deploy validates the devices: obligatory settings, the characters of the ids, names and locations (letters, digits, `_`, `.`, `-`), unique ids and names, the size of `min_port`-`max_port` (4 ports of an Android device besides `connect_port`), the connections, host ports (`appium_port`, `min_port`-`max_port`, `connect_port`, `wda_port` and `mjpeg_port` of the iOS simulators, `adb_port` of the USB Android devices) not shared by devices.
 - Run ansible-playbook script to download the required components (the connector of the platforms of the registered devices only) and set up launchd agents:
 
   ```bash
   ./zebrunner.sh ansible
   ```
 
-  > To reregister the devices list only, you can use the following command:
+  > To deploy again without the download of the images, e.g. after a change of `config/devices.yml`, use the command below. It runs the whole role of the OS (the checks, `zebrunner-farm` and its settings, the list of the devices, the launch agents) and keeps the running containers of the devices: `zebrunner-farm restart <devices>` creates them with the new settings.
 
   ```bash
   ./zebrunner.sh ansible devices
   ```
 
-  > To provide extra arguments, e.g. another user, you can use the below command. The sudo password is asked interactively: do not pass it in the command line, where it stays in the shell history and is visible in the processes list.
+  > The arguments after `ansible` or `ansible devices` are passed to ansible-playbook, e.g. `-vvv`; a run that changes nothing (`--check`, `--syntax-check`, `--list-tasks`) does not offer to remove the running containers. The agent is deployed for the user who runs `./zebrunner.sh` (the inventory `hosts` connects locally, the files and the launch agents are of its `USER` and `HOME`), so `--user` has no effect: run it as that user. The sudo password is asked interactively: do not pass it in the command line, where it stays in the shell history and is visible in the processes list.
 
   ```bash
-  ./zebrunner.sh ansible --user=USERNAME
+  ./zebrunner.sh ansible devices -vvv
   ```
 
 - Devices management script is deployed to /usr/local/bin/zebrunner-farm (the same script on Linux and macOS), its settings to /usr/local/etc/zebrunner-farm.env (see [Settings](#settings)).
@@ -203,8 +204,8 @@ Security:
   under emulation, the other ones are slower), but appium: its image is `linux/amd64` only (see
   [appium](https://github.com/zebrunner/appium#limitations)), emulated by Docker Desktop with Rosetta 2 on Apple Silicon.
 - Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt, rendered from `config/devices.yml`: one device per line, its fields `key=value` (the keys of `config/devices.yml`) separated by `|`; an empty value is the value by default (`wda_file`, `wda_bundleid`: `WDA_FILE`, `WDA_BUNDLEID` of the settings).
-- Deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist to share usbmuxd into the device containers
-- USB Android devices: deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerAdb.plist, the adb server of the host (`brew install android-platform-tools`); the connectors take the devices from it, the containers of a USB Android device are created by `zebrunner-farm start` (the devices listener handles iOS only).
+- Deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist to share usbmuxd into the device containers: socat on localhost of the Mac, on the port of `USBMUXD_SOCKET_ADDRESS` (`host.docker.internal:2222` by default) the containers reach it with
+- USB Android devices: deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerAdb.plist, the adb server of the host (`brew install android-platform-tools`) on the port of `ADB_SERVER_SOCKET_ADDRESS` (`host.docker.internal:5037` by default); the connectors take the devices from it, the containers of a USB Android device are created by `zebrunner-farm start` (the devices listener handles iOS only).
 - iOS simulators (`ios-sim`): the ssh key of the agent is generated into `ssh/id_ed25519` of the agent folder and authorized in `~/.ssh/authorized_keys` (`restrict`), turn on Remote Login (System Settings, General, Sharing) for the user. Set the simulator build of WebDriverAgent (`WDA_SIMULATOR_FILE` or `wda_file` of the device), e.g. `WebDriverAgentRunner-Build-Sim-arm64.zip` of [appium/WebDriverAgent](https://github.com/appium/WebDriverAgent/releases).
 - Deployed $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist to load and manage iOS devices connect/disconnect automatically: the devices listener (/usr/local/bin/zebrunner-device-listener and usbmuxd_watch) restarts the containers of a connected USB device and removes them on disconnect, devices reachable over Wi-Fi only are not handled by it.
 - Log rotation of the devices listener log is set up in /etc/newsyslog.d/zebrunner-mcloud.conf.
@@ -215,10 +216,10 @@ Security:
 `./zebrunner.sh` without arguments lists its commands:
 
 - `setup` - prepares the agent: the settings of `config/` from the examples. It changes no shell profile: `zebrunner.sh` knows its folder, `zebrunner-farm` has it in its settings, so `zebrunner-farm ansible` deploys again from any folder; the `ZEBRUNNER_MCLOUD_AGENT_DIR` line of the earlier versions is removed from the profiles.
-- `ansible [devices]` - deploys the agent, `devices` registers the devices only.
+- `ansible [devices] [arguments]` - deploys the agent, `devices` without the download of the images and keeping the running containers of the devices, the arguments are of ansible-playbook (see [Run ansible playbook](#run-ansible-playbook)).
 - `status` - shows the state of the agent components: tools, Rosetta 2 of an Apple Silicon Mac, deployed files, launch agents.
 - `backup` and `restore` - save the settings of `config/` into the `backup` folder and restore them from it (see [Settings](#settings)); a backup of an earlier version (`vars/main.yml`, `defaults/main.yml`) goes to `config/` with `./zebrunner.sh migrate <its files>`.
-- `shutdown` - removes the devices containers, the launch agents or udev rules, the deployed files, the settings and the environment variable (asks for confirmation).
+- `shutdown` - removes the devices containers, the launch agents or udev rules, the deployed files, the settings, the ssh key of the simulators (and its line of `~/.ssh/authorized_keys`) and the environment variable (asks for confirmation).
 - `version` - shows the versions of the agent components.
 - `doctor` - checks the host, the settings, the deployment, the network to the MCloud server and the devices, and tells what to fix, see [Doctor](#doctor).
 - `join` - enrolls this host in MCloud with the join string of `./zebrunner.sh node-invite` of mcloud, see [Node enrollment](#node-enrollment).
@@ -245,7 +246,7 @@ STF of MCloud accepts on its ZeroMQ ports only the enrolled device hosts: the CU
 
 - the host: docker, ansible, python3, lsusb (Linux), Rosetta 2 (Apple Silicon);
 - the YAML of `config/settings.yml` and `config/devices.yml`: doctor reads the settings as the playbooks load them (the values by default of the roles, `versions.yml`, `config/settings.yml`), a file that is not valid YAML is a problem;
-- the settings of `config/settings.yml`: the ones of `./zebrunner.sh join`, the formats of the token and of the CURVE keys, the file readable by other users, a `roles/.../vars/main.yml` of an earlier version; the devices of `config/devices.yml` with the checks of the deploy (unique ids and names, the obligatory settings, the host ports, the connections of the OS);
+- the settings of `config/settings.yml`: the ones of `./zebrunner.sh join`, the formats of the token and of the CURVE keys, the file readable by other users, a `roles/.../vars/main.yml` of an earlier version; the devices of `config/devices.yml` with the checks of the deploy (unique ids and names, the obligatory settings, the characters of the ids, names and locations, the size of the port ranges, the host ports, the connections of the OS);
 - the enrollment: it asks MCloud about this host (`GET /api/v1/nodes/self` of `MCLOUD_URL` with the token, over HTTPS to the pinned TLS key): enrolled and active (or unknown, revoked), its address in MCloud is `STF_PROVIDER_HOST`, the devices STF knows of it, which of them are bound to it and connected;
 - the deployment: the settings of `zebrunner-farm` (`/usr/local/etc/zebrunner-farm.env`) are the ones of this folder and the current ones, also the versions of the images (otherwise `./zebrunner.sh ansible`) and readable by this user only, the containers created with the current `STF_PROVIDER_HOST` (otherwise `zebrunner-farm restart`);
 - the network: the name resolution and the ports of `PUBLIC_IP`, mcloud-grid and the ZeroMQ triproxies; `STF_PROVIDER_HOST` is an address of this host, or a public address of a NAT while the MCloud server is in the network of this host (see [Device hosts in a private network](#device-hosts-in-a-private-network)); MCloud on this machine and the devices using its ports (see [Devices on the MCloud server](#devices-on-the-mcloud-server));
@@ -284,6 +285,10 @@ The Appium port of a device (`appium_port`) is published on the host for mcloud-
 
 `APPIUM_RELAXED_SECURITY` of `roles/common/defaults/main.yml` is `true`: every session, also through the grid, gets the insecure features of Appium: `mobile: shell` (adb shell of the device), the Appium log of the earlier sessions of the device (`get_server_logs`), the emulator console, the screen streaming, the download of chromedriver. Set it to `false` in `config/settings.yml` when the tests do not need them.
 
+### Recordings
+
+With S3 (`S3_BUCKET` and the other `S3_*` settings of `config/settings.yml`) appium records the video of every session and the uploader container of the device uploads it with the logs of the session to `s3://<S3_BUCKET>[/<S3_TENANT>]/artifacts/test-sessions/<session id>/`. Without `S3_BUCKET` appium records no video (`RECORD_ARTIFACTS=false`) and the device has no uploader: there is nothing to upload to, the videos filled the disk. Appium still keeps the log of every session in a folder of the volume of the logs of the device, the volume is removed with the containers (`zebrunner-farm restart`, `down`, a disconnection of a USB device). A change of S3 needs `./zebrunner.sh ansible` and `zebrunner-farm restart`.
+
 ### Devices management
 
 `zebrunner-farm <command> [devices...] [-x|--exclude <devices>]... [-q|--quiet] [--batch|--rolling] [--json]` manages the containers of the devices: `status`, `start` (creates the missing containers, starts the stopped ones, keeps the running ones), `stop`, `restart` (removes and creates them again) and `down` (removes them).
@@ -295,6 +300,7 @@ The Appium port of a device (`appium_port`) is published on the host for mcloud-
 - `status --json` prints the devices and their containers as a JSON array for the monitoring, the messages go to stderr: per device `id`, `name`, `os`, `connection`, `location`, `plugged_in` (a USB device: `true` or `false`, `null` of the other connections) and `containers` (`connector`, `stf`, `appium`, `uploader`): `exists`, and of an existing one `status` (docker: `running`, `exited`, ...), `health` (`healthy`, `unhealthy`, `starting`, `null` without a health check), `started_at`, `uptime_seconds` (of a running one) and `restarts`, e.g. `zebrunner-farm status --json android | jq -r '.[] | select(.containers.stf.health != "healthy") | .name'`.
 - In a terminal `start`, `stop`, `restart` and `down` of a group show the numbered devices with the state of their containers and ask: Enter or `y` runs the command, `n` cancels, `f <devices>` keeps only these devices of the list, `x <devices>` excludes them; `<devices>` are the numbers of the list, udids, names, groups or patterns. `-q` (`--quiet`) runs at once; a single device named exactly, udev, launchd and scripts without a terminal are not asked.
 - Every device prints one line per container: `running` (kept), `started`, `created <id>` or the error of docker; the containers after a failed one are not created.
+- `stop`, `restart` and `down` stop the containers of a device one by one and wait for them: appium first (up to 40 s: it finishes the recordings of the active sessions), then the uploader (up to 130 s: it uploads them, its `FINISH_TIMEOUT` is 120 s), STF (30 s) and the connector (10 s); `restart` and `down` remove a container after its stop and the volume of the logs after all of them. The stop of a device with the recordings to upload takes a few minutes, the macOS devices listener waits for its actions up to 30 minutes as the units of udev of Linux.
 
 ## Usage
 
@@ -372,7 +378,8 @@ The connector mounts the Developer Disk Image of the iOS version of the device b
 
 | Symptom | Cause and fix |
 | --- | --- |
-| `./zebrunner.sh ansible` fails on `Pull Zebrunner images` and `Check that images failed to pull exist locally` with `denied: Your authorization token has expired` or `403 Forbidden` | an expired login to public.ecr.aws in `~/.docker/config.json` of the user: the images are public, `docker logout public.ecr.aws` (or log in again) |
+| `./zebrunner.sh ansible` fails on `Pull Zebrunner images` and `Check that images failed to pull exist locally` with `denied: Your authorization token has expired` or `403 Forbidden` | an expired login to public.ecr.aws in `~/.docker/config.json` of the user who runs the deploy (it pulls as this user, not as root): the images are public, `docker logout public.ecr.aws` (or log in again) |
+| Linux: `./zebrunner.sh ansible` fails on `Pull Zebrunner images` with `permission denied while trying to connect to the Docker daemon socket` | the user is not in the `docker` group: `sudo usermod -aG docker $USER`, log in again |
 | the pull fails with `manifest unknown` | the tag of `versions.yml` (or of `config/settings.yml`) is not published, see the images of the current [mcloud](https://github.com/zebrunner/mcloud) |
 | Linux: the deploy passed, the devices plugged in before it have no containers | udev starts them on the next connection only: `zebrunner-farm start` |
 | `./zebrunner.sh join` stops with `the TLS key of the server is not the pinned one` | the join string is of another MCloud (or the address of the join string leads elsewhere), or a man in the middle; a new TLS key of MCloud needs a new join string |
@@ -380,7 +387,7 @@ The connector mounts the Developer Disk Image of the iOS version of the device b
 | the containers are healthy, the devices are not in STF | `./zebrunner.sh doctor`: MCloud does not know or revoked this host (a new invite and `./zebrunner.sh join`), its address in MCloud is not `STF_PROVIDER_HOST`, the devices are not bound to it (the containers created before `join`: `./zebrunner.sh ansible`, `zebrunner-farm restart`); the STF triproxies log `Refused the ZeroMQ client ... with the unknown key` for a key MCloud does not know, see [ZeroMQ security](#zeromq-security) |
 | the devices are in STF, not in the grid; Appium logs `An attempt to register with the grid was unsuccessful` | the reason is in the log of Appium (`device-<name>-<udid>-appium`) or of `mcloud-grid`: `is not reachable from the hub` - `STF_PROVIDER_HOST` and `appium_port` are not reachable from the MCloud server (in its network the address of this host there, see [Device hosts in a private network](#device-hosts-in-a-private-network)); an unknown or revoked node token, or a node url whose host is not the address of the invite - `./zebrunner.sh doctor`, see [Grid registration](#grid-registration) |
 | the screenshots or the app installs of the devices fail | MCloud refuses the token of this host (`./zebrunner.sh doctor`), or `PUBLIC_IP` is not reachable from this host (e.g. the public address of a server of the same network behind a NAT without hairpin: resolve it to its address in the network) |
-| the uploader container exits with `Required S3 arguments are missed! Integration with S3 will be disabled.` | no `S3_*` settings: the videos and logs stay on the host, set them to upload the artifacts |
+| no video of the sessions, the devices have no `-uploader` container | no `S3_BUCKET` in `config/settings.yml`: appium records no video and the devices get no uploader, see [Recordings](#recordings) |
 | macOS: an iOS simulator is not in STF, the log of its `-stf` container stops after `connecting to WdaMjpeg` | the amd64 mcloud-device under emulation: the arm64 one of a multi-platform mcloud-device image is needed on Apple Silicon (`docker image inspect <image> --format '{{.Architecture}}'`) |
 
 Run `./zebrunner.sh doctor` first, see [Doctor](#doctor). Follow the below algorithm to identify any configuration issues with MCloud agent:
@@ -422,7 +429,7 @@ Run `./zebrunner.sh doctor` first, see [Doctor](#doctor). Follow the below algor
   ansible-playbook -vvv --ask-become-pass -i hosts agent.yml
   ```
 
-  > To reregister the devices list only, you can use the following command:
+  > To deploy without the download of the images (the role of the OS only):
 
   ```bash
   ansible-playbook -vvv --ask-become-pass -i hosts agent.yml --tag registerDevices
@@ -436,7 +443,7 @@ Run `./zebrunner.sh doctor` first, see [Doctor](#doctor). Follow the below algor
 
   ```bash
   ansible-vault create become.yml    # with the line: ansible_become_password: PSWD
-  ansible-playbook -vvv -i hosts --user=USERNAME --extra-vars @become.yml --ask-vault-pass agent.yml
+  ansible-playbook -vvv -i hosts --extra-vars @become.yml --ask-vault-pass agent.yml
   ```
 
 ## Development
