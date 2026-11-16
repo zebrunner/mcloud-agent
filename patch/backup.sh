@@ -7,6 +7,7 @@ backup_files() {
   echo "$SETTINGS_FILE" "$DEVICES_FILE"
 }
 
+# backup: the settings of config/ into a private folder of backup/ (README.md#settings)
 backup() {
   delimiter "Backup MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
 
@@ -33,6 +34,7 @@ backup() {
   delimiter
 }
 
+# restore: the settings of config/ from a folder of backup/, asks which one
 restore() {
   delimiter "Restore MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
 
