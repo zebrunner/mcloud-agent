@@ -22,6 +22,18 @@
     common_os_role: mac-devices
     common_os: macos
 
+# the launch agents of usbmuxd (socat) and of the adb server listen on the ports of these addresses
+- name: Check the addresses of usbmuxd and of the adb server of the host
+  ansible.builtin.assert:
+    that:
+      - USBMUXD_SOCKET_ADDRESS | string is regex('^[^:\s]+:[0-9]{1,5}$')
+      - ADB_SERVER_SOCKET_ADDRESS | string is regex('^[^:\s]+:[0-9]{1,5}$')
+      - USBMUXD_SOCKET_ADDRESS | regex_replace('^.*:', '') | int in range(1, 65536)
+      - ADB_SERVER_SOCKET_ADDRESS | regex_replace('^.*:', '') | int in range(1, 65536)
+    fail_msg: "USBMUXD_SOCKET_ADDRESS and ADB_SERVER_SOCKET_ADDRESS are <host>:<port> (1-65535) of the host for the containers"
+    quiet: true
+  tags: [devices, precheck, validate]
+
 # connection: usb (default), wireless, android-sim (an Android emulator), ios-sim and proxy (iOS): the tasks of the
 # USB Android devices and of the simulators run when the devices have them
 - name: Collect the connection of each device
