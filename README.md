@@ -142,7 +142,7 @@ Security:
 
 - update `config/settings.yml` and `config/devices.yml` files according to the obligatory/optional comments inside (see [Settings](#settings)).
   > Register all whitelisted Android and iOS devices with their udids!
-  > The deploy validates the devices: obligatory settings, unique ids and names, and host ports (`appium_port`, `min_port`-`max_port`, `connect_port`) not shared by devices. `adb_port` is not used on Linux; `connect_port` (optional, Android) is the remote debug port of STF.
+  > The deploy validates the devices: obligatory settings, the characters of the ids, names and locations (letters, digits, `_`, `.`, `-`), unique ids and names, the size of `min_port`-`max_port` (4 ports of an Android device besides `connect_port`), and host ports (`appium_port`, `min_port`-`max_port`, `connect_port`) not shared by devices. `adb_port` is not used on Linux; `connect_port` (optional, Android) is the remote debug port of STF.
 - Run ansible-playbook script to download the required components (the connector of the platforms of the registered devices only) and set up udev rules:
 
   ```bash
@@ -179,7 +179,7 @@ Security:
 
 - update `config/settings.yml` and `config/devices.yml` files according to the obligatory/optional comments inside (see [Settings](#settings)).
   > Register all whitelisted Android and iOS devices (phones, tablets, TVs or simulators) with their udids and connections!
-  > The deploy validates the devices: obligatory settings, unique ids and names, the connections, host ports (`appium_port`, `min_port`-`max_port`, `connect_port`, `wda_port` and `mjpeg_port` of the iOS simulators, `adb_port` of the USB Android devices) not shared by devices.
+  > The deploy validates the devices: obligatory settings, the characters of the ids, names and locations (letters, digits, `_`, `.`, `-`), unique ids and names, the size of `min_port`-`max_port` (4 ports of an Android device besides `connect_port`), the connections, host ports (`appium_port`, `min_port`-`max_port`, `connect_port`, `wda_port` and `mjpeg_port` of the iOS simulators, `adb_port` of the USB Android devices) not shared by devices.
 - Run ansible-playbook script to download the required components (the connector of the platforms of the registered devices only) and set up launchd agents:
 
   ```bash
@@ -245,7 +245,7 @@ STF of MCloud accepts on its ZeroMQ ports only the enrolled device hosts: the CU
 
 - the host: docker, ansible, python3, lsusb (Linux), Rosetta 2 (Apple Silicon);
 - the YAML of `config/settings.yml` and `config/devices.yml`: doctor reads the settings as the playbooks load them (the values by default of the roles, `versions.yml`, `config/settings.yml`), a file that is not valid YAML is a problem;
-- the settings of `config/settings.yml`: the ones of `./zebrunner.sh join`, the formats of the token and of the CURVE keys, the file readable by other users, a `roles/.../vars/main.yml` of an earlier version; the devices of `config/devices.yml` with the checks of the deploy (unique ids and names, the obligatory settings, the host ports, the connections of the OS);
+- the settings of `config/settings.yml`: the ones of `./zebrunner.sh join`, the formats of the token and of the CURVE keys, the file readable by other users, a `roles/.../vars/main.yml` of an earlier version; the devices of `config/devices.yml` with the checks of the deploy (unique ids and names, the obligatory settings, the characters of the ids, names and locations, the size of the port ranges, the host ports, the connections of the OS);
 - the enrollment: it asks MCloud about this host (`GET /api/v1/nodes/self` of `MCLOUD_URL` with the token, over HTTPS to the pinned TLS key): enrolled and active (or unknown, revoked), its address in MCloud is `STF_PROVIDER_HOST`, the devices STF knows of it, which of them are bound to it and connected;
 - the deployment: the settings of `zebrunner-farm` (`/usr/local/etc/zebrunner-farm.env`) are the ones of this folder and the current ones, also the versions of the images (otherwise `./zebrunner.sh ansible`) and readable by this user only, the containers created with the current `STF_PROVIDER_HOST` (otherwise `zebrunner-farm restart`);
 - the network: the name resolution and the ports of `PUBLIC_IP`, mcloud-grid and the ZeroMQ triproxies; `STF_PROVIDER_HOST` is an address of this host, or a public address of a NAT while the MCloud server is in the network of this host (see [Device hosts in a private network](#device-hosts-in-a-private-network)); MCloud on this machine and the devices using its ports (see [Devices on the MCloud server](#devices-on-the-mcloud-server));
