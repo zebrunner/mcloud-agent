@@ -192,6 +192,19 @@ remove_profile_variable() {
   done
 }
 
+# remove_simulators_ssh_key: the ssh key of the iOS simulators (the mac-devices role) and its line of
+# ~/.ssh/authorized_keys removed, the key gives a shell of the user
+remove_simulators_ssh_key() {
+  local keys="${HOME}/.ssh/authorized_keys"
+  if [[ -f "$keys" ]] && grep -q "zebrunner-mcloud-simulators$" "$keys"; then
+    echo "Removing the ssh key of the simulators from ${keys}"
+    sed -i.bak "/zebrunner-mcloud-simulators$/d" "$keys" && rm -f "${keys}.bak"
+  fi
+  if [[ -d "${ZEBRUNNER_MCLOUD_AGENT_DIR}/ssh" ]]; then
+    rm -rvf "${ZEBRUNNER_MCLOUD_AGENT_DIR}/ssh"
+  fi
+}
+
 # setup_file <example> <file>: the file made from the example (private: the settings have secrets), a backup <file>.bak
 # of an existing one
 setup_file() {
@@ -461,6 +474,9 @@ shutdown() {
 
   ### The variable of the earlier versions in the shell profiles
   remove_profile_variable
+
+  ### The ssh key of the iOS simulators
+  remove_simulators_ssh_key
 
   ### The autostart of the devices after a reboot
   if autostart_enabled || [[ -f "$(autostart_file)" ]]; then

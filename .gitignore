@@ -23,3 +23,5 @@ DeveloperDiskImages
 # the cache of patch/settings.py imported by patch/enroll.py
 __pycache__/
 become.yml
+# the ssh key of the iOS simulators (the mac-devices role): a shell of the user
+ssh/

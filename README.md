@@ -218,7 +218,7 @@ Security:
 - `ansible [devices]` - deploys the agent, `devices` registers the devices only.
 - `status` - shows the state of the agent components: tools, Rosetta 2 of an Apple Silicon Mac, deployed files, launch agents.
 - `backup` and `restore` - save the settings of `config/` into the `backup` folder and restore them from it (see [Settings](#settings)); a backup of an earlier version (`vars/main.yml`, `defaults/main.yml`) goes to `config/` with `./zebrunner.sh migrate <its files>`.
-- `shutdown` - removes the devices containers, the launch agents or udev rules, the deployed files, the settings and the environment variable (asks for confirmation).
+- `shutdown` - removes the devices containers, the launch agents or udev rules, the deployed files, the settings, the ssh key of the simulators (and its line of `~/.ssh/authorized_keys`) and the environment variable (asks for confirmation).
 - `version` - shows the versions of the agent components.
 - `doctor` - checks the host, the settings, the deployment, the network to the MCloud server and the devices, and tells what to fix, see [Doctor](#doctor).
 - `join` - enrolls this host in MCloud with the join string of `./zebrunner.sh node-invite` of mcloud, see [Node enrollment](#node-enrollment).
