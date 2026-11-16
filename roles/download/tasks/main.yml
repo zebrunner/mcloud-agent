@@ -2,6 +2,8 @@
 # A failed pull is reported but does not stop the deploy: the image may exist locally only.
 # The images are pulled for the platform of the host (arm64 on Apple Silicon), appium is linux/amd64 only.
 # A connector is pulled for the platforms (os) of the registered devices only; without a list of devices, for both.
+# docker runs as the user of the deploy, like zebrunner-farm: with its access to docker (the docker group on Linux, the
+# context of Docker Desktop on macOS) and its login of ~/.docker/config.json, not the ones of root.
 - name: Platforms of the devices
   ansible.builtin.set_fact:
     download_platforms: "{{ ['android', 'ios'] if devices | default(none) is none else devices | map(attribute='os') | unique | list }}"
@@ -9,6 +11,7 @@
 
 - name: Pull Zebrunner images
   ansible.builtin.command: docker pull {{ '--platform linux/amd64 ' if item.amd64 else '' }}"{{ item.image }}"
+  become: false
   loop:
     - {image: "{{ DEVICE_IMAGE }}:{{ DEVICE_VERSION }}", amd64: false}
     - {image: "{{ APPIUM_IMAGE }}:{{ APPIUM_VERSION }}", amd64: true}
@@ -25,6 +28,7 @@
 
 - name: Check that images failed to pull exist locally
   ansible.builtin.command: docker image inspect "{{ item.item.image }}"
+  become: false
   loop: "{{ download_images_pull.results | select('failed') | list }}"
   loop_control:
     label: "{{ item.item.image }}"
@@ -33,5 +37,6 @@
 
 - name: Create infra network if absent
   ansible.builtin.shell: docker network inspect "{{ STF_DOCKER_NETWORK }}" >/dev/null 2>&1 || docker network create "{{ STF_DOCKER_NETWORK }}"
+  become: false
   changed_when: false
   tags: [pull, download]
