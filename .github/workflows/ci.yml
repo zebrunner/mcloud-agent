@@ -20,11 +20,52 @@ jobs:
   lint:
     uses: zebrunner/mcloud-conventions/.github/workflows/lint.yml@v1
 
+  # the OS of the tests: a macOS runner waits 10-40 minutes, so a pull request runs on macOS only when it changes a
+  # file the macOS tests use (the playbooks and roles of macOS, zebrunner.sh, the scripts, the tests); the pushes and
+  # the manual runs always do
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      os: ${{ steps.os.outputs.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      - name: The OS of the tests
+        id: os
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          macos=true
+          if [[ "$EVENT" == pull_request ]]; then
+            # the checkout is the merge commit of the pull request, its first parent the base branch
+            files="$(git diff --name-only HEAD^1 HEAD)"
+            # all but the docs, the linters, roles/devices (Linux) and tests/Dockerfile (Linux, the lower case names of
+            # tests/ are the tests)
+            paths=(
+              'zebrunner\.sh' 'Makefile' 'agent\.yml' 'devices\.yml' 'mac-devices\.yml' 'hosts' 'versions\.yml' 'config/'
+              'patch/' 'scripts/' 'roles/common/' 'roles/download/' 'roles/mac-devices/' 'tests/[[:lower:]]'
+              '\.github/workflows/ci\.yml'
+            )
+            if ! grep -qE "^($(IFS='|' && echo "${paths[*]}"))" <<< "$files"; then
+              macos=false
+              echo "::notice::no file of the macOS tests changed: the tests run on Linux only"
+            fi
+          fi
+          if [[ "$macos" == true ]]; then
+            echo 'os=["ubuntu-latest", "macos-latest"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'os=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
+          fi
+
+  # macOS also builds usbmuxd_watch from the source and runs its tests on the result (one macOS runner)
   tests:
+    needs: changes
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: ${{ fromJSON(needs.changes.outputs.os) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -50,31 +91,21 @@ jobs:
           annotate_only: true
           detailed_summary: true
           require_tests: true
-      - name: Upload tests JUnit XML
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: junit-${{ matrix.os }}
-          path: ${{ runner.temp }}/junit/
-
-  # the usbmuxd_watch binary built from the source passes the tests of the committed one
-  usbmuxd-watch:
-    runs-on: macos-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
+      # the usbmuxd_watch binary built from the source passes the tests of the committed one
       - name: Build usbmuxd_watch
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
         run: scripts/build_usbmuxd_watch.sh "${RUNNER_TEMP}/usbmuxd_watch"
       - name: Test usbmuxd_watch
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
         run: tests/usbmuxd_watch_test.sh
         env:
           USBMUXD_WATCH: ${{ runner.temp }}/usbmuxd_watch
-          JUNIT_DIR: ${{ runner.temp }}/junit
-      - name: Tests report
-        if: ${{ !cancelled() }}
+          JUNIT_DIR: ${{ runner.temp }}/junit/usbmuxd-watch
+      - name: usbmuxd_watch report
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
         uses: mikepenz/action-junit-report@a16be3a69023e9bd7e748ede768b3282ea7b30ce # v6.7.1
         with:
-          report_paths: ${{ runner.temp }}/junit/*.xml
+          report_paths: ${{ runner.temp }}/junit/usbmuxd-watch/*.xml
           check_name: usbmuxd_watch report
           annotate_only: true
           detailed_summary: true
@@ -83,5 +114,5 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
-          name: junit-usbmuxd-watch
+          name: junit-${{ matrix.os }}
           path: ${{ runner.temp }}/junit/
