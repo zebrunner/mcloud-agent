@@ -3,6 +3,8 @@
 
   settings.py dump <file>...              NAME=value of the top level settings, a later file overrides an earlier one
   settings.py set <file> NAME=value...    sets the settings: the lines replaced, the missing ones at the end, mode 600
+  settings.py set <file> -                the same with the NAME=value lines of stdin: the secrets are not arguments,
+                                          which every user sees
 
 zebrunner.sh runs it with a python with PyYAML (yaml_python of patch/utility.sh): python3 or the one of ansible.
 A file that is not valid YAML is an error with its reason on stderr, exit code 1.
@@ -11,7 +13,6 @@ A file that is not valid YAML is an error with its reason on stderr, exit code 1
 import json
 import os
 import re
-import shutil
 import stat
 import sys
 
@@ -85,15 +86,20 @@ def updated_text(text, settings, path):
     return text
 
 
+def write_text(path, text):
+    """The text in the file, mode 600 before the text is written: an existing file may be readable by others."""
+    fd = os.open(path, os.O_WRONLY | os.O_TRUNC | os.O_CREAT, stat.S_IRUSR | stat.S_IWUSR)
+    os.fchmod(fd, stat.S_IRUSR | stat.S_IWUSR)
+    with os.fdopen(fd, "w", encoding="utf-8") as file:
+        file.write(text)
+
+
 def write_private(path, text, backup=None):
     """The text in the file, mode 600, a copy of the file to backup first."""
     if backup and os.path.exists(path):
-        shutil.copyfile(path, backup)
-        os.chmod(backup, stat.S_IRUSR | stat.S_IWUSR)
-    fd = os.open(path, os.O_WRONLY | os.O_TRUNC | os.O_CREAT, stat.S_IRUSR | stat.S_IWUSR)
-    with os.fdopen(fd, "w", encoding="utf-8") as file:
-        file.write(text)
-    os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+        with open(path, encoding="utf-8") as file:
+            write_text(backup, file.read())
+    write_text(path, text)
 
 
 def write_settings(path, settings, backup=None):
@@ -107,6 +113,12 @@ def main(args):
     command = args[0] if args else ""
     if command == "dump" and len(args) > 1:
         print("\n".join(dump(args[1:])))
+    elif command == "set" and args[2:] == ["-"]:
+        lines = [line for line in sys.stdin.read().split("\n") if line]
+        if not lines or not all("=" in line for line in lines):
+            print(__doc__, file=sys.stderr)
+            return 2
+        write_settings(args[1], dict(line.split("=", 1) for line in lines))
     elif command == "set" and len(args) > 2 and all("=" in arg for arg in args[2:]):
         write_settings(args[1], dict(arg.split("=", 1) for arg in args[2:]))
     else:
