@@ -347,7 +347,7 @@ You need an Apple Developer account to sign in and build **WebDriverAgent**.
 
 #### Developer Disk Images
 
-The connector mounts the Developer Disk Image of the iOS version of the device before WebDriverAgent starts. The deploy of a host with iOS devices (`./zebrunner.sh ansible`, the `download` role) clones the images of Xcode of [zebrunner/DeveloperDiskImage](https://github.com/zebrunner/DeveloperDiskImage) (shallow, about 1 GB) and updates them on every deploy; `zebrunner-farm` mounts the folder read-only into the connectors of the iOS devices but the simulators (`/opt/zebrunner/ddi`, `DDI_DIR` of [mcloud-ios-connector](https://github.com/zebrunner/mcloud-ios-connector#readme)). Without the folder, or without the image of the device in it, the connector downloads the image with go-ios as before (`ios image auto`, the internet).
+The connector mounts the Developer Disk Image of the iOS version of the device before WebDriverAgent starts. The deploy of a host with iOS devices (`./zebrunner.sh ansible`, the `download` role) clones the images of Xcode of [zebrunner/DeveloperDiskImage](https://github.com/zebrunner/DeveloperDiskImage) (shallow and sparse: the images the connector mounts only, without the Cryptex ones; about 0.5 GB per host) and updates them on every deploy; `zebrunner-farm` mounts the folder read-only into the connectors of the iOS devices but the simulators (`/opt/zebrunner/ddi`, `DDI_DIR` of [mcloud-ios-connector](https://github.com/zebrunner/mcloud-ios-connector#readme)). Without the folder, or without the image of the device in it, the connector downloads the image with go-ios as before (`ios image auto`, the internet).
 
 | Setting | Default | What it is |
 | --- | --- | --- |

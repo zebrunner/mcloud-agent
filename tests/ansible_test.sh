@@ -246,7 +246,10 @@ ddi_commit() {
   git -C "${WORK}/ddi-origin" -c user.name=test -c user.email=test@example.com commit -q -m "$1"
 }
 git init -q -b main "${WORK}/ddi-origin"
+git -C "${WORK}/ddi-origin" config uploadpack.allowFilter true
 ddi_commit DeveloperDiskImages/15.0
+ddi_commit PersonalizedImages/Xcode_iOS_DDI_Personalized
+ddi_commit PersonalizedImages/Xcode_iOS_DDI_Cryptex
 git -C "${WORK}/ddi-origin" tag v1
 ddi_commit DeveloperDiskImages/16.7
 printf 'DDI_REPO: "file://%s"\nDDI_DIR: "%s"\n' "${WORK}/ddi-origin" "${WORK}/ddi" > "${WORK}/play-download/config/settings.yml"
@@ -287,15 +290,26 @@ ddi_versions() {
 }
 check "the images are cloned without a list of devices" "15.0 16.7" "$(ddi_versions "$ddi")"
 check "the clone is shallow" "true" "$(git -C "${WORK}/ddi" rev-parse --is-shallow-repository 2> /dev/null)"
+check "the personalized images are checked out, the Cryptex ones are not" "Xcode_iOS_DDI_Personalized" \
+  "$(ddi_versions "${WORK}/ddi/PersonalizedImages")"
+output="$(playbook download)"
+check_contains "an update without a new commit is not a change" "changed=0" "$output"
 ddi_commit DeveloperDiskImages/17.0
 output="$(playbook download --extra-vars '{"devices": [{"id": "a", "os": "ios"}]}')"
 check_contains "the update for the iOS devices" "failed=0" "$output"
 check "the iOS devices: the clone is updated" "15.0 16.7 17.0" "$(ddi_versions "$ddi")"
+check_contains "a new commit is a change" "changed=1" "$output"
 echo "local" > "${ddi}/16.7/DeveloperDiskImage.dmg"
 playbook download > /dev/null
 check "a local change is dropped" "DeveloperDiskImages/16.7" "$(cat "${ddi}/16.7/DeveloperDiskImage.dmg")"
 output="$(playbook download --extra-vars '{"devices": [{"id": "a", "os": "ios"}], "DDI_VERSION": "v1"}')"
 check "DDI_VERSION: a tag" "15.0" "$(ddi_versions "$ddi")"
+rm -rf "${WORK}/ddi"
+git clone -q "file://${WORK}/ddi-origin" "${WORK}/ddi"
+output="$(playbook download)"
+check "an earlier full clone: the Cryptex images are removed" "Xcode_iOS_DDI_Personalized" \
+  "$(ddi_versions "${WORK}/ddi/PersonalizedImages")"
+check "an earlier full clone: the images are kept" "15.0 16.7 17.0" "$(ddi_versions "$ddi")"
 rm -rf "${WORK}/ddi"
 output="$(playbook download --extra-vars '{"devices": [{"id": "a", "os": "android"}]}')"
 check "the Android devices: no clone" "no" "$([[ -e "${WORK}/ddi" ]] && echo yes || echo no)"
