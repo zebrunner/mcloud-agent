@@ -227,6 +227,17 @@ check_contains "the fields of a device in any order" "|-e|DEVICE_CONNECTION=prox
   "$(run_args "device-AppleTV-aaaa1111-connector")"
 check_contains "WDA_BUNDLEID of the settings for a device without wda_bundleid" "|-e|WDA_BUNDLEID=my.global.wda|" \
   "$(run_args "device-AppleTV-aaaa1111-connector")"
+# the empty WDA_FILE and WDA_BUNDLEID of the example settings: the defaults without quotes
+for role in devices mac-devices; do
+  setup_case
+  render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+  farm "$role" start AppleTV > /dev/null
+  connector="$(run_args "device-AppleTV-aaaa1111-connector")"
+  check_contains "${role}: the default WDA_BUNDLEID without wda_bundleid and WDA_BUNDLEID" \
+    "|-e|WDA_BUNDLEID=com.facebook.WebDriverAgentRunner.xctrunner|" "$connector"
+  check_contains "${role}: /dev/null is mounted without wda_file and WDA_FILE" "|-v|/dev/null:/tmp/zebrunner/WebDriverAgent.ipa|" "$connector"
+done
 printf 'R28M1384YQY|android|Galaxy|loc|7421|7422|7425|7430|usb|/dev/null|x|||\n' > "${WORK}/devices.txt"
 check_contains "a devices list of an earlier version asks for the deploy" \
   "The devices list ${WORK}/devices.txt is of an earlier version: deploy it with ./zebrunner.sh ansible" "$(farm devices status)"
