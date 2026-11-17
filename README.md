@@ -115,7 +115,7 @@ The settings of the connection, written by `join` (do not change them by hand, a
 Security:
 
 - the token is of this host only: MCloud keeps its hash, binds it to the address of the host and to its devices, and revokes it alone (`./zebrunner.sh nodes revoke <label>` of mcloud);
-- `config/settings.yml` and the deployed settings of `zebrunner-farm` (`/usr/local/etc/zebrunner-farm.env`) have the secrets of the host: `config/settings.yml` is mode 600, the settings of `zebrunner-farm` are readable by root and the user of the deploy only (Linux: mode 640, the group of the user; macOS: mode 600, the user); the script `zebrunner-farm` has no secret; the users of the `docker` group can read the variables of the containers anyway, they are root on the host;
+- `config/settings.yml` and the deployed settings of `zebrunner-farm` (`/usr/local/etc/zebrunner-farm.env`) have the secrets of the host: `config/settings.yml` is mode 600, the settings of `zebrunner-farm` are readable by root and the user of the deploy only (Linux: mode 640, the group of the user; macOS: mode 600, the user); the script `zebrunner-farm` has no secret and passes them to docker in its environment (`-e NAME` without the value), not in its arguments that every local user sees (`ps`); the users of the `docker` group can read the variables of the containers anyway, they are root on the host;
 - a new join string (`node-invite` of the same label) replaces the token and the key of the host: run `./zebrunner.sh join` again to rotate them;
 - `./zebrunner.sh doctor` asks MCloud about this host (enrolled, active, its address, the devices STF knows and binds to it) and reports the settings readable by other users.
 
