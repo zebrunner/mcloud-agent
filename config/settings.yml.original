@@ -35,6 +35,11 @@ STF_ZMQ_CURVE_SECRET_KEY:
 # forwards the remote debug port (connect_port) of every Android device of this host (README.md#device-hosts-in-a-private-network).
 REMOTE_CONNECT_HOST:
 
+# [OPTIONAL] The MDM of the devices (zebrunner-farm mdm, README.md#mdm): the supervision identity of the farm, the
+# PKCS#12 file the iOS devices were supervised with (ios prepare) and its password; the Android devices need nothing
+# MDM_SUPERVISION_P12: /opt/zebrunner/supervision.p12
+# MDM_SUPERVISION_P12_PASSWORD:
+
 # [OPTIONAL] provider/location name for devices. Use short city name like NYC; mcloud-linux or mcloud-macos by default
 # STF_PROVIDER_NAME: NYC
 
