@@ -18,7 +18,9 @@ EOF
 IPHONE="device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"
 
 # docker: records the calls, prints ${STUB_DIR}/docker_ps for `ps`, fails `run` of a container
-# ending with $DOCKER_FAIL_RUN and returns $DOCKER_STARTED_AT/$DOCKER_FINISHED_AT for `inspect`
+# ending with $DOCKER_FAIL_RUN and returns $DOCKER_STARTED_AT/$DOCKER_FINISHED_AT for `inspect`; the variables of
+# `run -e NAME` (no value: docker takes it from its environment) as it sees them go to ${STUB_DIR}/run_env.log,
+# `<container>|NAME=value|...|`, a NAME missing from its environment is not there
 cat > "${WORK}/bin/docker" << 'EOF'
 #!/bin/bash
 (IFS='|'; echo "docker|$*") >> "${STUB_DIR}/calls.log"
@@ -27,10 +29,15 @@ case "$1" in
   run)
     name=""
     prev=""
+    env_line=""
     for arg in "$@"; do
       [[ "$prev" == "--name" ]] && name="$arg"
+      if [[ "$prev" == "-e" && "$arg" != *=* ]] && value="$(printenv "$arg")"; then
+        env_line+="${arg}=${value}|"
+      fi
       prev="$arg"
     done
+    echo "${name}|${env_line}" >> "${STUB_DIR}/run_env.log"
     if [[ -n "$DOCKER_FAIL_RUN" && "$name" == *"$DOCKER_FAIL_RUN" ]]; then
       echo "docker: simulated failure" >&2
       exit 125
@@ -82,6 +89,11 @@ run_args() {
   calls docker | grep "^run|.*|--name|$1|"
 }
 
+# run_env <container>: the variables of the `docker run -e NAME` of a container as docker sees them, `|NAME=value|...|`
+run_env() {
+  grep "^$1|" "${WORK}/run_env.log" 2> /dev/null | cut -d '|' -f 2- | sed 's/^/|/'
+}
+
 # devices removed by `down`, in the order of the devices list
 removed() {
   calls docker | grep '^volume|rm|' | sed 's/^volume|rm|device-//; s/-.*//' | paste -s -d ' ' -
@@ -89,6 +101,7 @@ removed() {
 
 setup_case() {
   reset_calls
+  : > "${WORK}/run_env.log"
   : > "${WORK}/docker_ps"
   : > "${WORK}/usb"
 }
@@ -204,8 +217,11 @@ for role in devices mac-devices; do
     setup_case
     farm "$role" start "${device%%:*}" > /dev/null
     stf="$(run_args "${device#*:}-stf")"
-    check_contains "${role}: ${device%%:*}: the CURVE keys are passed" \
-      "|STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=${server_key}|-e|STF_ZMQ_CURVE_SECRET_KEY=${secret_key}|" "$stf"
+    check_contains "${role}: ${device%%:*}: the CURVE keys are passed, the secret one by its name" \
+      "|STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=${server_key}|-e|STF_ZMQ_CURVE_SECRET_KEY|" "$stf"
+    check_not_contains "${role}: ${device%%:*}: the secret CURVE key is not an argument of docker" "$secret_key" "$stf"
+    check_contains "${role}: ${device%%:*}: the secret CURVE key is in the environment of docker" \
+      "|STF_ZMQ_CURVE_SECRET_KEY=${secret_key}|" "$(run_env "${device#*:}-stf")"
     check_not_contains "${role}: ${device%%:*}: no shared storage token" "STF_STORAGE_TOKEN" "$stf"
     check_not_contains "${role}: ${device%%:*}: no RethinkDB" "RETHINKDB" "$stf"
   done
@@ -355,14 +371,18 @@ for role in devices mac-devices; do
   sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
   setup_case
   farm "$role" start WiFi > /dev/null
-  check_contains "${role}: android appium registers with the token of the host" "|NODE_REGISTRATION_TOKEN=${node_token}|" \
-    "$(run_args device-WiFi-192.168.1.50-appium)"
   farm "$role" start AppleTV > /dev/null
-  check_contains "${role}: iOS appium registers with the token of the host" "|NODE_REGISTRATION_TOKEN=${node_token}|" \
-    "$(run_args device-AppleTV-aaaa1111-appium)"
   for device in device-WiFi-192.168.1.50 device-AppleTV-aaaa1111; do
+    appium="$(run_args "${device}-appium")"
+    check_contains "${role}: ${device}: appium registers with the token of the host" "|-e|NODE_REGISTRATION_TOKEN|" "$appium"
+    check_contains "${role}: ${device}: the token of appium is in the environment of docker" \
+      "|NODE_REGISTRATION_TOKEN=${node_token}|" "$(run_env "${device}-appium")"
+    check_not_contains "${role}: ${device}: the token of appium is not an argument of docker" "$node_token" "$appium"
     stf="$(run_args "${device}-stf")"
-    check_contains "${role}: ${device}: STF proves the devices and uses the storage with the token of the host" "|STF_NODE_TOKEN=${node_token}|" "$stf"
+    check_contains "${role}: ${device}: STF proves the devices and uses the storage with the token of the host" "|-e|STF_NODE_TOKEN|" "$stf"
+    check_contains "${role}: ${device}: the token of STF is in the environment of docker" "|STF_NODE_TOKEN=${node_token}|" \
+      "$(run_env "${device}-stf")"
+    check_not_contains "${role}: ${device}: the token of STF is not an argument of docker" "$node_token" "$stf"
     check_not_contains "${role}: ${device}: no shared storage token" "STF_STORAGE_TOKEN" "$stf"
   done
 
@@ -380,7 +400,10 @@ for role in devices mac-devices; do
     farm "$role" start "${device%%:*}" > /dev/null
     appium="$(run_args "${device#*:}-appium")"
     check_contains "${role}: ${device%%:*}: appium reports the errors of the device to STF" \
-      "|STF_API_URL=https://mcloud.example.com/api/v1|-e|STF_AUTH_TOKEN=stf-token|" "$appium"
+      "|STF_API_URL=https://mcloud.example.com/api/v1|-e|STF_AUTH_TOKEN|" "$appium"
+    check_contains "${role}: ${device%%:*}: the token of STF is in the environment of docker" "|STF_AUTH_TOKEN=stf-token|" \
+      "$(run_env "${device#*:}-appium")"
+    check_not_contains "${role}: ${device%%:*}: the token of STF is not an argument of docker" "stf-token" "$appium"
     check_contains "${role}: ${device%%:*}: appium knows the location for the recording card" "|DEVICE_LOCATION=loc|" "$appium"
     for env in RETAIN_TASK CUSTOM_NODE_CONFIG ANDROID_DEVICE=; do
       check_not_contains "${role}: ${device%%:*}: appium gets no ${env%=}, it does not read it" "|${env}" "$appium"
@@ -421,6 +444,49 @@ for role in devices mac-devices; do
   check_contains "${role}: with S3 appium records the sessions" "|RECORD_ARTIFACTS=true|" "$(run_args device-WiFi-192.168.1.50-appium)"
   check_contains "${role}: with S3 the uploader uploads them" "|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|" \
     "$(run_args device-WiFi-192.168.1.50-uploader)"
+  render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+done
+
+section "secrets"
+# the secrets of the host with the characters a shell would change; the containers of every device get them in the
+# environment of docker, none of them is an argument of a process (ps shows them to every local user)
+host_token="node token \$HOME"
+curve_key="curve key *"
+auth_token='auth "token"'
+s3_key_id="access key id"
+s3_secret="s3 \$ecret 'x'"
+# shellcheck disable=SC2016
+secrets='{"MCLOUD_NODE_TOKEN": "node token $HOME", "STF_ZMQ_CURVE_SECRET_KEY": "curve key *",
+  "STF_AUTH_TOKEN": "auth \"token\"", "S3_ACCESS_KEY_ID": "access key id", "S3_SECRET": "s3 $ecret '"'x'"'",
+  "S3_BUCKET": "bucket"}'
+# expected_env <container>: the secrets of the container as run_env gives them
+expected_env() {
+  case "$1" in
+  *-stf) echo "|STF_NODE_TOKEN=${host_token}|STF_ZMQ_CURVE_SECRET_KEY=${curve_key}|" ;;
+  *-appium) echo "|NODE_REGISTRATION_TOKEN=${host_token}|STF_AUTH_TOKEN=${auth_token}|" ;;
+  *-uploader) echo "|AWS_ACCESS_KEY_ID=${s3_key_id}|AWS_SECRET_ACCESS_KEY=${s3_secret}|" ;;
+  *) echo "|" ;;
+  esac
+}
+for role in devices mac-devices; do
+  render_farm "$role" "${WORK}/farm-${role}.env" --extra-vars "$secrets" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+  setup_case
+  # all the devices are plugged in, in the format of lsusb (Linux) and ioreg (macOS)
+  awk -F '[=|]' '{ print "iSerial " $2; print "\"USB Serial Number\" = \"" $2 "\"" }' "${WORK}/devices.txt" > "${WORK}/usb"
+  farm "$role" start > /dev/null
+  containers="$(calls docker | grep '^run|' | grep -o -- '--name|[^|]*' | cut -d '|' -f 2)"
+  check_contains "${role}: the devices get their uploaders" "-uploader" "$containers"
+  wrong=""
+  for name in $containers; do
+    [[ "$(run_env "$name")" == "$(expected_env "$name")" ]] || wrong+=" ${name}: $(run_env "$name")"
+  done
+  check "${role}: every container gets its secrets in the environment of docker" "" "$wrong"
+  for secret in "$host_token" "$curve_key" "$auth_token" "$s3_key_id" "$s3_secret"; do
+    check_not_contains "${role}: the secret '${secret}' is no argument of a process" "$secret" "$(cat "${WORK}/calls.log")"
+  done
+
   render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
   sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
 done
