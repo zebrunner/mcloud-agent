@@ -153,6 +153,12 @@ echo 403 > "${WORK}/curl_status"
 output="$(farm "$LINUX" mdm status Galaxy)"
 check "a refused address fails" "1" "$?"
 check_contains "a refused address is explained" "not in MDM_SITE_ADDRESSES of MCloud" "$output"
+setup_case
+echo 503 > "${WORK}/curl_status"
+printf '%s\n' "${IPHONE}-connector running" > "${WORK}/docker_ps"
+output="$(farm "$LINUX" mdm enroll iPhone_XR 2>&1)"
+check "an error of the MDM fails" "1" "$?"
+check_contains "the error of the MDM shows its body" "MCloud answers 503: PROFILE" "$output"
 
 section "Android enroll on Linux"
 setup_case

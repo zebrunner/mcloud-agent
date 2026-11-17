@@ -44,6 +44,11 @@ mdm_call() {
   fi
   MDM_STATUS="${answer##*$'\n'}"
   answer="${answer%$'\n'*}"
+  # the body of an error went to the output file
+  if [[ -n "$output" && "$MDM_STATUS" != 2?? && -f "$output" ]]; then
+    answer="$(head -c 300 "$output")"
+    rm -f "$output"
+  fi
   case "$MDM_STATUS" in
   2??)
     [[ -n "$output" ]] || printf '%s\n' "$answer"
@@ -135,9 +140,9 @@ mdm_android_script() {
   fi
   cat << 'EOF'
 i=0
-until [ "$(adb -s "$s" get-state 2> /dev/null)" = device ]; do
+until test "$(adb -s "$s" get-state 2> /dev/null)" = device; do
   i=$((i + 1))
-  if [ "$i" -gt 30 ]; then
+  if test "$i" -gt 30; then
     echo "  the device is not online for adb: plugged in and its USB debugging authorized?"
     exit 1
   fi
@@ -247,19 +252,25 @@ export P12_PASSWORD
 i=0
 until ios list 2> /dev/null | grep -q "$u"; do
   i=$((i + 1))
-  if [ "$i" -gt 30 ]; then
+  if test "$i" -gt 30; then
     echo "  the device is not on usbmuxd"
     exit 1
   fi
   sleep 1
 done
-# a supervised device pairs with the supervision identity without a prompt
+# a supervised device pairs with the supervision identity without a prompt; the log of go-ios only on a failure
 if ! ios info --udid="$u" > /dev/null 2>&1; then
   echo "  pairing with the supervision identity"
-  ios pair --p12file=/mdm/supervision.p12 --udid="$u" > /dev/null
+  if ! out="$(ios pair --p12file=/mdm/supervision.p12 --udid="$u" 2>&1)"; then
+    echo "$out" | tail -n 5
+    exit 1
+  fi
 fi
 echo "  installing the enrollment profile"
-ios profile add /mdm/enroll.mobileconfig --p12file=/mdm/supervision.p12 --udid="$u" > /dev/null
+if ! out="$(ios profile add /mdm/enroll.mobileconfig --p12file=/mdm/supervision.p12 --udid="$u" 2>&1)"; then
+  echo "$out" | tail -n 5
+  exit 1
+fi
 echo "  the device enrolls in the MDM: zebrunner-farm mdm status shows it"
 EOF
 }
