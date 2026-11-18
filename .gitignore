@@ -25,3 +25,13 @@ __pycache__/
 become.yml
 # the ssh key of the iOS simulators (the mac-devices role): a shell of the user
 ssh/
+# the key material of the MDM and the farm, kept out of the checkout anyway (README of mcloud-mdm: Keys and certificates)
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.key
+*.pem
+*.der
+*.csr
+*.mobileconfig

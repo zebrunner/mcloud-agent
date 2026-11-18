@@ -1277,4 +1277,8 @@ main() {
   esac
 }
 
-main "$@"
+# ./zebrunner.sh mdm sources this script for its functions (the settings, the selection and the containers of the
+# devices): main runs only when the script is run
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi
