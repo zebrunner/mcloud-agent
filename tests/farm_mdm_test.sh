@@ -60,6 +60,10 @@ case "$1" in
   stop)
     sed -i.bak "s|^${*: -1} running$|${*: -1} exited|" "${STUB_DIR}/docker_ps"
     ;;
+  rm)
+    sed -i.bak "\|^${*: -1} |d" "${STUB_DIR}/docker_ps"
+    echo "${*: -1}"
+    ;;
   run)
     if [[ " $* " == *" -i "* ]]; then
       cat >> "${STUB_DIR}/run_stdin.log"
@@ -294,7 +298,7 @@ output="$(mdm "$SUP" supervise iPhone_XR --yes)"
 check "supervise succeeds" "0" "$?"
 check_contains "the other iPhone of the bus stops meanwhile" "the other iPhones of the USB bus /dev/bus/usb/001 stop meanwhile: 00008120-0010359E0240201E" "$output"
 runs="$(calls docker | grep '^run|--rm|-i|')"
-check "two one-shot containers: the supervision, then the enrollment" "2" "$(grep -c . <<< "$runs")"
+check "three one-shot containers: the supervision, the enrollment, the restart" "3" "$(grep -c . <<< "$runs")"
 check_contains "the container gets the USB bus and the pairing records" \
   "|--device-cgroup-rule=c 189:* rmw|-v|/dev/bus/usb/001:/dev/bus/usb/001|-v|${IPHONE}-lockdown:/var/lib/lockdown|" "$(head -n 1 <<< "$runs")"
 script="$(cat "${WORK}/run_stdin.log")"
@@ -304,12 +308,15 @@ check_contains "the supervision with the certificate of the identity" "--certfil
 check_contains "the organization" "ORG='Zebrunner MCloud'" "$script"
 check_contains "Developer Mode" "ios devmode enable --enable-post-restart" "$script"
 check_contains "the enrollment is tried again while the Wi-Fi comes up" "MDM_PROFILE_TRIES='8'" "$script"
+check_contains "the device restarts at the end: WebDriverAgent launches then" "ios reboot --udid=" "$script"
 check_contains "the files of the containers" "supervision.der" "$(cat "${WORK}/mdm_files.log")"
 check_contains "the Wi-Fi profile, escaped" "<string>Farm &amp; Lab</string>" "$(cat "${WORK}/wifi.log")"
 check_contains "the password of the Wi-Fi in the profile" "<key>Password</key><string>wifi-secret-&lt;1&gt;</string>" "$(cat "${WORK}/wifi.log")"
 check_contains "the enrollment profile after the supervision" "/mdm/enroll?udid=00008020-0005308201DA002E&name=iPhone_XR" "$(calls curl)"
-check_contains "the containers of both start again" "start|${IPHONE15}-connector" "$(calls docker | grep '^start|')"
-check_contains "and of the device" "start|${IPHONE}-connector" "$(calls docker | grep '^start|')"
+check_contains "the containers of the device are removed: it restarts with another USB device" "rm|-f|${IPHONE}-connector" "$(calls docker | grep '^rm|')"
+check_contains "the containers of the neighbor start again" "start|${IPHONE15}-connector" "$(calls docker | grep '^start|')"
+check_not_contains "the neighbor keeps its containers" "rm|${IPHONE15}" "$(calls docker | grep '^rm|')"
+check_contains "the containers of the device are created again" "--name|${IPHONE}-connector|" "$(calls docker | grep '^run|')"
 check_contains "WebDriverAgent of the connector is asked" "exec|${IPHONE}-connector" "$(calls docker | grep '^exec|')"
 no_secret_in_args "iOS supervise"
 check_not_contains "the password of the Wi-Fi is no argument" "wifi-secret" "$(
@@ -320,7 +327,7 @@ setup_case
 printf '%s\n' 3 0 > "${WORK}/run_statuses"
 output="$(mdm "$SUP" supervise iPhone_XR --yes)"
 check "a device supervised already is enrolled" "0" "$?"
-check "  its two containers" "2" "$(calls docker | grep -c '^run|--rm|-i|')"
+check "  its enrollment and restart" "3" "$(calls docker | grep -c '^run|--rm|-i|')"
 setup_case
 echo 10 > "${WORK}/run_statuses"
 output="$(mdm "$SUP" supervise iPhone_XR --yes)"

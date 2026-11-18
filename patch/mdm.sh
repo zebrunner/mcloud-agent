@@ -454,8 +454,9 @@ mdm_neighbors_unlock() {
   done
 }
 
-# mdm_containers <stop|start> <udid...>: the containers of the devices (stop: of the running ones only, their udids on
-# stdout); the fields of the device of get_device_fields are kept
+# mdm_containers <stop|remove|start> <udid...>: the containers of the devices (stop: of the running ones only, their
+# udids on stdout; remove: the containers of a device that restarts, they keep its USB device of their creation);
+# the fields of the device of get_device_fields are kept
 mdm_containers() {
   local action="$1"
   shift
@@ -469,6 +470,11 @@ mdm_containers() {
         stop_containers > /dev/null
         echo "$id"
       fi
+    elif [[ "$action" == "remove" ]]; then
+      if [[ -n "$(container_state "${dev_container}-connector")" ]]; then
+        remove_containers > /dev/null
+        echo "$id"
+      fi
     else
       create_containers > /dev/null || warn "  the containers of ${dev_device_name} did not start: ./zebrunner-farm start ${dev_device_name}"
     fi
@@ -476,24 +482,39 @@ mdm_containers() {
   get_device_fields "$self" > /dev/null
 }
 
-# mdm_supervise_script: the script of the one-shot iOS connector that erases, activates and supervises the device, turns
-# Developer Mode on and joins the Wi-Fi of the farm; its exit: 0 done, 3 supervised already (no erase), 10 Activation
-# Lock (Find My), 11 a passcode, other: a failure. Checked on iOS 18.3 and 26.2.1 (Linux).
-mdm_supervise_script() {
-  echo "u='${dev_udid}'"
-  printf "ORG='%s'\n" "$(printf '%s' "${MDM_SUPERVISION_ORG:-Zebrunner MCloud}" | sed "s/'/'\\\\''/g")"
-  echo "FORCE='${MDM_FORCE}'"
-  printf "P12_PASSWORD='%s'\n" "$(printf '%s' "$MDM_SUPERVISION_P12_PASSWORD" | sed "s/'/'\\\\''/g")"
+# mdm_supervise_mux: the function mux of the scripts of supervise: the usbmuxd of the container (Linux: started again, it
+# misses a device that comes back on the bus without udev) or the one of the host (macOS)
+mdm_supervise_mux() {
   if [[ "$FARM_OS" == "macos" ]]; then
     echo "mux() { pkill -f 'socat UNIX-LISTEN:/var/run/usbmuxd' 2> /dev/null; rm -f /var/run/usbmuxd; socat UNIX-LISTEN:/var/run/usbmuxd,fork,reuseaddr,mode=777 TCP:'${USBMUXD_SOCKET_ADDRESS}' > /dev/null 2>&1 & sleep 2; }"
   else
-    # usbmuxd without udev misses a device that comes back on the bus during its setup: it is started again
     # shellcheck disable=SC2016 # the function of the script of the container
     echo 'mux() { kill -9 $(pidof usbmuxd) 2> /dev/null; sleep 1; usbmuxd -f > /dev/null 2>&1 & sleep 3; }'
   fi
+}
+
+# mdm_supervise_helpers: the functions of the scripts of supervise (the device on the bus, the checks of its state)
+mdm_supervise_helpers() {
   cat << 'EOF'
 export P12_PASSWORD
-listed() { timeout 15 ios list 2> /dev/null | grep -q "$u"; }
+listed() { (timeout 15 ios list 2> /dev/null) 2> /dev/null | grep -q "$u"; }
+# the long commands of go-ios (devmode, prepare) wait for the device themselves: a watchdog starts usbmuxd again when the
+# device is away for 30 s, it finds the device back on the bus then
+watchdog() {
+  miss=0
+  while true; do
+    sleep 10
+    if listed; then
+      miss=0
+    else
+      miss=$((miss + 1))
+      if test "$miss" -ge 3; then
+        mux
+        miss=0
+      fi
+    fi
+  done
+}
 wait_on() {
   i=0
   until listed; do
@@ -512,7 +533,40 @@ last() { grep -v "go-ios agent is not running" | tail -n 3 | cut -c1-240 | sed '
 activated() { timeout 30 ios info --udid="$u" 2> /dev/null | grep -q '"ActivationState":"Activated"'; }
 devmode_on() { timeout 30 ios devmode get --udid="$u" 2> /dev/null | grep -q '"DeveloperModeEnabled":true'; }
 supervised() { timeout 30 ios prepare cloudconfig --udid="$u" 2> /dev/null | grep -q '"IsSupervised":true'; }
+EOF
+}
+
+# mdm_restart_script: restarts the device and waits for it: testmanagerd of a device just set up may not launch
+# WebDriverAgent ("could not get pid") until a restart
+mdm_restart_script() {
+  echo "u='${dev_udid}'"
+  mdm_supervise_mux
+  mdm_supervise_helpers
+  cat << 'EOF'
 mux
+watchdog &
+wait_on 30
+step "restarting it"
+timeout 60 ios reboot --udid="$u" > /dev/null 2>&1 || true
+wait_off 60 || true
+sleep 20
+wait_on 300
+EOF
+}
+
+# mdm_supervise_script: the script of the one-shot iOS connector that erases, activates and supervises the device, turns
+# Developer Mode on and joins the Wi-Fi of the farm; its exit: 0 done, 3 supervised already (no erase), 10 Activation
+# Lock (Find My), 11 a passcode, other: a failure. Checked on iOS 18.3 and 26.2.1 (Linux).
+mdm_supervise_script() {
+  echo "u='${dev_udid}'"
+  printf "ORG='%s'\n" "$(printf '%s' "${MDM_SUPERVISION_ORG:-Zebrunner MCloud}" | sed "s/'/'\\\\''/g")"
+  echo "FORCE='${MDM_FORCE}'"
+  printf "P12_PASSWORD='%s'\n" "$(printf '%s' "$MDM_SUPERVISION_P12_PASSWORD" | sed "s/'/'\\\\''/g")"
+  mdm_supervise_mux
+  mdm_supervise_helpers
+  cat << 'EOF'
+mux
+watchdog &
 wait_on 30
 info="$(timeout 30 ios info --udid="$u" 2> /dev/null || true)"
 # fm-activation-locked of the NVRAM: YES (WUVT) with Find My on, the device would stay locked to its Apple Account
@@ -662,10 +716,13 @@ mdm_ios_supervise() {
       mdm_neighbors_lock "${neighbors[@]}" || return 1
     fi
   fi
+  # the device restarts on the bus with other numbers: its containers are created again at the end, the ones of the
+  # neighbors only stop
+  [[ -n "$(mdm_containers remove "$dev_udid")" ]] && echo "  the containers of the device removed"
   while IFS= read -r id; do
     [[ -n "$id" ]] && stopped+=("$id")
-  done < <(mdm_containers stop "$dev_udid" "${neighbors[@]+"${neighbors[@]}"}")
-  [[ "${#stopped[@]}" -gt 0 ]] && echo "  the containers stopped: ${#stopped[@]} device(s)"
+  done < <(mdm_containers stop "${neighbors[@]+"${neighbors[@]}"}")
+  [[ "${#stopped[@]}" -gt 0 ]] && echo "  the containers of the neighbors stopped: ${#stopped[@]} device(s)"
 
   local status=0
   local image="${IOS_CONNECTOR_IMAGE}:${IOS_CONNECTOR_VERSION}"
@@ -676,19 +733,21 @@ mdm_ios_supervise() {
     if mdm_call GET "/mdm/enroll?udid=$(mdm_query "$dev_udid")&name=$(mdm_query "$dev_device_name")" "${work}/enroll.mobileconfig"; then
       chmod 644 "${work}/enroll.mobileconfig"
       MDM_PROFILE_TRIES=8 mdm_ios_script | mdm_one_shot "$image" "${usb_args[@]+"${usb_args[@]}"}" -v "${work}:/mdm:ro" || status=1
+      if [[ "$status" -eq 0 ]]; then
+        mdm_restart_script | mdm_one_shot "$image" "${usb_args[@]+"${usb_args[@]}"}" || status=1
+      fi
     else
       status=1
     fi
   fi
 
-  [[ "${#stopped[@]}" -gt 0 ]] && echo "  starting the containers again"
+  [[ "${#stopped[@]}" -gt 0 ]] && echo "  starting the containers of the neighbors again"
   mdm_containers start "${stopped[@]+"${stopped[@]}"}"
   mdm_neighbors_unlock
+  # the containers of the device, new (a new device gets them too): WebDriverAgent finishes the Setup Assistant
+  echo "  creating the containers of the device"
+  mdm_containers start "$dev_udid"
   if [[ "$status" -eq 0 ]]; then
-    # a device without containers before (a new one) gets them now: WebDriverAgent finishes the Setup Assistant
-    if [[ " ${stopped[*]-} " != *" ${dev_udid} "* ]]; then
-      mdm_containers start "$dev_udid"
-    fi
     mdm_finish_setup
     echo "  supervised and enrolled: ./zebrunner.sh mdm status ${dev_device_name}"
   fi
