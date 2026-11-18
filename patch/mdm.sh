@@ -1,14 +1,15 @@
 #!/bin/bash
 # the dev_* fields of get_device_fields and the settings of zebrunner-farm
 # shellcheck disable=SC2154
-# zebrunner-farm mdm (README.md#mdm): the device of this host in the MDM of its MCloud (zebrunner/mcloud-mdm behind
-# stf-proxy). The host calls MCloud with its node token (MCLOUD_URL, MCLOUD_TLS_PIN, MCLOUD_NODE_TOKEN of `./zebrunner.sh
-# join`): stf-proxy checks it and calls the MDM with its own enrollment token. enroll and release of a device run in a
-# one-shot container of the image of its connector, with its USB device (Linux) or the adb server and usbmuxd of the
-# host (macOS), while the containers of the device are stopped: a new device without containers is enrolled too. The
-# secrets of the device (the setup of the Android agent, the password of the supervision identity) go to the container
-# on its stdin, never in the arguments of docker. status asks the MDM only. Sourced by zebrunner-farm (get_device_fields,
-# stop_containers, create_containers); keep it compatible with the macOS system bash 3.2.
+# ./zebrunner.sh mdm (README.md#mdm): the devices of this host in the MDM of its MCloud (zebrunner/mcloud-mdm behind
+# stf-proxy), the preparation of a device for the farm. The host calls MCloud with its node token (MCLOUD_URL,
+# MCLOUD_TLS_PIN, MCLOUD_NODE_TOKEN of `./zebrunner.sh join`): stf-proxy checks it and calls the MDM with its own
+# enrollment token. enroll, release and supervise of a device run in one-shot containers of the image of its connector,
+# with its USB device (Linux) or the adb server and usbmuxd of the host (macOS), while the containers of the device are
+# stopped: a new device without containers is enrolled too. The secrets of the device (the setup of the Android agent,
+# the password of the supervision identity) go to the container on its stdin, never in the arguments of docker. status
+# asks the MDM only. Sourced by zebrunner.sh after zebrunner-farm (get_device_fields, select_devices, stop_containers,
+# create_containers); keep it compatible with the macOS system bash 3.2.
 
 MDM_AGENT_PACKAGE="com.hmdm.launcher"
 MDM_AGENT_ADMIN="${MDM_AGENT_PACKAGE}/.AdminReceiver"
@@ -239,6 +240,7 @@ mdm_ios_enroll() {
 mdm_ios_script() {
   echo "set -e"
   echo "u='${dev_udid}'"
+  echo "MDM_PROFILE_TRIES='${MDM_PROFILE_TRIES:-1}'"
   if [[ "$FARM_OS" == "macos" ]]; then
     # usbmuxd of the host, as the connector of a macOS host
     echo "socat UNIX-LISTEN:/var/run/usbmuxd,fork,reuseaddr,mode=777 TCP:'${USBMUXD_SOCKET_ADDRESS}' > /dev/null 2>&1 &"
@@ -267,11 +269,17 @@ if ! ios info --udid="$u" > /dev/null 2>&1; then
   fi
 fi
 echo "  installing the enrollment profile"
-if ! out="$(ios profile add /mdm/enroll.mobileconfig --p12file=/mdm/supervision.p12 --udid="$u" 2>&1)"; then
-  echo "$out" | tail -n 5
-  exit 1
-fi
-echo "  the device enrolls in the MDM: zebrunner-farm mdm status shows it"
+# a device just erased joins its Wi-Fi after a while: iOS refuses the profile without a network ("add failed")
+i=0
+until out="$(ios profile add /mdm/enroll.mobileconfig --p12file=/mdm/supervision.p12 --udid="$u" 2>&1)"; do
+  i=$((i + 1))
+  if test "$i" -ge "${MDM_PROFILE_TRIES:-1}"; then
+    echo "$out" | tail -n 5
+    exit 1
+  fi
+  sleep 20
+done
+echo "  the device enrolls in the MDM: ./zebrunner.sh mdm status shows it"
 EOF
 }
 
@@ -318,6 +326,17 @@ mdm_device_in() {
     }
     mdm_with_device_free mdm_ios_enroll
     ;;
+  ios:supervise)
+    usb_connected > /dev/null || {
+      failed "  not connected over USB"
+      return 1
+    }
+    mdm_ios_supervise
+    ;;
+  android:supervise)
+    failed "  supervise is for iOS: an Android device needs no erase, ./zebrunner.sh mdm enroll makes the agent its device owner"
+    return 1
+    ;;
   android:*)
     usb_connected > /dev/null || {
       failed "  not connected over USB"
@@ -330,4 +349,457 @@ mdm_device_in() {
     return 1
     ;;
   esac
+}
+
+# mdm_xml <text>: the text escaped for a plist
+mdm_xml() {
+  printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&apos;/g"
+}
+
+# mdm_wifi_profile: the profile of the Wi-Fi of the farm (MDM_WIFI_SSID, MDM_WIFI_PASSWORD, MDM_WIFI_ENCRYPTION) a
+# device joins after its erase: the MDM reaches it over this network
+mdm_wifi_profile() {
+  local password=""
+  if [[ -n "$MDM_WIFI_PASSWORD" ]]; then
+    password="<key>Password</key><string>$(mdm_xml "$MDM_WIFI_PASSWORD")</string>"
+  fi
+  cat << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>PayloadType</key><string>Configuration</string><key>PayloadVersion</key><integer>1</integer>
+<key>PayloadIdentifier</key><string>com.zebrunner.mcloud.wifi</string>
+<key>PayloadUUID</key><string>6F0E5B1C-3D8A-4B6E-9F2A-6D4C1B7E0A11</string>
+<key>PayloadDisplayName</key><string>Wi-Fi $(mdm_xml "$MDM_WIFI_SSID")</string>
+<key>PayloadContent</key><array><dict>
+<key>PayloadType</key><string>com.apple.wifi.managed</string><key>PayloadVersion</key><integer>1</integer>
+<key>PayloadIdentifier</key><string>com.zebrunner.mcloud.wifi.farm</string>
+<key>PayloadUUID</key><string>0B7E4F3A-9C21-4D58-8E6B-2F1A5C9D3E22</string>
+<key>PayloadDisplayName</key><string>$(mdm_xml "$MDM_WIFI_SSID")</string>
+<key>SSID_STR</key><string>$(mdm_xml "$MDM_WIFI_SSID")</string>
+<key>EncryptionType</key><string>$(mdm_xml "${MDM_WIFI_ENCRYPTION:-Any}")</string>
+${password}<key>AutoJoin</key><true/><key>HIDDEN_NETWORK</key><false/>
+</dict></array></dict></plist>
+EOF
+}
+
+# mdm_supervision_der <file>: the certificate of the supervision identity (DER) for `ios prepare`
+mdm_supervision_der() {
+  local out="$1"
+  local pem
+  # 3DES and AES identities with OpenSSL 3 or LibreSSL, RC2 ones with -legacy of OpenSSL 3
+  pem="$(MDM_P12_PASSWORD="$MDM_SUPERVISION_P12_PASSWORD" openssl pkcs12 -in "$MDM_SUPERVISION_P12" -clcerts -nokeys \
+    -passin env:MDM_P12_PASSWORD 2> /dev/null ||
+    MDM_P12_PASSWORD="$MDM_SUPERVISION_P12_PASSWORD" openssl pkcs12 -legacy -in "$MDM_SUPERVISION_P12" -clcerts -nokeys \
+      -passin env:MDM_P12_PASSWORD 2> /dev/null)"
+  if [[ "$pem" != *"BEGIN CERTIFICATE"* ]] || ! printf '%s\n' "$pem" | openssl x509 -outform DER -out "$out" 2> /dev/null; then
+    failed "  MDM_SUPERVISION_P12 cannot be read with MDM_SUPERVISION_P12_PASSWORD (openssl pkcs12)"
+    return 1
+  fi
+}
+
+# mdm_bus: the USB bus folder of the device of get_device_fields (/dev/bus/usb/001); the device restarts during its
+# supervision, its number on the bus changes: the container gets the whole bus
+mdm_bus() {
+  local node
+  node="$(readlink -f "/dev/${dev_container}" 2> /dev/null)"
+  [[ "$node" == /dev/bus/usb/* ]] && dirname "$node"
+}
+
+# mdm_neighbors <bus>: the other iOS devices of the bus (Linux): the usbmuxd of the one-shot container takes every
+# iPhone of its bus, so their containers are stopped meanwhile; the udids, one per line
+mdm_neighbors() {
+  local bus="$1"
+  local self="$dev_udid"
+  local line
+  local id
+  while IFS= read -r line; do
+    [[ "|${line}|" =~ \|id=([^|]*)\| && "|${line}|" == *"|os=ios|"* && "|${line}|" == *"|connection=usb|"* ]] || continue
+    id="${BASH_REMATCH[1]}"
+    [[ "$id" != "$self" ]] || continue
+    get_device_fields "$id" > /dev/null 2>&1 || continue
+    if [[ "$(mdm_bus)" == "$bus" ]]; then
+      echo "$id"
+    fi
+  done < "$MCLOUD_DEVICES"
+  get_device_fields "$self" > /dev/null
+}
+
+# mdm_neighbors_lock <udid...>: the locks of zebrunner-farm of the neighbors, held until the end of the process (fds from
+# 20 up): udev and a restart of the farm wait meanwhile instead of starting their containers
+mdm_neighbors_lock() {
+  local fd=20
+  local id
+  local lock
+  for id in "$@"; do
+    lock="${MCLOUD_LOCK_DIR:-/run/lock}/mcloud-device-${id//[^A-Za-z0-9._-]/_}.lock"
+    [[ -e "$lock" ]] || (set -C && umask 022 && : > "$lock") 2> /dev/null
+    if [[ ! -r "$lock" ]] || ! command -v flock > /dev/null 2>&1; then
+      continue
+    fi
+    eval "exec ${fd}< \"\$lock\""
+    flock -w "${MCLOUD_LOCK_TIMEOUT:-1800}" "$fd" || {
+      failed "  another zebrunner-farm keeps the device ${id} for too long"
+      return 1
+    }
+    fd=$((fd + 1))
+  done
+}
+
+# mdm_neighbors_unlock: releases the locks of mdm_neighbors_lock
+mdm_neighbors_unlock() {
+  local fd
+  for fd in 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39; do
+    eval "exec ${fd}<&-" 2> /dev/null
+  done
+}
+
+# mdm_containers <stop|start> <udid...>: the containers of the devices (stop: of the running ones only, their udids on
+# stdout); the fields of the device of get_device_fields are kept
+mdm_containers() {
+  local action="$1"
+  shift
+  local self="$dev_udid"
+  local id
+  read_container_states
+  for id in "$@"; do
+    get_device_fields "$id" > /dev/null 2>&1 || continue
+    if [[ "$action" == "stop" ]]; then
+      if [[ "$(container_state "${dev_container}-connector")" == "running" ]]; then
+        stop_containers > /dev/null
+        echo "$id"
+      fi
+    else
+      create_containers > /dev/null || warn "  the containers of ${dev_device_name} did not start: ./zebrunner-farm start ${dev_device_name}"
+    fi
+  done
+  get_device_fields "$self" > /dev/null
+}
+
+# mdm_supervise_script: the script of the one-shot iOS connector that erases, activates and supervises the device, turns
+# Developer Mode on and joins the Wi-Fi of the farm; its exit: 0 done, 3 supervised already (no erase), 10 Activation
+# Lock (Find My), 11 a passcode, other: a failure. Checked on iOS 18.3 and 26.2.1 (Linux).
+mdm_supervise_script() {
+  echo "u='${dev_udid}'"
+  printf "ORG='%s'\n" "$(printf '%s' "${MDM_SUPERVISION_ORG:-Zebrunner MCloud}" | sed "s/'/'\\\\''/g")"
+  echo "FORCE='${MDM_FORCE}'"
+  printf "P12_PASSWORD='%s'\n" "$(printf '%s' "$MDM_SUPERVISION_P12_PASSWORD" | sed "s/'/'\\\\''/g")"
+  if [[ "$FARM_OS" == "macos" ]]; then
+    echo "mux() { pkill -f 'socat UNIX-LISTEN:/var/run/usbmuxd' 2> /dev/null; rm -f /var/run/usbmuxd; socat UNIX-LISTEN:/var/run/usbmuxd,fork,reuseaddr,mode=777 TCP:'${USBMUXD_SOCKET_ADDRESS}' > /dev/null 2>&1 & sleep 2; }"
+  else
+    # usbmuxd without udev misses a device that comes back on the bus during its setup: it is started again
+    # shellcheck disable=SC2016 # the function of the script of the container
+    echo 'mux() { kill -9 $(pidof usbmuxd) 2> /dev/null; sleep 1; usbmuxd -f > /dev/null 2>&1 & sleep 3; }'
+  fi
+  cat << 'EOF'
+export P12_PASSWORD
+listed() { timeout 15 ios list 2> /dev/null | grep -q "$u"; }
+wait_on() {
+  i=0
+  until listed; do
+    i=$((i + 1))
+    if test $((i % 15)) -eq 0; then mux; fi
+    if test "$i" -gt "$1"; then
+      echo "  the device did not come back on USB"
+      exit 1
+    fi
+    sleep 2
+  done
+}
+wait_off() { i=0; while listed; do i=$((i + 1)); if test "$i" -gt "$1"; then return 1; fi; sleep 2; done; }
+step() { echo "  $*"; }
+last() { grep -v "go-ios agent is not running" | tail -n 3 | cut -c1-240 | sed 's/^/    /'; }
+activated() { timeout 30 ios info --udid="$u" 2> /dev/null | grep -q '"ActivationState":"Activated"'; }
+devmode_on() { timeout 30 ios devmode get --udid="$u" 2> /dev/null | grep -q '"DeveloperModeEnabled":true'; }
+supervised() { timeout 30 ios prepare cloudconfig --udid="$u" 2> /dev/null | grep -q '"IsSupervised":true'; }
+mux
+wait_on 30
+info="$(timeout 30 ios info --udid="$u" 2> /dev/null || true)"
+# fm-activation-locked of the NVRAM: YES (WUVT) with Find My on, the device would stay locked to its Apple Account
+if echo "$info" | grep -q '"fm-activation-locked":"WUVT'; then
+  echo "  Activation Lock (Find My) is on: sign out of the Apple Account on the device first, it is not erased"
+  exit 10
+fi
+if echo "$info" | grep -q '"PasswordProtected":true'; then
+  echo "  the device has a passcode: remove it first, it is not erased"
+  exit 11
+fi
+if test -z "$FORCE" && supervised; then
+  echo "  supervised already: no erase (--force erases it anyway)"
+  exit 3
+fi
+step "erasing the device"
+timeout 120 ios erase --force --udid="$u" > /tmp/out 2>&1 || true
+if ! grep -q '"ok"\|rebooting' /tmp/out; then
+  last < /tmp/out
+  exit 1
+fi
+wait_off 150 || true
+step "waiting for the device after the erase"
+sleep 30
+wait_on 450
+sleep 30
+rm -f "/var/lib/lockdown/${u}.plist"
+for i in 1 2 3 4 5; do
+  timeout 60 ios pair --udid="$u" > /tmp/out 2>&1 && grep -q "Successfully paired" /tmp/out && break
+  sleep 15
+done
+# the first activation right after the boot may fail (CreateTunnel1SessionInfoRequest): it is tried again
+step "activating it"
+for i in 1 2 3 4 5 6; do
+  timeout 120 ios activate --udid="$u" > /tmp/out 2>&1 || true
+  activated && break
+  sleep 30
+done
+if ! activated; then
+  last < /tmp/out
+  echo "  the device is not activated"
+  exit 1
+fi
+step "supervising it (${ORG})"
+# every skip key of go-ios and OSShowcase: the key of iOS 26, misspelled OSShowCase in go-ios (go-ios #852)
+skip="$(timeout 20 ios prepare printskip 2> /dev/null | grep -oE '"[A-Za-z]+"' | tr -d '"' | sed 's/^/--skip=/' | tr '\n' ' ') --skip=OSShowcase"
+# shellcheck disable=SC2086 # the skip options are words
+timeout 300 ios prepare $skip --certfile=/mdm/supervision.der --orgname="$ORG" --udid="$u" > /tmp/out 2>&1 || true
+sleep 20
+wait_on 150
+if ! supervised; then
+  last < /tmp/out
+  echo "  the device is not supervised"
+  exit 1
+fi
+timeout 30 ios info --udid="$u" > /dev/null 2>&1 || timeout 60 ios pair --p12file=/mdm/supervision.p12 --udid="$u" > /dev/null 2>&1 || true
+step "turning Developer Mode on"
+for i in 1 2 3; do
+  devmode_on && break
+  timeout 300 ios devmode enable --enable-post-restart --udid="$u" > /tmp/out 2>&1 || true
+  sleep 10
+  wait_on 150
+  sleep 10
+done
+if ! devmode_on; then
+  last < /tmp/out
+  echo "  Developer Mode is off"
+  exit 1
+fi
+step "joining the Wi-Fi of the farm"
+if ! timeout 60 ios profile add /mdm/wifi.mobileconfig --p12file=/mdm/supervision.p12 --udid="$u" > /tmp/out 2>&1; then
+  last < /tmp/out
+  exit 1
+fi
+EOF
+}
+
+# mdm_finish_setup: iOS 26 leaves the device on "iPhone Partially Set Up" of the Setup Assistant after the restart of
+# Developer Mode (the devices of go-ios prepare finish it otherwise); WebDriverAgent of the connector continues it
+mdm_finish_setup() {
+  local connector="${dev_container}-connector"
+  local port="${dev_wda_port:-8100}"
+  local i
+  echo "  waiting for WebDriverAgent of the connector"
+  local tries="${MDM_WDA_TRIES:-72}"
+  for i in $(seq 1 "$tries"); do
+    if docker exec "$connector" sh -c "curl -s -m 3 localhost:${port}/status" 2> /dev/null | grep -q '"ready" *: *true'; then
+      break
+    fi
+    if [[ "$i" -eq "$tries" ]]; then
+      warn "  WebDriverAgent is not ready: check the screen of the device (the Setup Assistant may wait for 'Continue with Partial Setup')"
+      return 0
+    fi
+    sleep 5
+  done
+  docker exec -i "$connector" sh -s << EOF
+w=localhost:${port}
+S=\$(curl -s -X POST -H Content-Type:application/json -d '{"capabilities":{"alwaysMatch":{"bundleId":"com.apple.purplebuddy","shouldWaitForQuiescence":false}}}' "\$w/session" | grep -m1 -oE '[A-F0-9]{8}-[A-F0-9-]{27}')
+test -n "\$S" || exit 0
+for label in "Continue with Partial Setup"; do
+  E=\$(curl -s -X POST -H Content-Type:application/json -d "{\"using\":\"predicate string\",\"value\":\"type == 'XCUIElementTypeButton' AND label == '\$label'\"}" "\$w/session/\$S/element" | grep -m1 -oE '"ELEMENT" : "[^"]+"' | cut -d'"' -f4)
+  if test -n "\$E"; then
+    echo "  the Setup Assistant: \$label"
+    curl -s -X POST "\$w/session/\$S/element/\$E/click" > /dev/null
+    sleep 5
+  fi
+done
+curl -s -X POST -H Content-Type:application/json -d '{"name":"home"}' "\$w/session/\$S/wda/pressButton" > /dev/null
+curl -s -X DELETE "\$w/session/\$S" > /dev/null
+EOF
+}
+
+# mdm_ios_supervise: erases the device, supervises it with the identity of the farm, turns Developer Mode on, joins it
+# to the Wi-Fi of the farm and enrolls it; a device supervised already is only enrolled (--force erases it anyway)
+mdm_ios_supervise() {
+  if [[ -z "$MDM_SUPERVISION_P12" || ! -r "$MDM_SUPERVISION_P12" ]]; then
+    failed "  MDM_SUPERVISION_P12 of config/settings.yml is not a readable file: the supervision identity of the farm (README.md#mdm)"
+    return 1
+  fi
+  if [[ -z "$MDM_WIFI_SSID" ]]; then
+    failed "  MDM_WIFI_SSID of config/settings.yml is empty: the Wi-Fi network of the farm the erased device joins (README.md#mdm)"
+    return 1
+  fi
+  local work="$MDM_WORK"
+  mdm_supervision_der "${work}/supervision.der" || return 1
+  cp "$MDM_SUPERVISION_P12" "${work}/supervision.p12"
+  (umask 077 && mdm_wifi_profile > "${work}/wifi.mobileconfig")
+  chmod 644 "${work}/supervision.p12" "${work}/supervision.der" "${work}/wifi.mobileconfig"
+
+  local usb_args=()
+  local neighbors=()
+  local stopped=()
+  local id
+  if [[ "$FARM_OS" != "macos" ]]; then
+    local bus
+    bus="$(mdm_bus)"
+    if [[ -z "$bus" ]]; then
+      failed "  /dev/${dev_container} is not a USB device: reconnect it"
+      return 1
+    fi
+    usb_args=(--device-cgroup-rule='c 189:* rmw' -v "${bus}:${bus}" -v "${dev_container}-lockdown:/var/lib/lockdown")
+    while IFS= read -r id; do
+      [[ -n "$id" ]] && neighbors+=("$id")
+    done < <(mdm_neighbors "$bus")
+    if [[ "${#neighbors[@]}" -gt 0 ]]; then
+      echo "  the other iPhones of the USB bus ${bus} stop meanwhile: ${neighbors[*]}"
+      mdm_neighbors_lock "${neighbors[@]}" || return 1
+    fi
+  fi
+  while IFS= read -r id; do
+    [[ -n "$id" ]] && stopped+=("$id")
+  done < <(mdm_containers stop "$dev_udid" "${neighbors[@]+"${neighbors[@]}"}")
+  [[ "${#stopped[@]}" -gt 0 ]] && echo "  the containers stopped: ${#stopped[@]} device(s)"
+
+  local status=0
+  local image="${IOS_CONNECTOR_IMAGE}:${IOS_CONNECTOR_VERSION}"
+  mdm_supervise_script | mdm_one_shot "$image" "${usb_args[@]+"${usb_args[@]}"}" -v "${work}:/mdm:ro" || status=$?
+  if [[ "$status" -eq 0 || "$status" -eq 3 ]]; then
+    status=0
+    echo "  the enrollment profile from the MDM"
+    if mdm_call GET "/mdm/enroll?udid=$(mdm_query "$dev_udid")&name=$(mdm_query "$dev_device_name")" "${work}/enroll.mobileconfig"; then
+      chmod 644 "${work}/enroll.mobileconfig"
+      MDM_PROFILE_TRIES=8 mdm_ios_script | mdm_one_shot "$image" "${usb_args[@]+"${usb_args[@]}"}" -v "${work}:/mdm:ro" || status=1
+    else
+      status=1
+    fi
+  fi
+
+  [[ "${#stopped[@]}" -gt 0 ]] && echo "  starting the containers again"
+  mdm_containers start "${stopped[@]+"${stopped[@]}"}"
+  mdm_neighbors_unlock
+  if [[ "$status" -eq 0 ]]; then
+    # a device without containers before (a new one) gets them now: WebDriverAgent finishes the Setup Assistant
+    if [[ " ${stopped[*]-} " != *" ${dev_udid} "* ]]; then
+      mdm_containers start "$dev_udid"
+    fi
+    mdm_finish_setup
+    echo "  supervised and enrolled: ./zebrunner.sh mdm status ${dev_device_name}"
+  fi
+  return "$status"
+}
+
+# mdm_confirm_erase: supervise erases the devices: --yes, or the word erase typed at the terminal
+mdm_confirm_erase() {
+  local answer
+  [[ -n "$MDM_YES" ]] && return 0
+  if [[ ! -t 0 ]]; then
+    failed "supervise ERASES the devices: run it at a terminal or with --yes"
+    return 1
+  fi
+  echo -e "\nsupervise ERASES these devices: all their data and apps go (Find My must be off, no passcode):"
+  print_selection
+  read -r -p "Type erase to go on: " answer || return 1
+  [[ "$answer" == "erase" ]]
+}
+
+# mdm_main <status|enroll|release|supervise> [devices...] [-x <devices>] [-q|--yes] [--uninstall] [--force]: the command
+# for the selected devices one by one (the devices of a USB bus share it), each with the lock of zebrunner-farm
+mdm_main() {
+  local action="$1"
+  shift
+  case "$action" in
+  status | enroll | release | supervise) ;;
+  *)
+    echo "Usage: ./zebrunner.sh mdm <status|enroll|release|supervise> [devices] [options] (./zebrunner.sh help, README.md#mdm)"
+    return 1
+    ;;
+  esac
+  MDM_UNINSTALL=""
+  MDM_FORCE=""
+  MDM_YES=""
+  local args=()
+  local arg
+  for arg in "$@"; do
+    case "$arg" in
+    --uninstall)
+      if [[ "$action" != "release" ]]; then
+        failed "--uninstall is an option of release only"
+        return 1
+      fi
+      MDM_UNINSTALL=1
+      ;;
+    --force)
+      if [[ "$action" != "supervise" ]]; then
+        failed "--force is an option of supervise only"
+        return 1
+      fi
+      MDM_FORCE=1
+      ;;
+    -y | --yes | -q | --quiet)
+      MDM_YES=1
+      args+=("$arg")
+      ;;
+    --json | --batch | --rolling | --strategy*)
+      failed "unknown option: $arg"
+      return 1
+      ;;
+    *)
+      args+=("$arg")
+      ;;
+    esac
+  done
+  check_devices_list || return 1
+  parse_selection "${args[@]+"${args[@]}"}" || return 1
+  if [[ "$action" != "status" && "$(count "${SELECTORS[@]}")" -eq 0 ]]; then
+    failed "./zebrunner.sh mdm ${action} <devices>: the devices (udids, names, groups such as ios or android, patterns)"
+    return 1
+  fi
+  select_devices || return 1
+  mdm_ready || return 1
+  if [[ "$action" != "status" ]] && ! confirm_selection "mdm ${action}"; then
+    echo "Cancelled."
+    return 0
+  fi
+  if [[ "$action" == "supervise" ]] && ! mdm_confirm_erase; then
+    echo "Cancelled."
+    return 1
+  fi
+  # the listener of macOS (the iOS devices) would start the containers of the devices meanwhile
+  local listener=""
+  local udid
+  if [[ "$action" != "status" && "$FARM_OS" == "macos" ]]; then
+    for udid in "${SELECTED[@]}"; do
+      if [[ "|$(device_line "$udid")|" == *"|os=ios|"* ]]; then
+        listener=1
+      fi
+    done
+  fi
+  if [[ -n "$listener" ]]; then
+    launchctl unload "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
+  fi
+  local failures=()
+  for udid in "${SELECTED[@]}"; do
+    get_device_fields "$udid" > /dev/null || continue
+    if [[ "$action" == "status" ]]; then
+      mdm_device status || failures+=("$dev_device_name")
+    elif ! with_device_lock "$dev_udid" mdm_device "$action"; then
+      failures+=("$dev_device_name")
+    fi
+  done
+  if [[ -n "$listener" ]]; then
+    launchctl load "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
+  fi
+  if [[ "${#failures[@]}" -gt 0 ]]; then
+    if [[ "$(count "${SELECTED[@]}")" -gt 1 ]]; then
+      failed "mdm ${action} failed for: ${failures[*]}"
+    fi
+    return 1
+  fi
 }

@@ -32,6 +32,18 @@ running_device_containers() {
   docker ps --filter name=device- --format '{{.Names}}' 2> /dev/null | grep -E -- '-(connector|stf|appium|uploader)$'
 }
 
+# mdm <status|enroll|release|supervise> [devices...] [options]: the devices of this host in the MDM of its MCloud
+# (patch/mdm.sh, README.md#mdm): the preparation of a device for the farm; zebrunner-farm keeps the work of the devices
+mdm() {
+  # the functions of zebrunner-farm: its settings (the env file of ./zebrunner.sh ansible), the selection of the
+  # devices and their containers
+  # shellcheck source=roles/common/files/zebrunner-farm
+  source "${MCLOUD_AGENT_DIR_VALUE}/roles/common/files/zebrunner-farm" || return 1
+  # shellcheck source=patch/mdm.sh
+  source "${MCLOUD_AGENT_DIR_VALUE}/patch/mdm.sh"
+  mdm_main "$@"
+}
+
 # setup: the settings of config/ from the examples (README.md#clone-and-setup), then the next steps
 setup() {
   delimiter "Setting up MCloud Agent"
@@ -781,7 +793,11 @@ echo_help() {
          doctor               Check the settings, the deployment and the network to MCloud, tell what to fix
          join                 Enroll this host in MCloud with the join string of ./zebrunner.sh node-invite (stdin)
          migrate [files...]   Move the settings of an earlier version to config/ (shows the changes, asks first)
-         autostart [status|enable|disable]  The containers of the devices after a reboot (off by default, asks first)"
+         autostart [status|enable|disable]  The containers of the devices after a reboot (off by default, asks first)
+         mdm <status|enroll|release|supervise> [devices] [options]  The devices in the MDM of MCloud (README.md#mdm):
+                              status: what the MDM knows; enroll: the agent as the device owner (Android), the
+                              enrollment profile (supervised iOS); release [--uninstall]: out of the MDM; supervise
+                              [--force] [--yes]: ERASES an iOS device, supervises it, joins MDM_WIFI_SSID, enrolls it"
   echo_telegram
   delimiter
 }
@@ -819,6 +835,9 @@ migrate)
   ;;
 autostart)
   autostart "$2"
+  ;;
+mdm)
+  mdm "${@:2}"
   ;;
 *)
   echo_help
