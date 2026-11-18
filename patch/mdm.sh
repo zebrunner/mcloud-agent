@@ -536,24 +536,6 @@ supervised() { timeout 30 ios prepare cloudconfig --udid="$u" 2> /dev/null | gre
 EOF
 }
 
-# mdm_restart_script: restarts the device and waits for it: testmanagerd of a device just set up may not launch
-# WebDriverAgent ("could not get pid") until a restart
-mdm_restart_script() {
-  echo "u='${dev_udid}'"
-  mdm_supervise_mux
-  mdm_supervise_helpers
-  cat << 'EOF'
-mux
-watchdog &
-wait_on 30
-step "restarting it"
-timeout 60 ios reboot --udid="$u" > /dev/null 2>&1 || true
-wait_off 60 || true
-sleep 20
-wait_on 300
-EOF
-}
-
 # mdm_supervise_script: the script of the one-shot iOS connector that erases, activates and supervises the device, turns
 # Developer Mode on and joins the Wi-Fi of the farm; a device supervised already is not erased (without --force), its
 # Developer Mode and Wi-Fi are made sure of; its exit: 0 done, 10 Activation Lock (Find My), 11 a passcode, other: a
@@ -609,8 +591,12 @@ erase_and_supervise() {
     exit 1
   fi
   step "supervising it (${ORG})"
-  # every skip key of go-ios and OSShowcase: the key of iOS 26, misspelled OSShowCase in go-ios (go-ios #852)
-  skip="$(timeout 20 ios prepare printskip 2> /dev/null | grep -oE '"[A-Za-z]+"' | tr -d '"' | sed 's/^/--skip=/' | tr '\n' ' ') --skip=OSShowcase"
+  # every skip key of go-ios (--skip-all); iOS 26: with OSShowcase, misspelled OSShowCase in go-ios (go-ios #852)
+  skip="--skip-all"
+  major="$(timeout 30 ios info --udid="$u" 2> /dev/null | grep -oE '"ProductVersion":"[0-9]+' | grep -oE '[0-9]+$')"
+  if test "${major:-0}" -ge 26; then
+    skip="$(timeout 20 ios prepare printskip 2> /dev/null | grep -oE '"[A-Za-z]+"' | tr -d '"' | sed 's/^/--skip=/' | tr '\n' ' ') --skip=OSShowcase"
+  fi
   # shellcheck disable=SC2086 # the skip options are words
   timeout 300 ios prepare $skip --certfile=/mdm/supervision.der --orgname="$ORG" --udid="$u" > /tmp/out 2>&1 || true
   sleep 20
@@ -686,6 +672,16 @@ for label in "Continue with Partial Setup"; do
 done
 curl -s -X POST -H Content-Type:application/json -d '{"name":"home"}' "\$w/session/\$S/wda/pressButton" > /dev/null
 curl -s -X DELETE "\$w/session/\$S" > /dev/null
+# the device is ready when an app starts (the Setup Assistant in the way: FBSOpenApplicationServiceErrorDomain)
+A=\$(curl -s -X POST -H Content-Type:application/json -d '{"capabilities":{"alwaysMatch":{"bundleId":"com.apple.Preferences"}}}' "\$w/session")
+S=\$(echo "\$A" | grep -m1 -oE '[A-F0-9]{8}-[A-F0-9-]{27}')
+if test -n "\$S"; then
+  echo "  the apps start: the device is ready"
+  curl -s -X POST -H Content-Type:application/json -d '{"name":"home"}' "\$w/session/\$S/wda/pressButton" > /dev/null
+  curl -s -X DELETE "\$w/session/\$S" > /dev/null
+else
+  echo "  WARNING: the apps do not start, the Setup Assistant may be in the way: check the screen of the device"
+fi
 EOF
 }
 
@@ -742,9 +738,6 @@ mdm_ios_supervise() {
     if mdm_call GET "/mdm/enroll?udid=$(mdm_query "$dev_udid")&name=$(mdm_query "$dev_device_name")" "${work}/enroll.mobileconfig"; then
       chmod 644 "${work}/enroll.mobileconfig"
       MDM_PROFILE_TRIES=8 mdm_ios_script | mdm_one_shot "$image" "${usb_args[@]+"${usb_args[@]}"}" -v "${work}:/mdm:ro" || status=1
-      if [[ "$status" -eq 0 ]]; then
-        mdm_restart_script | mdm_one_shot "$image" "${usb_args[@]+"${usb_args[@]}"}" || status=1
-      fi
     else
       status=1
     fi
