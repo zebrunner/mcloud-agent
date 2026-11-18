@@ -555,8 +555,9 @@ EOF
 }
 
 # mdm_supervise_script: the script of the one-shot iOS connector that erases, activates and supervises the device, turns
-# Developer Mode on and joins the Wi-Fi of the farm; its exit: 0 done, 3 supervised already (no erase), 10 Activation
-# Lock (Find My), 11 a passcode, other: a failure. Checked on iOS 18.3 and 26.2.1 (Linux).
+# Developer Mode on and joins the Wi-Fi of the farm; a device supervised already is not erased (without --force), its
+# Developer Mode and Wi-Fi are made sure of; its exit: 0 done, 10 Activation Lock (Find My), 11 a passcode, other: a
+# failure. Checked on iOS 18.3 and 26.2.1 (Linux).
 mdm_supervise_script() {
   echo "u='${dev_udid}'"
   printf "ORG='%s'\n" "$(printf '%s' "${MDM_SUPERVISION_ORG:-Zebrunner MCloud}" | sed "s/'/'\\\\''/g")"
@@ -578,54 +579,63 @@ if echo "$info" | grep -q '"PasswordProtected":true'; then
   echo "  the device has a passcode: remove it first, it is not erased"
   exit 11
 fi
-if test -z "$FORCE" && supervised; then
-  echo "  supervised already: no erase (--force erases it anyway)"
-  exit 3
-fi
-step "erasing the device"
-timeout 120 ios erase --force --udid="$u" > /tmp/out 2>&1 || true
-if ! grep -q '"ok"\|rebooting' /tmp/out; then
-  last < /tmp/out
-  exit 1
-fi
-wait_off 150 || true
-step "waiting for the device after the erase"
-sleep 30
-wait_on 450
-sleep 30
-rm -f "/var/lib/lockdown/${u}.plist"
-for i in 1 2 3 4 5; do
-  timeout 60 ios pair --udid="$u" > /tmp/out 2>&1 && grep -q "Successfully paired" /tmp/out && break
-  sleep 15
-done
-# the first activation right after the boot may fail (CreateTunnel1SessionInfoRequest): it is tried again
-step "activating it"
-for i in 1 2 3 4 5 6; do
-  timeout 120 ios activate --udid="$u" > /tmp/out 2>&1 || true
-  activated && break
+erase_and_supervise() {
+  step "erasing the device"
+  timeout 120 ios erase --force --udid="$u" > /tmp/out 2>&1 || true
+  if ! grep -q '"ok"\|rebooting' /tmp/out; then
+    last < /tmp/out
+    exit 1
+  fi
+  wait_off 150 || true
+  step "waiting for the device after the erase"
   sleep 30
-done
-if ! activated; then
-  last < /tmp/out
-  echo "  the device is not activated"
-  exit 1
-fi
-step "supervising it (${ORG})"
-# every skip key of go-ios and OSShowcase: the key of iOS 26, misspelled OSShowCase in go-ios (go-ios #852)
-skip="$(timeout 20 ios prepare printskip 2> /dev/null | grep -oE '"[A-Za-z]+"' | tr -d '"' | sed 's/^/--skip=/' | tr '\n' ' ') --skip=OSShowcase"
-# shellcheck disable=SC2086 # the skip options are words
-timeout 300 ios prepare $skip --certfile=/mdm/supervision.der --orgname="$ORG" --udid="$u" > /tmp/out 2>&1 || true
-sleep 20
-wait_on 150
-if ! supervised; then
-  last < /tmp/out
-  echo "  the device is not supervised"
-  exit 1
+  wait_on 450
+  sleep 30
+  rm -f "/var/lib/lockdown/${u}.plist"
+  for i in 1 2 3 4 5; do
+    timeout 60 ios pair --udid="$u" > /tmp/out 2>&1 && grep -q "Successfully paired" /tmp/out && break
+    sleep 15
+  done
+  # the first activation right after the boot may fail (CreateTunnel1SessionInfoRequest): it is tried again
+  step "activating it"
+  for i in 1 2 3 4 5 6; do
+    timeout 120 ios activate --udid="$u" > /tmp/out 2>&1 || true
+    activated && break
+    sleep 30
+  done
+  if ! activated; then
+    last < /tmp/out
+    echo "  the device is not activated"
+    exit 1
+  fi
+  step "supervising it (${ORG})"
+  # every skip key of go-ios and OSShowcase: the key of iOS 26, misspelled OSShowCase in go-ios (go-ios #852)
+  skip="$(timeout 20 ios prepare printskip 2> /dev/null | grep -oE '"[A-Za-z]+"' | tr -d '"' | sed 's/^/--skip=/' | tr '\n' ' ') --skip=OSShowcase"
+  # shellcheck disable=SC2086 # the skip options are words
+  timeout 300 ios prepare $skip --certfile=/mdm/supervision.der --orgname="$ORG" --udid="$u" > /tmp/out 2>&1 || true
+  sleep 20
+  wait_on 150
+  if ! supervised; then
+    last < /tmp/out
+    echo "  the device is not supervised"
+    exit 1
+  fi
+}
+if test -z "$FORCE" && supervised; then
+  echo "  supervised already: no erase (--force erases it anyway), Developer Mode and the Wi-Fi are checked"
+else
+  erase_and_supervise
 fi
 timeout 30 ios info --udid="$u" > /dev/null 2>&1 || timeout 60 ios pair --p12file=/mdm/supervision.p12 --udid="$u" > /dev/null 2>&1 || true
+# right after the supervision the services of the device (the image mounter of devmode) may not answer yet
 step "turning Developer Mode on"
-for i in 1 2 3; do
+for i in 1 2 3 4 5 6; do
   devmode_on && break
+  if ! timeout 30 ios devmode get --udid="$u" > /dev/null 2>&1; then
+    sleep 20
+    wait_on 150
+    continue
+  fi
   timeout 300 ios devmode enable --enable-post-restart --udid="$u" > /tmp/out 2>&1 || true
   sleep 10
   wait_on 150
@@ -727,8 +737,7 @@ mdm_ios_supervise() {
   local status=0
   local image="${IOS_CONNECTOR_IMAGE}:${IOS_CONNECTOR_VERSION}"
   mdm_supervise_script | mdm_one_shot "$image" "${usb_args[@]+"${usb_args[@]}"}" -v "${work}:/mdm:ro" || status=$?
-  if [[ "$status" -eq 0 || "$status" -eq 3 ]]; then
-    status=0
+  if [[ "$status" -eq 0 ]]; then
     echo "  the enrollment profile from the MDM"
     if mdm_call GET "/mdm/enroll?udid=$(mdm_query "$dev_udid")&name=$(mdm_query "$dev_device_name")" "${work}/enroll.mobileconfig"; then
       chmod 644 "${work}/enroll.mobileconfig"

@@ -324,10 +324,7 @@ check_not_contains "the password of the Wi-Fi is no argument" "wifi-secret" "$(
   calls curl
 )"
 setup_case
-printf '%s\n' 3 0 > "${WORK}/run_statuses"
-output="$(mdm "$SUP" supervise iPhone_XR --yes)"
-check "a device supervised already is enrolled" "0" "$?"
-check "  its enrollment and restart" "3" "$(calls docker | grep -c '^run|--rm|-i|')"
+check_contains "a supervised device is not erased, its Developer Mode and Wi-Fi are checked" "supervised already: no erase" "$script"
 setup_case
 echo 10 > "${WORK}/run_statuses"
 output="$(mdm "$SUP" supervise iPhone_XR --yes)"
