@@ -336,4 +336,41 @@ check_contains "--force erases a supervised device" "FORCE='1'" "$(
   cat "${WORK}/run_stdin.log"
 )"
 
+section "iOS finish of the Setup Assistant"
+# the connector: WebDriverAgent shows "iPhone Partially Set Up" until the touch on its button, SetupDone (lockdown) then
+FIN="${WORK}/finish"
+mkdir -p "${FIN}/bin"
+cat > "${FIN}/bin/curl" << 'EOF'
+#!/bin/bash
+echo "$*" >> "${FIN}/curl.log"
+case "$*" in
+  *"/session/AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE/actions"*) touch "${FIN}/touched" ;;
+  *activeAppInfo*) echo '"bundleId" : "com.apple.purplebuddy"' ;;
+  *"/element/E1/rect"*) echo '{"value":{"y":767.7,"x":24,"width":345,"height":50.3}}' ;;
+  *"/window/size"*) echo '{"value":{"width":393,"height":852}}' ;;
+  *"/element") if [[ "$*" == *"Partial Setup"* ]]; then echo '"ELEMENT" : "E1"'; fi ;;
+  *"com.apple.Preferences"*) echo '"sessionId" : "11111111-2222-3333-4444-555555555555"' ;;
+  *"/session") echo '"sessionId" : "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"' ;;
+esac
+EOF
+cat > "${FIN}/bin/ios" << 'EOF'
+#!/bin/bash
+if [[ -f "${FIN}/touched" ]]; then echo '{"SetupDone":true}'; else echo '{}'; fi
+EOF
+chmod +x "${FIN}/bin/curl" "${FIN}/bin/ios"
+output="$(
+  export FIN
+  # shellcheck source=../patch/mdm.sh
+  source "${REPO}/patch/mdm.sh"
+  {
+    echo "w=localhost:8100"
+    echo "u=U1"
+    mdm_finish_setup_script
+  } | PATH="${FIN}/bin:${PATH}" sh
+)"
+check_contains "Continue with Partial Setup" "the Setup Assistant: Continue with Partial Setup" "$output"
+check_contains "a touch on the center of the button, not an XCTest tap" '"x":196,"y":792' "$(cat "${FIN}/curl.log")"
+check_not_contains "the Setup Assistant is finished" "WARNING" "$output"
+check_contains "an app starts then" "the apps start" "$output"
+
 finish

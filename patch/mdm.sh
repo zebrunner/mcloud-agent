@@ -561,6 +561,27 @@ if echo "$info" | grep -q '"PasswordProtected":true'; then
   echo "  the device has a passcode: remove it first, it is not erased"
   exit 11
 fi
+# right after the boot the services of the device (the image mounter of devmode) may not answer yet
+developer_mode() {
+  step "turning Developer Mode on"
+  for i in 1 2 3 4 5 6; do
+    devmode_on && break
+    if ! timeout 30 ios devmode get --udid="$u" > /dev/null 2>&1; then
+      sleep 20
+      wait_on 150
+      continue
+    fi
+    timeout 300 ios devmode enable --enable-post-restart --udid="$u" > /tmp/out 2>&1 || true
+    sleep 10
+    wait_on 150
+    sleep 10
+  done
+  if ! devmode_on; then
+    last < /tmp/out
+    echo "  Developer Mode is off"
+    exit 1
+  fi
+}
 erase_and_supervise() {
   step "erasing the device"
   timeout 120 ios erase --force --udid="$u" > /tmp/out 2>&1 || true
@@ -613,25 +634,9 @@ else
   erase_and_supervise
 fi
 timeout 30 ios info --udid="$u" > /dev/null 2>&1 || timeout 60 ios pair --p12file=/mdm/supervision.p12 --udid="$u" > /dev/null 2>&1 || true
-# right after the supervision the services of the device (the image mounter of devmode) may not answer yet
-step "turning Developer Mode on"
-for i in 1 2 3 4 5 6; do
-  devmode_on && break
-  if ! timeout 30 ios devmode get --udid="$u" > /dev/null 2>&1; then
-    sleep 20
-    wait_on 150
-    continue
-  fi
-  timeout 300 ios devmode enable --enable-post-restart --udid="$u" > /tmp/out 2>&1 || true
-  sleep 10
-  wait_on 150
-  sleep 10
-done
-if ! devmode_on; then
-  last < /tmp/out
-  echo "  Developer Mode is off"
-  exit 1
-fi
+# Developer Mode restarts the device: the Setup Assistant prepared by go-ios is "iPhone Partially Set Up" then, the
+# finish step continues it with WebDriverAgent (WebDriverAgent does not start before this restart)
+developer_mode
 step "joining the Wi-Fi of the farm"
 if ! timeout 60 ios profile add /mdm/wifi.mobileconfig --p12file=/mdm/supervision.p12 --udid="$u" > /tmp/out 2>&1; then
   last < /tmp/out
@@ -640,8 +645,9 @@ fi
 EOF
 }
 
-# mdm_finish_setup: iOS 26 leaves the device on "iPhone Partially Set Up" of the Setup Assistant after the restart of
-# Developer Mode (the devices of go-ios prepare finish it otherwise); WebDriverAgent of the connector continues it
+# mdm_finish_setup: the Setup Assistant prepared by go-ios waits on Hello and, after the restart of Developer Mode, shows
+# "iPhone Partially Set Up"; WebDriverAgent of the connector swipes Hello up and taps "Continue with Partial Setup" (the
+# taps of XCTest elements do not continue it, the touch actions do) until SetupDone of the device (lockdown)
 mdm_finish_setup() {
   local connector="${dev_container}-connector"
   local port="${dev_wda_port:-8100}"
@@ -658,27 +664,64 @@ mdm_finish_setup() {
     fi
     sleep 5
   done
-  docker exec -i "$connector" sh -s << EOF
-w=localhost:${port}
-S=\$(curl -s -X POST -H Content-Type:application/json -d '{"capabilities":{"alwaysMatch":{"bundleId":"com.apple.purplebuddy","shouldWaitForQuiescence":false}}}' "\$w/session" | grep -m1 -oE '[A-F0-9]{8}-[A-F0-9-]{27}')
-test -n "\$S" || exit 0
-for label in "Continue with Partial Setup"; do
-  E=\$(curl -s -X POST -H Content-Type:application/json -d "{\"using\":\"predicate string\",\"value\":\"type == 'XCUIElementTypeButton' AND label == '\$label'\"}" "\$w/session/\$S/element" | grep -m1 -oE '"ELEMENT" : "[^"]+"' | cut -d'"' -f4)
-  if test -n "\$E"; then
-    echo "  the Setup Assistant: \$label"
-    curl -s -X POST "\$w/session/\$S/element/\$E/click" > /dev/null
-    sleep 5
+  {
+    echo "w=localhost:${port}"
+    echo "u='${dev_udid}'"
+    mdm_finish_setup_script
+  } | docker exec -i "$connector" sh -s
+}
+
+# mdm_finish_setup_script: the script of the finish step in the connector (WebDriverAgent at $w, the device $u)
+mdm_finish_setup_script() {
+  cat << 'EOF'
+setup_done() { timeout 30 ios lockdown get --domain=com.apple.PurpleBuddy --udid="$u" 2> /dev/null | grep -q '"SetupDone":true'; }
+post() { curl -s -m 60 -X POST -H Content-Type:application/json -d "$2" "$w$1"; }
+number() { grep -m1 -oE "\"$1\" *: *[0-9.]+" | grep -oE '[0-9.]+$' | sed 's/\..*//'; }
+touch_path() {
+  post "/session/$S/actions" "{\"actions\":[{\"type\":\"pointer\",\"id\":\"finger\",\"parameters\":{\"pointerType\":\"touch\"},\"actions\":[{\"type\":\"pointerMove\",\"duration\":0,\"x\":$1,\"y\":$2},{\"type\":\"pointerDown\",\"button\":0},{\"type\":\"pause\",\"duration\":120},{\"type\":\"pointerMove\",\"duration\":300,\"x\":$3,\"y\":$4},{\"type\":\"pointerUp\",\"button\":0}]}]}" > /dev/null
+}
+tap_button() {
+  E=$(post "/session/$S/element" "{\"using\":\"predicate string\",\"value\":\"type == 'XCUIElementTypeButton' AND label == '$1'\"}" | grep -m1 -oE '"ELEMENT" : "[^"]+"' | cut -d'"' -f4)
+  test -n "$E" || return 1
+  R=$(curl -s -m 30 "$w/session/$S/element/$E/rect")
+  x=$(($(echo "$R" | number x) + $(echo "$R" | number width) / 2))
+  y=$(($(echo "$R" | number y) + $(echo "$R" | number height) / 2))
+  touch_path "$x" "$y" "$x" "$y"
+}
+session() {
+  S=$(post /session '{"capabilities":{"alwaysMatch":{"shouldWaitForQuiescence":false}}}' | grep -m1 -oE '[A-F0-9]{8}-[A-F0-9-]{27}')
+  Z=$(curl -s -m 30 "$w/session/$S/window/size")
+  W=$(echo "$Z" | number width)
+  H=$(echo "$Z" | number height)
+}
+i=0
+while ! setup_done; do
+  i=$((i + 1))
+  test "$i" -le 8 || break
+  session
+  post "/session/$S/wda/pressButton" '{"name":"home"}' > /dev/null
+  sleep 1
+  if curl -s -m 30 "$w/wda/activeAppInfo" | grep -q '"bundleId" : "com.apple.purplebuddy"'; then
+    tap_button "Continue with Partial Setup" && echo "  the Setup Assistant: Continue with Partial Setup"
+  else
+    # Hello of the Setup Assistant: swipe up
+    tap_button "OK" || touch_path "$((W / 2))" "$((H - 6))" "$((W / 2))" "$((H * 3 / 10))"
   fi
+  sleep 8
 done
-curl -s -X POST -H Content-Type:application/json -d '{"name":"home"}' "\$w/session/\$S/wda/pressButton" > /dev/null
-curl -s -X DELETE "\$w/session/\$S" > /dev/null
+session
+# "No SIM Available" after the Setup Assistant
+tap_button "OK" && sleep 2
+post "/session/$S/wda/pressButton" '{"name":"home"}' > /dev/null
+if ! setup_done; then
+  echo "  WARNING: the Setup Assistant is not finished: check the screen of the device"
+fi
 # the device is ready when an app starts (the Setup Assistant in the way: FBSOpenApplicationServiceErrorDomain)
-A=\$(curl -s -X POST -H Content-Type:application/json -d '{"capabilities":{"alwaysMatch":{"bundleId":"com.apple.Preferences"}}}' "\$w/session")
-S=\$(echo "\$A" | grep -m1 -oE '[A-F0-9]{8}-[A-F0-9-]{27}')
-if test -n "\$S"; then
+S=$(post /session '{"capabilities":{"alwaysMatch":{"bundleId":"com.apple.Preferences"}}}' | grep -m1 -oE '[A-F0-9]{8}-[A-F0-9-]{27}')
+if test -n "$S"; then
   echo "  the apps start: the device is ready"
-  curl -s -X POST -H Content-Type:application/json -d '{"name":"home"}' "\$w/session/\$S/wda/pressButton" > /dev/null
-  curl -s -X DELETE "\$w/session/\$S" > /dev/null
+  post "/session/$S/wda/pressButton" '{"name":"home"}' > /dev/null
+  curl -s -m 30 -X DELETE "$w/session/$S" > /dev/null
 else
   echo "  WARNING: the apps do not start, the Setup Assistant may be in the way: check the screen of the device"
 fi
