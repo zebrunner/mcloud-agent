@@ -116,7 +116,7 @@ farm() {
 mdm() {
   local env="$1"
   shift
-  env -i HOME="${WORK}" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" MDM_WDA_TRIES=1 \
+  env -i HOME="${WORK}" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" MDM_WDA_TRIES=1 MDM_USB_WAIT=0 \
     MCLOUD_LOCK_DIR="$WORK" DOCKER_RUN_STATUS="${DOCKER_RUN_STATUS:-0}" ZEBRUNNER_FARM_ENV="$env" \
     /bin/bash "${REPO}/zebrunner.sh" mdm "$@" 2>&1
 }

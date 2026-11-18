@@ -753,14 +753,31 @@ mdm_ios_supervise() {
   [[ "${#stopped[@]}" -gt 0 ]] && echo "  starting the containers of the neighbors again"
   mdm_containers start "${stopped[@]+"${stopped[@]}"}"
   mdm_neighbors_unlock
-  # the containers of the device, new (a new device gets them too): WebDriverAgent finishes the Setup Assistant
+  # the containers of the device, new (a new device gets them too) once it stays on the bus
+  mdm_usb_settled
   echo "  creating the containers of the device"
   mdm_containers start "$dev_udid"
   if [[ "$status" -eq 0 ]]; then
-    mdm_finish_setup
     echo "  supervised and enrolled: ./zebrunner.sh mdm status ${dev_device_name}"
   fi
   return "$status"
+}
+
+# mdm_usb_settled: waits until the USB device of the device stays the same 20 s (Linux): a device that boots comes on the
+# bus twice, the containers get the USB device of their creation
+mdm_usb_settled() {
+  [[ "$FARM_OS" == "macos" ]] && return 0
+  local last=""
+  local node
+  local i
+  for i in $(seq 1 "${MDM_USB_TRIES:-12}"); do
+    node="$(readlink -f "/dev/${dev_container}" 2> /dev/null)"
+    if [[ -n "$node" && -e "$node" && "$node" == "$last" ]]; then
+      return 0
+    fi
+    last="$node"
+    sleep "${MDM_USB_WAIT:-20}"
+  done
 }
 
 # mdm_confirm_erase: supervise erases the devices: --yes, or the word erase typed at the terminal
@@ -859,6 +876,9 @@ mdm_main() {
       mdm_device status || failures+=("$dev_device_name")
     elif ! with_device_lock "$dev_udid" mdm_device "$action"; then
       failures+=("$dev_device_name")
+    elif [[ "$action" == "supervise" ]]; then
+      # out of the lock: the jobs of udev of the device (its USB device changed) run meanwhile
+      mdm_finish_setup
     fi
   done
   if [[ -n "$listener" ]]; then
