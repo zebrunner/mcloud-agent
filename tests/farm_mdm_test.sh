@@ -357,7 +357,9 @@ cat > "${FIN}/bin/ios" << 'EOF'
 #!/bin/bash
 if [[ -f "${FIN}/touched" ]]; then echo '{"SetupDone":true}'; else echo '{}'; fi
 EOF
-chmod +x "${FIN}/bin/curl" "${FIN}/bin/ios"
+# the connector is Linux: timeout of coreutils, which macOS has not
+printf '%s\n' '#!/bin/bash' 'shift' 'exec "$@"' > "${FIN}/bin/timeout"
+chmod +x "${FIN}/bin/curl" "${FIN}/bin/ios" "${FIN}/bin/timeout"
 output="$(
   export FIN
   # shellcheck source=../patch/mdm.sh
