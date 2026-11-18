@@ -214,7 +214,7 @@ load|${WORK}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" "$(calls launc
 section "iOS"
 setup_case
 farm "$LINUX" mdm enroll iPhone_XR > /dev/null
-check_contains "the enrollment profile of the MDM" "https://mcloud.example.com:443/mdm/enroll?udid=00008020-0005308201DA002E" "$(calls curl)"
+check_contains "the enrollment profile of the MDM" "https://mcloud.example.com:443/mdm/enroll?udid=00008020-0005308201DA002E&name=iPhone_XR" "$(calls curl)"
 check "the profile and the identity in the folder of the container" "enroll.mobileconfig
 supervision.p12" "$(cat "${WORK}/mdm_files.log")"
 run="$(calls docker | grep '^run|')"

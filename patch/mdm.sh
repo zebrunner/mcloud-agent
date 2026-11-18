@@ -222,7 +222,7 @@ mdm_ios_enroll() {
   fi
   local work="$MDM_WORK"
   echo "  the enrollment profile from the MDM"
-  mdm_call GET "/mdm/enroll?udid=$(mdm_query "$dev_udid")" "${work}/enroll.mobileconfig" || return 1
+  mdm_call GET "/mdm/enroll?udid=$(mdm_query "$dev_udid")&name=$(mdm_query "$dev_device_name")" "${work}/enroll.mobileconfig" || return 1
   cp "$MDM_SUPERVISION_P12" "${work}/supervision.p12"
   chmod 644 "${work}/supervision.p12" "${work}/enroll.mobileconfig"
   local os_args=()
