@@ -5,8 +5,11 @@ source "$(dirname "$0")/lib.sh"
 require_cmd python3
 require_cmd openssl
 
-openssl req -x509 -newkey rsa:2048 -nodes -keyout "${WORK}/key.pem" -out "${WORK}/cert.pem" -days 2 \
-  -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost" > /dev/null 2>&1
+# a configuration file, not -addext: the openssl of macOS is LibreSSL
+printf '%s\n' '[req]' 'distinguished_name = dn' 'x509_extensions = ext' 'prompt = no' '[dn]' 'CN = localhost' '[ext]' \
+  'subjectAltName = DNS:localhost' 'basicConstraints = critical, CA:TRUE' > "${WORK}/openssl.cnf"
+run_check "a self-signed certificate of localhost" openssl req -x509 -newkey rsa:2048 -nodes -config "${WORK}/openssl.cnf" \
+  -keyout "${WORK}/key.pem" -out "${WORK}/cert.pem" -days 2
 pin="$(openssl x509 -in "${WORK}/cert.pem" -pubkey -noout | openssl pkey -pubin -outform der |
   openssl dgst -sha256 -binary | base64)"
 # the server answers until the test ends (the cleanup of lib.sh removes WORK, the server stops with its file)
@@ -22,10 +25,14 @@ threading.Thread(target=server.serve_forever, daemon=True).start()
 while os.path.exists(os.path.join(work, "cert.pem")):
     time.sleep(0.5)
 PYTHON
-for _ in $(seq 1 50); do
+for _ in $(seq 1 150); do
   [[ -s "${WORK}/port" ]] && break
   sleep 0.1
 done
+if [[ ! -s "${WORK}/port" ]]; then
+  fail "the https server of the test" "no port" "$(cat "${WORK}/server.log")"
+  finish
+fi
 port="$(cat "${WORK}/port")"
 
 trust() {
@@ -34,7 +41,7 @@ trust() {
 }
 
 section "tlstrust.py"
-check "the pinned self-signed certificate is printed" "-----BEGIN CERTIFICATE-----" "$(trust localhost "$port" "$pin" | head -n 1)"
+check "the pinned self-signed certificate is printed" "-----BEGIN CERTIFICATE-----" "$(trust localhost "$port" "$pin" | sed -n 1p)"
 check "it is the certificate of the server" "$(openssl x509 -in "${WORK}/cert.pem" -outform der | openssl dgst -sha256)" \
   "$(python3 "${REPO}/patch/tlstrust.py" localhost "$port" "$pin" | openssl x509 -outform der | openssl dgst -sha256)"
 check_contains "another key is refused" "is not the pinned one of the join string" "$(trust localhost "$port" "AAAA${pin:4}")"
