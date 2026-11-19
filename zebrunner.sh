@@ -90,12 +90,12 @@ setup() {
   addresses="$(host_addresses)"
   ui_muted "https://github.com/zebrunner/mcloud-agent#node-enrollment"
   echo ""
-  print_step 1 "The administrator of MCloud invites this host on its server: ./zebrunner.sh node-invite <label> <address>, the address is the one the MCloud server connects to: the addresses of this host are ${addresses:-unknown}; in the network of the MCloud server the address there (on the MCloud server itself its LAN address, not 127.0.0.1)."
-  print_step 2 "Enroll this host: ./zebrunner.sh join and paste the join string of step 1. It writes the connection to MCloud into '${vars}'."
-  print_step 3 "Declare the devices in 'devices:' of '${devices}': the udid (adb devices, idevice_id -l), a unique name and unique ports."
-  print_step 4 "Check the settings, the enrollment and the network to MCloud: ./zebrunner.sh doctor"
-  print_step 5 "Deploy the agent: ./zebrunner.sh ansible"
-  print_step 6 "Start the devices: zebrunner-farm start, then zebrunner-farm status and ./zebrunner.sh doctor. zebrunner-farm knows this folder: zebrunner-farm ansible deploys again from any folder."
+  ui_step 1 "The administrator of MCloud invites this host on its server: ./zebrunner.sh node-invite <label> <address>, the address is the one the MCloud server connects to: the addresses of this host are ${addresses:-unknown}; in the network of the MCloud server the address there (on the MCloud server itself its LAN address, not 127.0.0.1)."
+  ui_step 2 "Enroll this host: ./zebrunner.sh join and paste the join string of step 1. It writes the connection to MCloud into '${vars}'."
+  ui_step 3 "Declare the devices in 'devices:' of '${devices}': the udid (adb devices, idevice_id -l), a unique name and unique ports."
+  ui_step 4 "Check the settings, the enrollment and the network to MCloud: ./zebrunner.sh doctor"
+  ui_step 5 "Deploy the agent: ./zebrunner.sh ansible"
+  ui_step 6 "Start the devices: zebrunner-farm start, then zebrunner-farm status and ./zebrunner.sh doctor. zebrunner-farm knows this folder: zebrunner-farm ansible deploys again from any folder."
 
   ui_rule
   ui_ok "Setting up MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished successfully"
@@ -104,7 +104,7 @@ setup() {
 # ansible [devices] [ansible-playbook arguments...]: deploys the agent (README.md#run-ansible-playbook); devices skips the
 # download of the images and keeps the running containers of the devices
 ansible() {
-  print_section "Deploy" "Deploying MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
+  ui_section "Deploy" "" "Deploying MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
 
   ### Check if the operating system is Linux or macOS: agent.yml deploys the role of the OS
   file="${ZEBRUNNER_MCLOUD_AGENT_DIR}/agent.yml"
@@ -348,7 +348,7 @@ status_line() {
 
 # status: the state of the components of the agent: the tools, the deployed files, the launch agents
 status() {
-  print_section "Status" "Status of MCloud Agent components"
+  ui_section "Status" "" "Status of MCloud Agent components"
   ui_info "MCloud Agent directory: ${MCLOUD_AGENT_DIR_VALUE}"
 
   os="$(uname)" 2> /dev/null
@@ -540,7 +540,7 @@ shutdown() {
 
 # version: the versions of the images of versions.yml
 version() {
-  print_section "Versions" "Zebrunner MCloud Agent components versions for '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
+  ui_section "Versions" "" "Zebrunner MCloud Agent components versions for '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
   grep -i "version" "${ZEBRUNNER_MCLOUD_AGENT_DIR}/versions.yml" | grep -v '^\s*#' || exit 1
   echo ""
   ui_rule
@@ -624,7 +624,7 @@ EOF
 
 # autostart [status|enable|disable]: the state of the autostart; enable and disable tell what they change and ask
 autostart() {
-  print_section "Autostart" "Autostart of the devices after a reboot"
+  ui_section "Autostart" "" "Autostart of the devices after a reboot"
   local file
   file="$(autostart_file)"
   case "${1:-status}" in
@@ -643,7 +643,7 @@ autostart() {
       return 0
     fi
     if [[ "$(uname)" == "Darwin" ]]; then
-      print_paragraph "It creates ${file}: a launch agent of $(id -un 2> /dev/null || echo "this user") loaded at the next login, nothing starts now. At the login it waits for Docker Desktop (10 minutes at most: let Docker Desktop start at the login, its Settings, General) and runs 'zebrunner-farm start --quiet' once: the containers of all the devices, also the Android, wireless, emulator and proxy ones the devices listener does not start. Its log: ${MCLOUD_AGENT_DIR_VALUE}/logs/autostart.log. No sudo is needed."
+      ui_paragraph "It creates ${file}: a launch agent of $(id -un 2> /dev/null || echo "this user") loaded at the next login, nothing starts now. At the login it waits for Docker Desktop (10 minutes at most: let Docker Desktop start at the login, its Settings, General) and runs 'zebrunner-farm start --quiet' once: the containers of all the devices, also the Android, wireless, emulator and proxy ones the devices listener does not start. Its log: ${MCLOUD_AGENT_DIR_VALUE}/logs/autostart.log. No sudo is needed."
       ui_muted "The content of ${file}:"
       echo ""
       autostart_plist
@@ -652,10 +652,10 @@ autostart() {
         ui_callout error "The autostart of Linux is a systemd unit: this host has no systemctl."
         exit 1
       fi
-      print_paragraph "It runs with sudo:"
-      print_step 1 "creates ${file} (mode 644): a systemd unit that runs 'zebrunner-farm start --quiet' once after docker at the boot: the containers of all the devices, also the wireless, emulator and proxy ones udev does not start (udev starts the USB devices anyway). Its log: journalctl -u mcloud-farm"
-      print_step 2 "systemctl daemon-reload"
-      print_step 3 "systemctl enable mcloud-farm.service: it runs at the next boot, nothing starts now."
+      ui_paragraph "It runs with sudo:"
+      ui_step 1 "creates ${file} (mode 644): a systemd unit that runs 'zebrunner-farm start --quiet' once after docker at the boot: the containers of all the devices, also the wireless, emulator and proxy ones udev does not start (udev starts the USB devices anyway). Its log: journalctl -u mcloud-farm"
+      ui_step 2 "systemctl daemon-reload"
+      ui_step 3 "systemctl enable mcloud-farm.service: it runs at the next boot, nothing starts now."
       ui_muted "The content of ${file}:"
       echo ""
       autostart_unit
@@ -681,9 +681,9 @@ autostart() {
       return 0
     fi
     if [[ "$(uname)" == "Darwin" ]]; then
-      print_paragraph "It unloads and removes ${file}: the containers of the devices are not started at the login anymore, the running ones keep running."
+      ui_paragraph "It unloads and removes ${file}: the containers of the devices are not started at the login anymore, the running ones keep running."
     else
-      print_paragraph "It runs with sudo: systemctl disable mcloud-farm.service, removes ${file}, systemctl daemon-reload: the containers of the devices are not started at the boot anymore, the running ones keep running."
+      ui_paragraph "It runs with sudo: systemctl disable mcloud-farm.service, removes ${file}, systemctl daemon-reload: the containers of the devices are not started at the boot anymore, the running ones keep running."
     fi
     confirm "" "Disable the autostart as described above?" "n" || exit 0
     autostart_remove
@@ -713,7 +713,7 @@ autostart_remove() {
 # migrate [file...]: the settings of an earlier version moved to config/ (README.md#settings): the files given (e.g.
 # vars/main.yml of a backup) or the ones of an earlier version in this folder; it shows the changes and asks first
 migrate() {
-  print_section "Migrate" "Moving the settings of an earlier version to config/"
+  ui_section "Migrate" "" "Moving the settings of an earlier version to config/"
   local python
   if ! python="$(yaml_python)"; then
     ui_callout error "The migration needs a python3 with PyYAML: the one of ansible has it (README.md#software-prerequisites)."

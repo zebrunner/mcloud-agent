@@ -37,3 +37,38 @@ render_farm() {
     --extra-vars "@${REPO}/versions.yml" \
     --extra-vars "@${REPO}/config/settings.yml.original" --extra-vars "@${REPO}/config/${role}.yml.original" "$@"
 }
+
+# unwrap: stdin with the text of every callout, status and fix of patch/ui.sh (ASCII, without colors) on one line, the
+# way zebrunner.sh wrote them before the wrapping: the checks of the messages do not depend on the wrapping (patch/ui.sh
+# wraps at the spaces only, a longer word stays whole); the title of a callout stays on its own line
+unwrap() {
+  awk '
+    mode == "callout" && /^  \| / {
+      text = (text == "" ? $0 : text " " substr($0, 5))
+      next
+    }
+    mode == "status" && /^        [^ ]/ || mode == "fix" && /^            [^ ]/ {
+      sub(/^ +/, "")
+      text = text " " $0
+      next
+    }
+    {
+      if (text != "") print text
+      text = ""
+      mode = ""
+      if (/^  \| [A-Z][A-Z-]*$/) {
+        print
+        mode = "callout"
+      } else if (/^   (ok  |info|warn|FAIL) /) {
+        text = $0
+        mode = "status"
+      } else if (/^     `- fix /) {
+        text = $0
+        mode = "fix"
+      } else {
+        print
+      }
+    }
+    END { if (text != "") print text }
+  '
+}
