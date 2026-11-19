@@ -203,7 +203,7 @@ Security:
 
 ## Agent management
 
-`./zebrunner.sh` without arguments lists its commands:
+`./zebrunner.sh` without arguments (or `--help`) lists its commands, grouped by stage: set up, operate, maintain. Its output has the terminal style of every MCloud repository (`patch/ui.sh`, [CONVENTIONS.md](CONVENTIONS.md#terminal-output)): colors on a terminal only (`NO_COLOR`, `UI_COLOR=always` or `never`), the Unicode glyphs with a UTF-8 locale (`UI_ASCII=true` for ASCII); without a terminal it is plain text. The commands:
 
 - `setup` - prepares the agent: the settings of `config/` from the examples. It changes no shell profile: `zebrunner.sh` knows its folder, `zebrunner-farm` has it in its settings, so `zebrunner-farm ansible` deploys again from any folder; the `ZEBRUNNER_MCLOUD_AGENT_DIR` line of the earlier versions is removed from the profiles.
 - `ansible [devices] [arguments]` - deploys the agent, `devices` without the download of the images and keeping the running containers of the devices, the arguments are of ansible-playbook (see [Run ansible playbook](#run-ansible-playbook)).
@@ -245,7 +245,7 @@ STF of MCloud accepts on its ZeroMQ ports only the enrolled device hosts: the CU
 
 The MCloud server checks a host too: `./zebrunner.sh nodes check <label>` of [mcloud](https://github.com/zebrunner/mcloud#nodes) shows its record, its devices and whether the server reaches their screens.
 
-It exits with `1` when a check fails.
+Every check is a line: a green, amber or red dot on a terminal (`ok`, `warn`, `FAIL` without colors), a muted circle (`info`) for a fact, and `fix` under a problem; the last lines count them (`12 ok, 1 warn, 0 fail` without colors) and tell what to do. It exits with `1` when a check fails.
 
 ### Device hosts in a private network
 

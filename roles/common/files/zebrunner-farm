@@ -15,6 +15,8 @@ source "$ZEBRUNNER_FARM_ENV"
 export ZEBRUNNER_MCLOUD_AGENT_DIR
 
 source "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/utility.sh"
+# the terminal output of patch/utility.sh (echo_telegram)
+source "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/ui.sh"
 
 if [[ "$FARM_OS" == "macos" ]]; then
   # Export docker env variables to avoid issues on macOS

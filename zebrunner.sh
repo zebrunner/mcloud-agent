@@ -13,6 +13,9 @@ DEVICES_FILE="config/devices.yml"
 
 # Load utility functions
 source "${MCLOUD_AGENT_DIR_VALUE}/patch/utility.sh"
+# Load the terminal output: the banner, the sections, the statuses, the prompts (CONVENTIONS.md#terminal-output)
+# shellcheck source=patch/ui.sh
+source "${MCLOUD_AGENT_DIR_VALUE}/patch/ui.sh"
 # Load backup/restore functions
 source "${MCLOUD_AGENT_DIR_VALUE}/patch/backup.sh"
 # Load the checks of `./zebrunner.sh doctor`
@@ -46,18 +49,16 @@ mdm() {
 
 # setup: the settings of config/ from the examples (README.md#clone-and-setup), then the next steps
 setup() {
-  delimiter "Setting up MCloud Agent"
-
-  echo "MCloud Agent directory: ${MCLOUD_AGENT_DIR_VALUE}"
+  ui_banner "MCloud Agent"
+  ui_info "MCloud Agent directory: ${MCLOUD_AGENT_DIR_VALUE}"
 
   ### The variable of the earlier versions in the shell profiles is not used anymore
   remove_profile_variable
 
   ### Create the settings of config/ according to OS
-  delimiter "*"
+  ui_section "Settings of config/"
   os="$(uname)"
-  echo "Current OS: ${os}"
-  echo ""
+  ui_info "Current OS: ${os}"
   local vars="$SETTINGS_FILE"
   local devices="$DEVICES_FILE"
   local devices_example
@@ -65,11 +66,10 @@ setup() {
   Linux) devices_example="config/devices.yml.original" ;;
   Darwin) devices_example="config/mac-devices.yml.original" ;;
   *)
-    echo "Unknown OS. Supported OS are Linux and macOS."
+    ui_fail "Unknown OS. Supported OS are Linux and macOS."
     exit 1
     ;;
   esac
-  echo "Setting up the settings of 'config/' according to OS:"
   setup_file "${vars}.original" "$vars"
   setup_file "$devices_example" "$devices"
   local legacy
@@ -79,56 +79,45 @@ setup() {
   fi
 
   ### Rosetta 2 of an Apple Silicon Mac
-  if [[ "$os" == "Darwin" ]]; then
-    delimiter "*"
+  if [[ "$os" == "Darwin" && "$(rosetta_state)" != "intel" ]]; then
+    ui_section "Rosetta 2"
     rosetta_report
   fi
 
   ### Next steps
-  delimiter "*"
+  ui_section "Next steps"
   local addresses
   addresses="$(host_addresses)"
-  echo "Next steps (https://github.com/zebrunner/mcloud-agent#node-enrollment):
+  ui_muted "https://github.com/zebrunner/mcloud-agent#node-enrollment"
+  echo ""
+  print_step 1 "The administrator of MCloud invites this host on its server: ./zebrunner.sh node-invite <label> <address>, the address is the one the MCloud server connects to: the addresses of this host are ${addresses:-unknown}; in the network of the MCloud server the address there (on the MCloud server itself its LAN address, not 127.0.0.1)."
+  print_step 2 "Enroll this host: ./zebrunner.sh join and paste the join string of step 1. It writes the connection to MCloud into '${vars}'."
+  print_step 3 "Declare the devices in 'devices:' of '${devices}': the udid (adb devices, idevice_id -l), a unique name and unique ports."
+  print_step 4 "Check the settings, the enrollment and the network to MCloud: ./zebrunner.sh doctor"
+  print_step 5 "Deploy the agent: ./zebrunner.sh ansible"
+  print_step 6 "Start the devices: zebrunner-farm start, then zebrunner-farm status and ./zebrunner.sh doctor. zebrunner-farm knows this folder: zebrunner-farm ansible deploys again from any folder."
 
-  1. The administrator of MCloud invites this host on its server: ./zebrunner.sh node-invite <label> <address>, the
-     address is the one the MCloud server connects to: the addresses of this host are ${addresses:-unknown}; in the
-     network of the MCloud server the address there (on the MCloud server itself its LAN address, not 127.0.0.1).
-
-  2. Enroll this host: ./zebrunner.sh join and paste the join string of step 1. It writes the connection to MCloud
-     into '${vars}'.
-
-  3. Declare the devices in 'devices:' of '${devices}': the udid (adb devices, idevice_id -l), a unique name and
-     unique ports.
-
-  4. Check the settings, the enrollment and the network to MCloud: ./zebrunner.sh doctor
-
-  5. Deploy the agent: ./zebrunner.sh ansible
-
-  6. Start the devices: zebrunner-farm start, then zebrunner-farm status and ./zebrunner.sh doctor. zebrunner-farm
-     knows this folder: zebrunner-farm ansible deploys again from any folder."
-
-  delimiter "Setting up MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished successfully"
+  ui_rule
+  ui_ok "Setting up MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished successfully"
 }
 
 # ansible [devices] [ansible-playbook arguments...]: deploys the agent (README.md#run-ansible-playbook); devices skips the
 # download of the images and keeps the running containers of the devices
 ansible() {
-  delimiter "Deploying MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
+  print_section "Deploy" "Deploying MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
 
   ### Check if the operating system is Linux or macOS: agent.yml deploys the role of the OS
-  delimiter "*"
   file="${ZEBRUNNER_MCLOUD_AGENT_DIR}/agent.yml"
   if [[ "$(uname)" == "Linux" ]]; then
-    echo "Operating system is Linux"
+    ui_info "Operating system is Linux"
   elif [[ "$(uname)" == "Darwin" ]]; then
-    echo "Operating system is macOS"
+    ui_info "Operating system is macOS"
   else
-    echo_warning "This script is not running on a Linux or macOS system. Run ansible manually."
+    ui_callout error "This script is not running on a Linux or macOS system. Run ansible manually."
     exit 1
   fi
 
   ### Make a list of arguments
-  delimiter "*"
   # deploy: the run changes the deployment, the running containers of the devices keep the old one
   local deploy="true"
   local -a tags=()
@@ -148,7 +137,7 @@ ansible() {
   ### sudo-rs (the sudo of Ubuntu 25.10+) wraps the password prompt, ansible does not recognize it and times out
   if [[ "$(uname)" == "Linux" && "$*" != *ansible_become_exe* ]] && sudo --version 2> /dev/null | grep -q '^sudo-rs'; then
     if command -v sudo.ws > /dev/null 2>&1; then
-      echo "sudo is sudo-rs: ansible becomes root with sudo.ws, the original sudo"
+      ui_info "sudo is sudo-rs: ansible becomes root with sudo.ws, the original sudo"
       args=(--extra-vars ansible_become_exe=sudo.ws "${args[@]}")
     else
       echo_warning "sudo is sudo-rs, whose password prompt ansible does not recognize: install the original sudo (sudo apt install sudo), it provides sudo.ws."
@@ -162,18 +151,20 @@ ansible() {
 
   ### Run ansible with arguments
   echo_warning "Sudo permissions are required to run this script!"
-  echo "ansible-playbook --ask-become-pass --inventory hosts ${args[*]}"
-  delimiter "*"
+  echo ""
+  ui_muted "ansible-playbook --ask-become-pass --inventory hosts ${args[*]}"
+  ui_rule
   ansible-playbook --ask-become-pass --inventory hosts "${args[@]}" || {
-    echo_warning "Ansible playbook execution failed!"
+    ui_callout error "Ansible playbook execution failed!"
     echo_telegram
     exit 1
   }
 
+  ui_rule
   if [[ -n "$deploy" ]]; then
-    echo "Run 'zebrunner-farm start' to create the containers of the connected devices."
+    ui_info "Run 'zebrunner-farm start' to create the containers of the connected devices."
   fi
-  delimiter "Deploying MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished successfully"
+  ui_ok "Deploying MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished successfully"
 }
 
 # stop_running_devices: asks to stop and remove the running containers of the devices before the deploy: they keep the
@@ -182,23 +173,24 @@ stop_running_devices() {
   local containers
   containers="$(running_device_containers)"
   [[ -n "$containers" ]] || return 0
-  delimiter "*"
-  echo_warning "$(grep -c . <<< "$containers") containers of the devices are running:"
-  sed -E -e 's/-(connector|stf|appium|uploader)$//' -e 's/^/        /' <<< "$containers" | sort -u
-  echo "
-      They keep the settings and the images they were created with: stop and remove them before the deploy, then
-      'zebrunner-farm start' creates them with the new ones."
-  if confirm "" "      Stop and remove them now (zebrunner-farm down)?" "y"; then
+  echo_warning "$(grep -c . <<< "$containers") containers of the devices are running: they keep the settings and the images they were created with: stop and remove them before the deploy, then 'zebrunner-farm start' creates them with the new ones."
+  echo ""
+  local device
+  while IFS= read -r device; do
+    ui_muted "  ${device}"
+  done <<< "$(sed -E 's/-(connector|stf|appium|uploader)$//' <<< "$containers" | sort -u)"
+  echo ""
+  if confirm "" "Stop and remove them now (zebrunner-farm down)?" "y"; then
     if command -v zebrunner-farm > /dev/null 2>&1; then
       # no terminal for zebrunner-farm: it asks nothing, also the earlier versions without --quiet
       zebrunner-farm down < /dev/null
     else
       # the names of the containers are words
       # shellcheck disable=SC2086
-      docker rm -f $containers > /dev/null
+      ui_spin "Removing the containers of the devices" docker rm -f $containers
     fi
   else
-    echo "The containers keep running: run 'zebrunner-farm restart' after the deploy."
+    ui_info "The containers keep running: run 'zebrunner-farm restart' after the deploy."
   fi
 }
 
@@ -208,7 +200,7 @@ remove_profile_variable() {
   local file
   for file in "${HOME}/.bashrc" "${HOME}/.bash_profile" "${HOME}/.zshrc" "${HOME}/.zprofile" "${HOME}/.profile"; do
     if [[ -f "$file" ]] && grep -q "^export ${MCLOUD_AGENT_DIR_NAME}=" "$file"; then
-      echo "Removing the variable ${MCLOUD_AGENT_DIR_NAME} of an earlier version from ${file}"
+      ui_info "Removing the variable ${MCLOUD_AGENT_DIR_NAME} of an earlier version from ${file}"
       sed -i.bak "/^export ${MCLOUD_AGENT_DIR_NAME}=.*/d" "$file" && rm -f "${file}.bak"
     fi
   done
@@ -219,7 +211,7 @@ remove_profile_variable() {
 remove_simulators_ssh_key() {
   local keys="${HOME}/.ssh/authorized_keys"
   if [[ -f "$keys" ]] && grep -q "zebrunner-mcloud-simulators$" "$keys"; then
-    echo "Removing the ssh key of the simulators from ${keys}"
+    ui_info "Removing the ssh key of the simulators from ${keys}"
     sed -i.bak "/zebrunner-mcloud-simulators$/d" "$keys" && rm -f "${keys}.bak"
   fi
   if [[ -d "${ZEBRUNNER_MCLOUD_AGENT_DIR}/ssh" ]]; then
@@ -233,11 +225,10 @@ setup_file() {
   (
     umask 077
     if [[ -f "$2" ]]; then
-      echo "'$2' already exists, making a backup '$2.bak'"
+      ui_info "'$2' already exists, making a backup '$2.bak'"
       cp "$2" "$2.bak"
     else
-      echo "Creating '$2'"
-      cp "$1" "$2"
+      cp "$1" "$2" && ui_ok "Creating '$2'"
     fi
   )
 }
@@ -253,7 +244,7 @@ legacy_settings_file() {
 # settings_file: config/settings.yml, fails when it does not exist
 settings_file() {
   if [[ ! -f "$SETTINGS_FILE" ]]; then
-    echo_warning "'${SETTINGS_FILE}' does not exist, run './zebrunner.sh setup' first." >&2
+    ui_callout error "'${SETTINGS_FILE}' does not exist, run './zebrunner.sh setup' first." >&2
     return 1
   fi
   echo "$SETTINGS_FILE"
@@ -272,16 +263,16 @@ ensure_curve_key() {
   if [[ -z "$secret" ]]; then
     secret="$(python3 patch/curve_keygen.py | sed -n 's/^secret=//p')"
     if [[ ! "$secret" =~ ^[0-9a-f]{64}$ ]]; then
-      echo_warning "Unable to make the key with python3 patch/curve_keygen.py."
+      ui_callout error "Unable to make the key with python3 patch/curve_keygen.py."
       return 1
     fi
     # the secret key on stdin: the arguments of a process are visible to every user (printf is a builtin)
     printf 'STF_ZMQ_CURVE_SECRET_KEY=%s\n' "$secret" | "$python" patch/settings.py set "$vars" - || return 1
-    echo "The key of this host is written to STF_ZMQ_CURVE_SECRET_KEY of '${vars}'."
+    ui_ok "The key of this host is written to STF_ZMQ_CURVE_SECRET_KEY of '${vars}'."
   fi
   if ! CURVE_PUBLIC_KEY="$(printf '%s\n' "$secret" | python3 patch/curve_keygen.py - | sed -n 's/^public=//p')" ||
     [[ -z "$CURVE_PUBLIC_KEY" ]]; then
-    echo_warning "STF_ZMQ_CURVE_SECRET_KEY of '${vars}' is not a key of 64 hex characters."
+    ui_callout error "STF_ZMQ_CURVE_SECRET_KEY of '${vars}' is not a key of 64 hex characters."
     return 1
   fi
 }
@@ -289,22 +280,23 @@ ensure_curve_key() {
 # join: enrolls this host in MCloud with the join string of `./zebrunner.sh node-invite` of mcloud, read from a hidden
 # prompt or stdin (README.md#node-enrollment): the token of this host and the settings of MCloud go to the settings
 join() {
+  ui_banner "MCloud Agent"
+  ui_section "Join MCloud"
   local vars
   vars="$(settings_file)" || exit 1
   if ! command -v python3 > /dev/null 2>&1 || ! command -v curl > /dev/null 2>&1; then
-    echo_warning "The enrollment needs python3 and curl."
+    ui_callout error "The enrollment needs python3 and curl."
     exit 1
   fi
   local python
   if ! python="$(yaml_python)"; then
-    echo_warning "The enrollment needs a python3 with PyYAML: the one of ansible has it (README.md#software-prerequisites)."
+    ui_callout error "The enrollment needs a python3 with PyYAML: the one of ansible has it (README.md#software-prerequisites)."
     exit 1
   fi
   ensure_curve_key "$vars" "$python" || exit 1
   "$python" patch/enroll.py "$vars" "$CURVE_PUBLIC_KEY" || exit 1
-  echo "
-      Next: ./zebrunner.sh doctor checks the settings, ./zebrunner.sh ansible deploys them and zebrunner-farm restart
-      recreates the containers of the devices with the token of this host."
+  ui_section "Next steps"
+  ui_info "Next: ./zebrunner.sh doctor checks the settings, ./zebrunner.sh ansible deploys them and zebrunner-farm restart recreates the containers of the devices with the token of this host."
 }
 
 # rosetta_state: Rosetta 2 of the Mac for the linux/amd64 image of appium: 'intel' (not
@@ -328,173 +320,159 @@ rosetta_state() {
 
 # rosetta_report: the state of Rosetta 2 and the advice when it is not used
 rosetta_report() {
+  local use="turn on 'Use Rosetta for x86_64/amd64 emulation on Apple Silicon' in Docker Desktop (Settings, General) and restart Docker Desktop"
   case "$(rosetta_state)" in
   ok)
-    succeed "Rosetta 2 is installed: Docker Desktop runs the linux/amd64 image of appium with it."
+    ui_ok "Rosetta 2 is installed: Docker Desktop runs the linux/amd64 image of appium with it."
     ;;
   missing)
-    warn "Rosetta 2 is not installed: Docker Desktop runs the linux/amd64 image of appium under the much slower QEMU"
-    warn "emulation. Install it and let Docker Desktop use it:"
-    warn ">\tsoftwareupdate --install-rosetta --agree-to-license"
-    warn "then turn on 'Use Rosetta for x86_64/amd64 emulation on Apple Silicon' in Docker Desktop (Settings, General)"
-    warn "and restart Docker Desktop."
+    ui_warn "Rosetta 2 is not installed: Docker Desktop runs the linux/amd64 image of appium under the much slower QEMU emulation. Install it and let Docker Desktop use it:" \
+      "softwareupdate --install-rosetta --agree-to-license, then ${use}."
     ;;
   docker-off)
-    warn "Rosetta 2 is installed, but Docker Desktop runs the linux/amd64 image of appium under the much slower QEMU"
-    warn "emulation:"
-    warn "turn on 'Use Rosetta for x86_64/amd64 emulation on Apple Silicon' in Docker Desktop (Settings, General) and"
-    warn "restart Docker Desktop."
+    ui_warn "Rosetta 2 is installed, but Docker Desktop runs the linux/amd64 image of appium under the much slower QEMU emulation:" \
+      "${use}."
     ;;
   esac
 }
 
+# status_line <label> <value> [<problem>]: a component of the status: ok with its value, FAIL with the problem when the
+# value is empty
+status_line() {
+  if [[ -n "$2" ]]; then
+    ui_ok "$(printf '%-32s %s' "$1" "$2")"
+  else
+    ui_fail "$(printf '%-32s %s' "$1" "$3")"
+  fi
+}
+
 # status: the state of the components of the agent: the tools, the deployed files, the launch agents
 status() {
-  delimiter "Status of MCloud Agent components"
+  print_section "Status" "Status of MCloud Agent components"
+  ui_info "MCloud Agent directory: ${MCLOUD_AGENT_DIR_VALUE}"
 
   os="$(uname)" 2> /dev/null
-  echo "MCloud Agent directory:           ${MCLOUD_AGENT_DIR_VALUE}"
-  echo ""
-  echo "Current OS:                       $(if [[ -n "$os" ]]; then echo "$os"; else failed "OS not detected"; fi)"
-  echo ""
-  echo "Current user:                     $(whoami 2> /dev/null || failed username not detected)"
-  echo ""
-  echo "Docker version:                   $(docker --version 2> /dev/null || failed "'docker' not found")"
-  echo ""
-  echo "Docker compose version:           $(docker compose version 2> /dev/null || failed "'docker compose' not found")"
-  echo ""
-  echo "Ansible-playbook info:            $(ansible-playbook --version 2> /dev/null | head -n 1 | grep . || failed "'ansible-playbook' not found")"
-  echo ""
-  echo "Zebrunner-farm script:            $(which zebrunner-farm 2> /dev/null || failed "'zebrunner-farm' not found")"
-  echo ""
+  status_line "Current OS:" "$os" "OS not detected"
+  status_line "Current user:" "$(whoami 2> /dev/null)" "username not detected"
+  status_line "Docker version:" "$(docker --version 2> /dev/null)" "'docker' not found"
+  status_line "Docker compose version:" "$(docker compose version 2> /dev/null)" "'docker compose' not found"
+  status_line "Ansible-playbook info:" "$(ansible-playbook --version 2> /dev/null | head -n 1)" "'ansible-playbook' not found"
+  status_line "Zebrunner-farm script:" "$(which zebrunner-farm 2> /dev/null)" "'zebrunner-farm' not found"
   if [[ "$os" == "Darwin" ]]; then
-    echo "Socat tool:                       $(which socat 2> /dev/null || failed "'socat' not found")"
-    echo ""
+    status_line "Socat tool:" "$(which socat 2> /dev/null)" "'socat' not found"
     case "$(rosetta_state)" in
-    ok) echo "Rosetta 2:                        installed, used by Docker Desktop" ;;
-    missing) echo "Rosetta 2:                        $(failed "not installed: softwareupdate --install-rosetta --agree-to-license")" ;;
-    docker-off) echo "Rosetta 2:                        $(failed "installed, not used by Docker Desktop (Settings, General)")" ;;
-    *) echo "Rosetta 2:                        not needed (Intel Mac)" ;;
+    ok) status_line "Rosetta 2:" "installed, used by Docker Desktop" ;;
+    missing) status_line "Rosetta 2:" "" "not installed: softwareupdate --install-rosetta --agree-to-license" ;;
+    docker-off) status_line "Rosetta 2:" "" "installed, not used by Docker Desktop (Settings, General)" ;;
+    *) ui_info "$(printf '%-32s %s' "Rosetta 2:" "not needed (Intel Mac)")" ;;
     esac
-    echo ""
-    echo "Deployed launchctl Zebrunner files:"
     shopt -s nullglob nocaseglob
     plists=("${HOME}/Library/LaunchAgents"/*zebrunner*)
     shopt -u nullglob nocaseglob
     if ((${#plists[@]} == 0)); then
-      failed "No deployed Zebrunner plist files found"
+      ui_fail "No deployed Zebrunner plist files found"
     else
       for f in "${plists[@]}"; do
-        echo "$f"
+        status_line "Deployed launchctl file:" "$f"
       done
     fi
-    echo ""
-    echo "Loaded launchctl Zebrunner jobs:"
-    launchctl list | grep -i zebrunner || failed "No loaded Zebrunner jobs found"
-    echo ""
+    local jobs job
+    jobs="$(launchctl list | grep -i zebrunner)"
+    if [[ -z "$jobs" ]]; then
+      ui_fail "No loaded Zebrunner jobs found"
+    else
+      while IFS= read -r job; do
+        status_line "Loaded launchctl job:" "$job"
+      done <<< "$jobs"
+    fi
   else
-    echo "90_mcloud.rules:                  $(ls /etc/udev/rules.d/90_mcloud.rules 2> /dev/null || failed "File not found")"
-    echo ""
-    echo "mcloud-device-restart@.service:   $(ls /etc/systemd/system/mcloud-device-restart@.service 2> /dev/null || failed "File not found")"
-    echo ""
-    echo "mcloud-device-down@.service:      $(ls /etc/systemd/system/mcloud-device-down@.service 2> /dev/null || failed "File not found")"
-    echo ""
+    status_line "90_mcloud.rules:" "$(ls /etc/udev/rules.d/90_mcloud.rules 2> /dev/null)" "File not found"
+    status_line "mcloud-device-restart@.service:" "$(ls /etc/systemd/system/mcloud-device-restart@.service 2> /dev/null)" "File not found"
+    status_line "mcloud-device-down@.service:" "$(ls /etc/systemd/system/mcloud-device-down@.service 2> /dev/null)" "File not found"
   fi
-  echo "mcloud-devices.txt:               $(ls "/usr/local/bin/mcloud-devices.txt" 2> /dev/null || failed "File not found")"
-  echo ""
-  echo "zebrunner-farm.env:               $(ls "/usr/local/etc/zebrunner-farm.env" 2> /dev/null || failed "File not found")"
-  echo ""
-  echo "Autostart after a reboot:         $(if autostart_enabled; then autostart_file; else echo "off (./zebrunner.sh autostart)"; fi)"
-  echo ""
-  echo "config/settings.yml:              $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/${SETTINGS_FILE}" 2> /dev/null || failed "File not found")"
-  echo ""
-  echo "config/devices.yml:               $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/${DEVICES_FILE}" 2> /dev/null || failed "File not found")"
-  echo ""
-  echo "ansible-playbook:                 $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/agent.yml" 2> /dev/null || failed "File not found")"
-  echo ""
-  echo "versions.yml:                     $(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/versions.yml" 2> /dev/null || failed "File not found")"
+  status_line "mcloud-devices.txt:" "$(ls "/usr/local/bin/mcloud-devices.txt" 2> /dev/null)" "File not found"
+  status_line "zebrunner-farm.env:" "$(ls "/usr/local/etc/zebrunner-farm.env" 2> /dev/null)" "File not found"
+  if autostart_enabled; then
+    status_line "Autostart after a reboot:" "$(autostart_file)"
+  else
+    ui_info "$(printf '%-32s %s' "Autostart after a reboot:" "off (./zebrunner.sh autostart)")"
+  fi
+  status_line "config/settings.yml:" "$(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/${SETTINGS_FILE}" 2> /dev/null)" "File not found"
+  status_line "config/devices.yml:" "$(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/${DEVICES_FILE}" 2> /dev/null)" "File not found"
+  status_line "ansible-playbook:" "$(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/agent.yml" 2> /dev/null)" "File not found"
+  status_line "versions.yml:" "$(ls "${ZEBRUNNER_MCLOUD_AGENT_DIR}/versions.yml" 2> /dev/null)" "File not found"
 
-  delimiter
+  echo ""
+  ui_rule
 }
 
 # shutdown: removes the containers of the devices, the deployed files and the settings after a confirmation
 shutdown() {
-  delimiter "Shutting down MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
+  ui_banner "MCloud Agent"
+  ui_section "Shutdown"
+  ui_info "Shutting down MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
 
   ### Confirm shutdown
-  echo_warning "Shutdown will erase all settings and data for '${ZEBRUNNER_MCLOUD_AGENT_DIR}' !"
-  confirm "" "      Do you want to continue?" "n" || {
-    echo "Shutdown cancelled"
+  echo_warning "Shutdown will erase all settings and data for '${ZEBRUNNER_MCLOUD_AGENT_DIR}'!"
+  echo ""
+  confirm "" "Do you want to continue?" "n" || {
+    ui_info "Shutdown cancelled"
     exit 0
   }
 
   ### Ask for sudo permissions
   echo ""
   ask_for_sudo || {
-    echo_warning "Sudo permissions are required to run this script!"
+    ui_callout error "Sudo permissions are required to run this script!"
     exit 1
   }
 
   ### Remove launch agents in case of macOS
   os="$(uname)"
   if [[ "$os" == "Darwin" ]]; then
-    delimiter "*"
-    echo "Current OS: $os"
-    delimiter "*"
+    ui_section "Launch agents"
+    ui_info "Current OS: $os"
 
-    echo "Found Zebrunner launchctl files:"
     shopt -s nullglob nocaseglob
     plists=("${HOME}/Library/LaunchAgents"/*zebrunner*)
     shopt -u nullglob nocaseglob
     if ((${#plists[@]} == 0)); then
-      failed "No Zebrunner plist files found"
+      ui_info "No Zebrunner plist files found"
     else
       for f in "${plists[@]}"; do
-        echo "$f"
+        ui_info "Found Zebrunner launchctl file: $f"
       done
     fi
 
-    delimiter "*"
-    echo "Found loaded Zebrunner plists:"
-    launchctl list | grep -i zebrunner || failed "No loaded Zebrunner plists found"
-
-    delimiter "*"
-    echo "Unloading and removing ZebrunnerDevicesListener.plist launchctl file:"
-    if [[ -f "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" ]]; then
-      if launchctl bootout gui/"$(id -u)" "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" 2> /dev/null; then
-        echo "ZebrunnerDevicesListener.plist unloaded successfully"
-      else
-        failed "Failed to unload 'ZebrunnerDevicesListener.plist', it might be not loaded"
-      fi
-      echo ""
-      echo "Removing ZebrunnerDevicesListener.plist file:"
-      rm -vf "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist"
+    local loaded line
+    loaded="$(launchctl list | grep -i zebrunner)"
+    if [[ -z "$loaded" ]]; then
+      ui_info "No loaded Zebrunner plists found"
     else
-      failed "ZebrunnerDevicesListener.plist file not found"
+      while IFS= read -r line; do
+        ui_info "Found loaded Zebrunner plist: ${line}"
+      done <<< "$loaded"
     fi
 
-    delimiter "*"
-    echo "Unloading and removing ZebrunnerUsbmuxd.plist launchctl file:"
-    if [[ -f "${HOME}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" ]]; then
-      if launchctl bootout gui/"$(id -u)" "${HOME}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist" 2> /dev/null; then
-        echo "ZebrunnerUsbmuxd.plist unloaded successfully"
+    local plist
+    for plist in ZebrunnerDevicesListener ZebrunnerUsbmuxd; do
+      if [[ -f "${HOME}/Library/LaunchAgents/${plist}.plist" ]]; then
+        if launchctl bootout gui/"$(id -u)" "${HOME}/Library/LaunchAgents/${plist}.plist" 2> /dev/null; then
+          ui_ok "${plist}.plist unloaded successfully"
+        else
+          ui_warn "Failed to unload '${plist}.plist', it might be not loaded"
+        fi
+        rm -f "${HOME}/Library/LaunchAgents/${plist}.plist" && ui_ok "Removing ${plist}.plist file"
       else
-        failed "Failed to unload 'ZebrunnerUsbmuxd.plist', it might be not loaded"
+        ui_info "${plist}.plist file not found"
       fi
-      echo ""
-      echo "Removing ZebrunnerUsbmuxd.plist file:"
-      rm -vf "${HOME}/Library/LaunchAgents/ZebrunnerUsbmuxd.plist"
-    else
-      failed "ZebrunnerUsbmuxd.plist file not found"
-    fi
+    done
 
     # the adb server of the USB Android devices, deployed for them only
     if [[ -f "${HOME}/Library/LaunchAgents/ZebrunnerAdb.plist" ]]; then
-      delimiter "*"
-      echo "Unloading and removing ZebrunnerAdb.plist launchctl file:"
       launchctl bootout gui/"$(id -u)" "${HOME}/Library/LaunchAgents/ZebrunnerAdb.plist" 2> /dev/null ||
-        failed "Failed to unload 'ZebrunnerAdb.plist', it might be not loaded"
-      rm -vf "${HOME}/Library/LaunchAgents/ZebrunnerAdb.plist"
+        ui_warn "Failed to unload 'ZebrunnerAdb.plist', it might be not loaded"
+      rm -f "${HOME}/Library/LaunchAgents/ZebrunnerAdb.plist" && ui_ok "Unloading and removing ZebrunnerAdb.plist launchctl file"
     fi
   fi
 
@@ -506,35 +484,35 @@ shutdown() {
 
   ### The autostart of the devices after a reboot
   if autostart_enabled || [[ -f "$(autostart_file)" ]]; then
-    echo "Removing the autostart: $(autostart_file)"
+    ui_info "Removing the autostart: $(autostart_file)"
     autostart_remove
   fi
 
   ### Stop and remove containers
-  delimiter "*"
-  echo "Found MCloud Agent containers:"
-  docker ps -a --filter "name=device-" --format "{{.Names}}"
+  ui_section "Containers"
+  ui_info "Found MCloud Agent containers:"
+  local container
+  while IFS= read -r container; do
+    [[ -z "$container" ]] || ui_muted "  ${container}"
+  done <<< "$(docker ps -a --filter "name=device-" --format "{{.Names}}")"
 
-  delimiter "*"
-  echo "Stopping and removing MCloud Agent containers:"
+  ui_info "Stopping and removing MCloud Agent containers:"
   if command -v zebrunner-farm > /dev/null 2>&1; then
     # no terminal for zebrunner-farm: it asks nothing
     zebrunner-farm down < /dev/null
   else
-    failed "Can't find 'zebrunner-farm' executable file"
+    ui_fail "Can't find 'zebrunner-farm' executable file"
   fi
 
-  delimiter "*"
-  echo "Removing volume 'appium-storage-volume':"
   if docker volume ls | grep -q "appium-storage-volume"; then
-    docker volume rm appium-storage-volume
+    ui_spin "Removing volume 'appium-storage-volume'" docker volume rm appium-storage-volume
   else
-    failed "Volume 'appium-storage-volume' not found"
+    ui_info "Volume 'appium-storage-volume' not found"
   fi
 
   ### Remove files
-  delimiter "*"
-  echo "Removing MCloud Agent files and volumes (sudo privileges required):"
+  ui_section "Files"
+  ui_info "Removing MCloud Agent files and volumes (sudo privileges required):"
   # the settings of an earlier version too
   rm -vf "$SETTINGS_FILE" "$DEVICES_FILE" "$(legacy_settings_file)"
   if [[ "$os" == "Darwin" ]]; then
@@ -554,17 +532,18 @@ shutdown() {
   sudo rm -vf /usr/local/bin/mcloud-devices.txt
 
   ### Final message
-  delimiter "*"
-  warn ">>> Restart current terminal session to apply all changes <<<"
-
-  delimiter "Shutting down MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished"
+  ui_callout note "Restart current terminal session to apply all changes"
+  echo ""
+  ui_rule
+  ui_ok "Shutting down MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished"
 }
 
 # version: the versions of the images of versions.yml
 version() {
-  delimiter "Zebrunner MCloud Agent components versions for '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
+  print_section "Versions" "Zebrunner MCloud Agent components versions for '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
   grep -i "version" "${ZEBRUNNER_MCLOUD_AGENT_DIR}/versions.yml" | grep -v '^\s*#' || exit 1
-  delimiter
+  echo ""
+  ui_rule
 }
 
 # The containers of the devices after a reboot (README.md#autostart), off by default: the USB devices are started by
@@ -645,53 +624,44 @@ EOF
 
 # autostart [status|enable|disable]: the state of the autostart; enable and disable tell what they change and ask
 autostart() {
-  delimiter "Autostart of the devices after a reboot"
+  print_section "Autostart" "Autostart of the devices after a reboot"
   local file
   file="$(autostart_file)"
   case "${1:-status}" in
   status)
     if autostart_enabled; then
-      succeed "Autostart is on: ${file}"
+      ui_ok "Autostart is on: ${file}"
     else
-      echo "Autostart is off (by default): ./zebrunner.sh autostart enable tells what it adds and asks first."
+      ui_info "Autostart is off (by default): ./zebrunner.sh autostart enable tells what it adds and asks first."
     fi
     ;;
   enable)
     if autostart_enabled; then
-      echo "Autostart is on already: ${file}"
-      delimiter
+      ui_info "Autostart is on already: ${file}"
+      echo ""
+      ui_rule
       return 0
     fi
     if [[ "$(uname)" == "Darwin" ]]; then
-      echo "
-      It creates ${file}: a launch agent of $(id -un 2> /dev/null || echo "this user") loaded at the next login, nothing
-      starts now. At the login it waits for Docker Desktop (10 minutes at most: let Docker Desktop start at the
-      login, its Settings, General) and runs 'zebrunner-farm start --quiet' once: the containers of all the devices,
-      also the Android, wireless, emulator and proxy ones the devices listener does not start. Its log:
-      ${MCLOUD_AGENT_DIR_VALUE}/logs/autostart.log. No sudo is needed.
-
-      The content of ${file}:
-"
+      print_paragraph "It creates ${file}: a launch agent of $(id -un 2> /dev/null || echo "this user") loaded at the next login, nothing starts now. At the login it waits for Docker Desktop (10 minutes at most: let Docker Desktop start at the login, its Settings, General) and runs 'zebrunner-farm start --quiet' once: the containers of all the devices, also the Android, wireless, emulator and proxy ones the devices listener does not start. Its log: ${MCLOUD_AGENT_DIR_VALUE}/logs/autostart.log. No sudo is needed."
+      ui_muted "The content of ${file}:"
+      echo ""
       autostart_plist
     else
       if ! command -v systemctl > /dev/null 2>&1; then
-        echo_warning "The autostart of Linux is a systemd unit: this host has no systemctl."
+        ui_callout error "The autostart of Linux is a systemd unit: this host has no systemctl."
         exit 1
       fi
-      echo "
-      It runs with sudo:
-        1. creates ${file} (mode 644): a systemd unit that runs 'zebrunner-farm start --quiet' once after docker at
-           the boot: the containers of all the devices, also the wireless, emulator and proxy ones udev does not
-           start (udev starts the USB devices anyway). Its log: journalctl -u mcloud-farm
-        2. systemctl daemon-reload
-        3. systemctl enable mcloud-farm.service: it runs at the next boot, nothing starts now.
-
-      The content of ${file}:
-"
+      print_paragraph "It runs with sudo:"
+      print_step 1 "creates ${file} (mode 644): a systemd unit that runs 'zebrunner-farm start --quiet' once after docker at the boot: the containers of all the devices, also the wireless, emulator and proxy ones udev does not start (udev starts the USB devices anyway). Its log: journalctl -u mcloud-farm"
+      print_step 2 "systemctl daemon-reload"
+      print_step 3 "systemctl enable mcloud-farm.service: it runs at the next boot, nothing starts now."
+      ui_muted "The content of ${file}:"
+      echo ""
       autostart_unit
     fi
     echo ""
-    confirm "" "      Enable the autostart as described above?" "n" || exit 0
+    confirm "" "Enable the autostart as described above?" "n" || exit 0
     if [[ "$(uname)" == "Darwin" ]]; then
       mkdir -p "$(dirname "$file")"
       autostart_plist > "$file"
@@ -701,34 +671,31 @@ autostart() {
       sudo systemctl daemon-reload
       sudo systemctl enable mcloud-farm.service || exit 1
     fi
-    succeed "Autostart is on: ${file}"
+    ui_ok "Autostart is on: ${file}"
     ;;
   disable)
     if ! autostart_enabled && [[ ! -f "$file" ]]; then
-      echo "Autostart is off already."
-      delimiter
+      ui_info "Autostart is off already."
+      echo ""
+      ui_rule
       return 0
     fi
     if [[ "$(uname)" == "Darwin" ]]; then
-      echo "
-      It unloads and removes ${file}: the containers of the devices are not started at the login anymore, the
-      running ones keep running."
+      print_paragraph "It unloads and removes ${file}: the containers of the devices are not started at the login anymore, the running ones keep running."
     else
-      echo "
-      It runs with sudo: systemctl disable mcloud-farm.service, removes ${file}, systemctl daemon-reload: the
-      containers of the devices are not started at the boot anymore, the running ones keep running."
+      print_paragraph "It runs with sudo: systemctl disable mcloud-farm.service, removes ${file}, systemctl daemon-reload: the containers of the devices are not started at the boot anymore, the running ones keep running."
     fi
-    echo ""
-    confirm "" "      Disable the autostart as described above?" "n" || exit 0
+    confirm "" "Disable the autostart as described above?" "n" || exit 0
     autostart_remove
-    succeed "Autostart is off."
+    ui_ok "Autostart is off."
     ;;
   *)
-    echo "Usage: ./zebrunner.sh autostart [status|enable|disable]"
+    ui_usage "./zebrunner.sh autostart [status|enable|disable]"
     exit 1
     ;;
   esac
-  delimiter
+  echo ""
+  ui_rule
 }
 
 # autostart_remove: the autostart of the OS removed
@@ -746,10 +713,10 @@ autostart_remove() {
 # migrate [file...]: the settings of an earlier version moved to config/ (README.md#settings): the files given (e.g.
 # vars/main.yml of a backup) or the ones of an earlier version in this folder; it shows the changes and asks first
 migrate() {
-  delimiter "Moving the settings of an earlier version to config/"
+  print_section "Migrate" "Moving the settings of an earlier version to config/"
   local python
   if ! python="$(yaml_python)"; then
-    echo_warning "The migration needs a python3 with PyYAML: the one of ansible has it (README.md#software-prerequisites)."
+    ui_callout error "The migration needs a python3 with PyYAML: the one of ansible has it (README.md#software-prerequisites)."
     exit 1
   fi
   local farm_os=linux
@@ -760,46 +727,49 @@ migrate() {
     [[ -f defaults/main.yml ]] && files+=(defaults/main.yml)
   fi
   if [[ "$(count_values "${files[@]}")" -eq 0 ]]; then
-    echo "No settings of an earlier version: nothing to migrate."
-    delimiter
+    ui_info "No settings of an earlier version: nothing to migrate."
+    echo ""
+    ui_rule
     return 0
   fi
-  echo "The settings of an earlier version: ${files[*]}"
+  ui_info "The settings of an earlier version: ${files[*]}"
   echo ""
   local rc=0
   "$python" patch/migrate.py plan "$farm_os" "${files[@]}" || rc=$?
   [[ "$rc" -eq 0 || "$rc" -eq 3 ]] || exit 1
   echo ""
-  confirm "" "      Write these changes to config/ and rename the files of an earlier version to *.migrated?" "n" || exit 0
+  confirm "" "Write these changes to config/ and rename the files of an earlier version to *.migrated?" "n" || exit 0
   "$python" patch/migrate.py apply "$farm_os" "${files[@]}" || exit 1
+  ui_callout note "Check them with ./zebrunner.sh doctor, then deploy: ./zebrunner.sh ansible"
   echo ""
-  warn "Check them with ./zebrunner.sh doctor, then deploy: ./zebrunner.sh ansible"
-  delimiter
+  ui_rule
 }
 
-# echo_help: the usage of zebrunner.sh
+# echo_help: the usage of zebrunner.sh, the commands by their stage
 echo_help() {
-  delimiter "Zebrunner MCloud Agent help"
-  echo "
-      Usage: ./zebrunner.sh [option]
-      Options:
-         setup                Prepare MCloud Agent environment
-         ansible [devices] [args...]  Deploy MCloud Agent: devices without the download of the images, args of ansible-playbook
-         status               Status of MCloud Agent deployment
-         backup               Backup MCloud Agent setup
-         restore              Restore MCloud Agent setup
-         shutdown             Stop and remove MCloud Agent containers, clear volumes and environment
-         version              Version of MCloud Agent components
-         doctor               Check the settings, the deployment and the network to MCloud, tell what to fix
-         join                 Enroll this host in MCloud with the join string of ./zebrunner.sh node-invite (stdin)
-         migrate [files...]   Move the settings of an earlier version to config/ (shows the changes, asks first)
-         autostart [status|enable|disable]  The containers of the devices after a reboot (off by default, asks first)
-         mdm <status|enroll|release|supervise> [devices] [options]  The devices in the MDM of MCloud (README.md#mdm):
-                              status: what the MDM knows; enroll: the agent as the device owner (Android), the
-                              enrollment profile (supervised iOS); release [--uninstall]: out of the MDM; supervise
-                              [--force] [--yes]: ERASES an iOS device, supervises it, joins MDM_WIFI_SSID, enrolls it"
+  ui_banner "MCloud Agent"
+  ui_usage "./zebrunner.sh <command> [options]"
+
+  ui_help_group "Set up"
+  ui_help_cmd setup "" "Prepare MCloud Agent environment"
+  ui_help_cmd join "" "Enroll this host in MCloud with the join string of ./zebrunner.sh node-invite (stdin)"
+  ui_help_cmd migrate "[files...]" "Move the settings of an earlier version to config/ (shows the changes, asks first)"
+  ui_help_cmd ansible "[devices] [args...]" "Deploy MCloud Agent: devices without the download of the images, args of ansible-playbook"
+
+  ui_help_group "Operate"
+  ui_help_cmd status "" "Status of MCloud Agent deployment"
+  ui_help_cmd doctor "" "Check the settings, the deployment and the network to MCloud, tell what to fix"
+  ui_help_cmd autostart "[status|enable|disable]" "The containers of the devices after a reboot (off by default, asks first)"
+  ui_help_cmd mdm "<status|enroll|release|supervise> [devices] [options]" "The devices in the MDM of MCloud (README.md#mdm): status: what the MDM knows; enroll: the agent as the device owner (Android), the enrollment profile (supervised iOS); release [--uninstall]: out of the MDM; supervise [--force] [--yes]: ERASES an iOS device, supervises it, joins MDM_WIFI_SSID, enrolls it"
+  ui_help_cmd version "" "Version of MCloud Agent components"
+
+  ui_help_group "Maintain"
+  ui_help_cmd backup "" "Backup MCloud Agent setup"
+  ui_help_cmd restore "" "Restore MCloud Agent setup"
+  ui_help_cmd shutdown "" "Stop and remove MCloud Agent containers, clear volumes and environment"
+
   echo_telegram
-  delimiter
+  echo ""
 }
 
 case "$1" in

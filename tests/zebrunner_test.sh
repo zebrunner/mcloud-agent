@@ -49,6 +49,11 @@ zbr() {
     ${AGENT_DIR:+ZEBRUNNER_MCLOUD_AGENT_DIR=$AGENT_DIR} /bin/bash "${AGENT}/zebrunner.sh" "$@" 2>&1
 }
 
+# unwrapped <text>: the text as one line, without the bars of the callouts and the indents of the wrapped lines
+unwrapped() {
+  tr '\n' ' ' <<< "$1" | sed -E 's/ +\| / /g; s/ +/ /g'
+}
+
 # exports <profile>: the number of the lines of the variable of the earlier versions in the shell profile
 exports() {
   grep -c "^export ZEBRUNNER_MCLOUD_AGENT_DIR=" "${WORK}/home/$1" 2> /dev/null || true
@@ -56,10 +61,17 @@ exports() {
 
 section "help"
 output="$(zbr "")"
-check_contains "help shows the usage" "Usage: ./zebrunner.sh [option]" "$output"
-for command in setup ansible status backup restore shutdown version doctor join migrate autostart; do
-  check_contains "help lists ${command}" "         ${command} " "$output"
+check_contains "help shows the banner" "[ ZEBRUNNER ] MCloud Agent" "$output"
+check_contains "help shows the usage" "> ./zebrunner.sh <command> [options]" "$output"
+for group in "SET UP" OPERATE MAINTAIN; do
+  check_contains "help groups the commands: ${group}" "[ ${group} ]" "$output"
 done
+for command in setup ansible status backup restore shutdown version doctor join migrate autostart mdm; do
+  check_contains "help lists ${command}" $'\n'"   ${command} " "$output"
+done
+check_contains "help tells where to get help" "For more help join telegram channel: https://t.me/zebrunner" "$output"
+check "help is plain text without a terminal" "" "$(grep -c $'\033' <<< "$output" | grep -v '^0$')"
+check "help --help is the help" "$output" "$(zbr "" --help)"
 
 section "setup"
 printf 'alias ll="ls -l"\nexport ZEBRUNNER_MCLOUD_AGENT_DIR=/old/path\n' > "${WORK}/home/.bashrc"
@@ -75,10 +87,10 @@ check "Linux devices are created from the example" "same" \
   "$(cmp -s "${AGENT}/config/devices.yml" "${AGENT}/config/devices.yml.original" && echo same)"
 check_not_contains "no settings of an earlier version" "overrides 'config/'" "$output"
 check_not_contains "no reload of the shell" "To apply the changes" "$output"
-check_contains "the invite is the next step" "1. The administrator of MCloud invites this host on its server: ./zebrunner.sh node-invite" "$output"
+check_contains "the invite is the next step" "1. The administrator of MCloud invites this host on its server: ./zebrunner.sh node-invite" "$(unwrapped "$output")"
 check_contains "the join is the next step" "2. Enroll this host: ./zebrunner.sh join and paste the join string" "$output"
 check_contains "the devices are a step" "3. Declare the devices in 'devices:' of 'config/devices.yml'" "$output"
-check_contains "the doctor is a step" "4. Check the settings, the enrollment and the network to MCloud: ./zebrunner.sh doctor" "$output"
+check_contains "the doctor is a step" "4. Check the settings, the enrollment and the network to MCloud: ./zebrunner.sh doctor" "$(unwrapped "$output")"
 check_contains "the deploy is a step" "5. Deploy the agent: ./zebrunner.sh ansible" "$output"
 check_not_contains "no manual settings" "variables.env" "$output"
 output="$(OS=Linux zbr "" setup)"
@@ -92,7 +104,7 @@ output="$(OS=Darwin zbr "" setup)"
 check "macOS devices are created from the example" "same" \
   "$(cmp -s "${AGENT}/config/devices.yml" "${AGENT}/config/mac-devices.yml.original" && echo same)"
 check_contains "the settings of an earlier version are reported" \
-  "'roles/mac-devices/vars/main.yml' of an earlier version overrides 'config/': ./zebrunner.sh migrate moves its settings to 'config/settings.yml'" "$output"
+  "'roles/mac-devices/vars/main.yml' of an earlier version overrides 'config/': ./zebrunner.sh migrate moves its settings to 'config/settings.yml'" "$(unwrapped "$output")"
 rm -rf "${AGENT}/roles/mac-devices/vars" "${AGENT}/config/"*.bak
 mv "${WORK}/devices.yml" "${AGENT}/config/devices.yml"
 check_contains "unknown OS is rejected" "Unknown OS" "$(OS=FreeBSD zbr "" setup)"
@@ -420,6 +432,14 @@ check_contains "an absent device is reported" "STF knows the device emu1 (androi
 check_contains "the endpoints of the server are checked" "mcloud-grid (SELENIUM_HUB_HOST): 192.168.50.2:4446 (192.168.50.2) accepts connections" "$output"
 check_contains "an address of this host" "STF_PROVIDER_HOST 192.168.30.2 is an address of this host" "$output"
 check_contains "not deployed agent" "zebrunner-farm is not deployed" "$output"
+check_contains "doctor starts with the banner" "[ ZEBRUNNER ] MCloud Agent doctor" "$output"
+check_contains "the checks are grouped in sections, badges without colors" "[ HOST ] ---" "$output"
+check_contains "a warning tells the fix under it" $'   warn zebrunner-farm is not deployed\n     `- fix ./zebrunner.sh ansible' "$output"
+check "the summary counts every status without colors" \
+  "  $(grep -c '^   ok ' <<< "$output") ok, $(grep -c '^   warn ' <<< "$output") warn, 0 fail" \
+  "$(grep -E '^  [0-9]+ ok, [0-9]+ warn, [0-9]+ fail$' <<< "$output")"
+check_contains "the advice follows the summary" "No problems, $(grep -c '^   warn ' <<< "$output") warnings" "$output"
+check "the output is plain text without a terminal" "0" "$(grep -c $'\033' <<< "$output")"
 for secret in "$node_token" "$(sed -n 's/^STF_ZMQ_CURVE_SECRET_KEY: "\(.*\)"$/\1/p' "$vars")"; do
   check_not_contains "a secret is not printed" "$secret" "$output"
 done
@@ -442,6 +462,9 @@ sed -i.bak 's/^STF_PROVIDER_HOST:.*/STF_PROVIDER_HOST: "185.237.20.136"/' "$vars
 self_answer 185.237.20.136 > "${WORK}/mcloud/self_answer"
 output="$(doctor_run)"
 check "a broken agent fails" "1" "$?"
+check "the summary counts the problem" "  $(grep -c '^   ok ' <<< "$output") ok, $(grep -c '^   warn ' <<< "$output") warn, 1 fail" \
+  "$(grep -E '^  [0-9]+ ok, [0-9]+ warn, [0-9]+ fail$' <<< "$output")"
+check_contains "the advice of a problem" "1 problems and" "$output"
 check_contains "the public address of a NAT in the network of the server is a problem" \
   "STF_PROVIDER_HOST 185.237.20.136 (185.237.20.136) is a public address of a NAT" "$output"
 check_contains "a new invite with the address of this host in that network is the fix" \
@@ -572,7 +595,7 @@ check "restore stops at the end of the input" "1" "$?"
 mkdir -p "${AGENT}/backup/bak_old/vars"
 touch "${AGENT}/backup/bak_old/vars/main.yml"
 check_contains "a backup of an earlier version is explained" "is a backup of an earlier version: ./zebrunner.sh migrate backup/bak_old/vars/main.yml backup/bak_old/defaults/main.yml" \
-  "$(OS=Linux zbr "y\nbak_old\n" restore)"
+  "$(unwrapped "$(OS=Linux zbr "y\nbak_old\n" restore)")"
 rm -rf "${AGENT}/backup/bak_old"
 
 section "migrate"
@@ -648,7 +671,7 @@ check "Linux: the status adds nothing" "" "$(calls sudo)"
 output="$(OS=Linux zbr "n\n" autostart enable)"
 check_contains "Linux: enable tells the unit" "creates /etc/systemd/system/mcloud-farm.service (mode 644)" "$output"
 check_contains "Linux: enable shows the content of the unit" "ExecStart=/usr/local/bin/zebrunner-farm start --quiet" "$output"
-check_contains "Linux: enable tells nothing starts now" "it runs at the next boot, nothing starts now" "$output"
+check_contains "Linux: enable tells nothing starts now" "it runs at the next boot, nothing starts now" "$(unwrapped "$output")"
 check "Linux: a declined enable changes nothing" "" "$(calls sudo)"
 OS=Linux zbr "y\n" autostart enable > /dev/null
 check "Linux: enable creates and enables the unit with sudo" "tee|/etc/systemd/system/mcloud-farm.service
@@ -669,7 +692,7 @@ rm -f "${WORK}/autostart_on"
 
 plist="${WORK}/home/Library/LaunchAgents/ZebrunnerFarmStart.plist"
 output="$(OS=Darwin zbr "n\n" autostart enable)"
-check_contains "macOS: enable tells the launch agent" "It creates ${plist}: a launch agent" "$output"
+check_contains "macOS: enable tells the launch agent" "It creates ${plist}: a launch agent" "$(unwrapped "$output")"
 check_contains "macOS: enable shows its content" "exec /usr/local/bin/zebrunner-farm start --quiet" "$output"
 check "macOS: a declined enable creates nothing" "no" "$([[ -f "$plist" ]] && echo yes || echo no)"
 reset_calls
@@ -682,7 +705,7 @@ check_contains "macOS: the status of the enabled autostart" "Autostart is on: ${
 OS=Darwin zbr "y\n" autostart disable > /dev/null
 check "macOS: disable removes the launch agent" "no" "$([[ -f "$plist" ]] && echo yes || echo no)"
 check_contains "macOS: disable unloads it" "bootout|" "$(calls launchctl)"
-check_contains "an unknown action shows the usage" "Usage: ./zebrunner.sh autostart [status|enable|disable]" "$(zbr "" autostart on)"
+check_contains "an unknown action shows the usage" "> ./zebrunner.sh autostart [status|enable|disable]" "$(zbr "" autostart on)"
 OS=Darwin zbr "y\n" autostart enable > /dev/null
 
 section "shutdown"

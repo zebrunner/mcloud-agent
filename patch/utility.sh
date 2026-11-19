@@ -1,5 +1,14 @@
 #!/bin/bash
+# The helpers of the host scripts; the messages need the functions of patch/ui.sh
 
+# patch/ui.sh for every script that sources this file, also a zebrunner-farm deployed before patch/ui.sh with the
+# folder updated since (git pull without the deploy)
+if ! declare -F ui_init > /dev/null; then
+  # shellcheck source=patch/ui.sh
+  source "$(dirname "${BASH_SOURCE[0]}")/ui.sh"
+fi
+
+# the colors of failed, warn and succeed
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
@@ -20,17 +29,75 @@ random_string() {
   echo "${result:0:$length}"
 }
 
-# echo_warning <message>: the message as a warning for the person at the terminal
+# echo_warning <message>: the message as a warning callout for the person at the terminal
 echo_warning() {
-  echo "
-      WARNING! $1"
+  ui_callout warn "$1"
 }
 
-# echo_telegram: where to get help
+# echo_telegram: where to get help, after an empty line
 echo_telegram() {
-  echo "
-      For more help join telegram channel: https://t.me/zebrunner
-      "
+  echo ""
+  ui_muted "For more help join telegram channel: https://t.me/zebrunner"
+}
+
+# print_section <title> [detail]: the title of a section of the output, the detail (e.g. the folder) muted under it
+print_section() {
+  ui_section "$1"
+  if [[ -n "${2:-}" ]]; then
+    ui_muted "$2"
+    echo ""
+  fi
+}
+
+# wrap_words <text> <width>: the text wrapped at the spaces to the width, one line per line; a longer word (e.g. a path)
+# stays whole on its own line, so it can be copied
+wrap_words() {
+  printf '%s\n' "$1" | awk -v width="$2" '{
+    line = ""
+    for (i = 1; i <= NF; i++) {
+      if (line == "") {
+        line = $i
+      } else if (length(line) + 1 + length($i) <= width) {
+        line = line " " $i
+      } else {
+        print line
+        line = $i
+      }
+    }
+    print line
+  }'
+}
+
+# print_paragraph <text>: a paragraph wrapped to the width of the terminal output, an empty line after it
+print_paragraph() {
+  local line
+  while IFS= read -r line; do
+    printf '  %s\n' "$line"
+  done <<< "$(wrap_words "$1" "$UI_WIDTH")"
+  echo ""
+}
+
+# print_step <number> <text>: a numbered step of a list, the text wrapped under itself, an empty line after it
+print_step() {
+  local head="   ${UI_ACCENT}${1}.${UI_RESET} "
+  local line
+  while IFS= read -r line; do
+    printf '%s%s\n' "$head" "$line"
+    head="      "
+  done <<< "$(wrap_words "$2" $((UI_WIDTH - 4)))"
+  echo ""
+}
+
+# confirm_prompt <question> <default y|n>: the prompt of confirm: the question without the indent of the earlier
+# callers and the hint of the default ([Y/n] or [y/N])
+confirm_prompt() {
+  local question="$1"
+  local hint="[y/N]"
+  if [[ "$2" == "y" ]]; then
+    hint="[Y/n]"
+  fi
+  question="${question#"${question%%[![:space:]]*}"}"
+  ui_prompt "$question" "$hint"
 }
 
 # confirm <message> <question> <default y|n>: asks the question until the answer is y or n, Enter is the default; 0 for
@@ -39,13 +106,14 @@ confirm() {
   local message="$1"
   local question="$2"
   local default="$3"
+  local response
 
   while true; do
     if [[ -n $message ]]; then
-      echo "$message"
+      ui_info "$message"
     fi
 
-    read -r -p "${question} y/n [${default}]:" response
+    read -r -p "$(confirm_prompt "$question" "$default")" response
     if [[ -z "$response" ]]; then
       if [[ "$default" == "y" ]]; then
         return 0
@@ -63,22 +131,22 @@ confirm() {
       return 1
     fi
 
-    echo "Please answer y (yes) or n (no)."
-    echo
+    ui_warn "Please answer y (yes) or n (no)."
   done
 }
 
-# failed <message>: the message in red
+# failed <message>: the message in red; the output of zebrunner-farm and patch/mdm.sh, the other scripts print with
+# patch/ui.sh
 failed() {
   echo -e "${RED}${1}${NC}"
 }
 
-# warn <message>: the message in yellow
+# warn <message>: the message in yellow, see failed
 warn() {
   echo -e "${YELLOW}${1}${NC}"
 }
 
-# succeed <message>: the message in green
+# succeed <message>: the message in green, see failed
 succeed() {
   echo -e "${GREEN}${1}${NC}"
 }
@@ -87,50 +155,15 @@ succeed() {
 ask_for_sudo() {
   # Check for sudo permission
   if ! sudo -n true 2> /dev/null; then
-    echo "You need to have sudo permissions"
+    ui_info "You need to have sudo permissions"
   fi
 
   # Show sudo prompt to be transparent and extend sudo timeout if the user has sudo permissions
-  echo "> sudo -v    # Extends the sudo timeout for default period"
+  ui_muted "sudo -v    # Extends the sudo timeout for default period"
   if ! sudo -v; then
-    echo_warning "Can't proceed without sudo"
+    ui_fail "Can't proceed without sudo"
     return 1
   fi
-}
-
-# delimiter [character] [text...]: a line of the character ('=' by default) over the width of the terminal, with the text
-delimiter() {
-  local char="="
-  local text=""
-  # If the first argument is a single character, use it as the delimiter
-  if [[ $# -gt 0 && ${#1} -eq 1 ]]; then
-    char="$1"
-    shift
-  fi
-  # Other arguments are the text
-  text="$*"
-
-  local width
-  width=$(tput cols 2> /dev/null)
-  # no terminal (ssh without a tty, CI): the default width
-  [[ "$width" =~ ^[0-9]+$ ]] || width=80
-  printf "\n"
-  if [[ -z "$text" ]]; then
-    # Simple delimiter line
-    printf '%*s\n' "$width" '' | tr ' ' "$char"
-  else
-    # Add spaces around the text
-    text=" $text "
-    local textlen=${#text}
-    # How many chars on the left and right
-    local left=4
-    local right=$((width - textlen - left))
-    # Print the line with text
-    printf '%*s' "$left" '' | tr ' ' "$char"
-    printf '%s' "$text"
-    printf '%*s\n' "$right" '' | tr ' ' "$char"
-  fi
-  printf "\n"
 }
 
 # yaml_python: a python with PyYAML for patch/settings.py and patch/enroll.py: $ZEBRUNNER_PYTHON, python3 or the python

@@ -1,6 +1,6 @@
 #!/bin/bash
 # `./zebrunner.sh backup` and `restore` (README.md#settings): the local settings of config/ only, the code of the agent
-# comes from git. Sourced by zebrunner.sh after patch/utility.sh.
+# comes from git. Sourced by zebrunner.sh after patch/utility.sh and patch/ui.sh.
 
 # backup_files: the files of a backup, relative to the agent folder
 backup_files() {
@@ -9,59 +9,55 @@ backup_files() {
 
 # backup: the settings of config/ into a private folder of backup/ (README.md#settings)
 backup() {
-  delimiter "Backup MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
+  print_section "Backup" "Backup MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
 
-  confirm "" "      Do you want to do a backup now?" "n" || exit 0
-  echo ""
+  confirm "" "Do you want to do a backup now?" "n" || exit 0
   local backup_dir_name
   backup_dir_name="backup/bak_$(date +%d-%m-%Y_%H-%M)_$(random_string 5)"
-  echo "Creating backup directory:"
-  echo -n "    "
   # the settings have secrets: the backup is private
-  if ! (umask 077 && mkdir -vp "${backup_dir_name}/config" 2> /dev/null); then
-    failed "mkdir for '${backup_dir_name}/config' failed"
+  if ! (umask 077 && mkdir -p "${backup_dir_name}/config" 2> /dev/null); then
+    ui_fail "mkdir for '${backup_dir_name}/config' failed"
     exit 1
   fi
+  ui_ok "Creating backup directory: ${backup_dir_name}"
 
-  echo ""
-  echo "Backing up the settings:"
   local file
   for file in $(backup_files); do
-    echo -n "    "
-    cp -pv "$file" "${backup_dir_name}/config/" 2> /dev/null || failed "cp for '${file}' failed"
+    if cp -p "$file" "${backup_dir_name}/config/" 2> /dev/null; then
+      ui_ok "Backing up the settings: '${file}' -> '${backup_dir_name}/config/'"
+    else
+      ui_fail "cp for '${file}' failed"
+    fi
   done
 
-  delimiter
+  echo ""
+  ui_rule
 }
 
 # restore: the settings of config/ from a folder of backup/, asks which one
 restore() {
-  delimiter "Restore MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
+  print_section "Restore" "Restore MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
 
-  warn "\tBefore restoring do the following:"
-  warn ">\tzebrunner-farm down"
-  echo ""
+  ui_warn "Before restoring do the following:" "zebrunner-farm down"
 
-  confirm "" "      Current data might be lost. Do you want to do a restore now?" "n" || exit 0
+  confirm "" "Current data might be lost. Do you want to do a restore now?" "n" || exit 0
 
   echo ""
-  echo "Backups found in 'backup' directory:"
+  ui_info "Backups found in 'backup' directory:"
   for bup in backup/bak_*; do
     if [[ -d "$bup" ]]; then
-      echo "    $(basename "$bup")"
+      ui_muted "  $(basename "$bup")"
     fi
   done
 
   echo ""
   while true; do
-    read -r -p "Please enter the backup directory name you want to restore: " backup_dir_name || exit 1
+    read -r -p "$(ui_prompt "Please enter the backup directory name you want to restore:")" backup_dir_name || exit 1
     if [[ -n "$backup_dir_name" && -d "backup/${backup_dir_name}" ]]; then
       backup_dir_name="backup/${backup_dir_name}"
       break
     else
-      echo -n "    "
-      echo "Directory '${backup_dir_name}' does not exist. Please try again."
-      echo ""
+      ui_warn "Directory '${backup_dir_name}' does not exist. Please try again."
     fi
   done
 
@@ -72,17 +68,18 @@ restore() {
   fi
 
   echo ""
-  echo "Restoring from '${backup_dir_name}':"
   mkdir -p config
   local file
   for file in $(backup_files); do
-    echo -n "    "
-    cp -pv "${backup_dir_name}/${file}" "$file" 2> /dev/null || failed "cp for '${backup_dir_name}/${file}' failed"
+    if cp -p "${backup_dir_name}/${file}" "$file" 2> /dev/null; then
+      ui_ok "Restoring from '${backup_dir_name}': '${file}'"
+    else
+      ui_fail "cp for '${backup_dir_name}/${file}' failed"
+    fi
   done
 
-  echo_warning "After recovery, you need to reapply the settings:"
-  warn ">\t./zebrunner.sh ansible"
-  warn ">\tzebrunner-farm start"
+  echo_warning "After recovery, you need to reapply the settings: ./zebrunner.sh ansible, then zebrunner-farm start"
 
-  delimiter
+  echo ""
+  ui_rule
 }
