@@ -1280,8 +1280,10 @@ if tty_run true > /dev/null 2>&1 < /dev/null; then
   check "Esc of the pick of shell runs nothing" "" "$(calls docker | grep '^exec|')"
   # macOS: some devices of the group picked or kept by a person: the devices listener stays for the other iOS devices
   setup_case
-  check_not_contains "stop --pick of a device keeps the devices listener" "would unload the devices listener" \
-    "$(FZF_PICK=iPhone_8_Plus tty_farm mac-devices '' stop ios --pick --dry-run)"
+  check_not_contains "stop --pick without the USB iOS device keeps the devices listener" "would unload the devices listener" \
+    "$(FZF_PICK=AppleTV tty_farm mac-devices '' stop ios --pick --dry-run)"
+  check_contains "stop --pick with every USB iOS device unloads the devices listener" "would unload the devices listener" \
+    "$(FZF_PICK=iPhone_8_Plus,AppleTV tty_farm mac-devices '' stop ios --pick --dry-run)"
   check_contains "stop of the iOS devices unloads the devices listener" "would unload the devices listener" \
     "$(tty_farm mac-devices '' stop ios --dry-run)"
 else
@@ -1294,14 +1296,23 @@ rm -f "${WORK}/bin/fzf"
 listener="$(env -i HOME="$WORK" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
   MCLOUD_LOCK_DIR="$WORK" ZEBRUNNER_FARM_ENV="${WORK}/farm-mac-devices.env" /bin/bash -c '
     source "$1"
-    parse_selection ios
-    select_devices > /dev/null
-    listener_applies && echo "group: applies" || echo "group: no"
-    refine_selection keep iPhone_8_Plus
-    listener_applies && echo "kept: applies" || echo "kept: no"
+    try() {
+      parse_selection "$1"
+      select_devices > /dev/null
+      [[ -z "$2" ]] || refine_selection "$2" "$3"
+      listener_applies && echo "$1 $2 $3: applies" || echo "$1 $2 $3: no"
+    }
+    try ios
+    try ios keep iPhone_8_Plus
+    try ios drop iPhone_8_Plus
+    try "" drop Galaxy
+    try "" keep WiFi
   ' _ "$FARM_SCRIPT" 2>&1)"
-check "the listener of the group of the iOS devices, not once f keeps some of them" "group: applies
-kept: no" "$listener"
+check "the listener: the group, a narrowed group without the USB iOS device only" "ios  : applies
+ios keep iPhone_8_Plus: applies
+ios drop iPhone_8_Plus: no
+ drop Galaxy: applies
+ keep WiFi: no" "$listener"
 
 section "Ctrl-C"
 # a device ended by Ctrl-C (130: the trap of docker_spin in the subshell of the lock) ends the whole run; the code runs

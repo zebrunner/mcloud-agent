@@ -864,7 +864,8 @@ ensure_network() {
 # batch removes the containers of all the devices, then creates them; rolling removes and creates them device by device.
 # FARM_COMMAND is the command of zebrunner-farm (empty for ./zebrunner.sh mdm): its options DRY_RUN (--dry-run),
 # VERBOSE (-v), WATCH (--watch, the seconds) and PICK (--pick: a person picks the devices with fzf first). REFINED: a
-# person narrowed SELECTED at the question (f, x, p) or with --pick: not the group of the selectors any more.
+# person dropped a device of the devices listener of macOS (iOS, USB) from SELECTED at the question (f, x, p) or with
+# --pick: the listener keeps working for it.
 SELECTORS=()
 EXCLUDES=()
 QUIET=""
@@ -1165,10 +1166,16 @@ refine_selection() {
     done
     if [[ "$mode" == "keep" && -n "$hit" ]] || [[ "$mode" == "drop" && -z "$hit" ]]; then
       kept+=("$udid")
+    elif listener_device; then
+      REFINED="true"
     fi
   done
   SELECTED=("${kept[@]}")
-  REFINED="true"
+}
+
+# listener_device: 0 for the device of get_device_fields the devices listener of macOS starts and stops (iOS, USB)
+listener_device() {
+  [[ "$dev_platform_name" == "ios" && "$dev_connection" == "usb" ]]
 }
 
 # can_pick: 0 when a person can pick the devices with fzf: fzf is installed, stdin and stdout are a terminal
@@ -1195,17 +1202,25 @@ pick_devices() {
     printf '%s\t%s\t%s\t%s\t%s\n' "$dev_udid" "$dev_device_name" "$dev_platform_name" "$dev_connection" "$dev_udid"
   done | fzf ${multi[@]+"${multi[@]}"} --delimiter $'\t' --with-nth 2.. --prompt "devices> " --header "$header")" ||
     return 1
+  local hit
+  local dropped=""
   for udid in "${SELECTED[@]}"; do
+    hit=""
     while IFS=$'\t' read -r line _; do
       if [[ "$line" == "$udid" ]]; then
-        kept+=("$udid")
+        hit="true"
         break
       fi
     done <<< "$picked"
+    if [[ -n "$hit" ]]; then
+      kept+=("$udid")
+    elif get_device_fields "$udid" > /dev/null && listener_device; then
+      dropped="true"
+    fi
   done
   [[ "$(count ${kept[@]+"${kept[@]}"})" -gt 0 ]] || return 1
   SELECTED=("${kept[@]}")
-  REFINED="true"
+  [[ -z "$dropped" ]] || REFINED="true"
 }
 
 # containers_summary: the state of the containers of the device of get_device_fields in CONTAINER_STATES
@@ -1479,7 +1494,7 @@ start_device() {
 # devices listener handles the USB iOS devices, stop and down unload it, start loads it
 listener_applies() {
   [[ "$FARM_OS" == "macos" ]] || return 1
-  # some devices of the group picked by a person: the listener keeps the other iOS devices
+  # a person dropped a device of the listener from the group: the listener keeps working for it
   [[ -z "$REFINED" ]] || return 1
   local selector
   [[ "$(count "${SELECTORS[@]}")" -eq 0 ]] && return 0
