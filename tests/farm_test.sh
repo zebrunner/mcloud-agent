@@ -18,7 +18,8 @@ EOF
 IPHONE="device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"
 
 # docker: records the calls, prints ${STUB_DIR}/docker_ps for `ps`, fails `run` of a container
-# ending with $DOCKER_FAIL_RUN and returns $DOCKER_STARTED_AT/$DOCKER_FINISHED_AT for `inspect`; the variables of
+# ending with $DOCKER_FAIL_RUN and `stop` of one ending with $DOCKER_FAIL_STOP, has no network with $DOCKER_NO_NETWORK
+# and returns $DOCKER_STARTED_AT/$DOCKER_FINISHED_AT for `inspect`; the variables of
 # `run -e NAME` (no value: docker takes it from its environment) as it sees them go to ${STUB_DIR}/run_env.log,
 # `<container>|NAME=value|...|`, a NAME missing from its environment is not there
 cat > "${WORK}/bin/docker" << 'EOF'
@@ -44,8 +45,27 @@ case "$1" in
     fi
     echo "id-${name}"
     ;;
+  stop)
+    if [[ -n "$DOCKER_FAIL_STOP" && "${*: -1}" == *"$DOCKER_FAIL_STOP" ]]; then
+      echo "Error response from daemon: simulated stop failure" >&2
+      exit 1
+    fi
+    ;;
+  network)
+    [[ "$2" != "inspect" || -z "$DOCKER_NO_NETWORK" ]] || exit 1
+    ;;
   inspect)
     case "$*" in
+      # status: the containers of docker_ps (<name> [<status>], running without it), healthy, started at
+      # $DOCKER_STARTED_AT, $DOCKER_RESTARTS restarts, the exit code 1
+      *'{{.Name}}|'*)
+        for name in "${@:4}"; do
+          line="$(awk -v name="$name" '$1 == name { print; exit }' "${STUB_DIR}/docker_ps" 2> /dev/null)"
+          [[ -n "$line" ]] || continue
+          status="$(cut -s -d ' ' -f 2 <<< "$line")"
+          echo "/${name}|${status:-running}|healthy|${DOCKER_STARTED_AT}|${DOCKER_RESTARTS:-0}|1"
+        done
+        ;;
       # status --json: the state of a container of docker_ps (<name> <status>), healthy, started 100 seconds ago
       *'{{.State.Status}}|'*)
         status="$(grep "^${*: -1} " "${STUB_DIR}/docker_ps" 2> /dev/null | cut -d ' ' -f 2)"
@@ -80,6 +100,7 @@ farm() {
   shift
   env -i HOME="${WORK}" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
     DOCKER_FAIL_RUN="${DOCKER_FAIL_RUN:-}" DOCKER_STARTED_AT="${DOCKER_STARTED_AT:-}" DOCKER_FINISHED_AT="${DOCKER_FINISHED_AT:-}" \
+    DOCKER_FAIL_STOP="${DOCKER_FAIL_STOP:-}" DOCKER_NO_NETWORK="${DOCKER_NO_NETWORK:-}" DOCKER_RESTARTS="${DOCKER_RESTARTS:-}" \
     MCLOUD_LOCK_DIR="$WORK" MCLOUD_LOCK_TIMEOUT="${MCLOUD_LOCK_TIMEOUT:-}" MCLOUD_FARM_INTERACTIVE="${MCLOUD_FARM_INTERACTIVE:-}" \
     ZEBRUNNER_FARM_ENV="${WORK}/farm-${role}.env" /bin/bash "$FARM_SCRIPT" "$@" 2>&1
 }
@@ -281,7 +302,8 @@ check "existing container is not created again" "connector appium" \
 setup_case
 echo '"USB Serial Number" = "d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"' > "${WORK}/usb"
 output="$(DOCKER_FAIL_RUN=-appium farm mac-devices start iPhone_8_Plus)"
-check_contains "failed container creation is reported with the error of docker" "NOT created: docker: simulated failure" "$output"
+check_contains "failed container creation is reported with the error of docker" \
+  "NOT created  ${IPHONE}-appium: docker: simulated failure" "$output"
 check "the containers after a failed one are not created" "connector stf appium" \
   "$(calls docker | grep '^run|' | grep -o -- "--name|${IPHONE}-[a-z]*" | sed 's/.*-//' | paste -s -d ' ' -)"
 
@@ -688,25 +710,25 @@ for role in devices mac-devices; do
   printf '%s\n' "device-WiFi-192.168.1.50-connector running" "device-WiFi-192.168.1.50-stf exited" > "${WORK}/docker_ps"
   # without the colors of the states
   output="$(farm "$role" start WiFi | sed "s/$(printf '\033')\[[0-9;]*m//g")"
-  check_contains "${role}: a running container is kept" "connector  running" "$output"
-  check_contains "${role}: a stopped container is started" "stf        started" "$output"
-  check_contains "${role}: a missing container is created" "appium     created" "$output"
+  check_contains "${role}: a running container is kept" "running  device-WiFi-192.168.1.50-connector" "$output"
+  check_contains "${role}: a stopped container is started" "started  device-WiFi-192.168.1.50-stf" "$output"
+  check_contains "${role}: a missing container is created" "created  device-WiFi-192.168.1.50-appium" "$output"
   check "${role}: only the stopped container is started" "start|device-WiFi-192.168.1.50-stf" "$(calls docker | grep '^start|')"
   check "${role}: only the missing containers are created" "appium" \
     "$(calls docker | grep '^run|' | grep -o -- '--name|device-WiFi-192.168.1.50-[a-z]*' | sed 's/.*-//' | paste -s -d ' ' -)"
   setup_case
   output="$(farm "$role" down WiFi)"
   # the docker stub removes no container
-  check_contains "${role}: down reports every container" "uploader   no container" "$output"
-  check_contains "${role}: down reports the volume of the logs" "logs       volume removed" "$output"
+  check_contains "${role}: down reports every container" "no container  device-WiFi-192.168.1.50-uploader" "$output"
+  check_contains "${role}: down reports the volume of the logs" "removed  device-WiFi-192.168.1.50  volume of the logs" "$output"
   # appium shares the recordings, the uploader uploads them, the volume of the logs is removed after them
   check "${role}: down stops every container before its removal, appium and the uploader first, the volume last" \
     "stop|-t|40|appium rm|-f|appium stop|-t|130|uploader rm|-f|uploader stop|-t|30|stf rm|-f|stf stop|-t|10|connector rm|-f|connector volume|rm|device-WiFi-192.168.1.50" \
     "$(calls docker | grep -E '^(stop|rm|volume)\|' | sed 's/device-WiFi-192.168.1.50-//' | paste -s -d ' ' -)"
   setup_case
   output="$(farm "$role" stop WiFi)"
-  check_contains "${role}: stop reports every container" "appium     stopped" "$output"
-  check_contains "${role}: the device is the header of its lines" "==> WiFi (192.168.1.50, android, wireless)" "$output"
+  check_contains "${role}: stop reports every container" "stopped  device-WiFi-192.168.1.50-appium" "$output"
+  check_contains "${role}: the device is the title of its lines" "  > WiFi  android - wireless - 192.168.1.50 ---" "$output"
   check "${role}: stop waits for the recordings and their upload" \
     "stop|-t|40|appium stop|-t|130|uploader stop|-t|30|stf stop|-t|10|connector" \
     "$(calls docker | grep '^stop|' | sed 's/device-WiFi-192.168.1.50-//' | paste -s -d ' ' -)"
@@ -714,10 +736,14 @@ done
 
 section "status"
 setup_case
-check_contains "Linux: wireless device shows its containers" "| Connector" "$(farm devices status WiFi)"
-check_contains "Linux: USB device without symlink is disconnected" "DISCONNECTED" "$(farm devices status Galaxy)"
-check_contains "macOS: wireless device shows its containers" "| Connector" "$(farm mac-devices status AppleTV)"
-check_contains "macOS: not connected USB device is disconnected" "DISCONNECTED" "$(farm mac-devices status iPhone_8_Plus)"
+check_contains "Linux: wireless device shows its containers" "no container  device-WiFi-192.168.1.50-connector" \
+  "$(farm devices status WiFi)"
+check_contains "Linux: USB device without symlink is disconnected" "disconnected: the USB device is not plugged in" \
+  "$(farm devices status Galaxy)"
+check_contains "macOS: wireless device shows its containers" "no container  device-AppleTV-aaaa1111-connector" \
+  "$(farm mac-devices status AppleTV)"
+check_contains "macOS: not connected USB device is disconnected" "disconnected: the USB device is not plugged in" \
+  "$(farm mac-devices status iPhone_8_Plus)"
 
 # status --json: the JSON array on stdout only, checked by python
 OS_ROLE=devices
@@ -774,6 +800,7 @@ if command -v flock > /dev/null 2>&1; then
   sleep 0.5
   setup_case
   output="$(MCLOUD_LOCK_TIMEOUT=1 farm devices restart Galaxy)"
+  check "a command of a kept device fails (the unit of udev fails)" "1" "$?"
   check_contains "a command of a kept device (called by its name, locked by its id) waits, then gives up" \
     "another zebrunner-farm keeps the device Galaxy for too long" "$output"
   check "a command of a kept device changes no container" "" "$(calls docker | grep -v '^network|')"
@@ -807,20 +834,22 @@ iso_ago() {
     date -u -d "@${epoch}" +%Y-%m-%dT%H:%M:%S.123456789Z
   fi
 }
-# uptime of the stf container from the status table of a wireless device (date parsing is OS specific)
+# the uptime of the stf container in the status of a wireless device (date parsing is OS specific)
 if [[ "$(uname)" == "Darwin" ]]; then
-  uptime_of() { farm mac-devices status AppleTV | grep '| STF' | awk -F '|' '{print $5}' | sed 's/^ *//; s/ *$//'; }
+  uptime_of() { farm mac-devices status AppleTV | grep -- '-stf$' | sed 's/^ *[A-Za-z]* *[a-z]* *[a-z-]* *//; s/ *device-.*//'; }
 else
-  uptime_of() { farm devices status WiFi | grep '| STF' | awk -F '|' '{print $5}' | sed 's/^ *//; s/ *$//'; }
+  uptime_of() { farm devices status WiFi | grep -- '-stf$' | sed 's/^ *[A-Za-z]* *[a-z]* *[a-z-]* *//; s/ *device-.*//'; }
 fi
 setup_case
-printf '%s\n' device-AppleTV-aaaa1111-stf device-WiFi-192.168.1.50-stf > "${WORK}/docker_ps"
+printf '%s\n' "device-AppleTV-aaaa1111-stf running" "device-WiFi-192.168.1.50-stf running" > "${WORK}/docker_ps"
 uptime="$(DOCKER_STARTED_AT="$(iso_ago 3661)" uptime_of)"
-check "uptime below a day" "ok" "$([[ "$uptime" =~ ^01:01:0[12]$ ]] && echo ok || echo "$uptime")"
+check "uptime below a day" "ok" "$([[ "$uptime" =~ ^up\ 1h\ 1m$ ]] && echo ok || echo "$uptime")"
 uptime="$(DOCKER_STARTED_AT="$(iso_ago 93784)" uptime_of)"
-check "uptime above a day shows days" "ok" "$([[ "$uptime" =~ ^1d\ 02:03:0[45]$ ]] && echo ok || echo "$uptime")"
-uptime="$(DOCKER_STARTED_AT="$(iso_ago 7200)" DOCKER_FINISHED_AT="$(iso_ago 60)" uptime_of)"
-check "stopped container has unknown uptime" "UNKNOWN" "$uptime"
+check "uptime above a day shows days" "ok" "$([[ "$uptime" =~ ^up\ 1d\ 2h$ ]] && echo ok || echo "$uptime")"
+uptime="$(DOCKER_STARTED_AT="$(iso_ago 45)" uptime_of)"
+check "uptime below a minute shows seconds" "ok" "$([[ "$uptime" =~ ^up\ 4[5-9]s$ ]] && echo ok || echo "$uptime")"
+printf '%s\n' "device-AppleTV-aaaa1111-stf exited" "device-WiFi-192.168.1.50-stf exited" > "${WORK}/docker_ps"
+check "stopped container has its exit code, no uptime" "code 1" "$(DOCKER_STARTED_AT="$(iso_ago 7200)" uptime_of)"
 
 section "Developer Disk Images"
 # ddi_mount <role> <device> <container prefix>: the DDI mount of the connector of a started device, empty without it
@@ -863,9 +892,330 @@ check "a simulator gets none" "" "$(ddi_mount mac-devices Sim device-Sim-B1B07E7
 check "the proxied device gets it" "${WORK}/ddi:/opt/zebrunner/ddi:ro" "$(ddi_mount mac-devices AppleTV device-AppleTV-aaaa1111)"
 
 section "help"
-output="$(farm devices)"
+output="$(farm devices | tr -s ' \n' '  ')"
 check_contains "help describes the devices argument" "Devices: udid or name of a whitelisted device, a group: ios, android, usb" "$output"
 check_contains "help describes the exclusion" "-x, -e, --exclude <devices>" "$output"
+
+section "the output without a terminal"
+# udev, systemd and launchd run zebrunner-farm without a terminal: plain text, a line per container
+setup_case
+output="$(farm devices stop WiFi)"
+check_not_contains "no escape sequence (colors, spinner)" $'\033' "$output"
+check "the title of the device: its name as it is, its platform, connection and udid" "1" \
+  "$(grep -cE '^  > WiFi  android - wireless - 192\.168\.1\.50 -{3,}$' <<< "$output")"
+check "a line per container: the action first and the full name" "4" \
+  "$(grep -cE '^   ok   stopped  device-WiFi-192\.168\.1\.50-(appium|uploader|stf|connector)$' <<< "$output")"
+check "a single device has no summary" "" "$(grep -E 'ok, .* fail' <<< "$output")"
+setup_case
+output="$(farm mac-devices start iPhone_8_Plus)"
+check_contains "a long container name stays on the line of its action" \
+  "   FAIL NOT connected over USB (ioreg): the containers are not created." "$output"
+echo '"USB Serial Number" = "d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"' > "${WORK}/usb"
+output="$(farm mac-devices start iPhone_8_Plus)"
+check_contains "the facts of the device under its title" "    WDA      /dev/null (com.facebook.WebDriverAgentRunner.xctrunner)" "$output"
+check_contains "the line of a long container name is not wrapped in a log" \
+  "   ok   created  ${IPHONE}-connector  id-${IPHONE:0:9}" "$output"
+
+section "a group of devices"
+for role in devices mac-devices; do
+  setup_case
+  output="$(farm "$role" stop android -q)"
+  check "${role}: stop of a group succeeds" "0" "$?"
+  check_contains "${role}: the title of the command and the number of the devices" "[ STOP ] ---" "$output"
+  check_contains "${role}: the counter of a device" "--- 2/3" "$output"
+  check_contains "${role}: the summary" "3 ok, 0 warn, 0 fail" "$output"
+  check_contains "${role}: the summary has the time" "3 devices - done in " "$output"
+  setup_case
+  output="$(DOCKER_FAIL_RUN=Emu-emu1-appium farm "$role" start WiFi Emu -q)"
+  check "${role}: a failed device fails the group" "1" "$?"
+  check_contains "${role}: the summary counts the failed device" "1 ok, 0 warn, 1 fail" "$output"
+  check_contains "${role}: the failed devices are listed" "failed: Emu - done in " "$output"
+  check_contains "${role}: the command to retry them" "retry: zebrunner-farm start Emu" "$output"
+  setup_case
+  DOCKER_FAIL_RUN=Emu-emu1-appium farm "$role" start Emu > /dev/null
+  check "${role}: a failed device fails (the unit of udev fails)" "1" "$?"
+  setup_case
+  farm "$role" start Emu > /dev/null
+  check "${role}: a started device succeeds" "0" "$?"
+  setup_case
+  output="$(DOCKER_FAIL_STOP=WiFi-192.168.1.50-stf farm "$role" stop WiFi)"
+  check "${role}: a container that does not stop fails the device" "1" "$?"
+  check_contains "${role}: the container that does not stop is reported" \
+    "FAIL NOT stopped  device-WiFi-192.168.1.50-stf: Error response from daemon: simulated stop failure" "$output"
+  check "${role}: the other containers are stopped anyway" "4" "$(calls docker | grep -c '^stop|')"
+  setup_case
+  output="$(DOCKER_FAIL_STOP=WiFi-192.168.1.50-stf farm "$role" down WiFi)"
+  check "${role}: down of a device whose container does not stop still removes it" "0" "$?"
+done
+setup_case
+output="$(farm devices start android -q)"
+check "Linux: a USB device that is not plugged in is skipped, the group succeeds" "0" "$?"
+check_contains "Linux: the skipped device is a warning of the summary" "2 ok, 1 warn, 0 fail" "$output"
+setup_case
+output="$(farm devices restart android -q)"
+check_contains "the batch restart has the strategy in its title" "3 devices - batch" "$output"
+check "the batch restart counts every device once" "1" "$(grep -c '2 ok, 1 warn, 0 fail' <<< "$output")"
+
+section "--dry-run"
+for role in devices mac-devices; do
+  for command in start stop restart down; do
+    setup_case
+    printf '%s\n' "device-WiFi-192.168.1.50-connector running" "device-WiFi-192.168.1.50-stf exited" > "${WORK}/docker_ps"
+    output="$(DOCKER_NO_NETWORK=1 farm "$role" "$command" --dry-run)"
+    check "${role}: ${command} --dry-run succeeds" "0" "$?"
+    check "${role}: ${command} --dry-run changes no container" "" \
+      "$(calls docker | grep -E '^(run|start|stop|rm|create|kill|exec)\||^(volume|network)\|(rm|create)\|')"
+    check "${role}: ${command} --dry-run reads the containers once" "1" "$(calls docker | grep -c '^ps|')"
+    check "${role}: ${command} --dry-run changes no launch agent" "" "$(calls launchctl)"
+    check_contains "${role}: ${command} --dry-run says so" "--dry-run: nothing was changed" "$output"
+  done
+  setup_case
+  printf '%s\n' "device-WiFi-192.168.1.50-connector running" "device-WiFi-192.168.1.50-stf exited" > "${WORK}/docker_ps"
+  output="$(DOCKER_NO_NETWORK=1 farm "$role" start WiFi --dry-run)"
+  check_contains "${role}: start --dry-run keeps a running container" "info running  device-WiFi-192.168.1.50-connector" "$output"
+  check_contains "${role}: start --dry-run would start a stopped one" "info would start  device-WiFi-192.168.1.50-stf" "$output"
+  check_contains "${role}: start --dry-run would create a missing one" "info would create  device-WiFi-192.168.1.50-appium" "$output"
+  check_contains "${role}: start --dry-run would create the network" "would create the docker network" "$output"
+  output="$(farm "$role" stop WiFi --dry-run)"
+  check_contains "${role}: stop --dry-run would stop a running container" "would stop  device-WiFi-192.168.1.50-connector" "$output"
+  output="$(farm "$role" restart WiFi --dry-run)"
+  check_contains "${role}: restart --dry-run would remove a container" "would remove  device-WiFi-192.168.1.50-connector" "$output"
+  check_contains "${role}: restart --dry-run would create it again" "would create  device-WiFi-192.168.1.50-connector" "$output"
+  output="$(farm "$role" restart android --dry-run)"
+  check_not_contains "${role}: --dry-run asks nothing" "The devices to" "$output"
+done
+output="$(farm devices status --dry-run)"
+check "--dry-run is no option of status" "1" "$?"
+check_contains "--dry-run of status is reported" "--dry-run is an option of start, stop, restart, down only" "$output"
+
+section "logs, shell and exec"
+for role in devices mac-devices; do
+  setup_case
+  printf '%s\n' "device-WiFi-192.168.1.50-appium running" "device-WiFi-192.168.1.50-stf running" \
+    "device-WiFi-192.168.1.50-connector running" > "${WORK}/docker_ps"
+  farm "$role" logs WiFi > /dev/null
+  check "${role}: logs of the appium of a device by its name" "logs|--tail|200|device-WiFi-192.168.1.50-appium" \
+    "$(calls docker | grep '^logs|')"
+  reset_calls
+  farm "$role" logs 192.168.1.50 stf -f --tail 20 > /dev/null
+  check "${role}: logs of a role of a device by its udid, followed" "logs|--follow|--tail|20|device-WiFi-192.168.1.50-stf" \
+    "$(calls docker | grep '^logs|')"
+  reset_calls
+  farm "$role" logs WiFi --tail=all --follow connector > /dev/null
+  check "${role}: the options of logs in any place" "logs|--follow|--tail|all|device-WiFi-192.168.1.50-connector" \
+    "$(calls docker | grep '^logs|')"
+  reset_calls
+  farm "$role" shell WiFi < /dev/null > /dev/null
+  check "${role}: shell runs bash or sh in appium" \
+    "exec|-i|device-WiFi-192.168.1.50-appium|sh|-c|if command -v bash > /dev/null 2>&1; then exec bash; fi; exec sh" \
+    "$(calls docker | grep '^exec|')"
+  reset_calls
+  farm "$role" exec WiFi connector adb -s 'a b' devices < /dev/null > /dev/null
+  check "${role}: exec runs the command in the container, no terminal without one" \
+    "exec|-i|device-WiFi-192.168.1.50-connector|adb|-s|a b|devices" "$(calls docker | grep '^exec|')"
+  reset_calls
+  output="$(farm "$role" logs WiFi foo)"
+  check "${role}: an unknown role is a usage error" "2" "$?"
+  check_contains "${role}: an unknown role lists the roles" "unknown role: foo; the roles: connector stf appium uploader" "$output"
+  output="$(farm "$role" logs WiFi stff)"
+  check_contains "${role}: a mistyped role is suggested" "unknown role: stff (did you mean: stf?)" "$output"
+  output="$(farm "$role" logs android)"
+  check "${role}: a group is not one device" "1" "$?"
+  check_contains "${role}: a group lists its devices" "android is 3 devices: Galaxy WiFi Emu" "$output"
+  output="$(farm "$role" logs WiFi uploader)"
+  check "${role}: a missing container fails" "1" "$?"
+  check_contains "${role}: a missing container is reported" "no container device-WiFi-192.168.1.50-uploader" "$output"
+  output="$(farm "$role" logs Wifi)"
+  check_contains "${role}: an unknown device is suggested" "device not found: Wifi (did you mean: WiFi?)" "$output"
+  output="$(farm "$role" exec WiFi connector)"
+  check "${role}: exec needs a command" "2" "$?"
+  check "${role}: the usage errors change nothing" "" "$(calls docker | grep -v '^ps|')"
+done
+
+section "did you mean"
+output="$(farm devices statsu)"
+check "an unknown command is a usage error" "2" "$?"
+check_contains "an unknown command suggests the closest one" "unknown command: statsu (did you mean: status?)" "$output"
+check_contains "an unknown command shows the usage" "zebrunner-farm <command> [devices...] [options]" "$output"
+check_not_contains "an unknown command prints no help" "[ OPTIONS ]" "$output"
+check_contains "a prefix of a command is suggested" "(did you mean: restart?)" "$(farm devices rest)"
+check_not_contains "a word far from every command suggests nothing" "did you mean" "$(farm devices xyzzy)"
+farm devices > /dev/null
+check "no command is the help" "0" "$?"
+farm devices help > /dev/null
+check "help is the help" "0" "$?"
+output="$(farm devices stop Galxy)"
+check_contains "an unknown device suggests the closest names" "device not found: Galxy (did you mean: Galaxy?)" "$output"
+check_contains "an unknown device suggests a udid by its prefix" "(did you mean: R28M1384YQY?)" "$(farm devices stop R28)"
+check_contains "an unknown device suggests a group" "(did you mean: android?)" "$(farm devices stop androd)"
+
+section "help of a command"
+for command in status start stop restart down logs shell exec ansible version completion help; do
+  output="$(farm devices help "$command")"
+  check "help ${command} succeeds" "0" "$?"
+  check_contains "help ${command} has its usage" "> zebrunner-farm ${command}" "$output"
+done
+check_contains "restart --help is the help of restart" "--rolling" "$(farm devices restart --help)"
+check_contains "-h is --help" "--tail" "$(farm devices logs -h)"
+check "--help changes nothing" "" "$(calls docker | grep -v '^ps|')"
+output="$(farm devices help nope)"
+check "help of an unknown command is a usage error" "2" "$?"
+output="$(farm devices | tr -s ' \n' '  ')"
+for command in status start stop restart down logs shell exec ansible version completion help; do
+  check_contains "help has ${command}" " ${command} " "$output"
+done
+for option in -x "-q," --quiet --batch --rolling --dry-run --json --watch -v; do
+  check_contains "help has ${option}" " ${option} " "$output"
+done
+check_not_contains "help has no escape sequence without a terminal" $'\033' "$output"
+
+section "status of a group"
+for role in devices mac-devices; do
+  setup_case
+  printf '%s\n' "device-WiFi-192.168.1.50-connector running" "device-WiFi-192.168.1.50-stf exited" \
+    "device-Emu-emu1-connector running" "device-Emu-emu1-stf running" "device-Emu-emu1-appium running" > "${WORK}/docker_ps"
+  output="$(DOCKER_RESTARTS=2 farm "$role" status android)"
+  check "${role}: status of a group succeeds" "0" "$?"
+  check_contains "${role}: the header of the table" "DEVICE  PLATFORM  CONNECTION   C S A U  UPTIME    RESTARTS" "$output"
+  check_contains "${role}: the letters of the states without colors" "WiFi    android   wireless     R X - -" "$output"
+  check_contains "${role}: the first container that exited" "stf exited (1)" "$output"
+  check_contains "${role}: the restarts and the containers with them" "6 connector,stf,appium" "$output"
+  check_contains "${role}: the legend of the letters" "R running; S starting, unhealthy, restarting; X exited, dead; - no container" "$output"
+  check_not_contains "${role}: no escape sequence without a terminal" $'\033' "$output"
+  output="$(farm "$role" status android -v)"
+  check_contains "${role}: -v shows the containers of every device" "running  healthy    " "$output"
+  check_contains "${role}: -v has the full names" "device-Emu-emu1-appium" "$output"
+  check_contains "${role}: an exited container fails with its fix" \
+    "fix docker logs --tail 50 device-WiFi-192.168.1.50-stf, then: zebrunner-farm restart WiFi" "$output"
+done
+check_contains "Linux: a USB device that is not plugged in is disconnected" "Galaxy  android   usb          disconnected" \
+  "$(farm devices status android)"
+setup_case
+printf '%s\n' "device-WiFi-192.168.1.50-connector running" > "${WORK}/docker_ps"
+output="$(DOCKER_RESTARTS=3 farm devices status WiFi)"
+check_contains "a container that restarted is a warning with the command of its log" \
+  "warn running  healthy    " "$output"
+check_contains "the restarts and the log of the container" "3 restarts: docker logs --tail 50 device-WiFi-192.168.1.50-connector" "$output"
+output="$(farm devices status WiFi --watch)"
+check "--watch needs a terminal" "1" "$?"
+check_contains "--watch without a terminal is reported" "--watch needs a terminal" "$output"
+check_contains "--watch is not with --json" "one of them" "$(farm devices status WiFi --watch --json 2>&1)"
+check_contains "--watch is an option of status only" "--watch is an option of status only" "$(farm devices stop --watch)"
+check_contains "-v is an option of status only" "-v is an option of status only" "$(farm devices start -v)"
+setup_case
+printf '%s\n' "device-Emu-emu1-connector exited" > "${WORK}/docker_ps"
+check "status --json is the one of the earlier versions" \
+  "$(printf '%s\n' '[' '{"id": "emu1", "name": "Emu", "os": "android", "connection": "android-sim", "location": "loc", "plugged_in": null, "containers": {"connector": {"exists": true, "status": "exited", "health": "healthy", "started_at": "", "uptime_seconds": null, "restarts": 2}, "stf": {"exists": false}, "appium": {"exists": false}, "uploader": {"exists": false}}}' ']')" \
+  "$(farm_streams stdout status Emu --json)"
+
+section "completion"
+# __complete runs nothing: a docker that is called fails the check
+mkdir -p "${WORK}/complete-bin"
+printf '#!/bin/bash\ntouch "%s/docker-called"\nexit 1\n' "$WORK" > "${WORK}/complete-bin/docker"
+chmod +x "${WORK}/complete-bin/docker"
+# complete <env file> <index> <words...>: the candidates of zebrunner-farm on one line
+complete() {
+  local env_file="$1"
+  shift
+  env -i PATH="${WORK}/complete-bin:/usr/bin:/bin" HOME="$WORK" ZEBRUNNER_FARM_ENV="$env_file" \
+    /bin/bash "$FARM_SCRIPT" __complete "$@" | paste -s -d ' ' -
+}
+ENV="${WORK}/farm-devices.env"
+check "the commands" "status start stop restart down logs shell exec ansible version completion help" "$(complete "$ENV" 1 "")"
+devices="R28M1384YQY Galaxy 192.168.1.50 WiFi d6afc6b3a65584ca0813eb8957c6479b9b6ebb11 iPhone_8_Plus aaaa1111 AppleTV bbbb2222 iPhoneWiFi emu1 Emu B1B07E76 Sim"
+groups="ios android usb wireless android-sim ios-sim proxy"
+check "the devices and the groups of a command" "${devices} ${groups}" "$(complete "$ENV" 2 restart "")"
+check "the devices after other devices" "${devices} ${groups}" "$(complete "$ENV" 3 restart Galaxy "")"
+check "the devices after -x" "${devices} ${groups}" "$(complete "$ENV" 3 stop -x "")"
+check "the options of restart" "-q --quiet --batch --rolling --strategy --dry-run -x -e --exclude --help" \
+  "$(complete "$ENV" 2 restart -)"
+check "the options of status" "--json --watch -v --verbose -x -e --exclude --help" "$(complete "$ENV" 3 status ios --)"
+check "the strategies" "batch rolling" "$(complete "$ENV" 3 restart --strategy "")"
+check "the devices of logs, without the groups" "$devices" "$(complete "$ENV" 2 logs "")"
+check "the roles of logs" "connector stf appium uploader" "$(complete "$ENV" 3 logs WiFi "")"
+check "the roles after an option" "connector stf appium uploader" "$(complete "$ENV" 5 logs --tail 20 WiFi "")"
+check "nothing after --tail" "" "$(complete "$ENV" 3 logs --tail "")"
+check "the options of logs" "-f --follow --tail --help" "$(complete "$ENV" 3 logs WiFi -)"
+check "the roles of exec" "connector stf appium uploader" "$(complete "$ENV" 3 exec WiFi "")"
+check "nothing for the command of exec" "" "$(complete "$ENV" 4 exec WiFi stf "")"
+check "the roles of shell" "connector stf appium uploader" "$(complete "$ENV" 3 shell Emu "")"
+check "the commands of help" "status start stop restart down logs shell exec ansible version completion help" \
+  "$(complete "$ENV" 2 help "")"
+check "the shells of completion" "bash zsh" "$(complete "$ENV" 2 completion "")"
+check "nothing for version" "" "$(complete "$ENV" 2 version "")"
+check "the commands without the settings" "status start stop restart down logs shell exec ansible version completion help" \
+  "$(complete "${WORK}/missing.env" 1 "")"
+check "the options without the settings" "-q --quiet --dry-run -x -e --exclude --help" "$(complete "${WORK}/missing.env" 2 start -)"
+check "nothing on stderr without the settings" "" \
+  "$(env -i PATH="${WORK}/complete-bin:/usr/bin:/bin" ZEBRUNNER_FARM_ENV="${WORK}/missing.env" /bin/bash "$FARM_SCRIPT" \
+    __complete 2 start "" 2>&1 > /dev/null)"
+check "a wrong index answers nothing" "" "$(complete "$ENV" x start)"
+check "__complete calls no docker" "no" "$([[ -e "${WORK}/docker-called" ]] && echo yes || echo no)"
+check "completion bash prints patch/completion.sh" "$(cat "${REPO}/patch/completion.sh")" "$(farm devices completion bash)"
+check "completion zsh prints patch/completion.sh" "$(cat "${REPO}/patch/completion.sh")" "$(farm devices completion zsh)"
+farm devices completion fish > /dev/null
+check "completion of another shell is a usage error" "2" "$?"
+
+section "the confirmation without fzf"
+setup_case
+output="$(printf 'p\nn\n' | MCLOUD_FARM_INTERACTIVE=true farm devices down android)"
+check_contains "p without fzf and a terminal is explained" "p picks the devices with fzf at a terminal" "$output"
+check "p without fzf changes nothing" "" "$(removed)"
+
+section "a terminal"
+# the spinner of a terminal runs docker in the background: the secrets of the containers are in its environment still
+# tty_run <command...>: the command in a terminal of script(1): BSD (macOS) or util-linux
+tty_run() {
+  if [[ "$(uname)" == "Darwin" ]]; then
+    script -q /dev/null "$@"
+  else
+    script -qec "$(printf '%q ' "$@")" /dev/null
+  fi
+}
+if tty_run true > /dev/null 2>&1 < /dev/null; then
+  render_farm devices "${WORK}/farm-devices.env" --extra-vars "MCLOUD_NODE_TOKEN=tty-token" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-devices.env"
+  setup_case
+  output="$(tty_run env -i HOME="$WORK" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=xterm-256color \
+    STUB_DIR="$WORK" MCLOUD_LOCK_DIR="$WORK" ZEBRUNNER_FARM_ENV="${WORK}/farm-devices.env" /bin/bash "$FARM_SCRIPT" \
+    start WiFi < /dev/null 2>&1)"
+  check_contains "a terminal has colors" $'\033[' "$output"
+  check_contains "a terminal has the line of a created container" "created  device-WiFi-192.168.1.50-appium" "$output"
+  check_contains "the secrets reach docker from the background" "|NODE_REGISTRATION_TOKEN=tty-token|" \
+    "$(run_env device-WiFi-192.168.1.50-appium)"
+  check_not_contains "the secrets are no argument of docker" "tty-token" "$(cat "${WORK}/calls.log")"
+  setup_case
+  printf '%s\n' "device-WiFi-192.168.1.50-connector running" > "${WORK}/docker_ps"
+  # the code runs in the bash of the terminal: $1 and $2 are its arguments
+  # shellcheck disable=SC2016
+  tty_run env -i HOME="$WORK" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=xterm-256color STUB_DIR="$WORK" \
+    MCLOUD_LOCK_DIR="$WORK" ZEBRUNNER_FARM_ENV="${WORK}/farm-devices.env" /bin/bash -c \
+    '/bin/bash "$1" exec WiFi connector adb devices > "$2"' _ "$FARM_SCRIPT" "${WORK}/exec.out" < /dev/null > /dev/null 2>&1
+  check "exec with its output in a file: no pseudo-terminal, the stdin passed" \
+    "exec|-i|device-WiFi-192.168.1.50-connector|adb|devices" "$(calls docker | grep '^exec|')"
+  render_farm devices "${WORK}/farm-devices.env" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-devices.env"
+else
+  skip_check "a terminal" "no script(1)"
+fi
+
+section "Ctrl-C"
+# a device ended by Ctrl-C (130: the trap of docker_spin in the subshell of the lock) ends the whole run; the code runs
+# in the child bash: $1 is its argument
+# shellcheck disable=SC2016
+output="$(env -i HOME="$WORK" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
+  MCLOUD_LOCK_DIR="$WORK" ZEBRUNNER_FARM_ENV="${WORK}/farm-devices.env" /bin/bash -c '
+    source "$1"
+    with_device_lock() { echo "device $1"; return 130; }
+    SELECTED=(R28M1384YQY 192.168.1.50)
+    run_selected stop
+    echo "the run went on"
+  ' _ "$FARM_SCRIPT" 2>&1)"
+status=$?
+check "Ctrl-C of a device ends the run with 130" "130" "$status"
+check_contains "the first device ran" "device R28M1384YQY" "$output"
+check_not_contains "no other device after Ctrl-C" "device 192.168.1.50" "$output"
+check_not_contains "nothing after the run" "the run went on" "$output"
 
 section "the lock file of a device"
 if command -v flock > /dev/null 2>&1; then
