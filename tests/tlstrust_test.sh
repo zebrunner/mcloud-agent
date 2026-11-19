@@ -14,11 +14,15 @@ pin="$(openssl x509 -in "${WORK}/cert.pem" -pubkey -noout | openssl pkey -pubin 
   openssl dgst -sha256 -binary | base64)"
 # the server answers until the test ends (the cleanup of lib.sh removes WORK, the server stops with its file)
 python3 - "$WORK" > "${WORK}/server.log" 2>&1 << 'PYTHON' &
-import http.server, os, socket, ssl, sys, threading, time
+import os, socketserver, ssl, sys, threading, time
 work = sys.argv[1]
+print("the server starts", flush=True)
 context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 context.load_cert_chain(os.path.join(work, "cert.pem"), os.path.join(work, "key.pem"))
-server = http.server.HTTPServer(("127.0.0.1", 0), http.server.SimpleHTTPRequestHandler)
+# a TCP server, not HTTPServer: its bind asks the DNS for the name of the address (slow on the macOS runners);
+# tlstrust.py needs the TLS handshake only
+server = socketserver.ThreadingTCPServer(("127.0.0.1", 0), socketserver.BaseRequestHandler)
+server.daemon_threads = True
 server.socket = context.wrap_socket(server.socket, server_side=True)
 open(os.path.join(work, "port"), "w").write(str(server.server_address[1]))
 threading.Thread(target=server.serve_forever, daemon=True).start()
