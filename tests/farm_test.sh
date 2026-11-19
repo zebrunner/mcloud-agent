@@ -1012,7 +1012,7 @@ for role in devices mac-devices; do
   reset_calls
   farm "$role" exec WiFi connector adb -s 'a b' devices < /dev/null > /dev/null
   check "${role}: exec runs the command in the container, no terminal without one" \
-    "exec|device-WiFi-192.168.1.50-connector|adb|-s|a b|devices" "$(calls docker | grep '^exec|')"
+    "exec|-i|device-WiFi-192.168.1.50-connector|adb|-s|a b|devices" "$(calls docker | grep '^exec|')"
   reset_calls
   output="$(farm "$role" logs WiFi foo)"
   check "${role}: an unknown role is a usage error" "2" "$?"
@@ -1184,11 +1184,38 @@ if tty_run true > /dev/null 2>&1 < /dev/null; then
   check_contains "the secrets reach docker from the background" "|NODE_REGISTRATION_TOKEN=tty-token|" \
     "$(run_env device-WiFi-192.168.1.50-appium)"
   check_not_contains "the secrets are no argument of docker" "tty-token" "$(cat "${WORK}/calls.log")"
+  setup_case
+  printf '%s\n' "device-WiFi-192.168.1.50-connector running" > "${WORK}/docker_ps"
+  # the code runs in the bash of the terminal: $1 and $2 are its arguments
+  # shellcheck disable=SC2016
+  tty_run env -i HOME="$WORK" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=xterm-256color STUB_DIR="$WORK" \
+    MCLOUD_LOCK_DIR="$WORK" ZEBRUNNER_FARM_ENV="${WORK}/farm-devices.env" /bin/bash -c \
+    '/bin/bash "$1" exec WiFi connector adb devices > "$2"' _ "$FARM_SCRIPT" "${WORK}/exec.out" < /dev/null > /dev/null 2>&1
+  check "exec with its output in a file: no pseudo-terminal, the stdin passed" \
+    "exec|-i|device-WiFi-192.168.1.50-connector|adb|devices" "$(calls docker | grep '^exec|')"
   render_farm devices "${WORK}/farm-devices.env" || exit 1
   sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-devices.env"
 else
   skip_check "a terminal" "no script(1)"
 fi
+
+section "Ctrl-C"
+# a device ended by Ctrl-C (130: the trap of docker_spin in the subshell of the lock) ends the whole run; the code runs
+# in the child bash: $1 is its argument
+# shellcheck disable=SC2016
+output="$(env -i HOME="$WORK" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
+  MCLOUD_LOCK_DIR="$WORK" ZEBRUNNER_FARM_ENV="${WORK}/farm-devices.env" /bin/bash -c '
+    source "$1"
+    with_device_lock() { echo "device $1"; return 130; }
+    SELECTED=(R28M1384YQY 192.168.1.50)
+    run_selected stop
+    echo "the run went on"
+  ' _ "$FARM_SCRIPT" 2>&1)"
+status=$?
+check "Ctrl-C of a device ends the run with 130" "130" "$status"
+check_contains "the first device ran" "device R28M1384YQY" "$output"
+check_not_contains "no other device after Ctrl-C" "device 192.168.1.50" "$output"
+check_not_contains "nothing after the run" "the run went on" "$output"
 
 section "the lock file of a device"
 if command -v flock > /dev/null 2>&1; then

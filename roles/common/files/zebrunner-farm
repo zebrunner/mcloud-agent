@@ -1391,6 +1391,11 @@ run_selected() {
     printf '\n'
     status=0
     with_device_lock "$dev_udid" "${command}_device" || status=$?
+    # Ctrl-C in the subshell of the lock (Linux): the trap of docker_spin exits it with 130, bash goes on after a child
+    # that handled SIGINT itself: the whole run stops, as without the spinner
+    if [[ "$status" -eq 130 ]]; then
+      exit 130
+    fi
     if [[ "$status" -eq "$SKIPPED" ]]; then
       add_device skipped "$dev_device_name"
     elif [[ "$status" -ne 0 ]]; then
@@ -1968,10 +1973,12 @@ debug_command() {
     exec docker exec "$flags" "$name" sh -c 'if command -v bash > /dev/null 2>&1; then exec bash; fi; exec sh'
     ;;
   *)
-    if [[ -t 0 ]]; then
+    # a pseudo-terminal only for a terminal on both sides: with it the output of a redirect or a pipe gets CRLF and
+    # stderr (a screenshot of adb exec-out is broken); -i passes a piped stdin to the command
+    if [[ -t 0 && -t 1 ]]; then
       exec docker exec -it "$name" "${cmd[@]}"
     fi
-    exec docker exec "$name" "${cmd[@]}"
+    exec docker exec -i "$name" "${cmd[@]}"
     ;;
   esac
 }
