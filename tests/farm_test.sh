@@ -1127,15 +1127,15 @@ groups="ios android usb wireless android-sim ios-sim proxy"
 check "the devices and the groups of a command" "${devices} ${groups}" "$(complete "$ENV" 2 restart "")"
 check "the devices after other devices" "${devices} ${groups}" "$(complete "$ENV" 3 restart Galaxy "")"
 check "the devices after -x" "${devices} ${groups}" "$(complete "$ENV" 3 stop -x "")"
-check "the options of restart" "-q --quiet --batch --rolling --strategy --dry-run -x -e --exclude --help" \
+check "the options of restart" "-q --quiet --batch --rolling --strategy --dry-run --pick -x -e --exclude --help" \
   "$(complete "$ENV" 2 restart -)"
-check "the options of status" "--json --watch -v --verbose -x -e --exclude --help" "$(complete "$ENV" 3 status ios --)"
+check "the options of status" "--json --watch -v --verbose --pick -x -e --exclude --help" "$(complete "$ENV" 3 status ios --)"
 check "the strategies" "batch rolling" "$(complete "$ENV" 3 restart --strategy "")"
 check "the devices of logs, without the groups" "$devices" "$(complete "$ENV" 2 logs "")"
 check "the roles of logs" "connector stf appium uploader" "$(complete "$ENV" 3 logs WiFi "")"
 check "the roles after an option" "connector stf appium uploader" "$(complete "$ENV" 5 logs --tail 20 WiFi "")"
 check "nothing after --tail" "" "$(complete "$ENV" 3 logs --tail "")"
-check "the options of logs" "-f --follow --tail --help" "$(complete "$ENV" 3 logs WiFi -)"
+check "the options of logs" "--pick -f --follow --tail --help" "$(complete "$ENV" 3 logs WiFi -)"
 check "the roles of exec" "connector stf appium uploader" "$(complete "$ENV" 3 exec WiFi "")"
 check "nothing for the command of exec" "" "$(complete "$ENV" 4 exec WiFi stf "")"
 check "the roles of shell" "connector stf appium uploader" "$(complete "$ENV" 3 shell Emu "")"
@@ -1145,7 +1145,7 @@ check "the shells of completion" "bash zsh" "$(complete "$ENV" 2 completion "")"
 check "nothing for version" "" "$(complete "$ENV" 2 version "")"
 check "the commands without the settings" "status start stop restart down logs shell exec ansible version completion help" \
   "$(complete "${WORK}/missing.env" 1 "")"
-check "the options without the settings" "-q --quiet --dry-run -x -e --exclude --help" "$(complete "${WORK}/missing.env" 2 start -)"
+check "the options without the settings" "-q --quiet --dry-run --pick -x -e --exclude --help" "$(complete "${WORK}/missing.env" 2 start -)"
 check "nothing on stderr without the settings" "" \
   "$(env -i PATH="${WORK}/complete-bin:/usr/bin:/bin" ZEBRUNNER_FARM_ENV="${WORK}/missing.env" /bin/bash "$FARM_SCRIPT" \
     __complete 2 start "" 2>&1 > /dev/null)"
@@ -1198,6 +1198,121 @@ if tty_run true > /dev/null 2>&1 < /dev/null; then
 else
   skip_check "a terminal" "no script(1)"
 fi
+
+section "--pick"
+# fzf: the lines of the devices named by FZF_PICK (commas), Esc (130) for FZF_PICK=cancel; its arguments are logged;
+# the body is the script of the stub, its variables expand there
+# shellcheck disable=SC2016
+stub fzf '
+printf "%s\n" "$*" > "${STUB_DIR}/fzf.args"
+input="$(cat)"
+[[ "${FZF_PICK:-}" != "cancel" ]] || exit 130
+while IFS= read -r line; do
+  name="$(cut -f 2 <<< "$line")"
+  [[ ",${FZF_PICK}," != *",${name},"* ]] || printf "%s\n" "$line"
+done <<< "$input"'
+for role in devices mac-devices; do
+  setup_case
+  output="$(farm "$role" start --pick < /dev/null)"
+  check "${role}: --pick without a terminal fails" "1" "$?"
+  check_contains "${role}: --pick without a terminal is explained" "--pick needs fzf at a terminal" "$output"
+  check "${role}: --pick without a terminal runs for no device" "" "$(calls docker | grep -E '^(run|start|stop|rm)\|')"
+  output="$(farm "$role" stop --pick --quiet < /dev/null)"
+  check "${role}: --pick with --quiet fails" "1" "$?"
+  check_contains "${role}: --pick with --quiet is explained" "--quiet asks nobody: one of them" "$output"
+  output="$(farm "$role" status --pick --json < /dev/null 2>&1)"
+  check_contains "${role}: --pick with --json is explained" "--json is for the monitoring: one of them" "$output"
+  output="$(farm "$role" logs < /dev/null)"
+  check "${role}: logs without a device and a terminal is a usage error" "2" "$?"
+  check_contains "${role}: logs without a device asks for one" "logs needs a device: its name or udid" "$output"
+  output="$(farm "$role" exec --pick connector adb devices < /dev/null)"
+  check "${role}: exec --pick without a terminal fails" "1" "$?"
+  check "${role}: exec --pick without a terminal runs nothing" "" "$(calls docker | grep '^exec|')"
+  check_contains "${role}: the completion of --pick" "--pick" "$(farm "$role" __complete 2 start --p)"
+  check "${role}: the roles after logs --pick" "connector stf appium uploader" \
+    "$(farm "$role" __complete 3 logs --pick "" | paste -s -d ' ' -)"
+done
+# tty_farm <role> <stdin text> <arguments...>: zebrunner-farm in a terminal of script(1) with the answers of stdin
+tty_farm() {
+  local role="$1"
+  local input="$2"
+  shift 2
+  printf '%b' "$input" | tty_run env -i HOME="$WORK" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=xterm-256color \
+    STUB_DIR="$WORK" MCLOUD_LOCK_DIR="$WORK" FZF_PICK="${FZF_PICK:-}" ZEBRUNNER_FARM_ENV="${WORK}/farm-${role}.env" \
+    /bin/bash "$FARM_SCRIPT" "$@" 2>&1
+}
+if tty_run true > /dev/null 2>&1 < /dev/null; then
+  setup_case
+  # script(1) passes no answer: the question ends with the end of the input, nothing runs
+  output="$(FZF_PICK=WiFi tty_farm devices '' start --pick)"
+  check_contains "start --pick asks for the picked device" "Run 'start' for 1 devices?" "$output"
+  check "start --pick without an answer runs nothing" "" "$(calls docker | grep '^run|')"
+  check_contains "fzf picks several devices" "--multi" "$(cat "${WORK}/fzf.args")"
+  setup_case
+  output="$(FZF_PICK=WiFi tty_farm devices '' start --pick --dry-run)"
+  check_contains "start --pick is for the picked device" "would create  device-WiFi-192.168.1.50-connector" "$output"
+  check_not_contains "start --pick is for no other device" "device-Galaxy" "$output"
+  setup_case
+  output="$(FZF_PICK=cancel tty_farm devices '' down --pick)"
+  check_contains "Esc of --pick cancels" "Cancelled." "$output"
+  check "Esc of --pick removes nothing" "" "$(removed)"
+  setup_case
+  output="$(FZF_PICK=WiFi tty_farm devices '' status --pick)"
+  check_contains "status --pick shows the picked device" "WiFi" "$output"
+  check_not_contains "status --pick shows no other device" "Galaxy" "$output"
+  setup_case
+  printf '%s\n' "device-WiFi-192.168.1.50-appium running" "device-WiFi-192.168.1.50-stf running" \
+    "device-WiFi-192.168.1.50-connector running" > "${WORK}/docker_ps"
+  FZF_PICK=WiFi tty_farm devices '' logs > /dev/null
+  check "logs without a device: the appium of the picked device" "logs|--tail|200|device-WiFi-192.168.1.50-appium" \
+    "$(calls docker | grep '^logs|')"
+  check_not_contains "logs picks one device" "--multi" "$(cat "${WORK}/fzf.args")"
+  reset_calls
+  FZF_PICK=WiFi tty_farm devices '' logs stf --pick > /dev/null
+  check "logs <role> --pick: the role of the picked device" "logs|--tail|200|device-WiFi-192.168.1.50-stf" \
+    "$(calls docker | grep '^logs|')"
+  reset_calls
+  FZF_PICK=WiFi tty_farm devices '' exec --pick connector adb devices > /dev/null
+  check "exec --pick: the command in the picked device" "exec|-it|device-WiFi-192.168.1.50-connector|adb|devices" \
+    "$(calls docker | grep '^exec|')"
+  reset_calls
+  FZF_PICK=cancel tty_farm devices '' shell > /dev/null
+  check "Esc of the pick of shell runs nothing" "" "$(calls docker | grep '^exec|')"
+  # macOS: some devices of the group picked or kept by a person: the devices listener stays for the other iOS devices
+  setup_case
+  check_not_contains "stop --pick without the USB iOS device keeps the devices listener" "would unload the devices listener" \
+    "$(FZF_PICK=AppleTV tty_farm mac-devices '' stop ios --pick --dry-run)"
+  check_contains "stop --pick with every USB iOS device unloads the devices listener" "would unload the devices listener" \
+    "$(FZF_PICK=iPhone_8_Plus,AppleTV tty_farm mac-devices '' stop ios --pick --dry-run)"
+  check_contains "stop of the iOS devices unloads the devices listener" "would unload the devices listener" \
+    "$(tty_farm mac-devices '' stop ios --dry-run)"
+else
+  skip_check "--pick at a terminal" "no script(1)"
+fi
+rm -f "${WORK}/bin/fzf"
+# f and x of the question narrow the group as --pick does: the listener stays (the functions, no answer of script(1));
+# the code runs in the child bash: $1 is its argument
+# shellcheck disable=SC2016
+listener="$(env -i HOME="$WORK" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
+  MCLOUD_LOCK_DIR="$WORK" ZEBRUNNER_FARM_ENV="${WORK}/farm-mac-devices.env" /bin/bash -c '
+    source "$1"
+    try() {
+      parse_selection "$1"
+      select_devices > /dev/null
+      [[ -z "$2" ]] || refine_selection "$2" "$3"
+      listener_applies && echo "$1 $2 $3: applies" || echo "$1 $2 $3: no"
+    }
+    try ios
+    try ios keep iPhone_8_Plus
+    try ios drop iPhone_8_Plus
+    try "" drop Galaxy
+    try "" keep WiFi
+  ' _ "$FARM_SCRIPT" 2>&1)"
+check "the listener: the group, a narrowed group without the USB iOS device only" "ios  : applies
+ios keep iPhone_8_Plus: applies
+ios drop iPhone_8_Plus: no
+ drop Galaxy: applies
+ keep WiFi: no" "$listener"
 
 section "Ctrl-C"
 # a device ended by Ctrl-C (130: the trap of docker_spin in the subshell of the lock) ends the whole run; the code runs
