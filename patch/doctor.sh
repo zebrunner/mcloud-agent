@@ -1,10 +1,12 @@
 #!/bin/bash
 # `./zebrunner.sh doctor` (README.md#doctor): checks the host, the settings of the agent, the deployment, the network to
-# the MCloud server and the devices, and tells what to fix. Sourced by zebrunner.sh after patch/utility.sh; never prints
-# the secrets of the settings. The network probes are the ones of patch/netcheck.py.
+# the MCloud server and the devices, and tells what to fix. Sourced by zebrunner.sh after patch/utility.sh and
+# patch/ui.sh; never prints the secrets of the settings. The network probes are the ones of patch/netcheck.py.
 
+# the counts of the summary: the failed, the warning and the passed checks
 DOCTOR_PROBLEMS=0
 DOCTOR_WARNINGS=0
+DOCTOR_PASSED=0
 DOCTOR_VARS=""
 DOCTOR_DEVICE_LIST=""
 DOCTOR_ROLE=""
@@ -17,32 +19,30 @@ DOCTOR_DEVICES="${DOCTOR_DEVICES:-/usr/local/bin/mcloud-devices.txt}"
 
 # doctor_ok <message>: a passed check
 doctor_ok() {
-  echo -e "  ${GREEN}ok${NC}    $1"
+  DOCTOR_PASSED=$((DOCTOR_PASSED + 1))
+  ui_ok "$1"
 }
 
 # doctor_info <message>: a fact for the person, not a problem
 doctor_info() {
-  echo -e "  info  $1"
+  ui_info "$1"
 }
 
 # doctor_warn <message> [fix]: a check that may break the farm
 doctor_warn() {
   DOCTOR_WARNINGS=$((DOCTOR_WARNINGS + 1))
-  echo -e "  ${YELLOW}warn${NC}  $1"
-  [[ -z "$2" ]] || echo -e "        fix: $2"
+  ui_warn "$1" "${2:-}"
 }
 
 # doctor_fail <message> [fix]: a check that breaks the farm
 doctor_fail() {
   DOCTOR_PROBLEMS=$((DOCTOR_PROBLEMS + 1))
-  echo -e "  ${RED}FAIL${NC}  $1"
-  [[ -z "$2" ]] || echo -e "        fix: $2"
+  ui_fail "$1" "${2:-}"
 }
 
-# doctor_section <title>: the title of a group of checks, after an empty line but the first one
+# doctor_section <title> [detail]: the title of a group of checks, the detail (e.g. the file of the checks) under it
 doctor_section() {
-  [[ "$1" == "Host" ]] || echo ""
-  echo "$1"
+  print_section "$@"
 }
 
 # setting <name>: the value of a setting as the playbooks load it (DOCTOR_SETTINGS of doctor_settings)
@@ -120,7 +120,7 @@ doctor_host() {
 # doctor_settings: the obligatory settings of config/settings.yml and their format, the checks of the devices of
 # config/devices.yml of the deploy
 doctor_settings() {
-  doctor_section "Settings (${DOCTOR_VARS})"
+  doctor_section "Settings" "$DOCTOR_VARS"
   if [[ ! -f "$DOCTOR_VARS" ]]; then
     doctor_fail "${DOCTOR_VARS} does not exist" "./zebrunner.sh setup"
     return 1
@@ -187,7 +187,7 @@ doctor_settings() {
 # doctor_enrollment: what MCloud knows about this host: GET /api/v1/nodes/self of MCLOUD_URL with the token of this host,
 # over HTTPS to the pinned TLS key only (the token goes to curl on stdin, never in its arguments)
 doctor_enrollment() {
-  doctor_section "Enrollment (MCloud)"
+  doctor_section "Enrollment in MCloud"
   local url pin token answer code report
   url="$(setting MCLOUD_URL)"
   pin="$(setting MCLOUD_TLS_PIN)"
@@ -534,14 +534,14 @@ count_values() {
 
 # doctor: all the checks; fails when one of them fails
 doctor() {
-  delimiter "MCloud Agent doctor"
+  ui_banner "MCloud Agent doctor"
   DOCTOR_VARS="$SETTINGS_FILE"
   DOCTOR_DEVICE_LIST="$DEVICES_FILE"
   case "$(uname)" in
   Linux) DOCTOR_ROLE=devices ;;
   Darwin) DOCTOR_ROLE=mac-devices ;;
   *)
-    echo_warning "Unknown OS. Supported OS are Linux and macOS."
+    ui_callout error "Unknown OS. Supported OS are Linux and macOS."
     return 1
     ;;
   esac
@@ -552,13 +552,13 @@ doctor() {
     doctor_network
     doctor_devices
   fi
-  delimiter "*"
+  ui_summary "$DOCTOR_PASSED" "$DOCTOR_WARNINGS" "$DOCTOR_PROBLEMS"
   if [[ "$DOCTOR_PROBLEMS" -gt 0 ]]; then
-    failed "${DOCTOR_PROBLEMS} problems and ${DOCTOR_WARNINGS} warnings: fix the problems, then run ./zebrunner.sh doctor again"
+    ui_muted "${DOCTOR_PROBLEMS} problems and ${DOCTOR_WARNINGS} warnings: fix the problems, then run ./zebrunner.sh doctor again"
     return 1
   elif [[ "$DOCTOR_WARNINGS" -gt 0 ]]; then
-    warn "No problems, ${DOCTOR_WARNINGS} warnings"
+    ui_muted "No problems, ${DOCTOR_WARNINGS} warnings"
   else
-    succeed "No problems"
+    ui_muted "No problems"
   fi
 }

@@ -1,7 +1,11 @@
 #!/bin/bash
-# patch/utility.sh helpers: confirm, random_string, delimiter and the message helpers
+# patch/utility.sh helpers: confirm, random_string and the message helpers with patch/ui.sh, without a terminal (plain
+# text) and in ASCII
 source "$(dirname "$0")/lib.sh"
 source "${REPO}/patch/utility.sh"
+# shellcheck source=../patch/ui.sh
+source "${REPO}/patch/ui.sh"
+UI_ASCII=true UI_COLOR=never COLUMNS=80 ui_init
 
 section "confirm"
 # answer <stdin text> <default>: exit code of confirm
@@ -16,8 +20,11 @@ check "N declines" "1" "$(answer 'N\n' y)"
 check "empty answer takes the default y" "0" "$(answer '\n' y)"
 check "empty answer takes the default n" "1" "$(answer '\n' n)"
 check "another answer is asked again" "0" "$(answer 'maybe\ny\n' n)"
-check_contains "another answer is explained" "Please answer y (yes) or n (no)." "$(printf 'maybe\ny\n' | confirm "" "question?" n)"
-check_contains "the message is shown" "the message" "$(printf 'y\n' | confirm "the message" "question?" n)"
+check_contains "another answer is explained" "   warn Please answer y (yes) or n (no)." "$(printf 'maybe\ny\n' | confirm "" "question?" n)"
+check_contains "the message is shown" "   info the message" "$(printf 'y\n' | confirm "the message" "question?" n)"
+check "the prompt hints the default n" "  > Continue? [y/N] " "$(confirm_prompt "Continue?" n)"
+check "the prompt hints the default y" "  > Continue? [Y/n] " "$(confirm_prompt "Continue?" y)"
+check "the indent of an earlier caller is dropped" "  > Continue? [y/N] " "$(confirm_prompt "      Continue?" n)"
 
 section "random_string"
 check "default length" "48" "$(random_string | tr -d '\n' | wc -c | tr -d ' ')"
@@ -48,24 +55,16 @@ fi
 check "ignored SIGPIPE does not hang" "finished" "$random_state"
 check "ignored SIGPIPE result" "5" "$(tr -d '\n' < "${WORK}/random" | wc -c | tr -d ' ')"
 
-section "delimiter"
-width="$(tput cols)"
-line="$(delimiter | grep -v '^$')"
-check "plain delimiter has the terminal width" "$width" "${#line}"
-check "plain delimiter is made of =" "" "$(echo "$line" | tr -d '=')"
-line="$(delimiter "*" | grep -v '^$')"
-check "custom delimiter character" "" "$(echo "$line" | tr -d '*')"
-line="$(delimiter "Title text" | grep -v '^$')"
-check "titled delimiter has the terminal width" "$width" "${#line}"
-check_contains "titled delimiter shows the title" "==== Title text ==" "$line"
-output="$(env -u TERM bash -c "source '${REPO}/patch/utility.sh'; delimiter Title" 2>&1 | grep -v '^$')"
-check "without a terminal type the delimiter has the default width, no error" "80" "${#output}"
-
 section "messages"
 check "failed is red" $'\033[0;31mtext\033[0m' "$(failed text)"
 check "warn is yellow" $'\033[1;33mtext\033[0m' "$(warn text)"
 check "succeed is green" $'\033[0;32mtext\033[0m' "$(succeed text)"
-check_contains "echo_warning prefix" "WARNING! text" "$(echo_warning text)"
+check "echo_warning is a warning callout" $'\n  | WARNING\n  | text' "$(echo_warning text)"
+check_not_contains "echo_warning has no prefix of the earlier versions" "WARNING!" "$(echo_warning text)"
+check "echo_telegram is muted text after an empty line" $'\n  For more help join telegram channel: https://t.me/zebrunner' "$(echo_telegram)"
+check "print_section shows the detail under the title" $'\n  '"[ TITLE ] $(ui_repeat - 66)"$'\n\n  the detail' "$(print_section Title "the detail")"
+check "print_step wraps the text under itself" $'   1. aaaa bbbb\n      cccc' "$(UI_WIDTH=14 print_step 1 "aaaa bbbb cccc")"
+check "print_paragraph wraps the text" $'  aaaa bbbb\n  cccc' "$(UI_WIDTH=10 print_paragraph "aaaa bbbb cccc")"
 
 section "yaml_python"
 yaml="$(command -v "$(yaml_python)")"
