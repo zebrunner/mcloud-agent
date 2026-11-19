@@ -112,13 +112,15 @@ farm() {
     MCLOUD_LOCK_DIR="$WORK" DOCKER_RUN_STATUS="${DOCKER_RUN_STATUS:-0}" ZEBRUNNER_FARM_ENV="$env" /bin/bash "$FARM_SCRIPT" "$@" 2>&1
 }
 
-# mdm <env file> <arguments...>: runs ./zebrunner.sh mdm with the settings of zebrunner-farm of the env file
+# mdm <env file> <arguments...>: runs ./zebrunner.sh mdm with the settings of zebrunner-farm of the env file (unwrap:
+# the messages of patch/ui.sh on one line)
 mdm() {
   local env="$1"
   shift
   env -i HOME="${WORK}" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" MDM_WDA_TRIES=1 MDM_USB_WAIT=0 \
     MCLOUD_LOCK_DIR="$WORK" DOCKER_RUN_STATUS="${DOCKER_RUN_STATUS:-0}" ZEBRUNNER_FARM_ENV="$env" \
-    /bin/bash "${REPO}/zebrunner.sh" mdm "$@" 2>&1
+    /bin/bash "${REPO}/zebrunner.sh" mdm "$@" 2>&1 | unwrap
+  return "${PIPESTATUS[0]}"
 }
 
 setup_case() {
@@ -151,14 +153,19 @@ section "usage"
 setup_case
 output="$(mdm "$LINUX" enroll)"
 check "mdm enroll without a device fails" "1" "$?"
-check_contains "the devices are asked for" "./zebrunner.sh mdm enroll <devices>: the devices" "$output"
+check_contains "the devices are asked for" "FAIL mdm enroll needs the devices: udids, names, groups" "$output"
+check_contains "the command with the devices is the fix" "\`- fix ./zebrunner.sh mdm enroll <devices>" "$output"
 check_contains "an unknown device is reported" "device not found: NO_SUCH" "$(mdm "$LINUX" status NO_SUCH)"
-check_contains "an unknown action shows the usage" "Usage: ./zebrunner.sh mdm <status|enroll|release|supervise>" "$(mdm "$LINUX" other Galaxy)"
+output="$(mdm "$LINUX" other Galaxy)"
+check "an unknown action fails" "1" "$?"
+check_contains "an unknown action is an error" "Unknown action 'other' of mdm." "$output"
+check_contains "an unknown action shows the usage" "> ./zebrunner.sh mdm <status|enroll|release|supervise>" "$output"
+check_not_contains "mdm without an action is no error" "Unknown action" "$(mdm "$LINUX")"
 check_contains "--force is an option of supervise only" "--force is an option of supervise only" "$(mdm "$LINUX" enroll Galaxy --force)"
 check_contains "--uninstall is an option of release only" "--uninstall is an option of release only" "$(mdm "$LINUX" enroll Galaxy --uninstall)"
-check_contains "a host that did not join is reported" "this host is not enrolled in MCloud, empty: MCLOUD_URL MCLOUD_TLS_PIN MCLOUD_NODE_TOKEN" \
+check_contains "a host that did not join is reported" "FAIL This host is not enrolled in MCloud, empty: MCLOUD_URL MCLOUD_TLS_PIN MCLOUD_NODE_TOKEN" \
   "$(mdm "${WORK}/farm-devices-not-joined.env" status Galaxy)"
-check_contains "a wireless device is refused" "the MDM takes the USB devices only" "$(mdm "$LINUX" enroll WiFi)"
+check_contains "a wireless device is refused" "The MDM takes the USB devices only" "$(mdm "$LINUX" enroll WiFi)"
 check "the help of zebrunner.sh lists mdm" "yes" "$(env -i PATH=/usr/bin:/bin TERM=dumb /bin/bash "${REPO}/zebrunner.sh" help | grep -q 'mdm <status|enroll|release|supervise>' && echo yes)"
 check "zebrunner-farm has no mdm" "no" "$(farm "$LINUX" --help | grep -q 'mdm' && echo yes || echo no)"
 setup_case
@@ -169,11 +176,15 @@ section "status"
 setup_case
 output="$(mdm "$LINUX" status Galaxy)"
 check_contains "the status of the MDM" "  device_owner=yes" "$output"
+check_contains "the section of the device with its counter" "[ MDM STATUS ] ---" "$output"
+check_contains "the counter of the devices" " 1/1"$'\n' "$output"
+check_contains "the device under the title" "  Galaxy (R28M1384YQY, android, usb)" "$output"
 check "an Android device: the status of Headwind MDM, over the pinned key" \
   "-sS|-k|--max-time|120|--pinnedpubkey|sha256//pin=|-H|@-|-X|GET|-w|\n%{http_code}|https://mcloud.example.com:443/android/status?serial=R28M1384YQY&format=shell" \
   "$(calls curl)"
 check "the node token goes on the stdin of curl" "Authorization: Bearer ${TOKEN}" "$(cat "${WORK}/curl_stdin.log")"
 check "status does not touch the device" "" "$(calls docker)"
+check "every device has its section" "4/4" "$(mdm "$LINUX" status | grep -o '[0-9]/4$' | tail -n 1)"
 setup_case
 mdm "$LINUX" status iPhone_XR > /dev/null
 check_contains "an iOS device: the status of the webhook" "/mdm/status?udid=00008020-0005308201DA002E&format=shell" "$(calls curl)"
@@ -216,7 +227,7 @@ DOCKER_RUN_STATUS=1 mdm "$LINUX" enroll Galaxy > /dev/null
 check "a failure of the device fails enroll" "1" "$?"
 setup_case
 : > "${WORK}/usb"
-check_contains "a device that is not plugged in" "not connected over USB" "$(mdm "$LINUX" enroll Galaxy)"
+check_contains "a device that is not plugged in" "Not connected over USB" "$(mdm "$LINUX" enroll Galaxy)"
 
 section "Android release"
 setup_case
@@ -296,7 +307,8 @@ setup_case
 printf '%s\n' "${IPHONE}-connector running" "${IPHONE}-stf running" "${IPHONE15}-connector running" > "${WORK}/docker_ps"
 output="$(mdm "$SUP" supervise iPhone_XR --yes)"
 check "supervise succeeds" "0" "$?"
-check_contains "the other iPhone of the bus stops meanwhile" "the other iPhones of the USB bus /dev/bus/usb/001 stop meanwhile: 00008120-0010359E0240201E" "$output"
+check_contains "the other iPhone of the bus stops meanwhile" "The other iPhones of the USB bus /dev/bus/usb/001 stop meanwhile: 00008120-0010359E0240201E" "$output"
+check_contains "the end of supervise" "ok   Supervised and enrolled: ./zebrunner.sh mdm status iPhone_XR shows it" "$output"
 runs="$(calls docker | grep '^run|--rm|-i|')"
 check "two one-shot containers: the supervision, then the enrollment" "2" "$(grep -c . <<< "$runs")"
 check_contains "the container gets the USB bus and the pairing records" \

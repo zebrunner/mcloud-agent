@@ -203,18 +203,42 @@ Security:
 
 ## Agent management
 
-`./zebrunner.sh` without arguments (or `--help`) lists its commands, grouped by stage: set up, operate, maintain. Its output has the terminal style of every MCloud repository (`patch/ui.sh`, [CONVENTIONS.md](CONVENTIONS.md#terminal-output)): colors on a terminal only (`NO_COLOR`, `UI_COLOR=always` or `never`), the Unicode glyphs with a UTF-8 locale (`UI_ASCII=true` for ASCII); without a terminal it is plain text. The commands:
+`./zebrunner.sh` without arguments (or `help`, `--help`, `-h`) lists its commands, grouped by stage: set up, operate, maintain, help. `./zebrunner.sh help <command>` (or `./zebrunner.sh <command> --help`, `-h`) shows the usage, the description and the options of a command without running it: `-h` or `--help` anywhere in the arguments of a command shows its help, so `./zebrunner.sh ansible --check --help` deploys nothing (`ansible-playbook --help` shows the options of ansible-playbook). An unknown command is an error with the closest commands (`Did you mean: status?`) and the usage on stderr, its exit code is 2. Its output has the terminal style of every MCloud repository (`patch/ui.sh`, [CONVENTIONS.md](CONVENTIONS.md#terminal-output)): colors on a terminal only (`NO_COLOR`, `UI_COLOR=always` or `never`), the Unicode glyphs with a UTF-8 locale (`UI_ASCII=true` for ASCII); without a terminal it is plain text. The commands:
 
 - `setup` - prepares the agent: the settings of `config/` from the examples. It changes no shell profile: `zebrunner.sh` knows its folder, `zebrunner-farm` has it in its settings, so `zebrunner-farm ansible` deploys again from any folder; the `ZEBRUNNER_MCLOUD_AGENT_DIR` line of the earlier versions is removed from the profiles.
 - `ansible [devices] [arguments]` - deploys the agent, `devices` without the download of the images and keeping the running containers of the devices, the arguments are of ansible-playbook (see [Run ansible playbook](#run-ansible-playbook)).
 - `status` - shows the state of the agent components: tools, Rosetta 2 of an Apple Silicon Mac, deployed files, launch agents.
 - `backup` and `restore` - save the settings of `config/` into the `backup` folder and restore them from it (see [Settings](#settings)); a backup of an earlier version (`vars/main.yml`, `defaults/main.yml`) goes to `config/` with `./zebrunner.sh migrate <its files>`.
-- `shutdown` - removes the devices containers, the launch agents or udev rules, the deployed files, the settings, the ssh key of the simulators (and its line of `~/.ssh/authorized_keys`) and the environment variable (asks for confirmation).
-- `version` - shows the versions of the agent components.
+- `shutdown` - removes the devices containers, the launch agents or udev rules, the deployed files (also the bash completion of `zebrunner-farm`), the settings, the ssh key of the simulators (and its line of `~/.ssh/authorized_keys`) and the environment variable (asks for confirmation).
+- `version` - shows the versions of the agent components: a `NAME: value` line each on stdout (`DEVICE_VERSION: 3.1.2`), the header and the footer on stderr, so `./zebrunner.sh version 2> /dev/null` is the data only.
 - `doctor` - checks the host, the settings, the deployment, the network to the MCloud server and the devices, and tells what to fix, see [Doctor](#doctor).
 - `join` - enrolls this host in MCloud with the join string of `./zebrunner.sh node-invite` of mcloud, see [Node enrollment](#node-enrollment).
 - `migrate [files...]` - moves the settings of an earlier version to `config/`, see [Settings](#settings).
 - `autostart [status|enable|disable]` - the containers of the devices after a reboot, off by default, see [Autostart](#autostart).
+- `mdm <status|enroll|release|supervise> [devices...] [options]` - the devices in the MDM of MCloud, see [MDM](#mdm).
+- `help [command]` - the commands, or the help of a command.
+- `completion bash|zsh` - the completion of the shell, see [Completion](#completion).
+
+### Completion
+
+`./zebrunner.sh` and `zebrunner-farm` complete their commands, the actions (`mdm status|enroll|release|supervise`, `autostart status|enable|disable`), the options (`--help`, `-x`, `--uninstall`, the options of ansible-playbook after `./zebrunner.sh ansible -`) and the devices of this host (their udids and names, the groups `ios`, `android`, `usb`, ...) with the TAB key of bash and zsh; the arguments of `migrate` are files. The devices are the deployed ones (the list of `zebrunner-farm`), before the first deploy the ones of `config/devices.yml`.
+
+- bash, `./zebrunner.sh`: add to `~/.bashrc` (`./zebrunner.sh help completion` prints the line with the folder of the agent):
+
+  ```bash
+  eval "$(/path/to/mcloud-agent/zebrunner.sh completion bash)"
+  ```
+
+- bash, `zebrunner-farm`: the deploy (`./zebrunner.sh ansible`) installs the completion for every user of the host: `/etc/bash_completion.d/zebrunner-farm` on Linux, `$(brew --prefix)/etc/bash_completion.d/zebrunner-farm` on macOS with Homebrew. bash-completion loads it (`apt install bash-completion`, `brew install bash-completion` and its line in `~/.bash_profile`); without the folder of bash-completion the deploy installs nothing. It completes `./zebrunner.sh` too. `./zebrunner.sh shutdown` removes it.
+- zsh (both, through `bashcompinit`): add to `~/.zshrc`, after `compinit` when it has one:
+
+  ```bash
+  eval "$(zebrunner-farm completion zsh)"
+  ```
+
+  or `eval "$(/path/to/mcloud-agent/zebrunner.sh completion zsh)"`.
+
+The completion is safe at any folder: it runs only a `zebrunner.sh` (or `zebrunner-farm`) of the current user or of root that the group and the others cannot write, so a TAB in a strange folder does not run its `zebrunner.sh`; and `<program> __complete <index> <words...>`, the question of the completion, answers at once and changes nothing: no docker, no network, no file written, no question, no secret printed ([CONVENTIONS.md](CONVENTIONS.md#completion)).
 
 ### Autostart
 

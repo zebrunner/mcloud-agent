@@ -1,5 +1,116 @@
 #!/bin/bash
 
+#### Completion
+
+# The commands of echo_help, of the completion and of the hint of an unknown command
+COMMANDS="setup join migrate ansible status doctor autostart mdm version backup restore shutdown help completion"
+# The groups of devices of zebrunner-farm and of ./zebrunner.sh mdm
+DEVICE_GROUPS="ios android usb wireless android-sim ios-sim proxy"
+
+# complete_devices: the udids and the names of the devices, one per line: the deployed list of zebrunner-farm (the
+# one ./zebrunner.sh mdm selects from), else config/devices.yml; read only, nothing when there is none
+complete_devices() {
+  local dir list
+  dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || return 0
+  list="$(sed -n 's/^MCLOUD_DEVICES=//p' "${ZEBRUNNER_FARM_ENV:-/usr/local/etc/zebrunner-farm.env}" 2> /dev/null | tail -n 1)"
+  list="${list//\'/}"
+  list="${list//\"/}"
+  list="${list:-/usr/local/bin/mcloud-devices.txt}"
+  if [[ -r "$list" ]] && grep -Eq '(^|[|])id=' "$list"; then
+    grep -v '^#' "$list" | tr '|' '\n' | sed -nE 's/^(id|name)=(.+)$/\2/p' | sort -u
+    return 0
+  fi
+  [[ -r "${dir}/config/devices.yml" ]] || return 0
+  # the block and the flow style of YAML: a field per line, the comments and the quotes away, the spaces of a name
+  # are '_' as in the deployed list; tr: each of the characters of a flow mapping is a newline
+  # shellcheck disable=SC2020
+  sed -e 's/^[[:space:]]*#.*//' -e 's/[[:space:]]#.*//' "${dir}/config/devices.yml" | tr '{},' '\n\n\n' |
+    sed -nE 's/^[[:space:]]*(-[[:space:]]+)?(id|name):[[:space:]]*//p' | tr -d "\"'" |
+    sed -e 's/[[:space:]]*$//' -e 's/[[:space:]]\{1,\}/_/g' | grep -v '^$' | sort -u
+}
+
+# complete_words <index> <words...>: the candidates of the word <index> of the command line, one per line
+# (CONVENTIONS.md#completion): no docker, no network, no file written, no question
+complete_words() {
+  local index="$1"
+  shift
+  [[ "$index" =~ ^[1-9][0-9]{0,2}$ ]] || return 0
+  local words=("$@")
+  local current="${words[$((index - 1))]:-}"
+  if [[ "$index" -eq 1 ]]; then
+    # the words of the list
+    # shellcheck disable=SC2086
+    printf '%s\n' $COMMANDS --help -h
+    return 0
+  fi
+  local command="${words[0]}"
+  case "$command" in
+  ansible)
+    if [[ "$current" == -* ]]; then
+      printf '%s\n' --help --check --diff --tags --skip-tags --limit --extra-vars --list-tasks --list-tags \
+        --syntax-check --step --start-at-task -v -vv -vvv -vvvv
+    elif [[ "$index" -eq 2 ]]; then
+      echo devices
+    fi
+    ;;
+  autostart)
+    if [[ "$current" == -* ]]; then
+      echo --help
+    elif [[ "$index" -eq 2 ]]; then
+      printf '%s\n' status enable disable
+    fi
+    ;;
+  mdm)
+    if [[ "$index" -eq 2 ]]; then
+      if [[ "$current" == -* ]]; then
+        echo --help
+      else
+        printf '%s\n' status enroll release supervise
+      fi
+    elif [[ "$current" == -* ]]; then
+      printf '%s\n' --help -x --exclude -y --yes -q --quiet
+      case "${words[1]}" in
+      release) echo --uninstall ;;
+      supervise) echo --force ;;
+      esac
+    else
+      # the devices to select, also after -x: the words of the list
+      # shellcheck disable=SC2086
+      printf '%s\n' $DEVICE_GROUPS
+      complete_devices
+    fi
+    ;;
+  help)
+    if [[ "$index" -eq 2 ]]; then
+      # the words of the list
+      # shellcheck disable=SC2086
+      printf '%s\n' $COMMANDS
+    fi
+    ;;
+  completion)
+    if [[ "$current" == -* ]]; then
+      echo --help
+    elif [[ "$index" -eq 2 ]]; then
+      printf '%s\n' bash zsh
+    fi
+    ;;
+  *)
+    # migrate: the files (nothing here, the completion of the shell offers them), the other commands: no argument
+    if [[ "$current" == -* ]]; then
+      echo --help
+    fi
+    ;;
+  esac
+}
+
+# the completion answers before anything else runs: no cd, no sourced file, no check, nothing on stderr
+if [[ "${1:-}" == "__complete" ]]; then
+  complete_words "${@:2}" 2> /dev/null
+  exit 0
+fi
+
+#### Setup
+
 # The folder of the agent: the one of this script, whatever the current folder and the environment are; the deploy
 # renders it into the settings of zebrunner-farm (README.md#settings)
 MCLOUD_AGENT_DIR_NAME="ZEBRUNNER_MCLOUD_AGENT_DIR"
@@ -519,10 +630,15 @@ shutdown() {
     sudo rm -vf /usr/local/bin/zebrunner-device-listener
     sudo rm -vf /usr/local/bin/usbmuxd_watch
     sudo rm -vf /etc/newsyslog.d/zebrunner-mcloud.conf
+    # the completion of zebrunner-farm in Homebrew, a folder of the user
+    if command -v brew > /dev/null 2>&1; then
+      rm -vf "$(brew --prefix)/etc/bash_completion.d/zebrunner-farm"
+    fi
   else
     sudo rm -vf /etc/udev/rules.d/90_mcloud.rules
     sudo rm -vf /etc/systemd/system/mcloud-device-restart@.service
     sudo rm -vf /etc/systemd/system/mcloud-device-down@.service
+    sudo rm -vf /etc/bash_completion.d/zebrunner-farm
     # udev and systemd keep the removed rules and units until they reload them
     sudo udevadm control --reload
     sudo systemctl daemon-reload
@@ -538,12 +654,16 @@ shutdown() {
   ui_ok "Shutting down MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished"
 }
 
-# version: the versions of the images of versions.yml
+# version: the versions of the images of versions.yml, a NAME: value line each on stdout (data read by people and
+# scripts, e.g. zebrunner-farm version); the header and the footer go to stderr
 version() {
-  ui_section "Versions" "" "Zebrunner MCloud Agent components versions for '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
+  ui_section "Versions" "" "The images of the devices of '${ZEBRUNNER_MCLOUD_AGENT_DIR}' (versions.yml)" >&2
   grep -i "version" "${ZEBRUNNER_MCLOUD_AGENT_DIR}/versions.yml" | grep -v '^\s*#' || exit 1
-  echo ""
-  ui_rule
+  {
+    echo ""
+    ui_muted "A line of config/settings.yml overrides one (README.md#run-ansible-playbook)."
+    ui_rule
+  } >&2
 }
 
 # The containers of the devices after a reboot (README.md#autostart), off by default: the USB devices are started by
@@ -745,6 +865,20 @@ migrate() {
   ui_rule
 }
 
+#### Help
+
+# command_args <command>: the arguments of the command in the help
+command_args() {
+  case "$1" in
+  migrate) echo "[files...]" ;;
+  ansible) echo "[devices] [args...]" ;;
+  autostart) echo "[status|enable|disable]" ;;
+  mdm) echo "<status|enroll|release|supervise> [devices...] [options]" ;;
+  help) echo "[command]" ;;
+  completion) echo "bash|zsh" ;;
+  esac
+}
+
 # echo_help: the usage of zebrunner.sh, the commands by their stage
 echo_help() {
   ui_banner "MCloud Agent"
@@ -753,14 +887,14 @@ echo_help() {
   ui_help_group "Set up"
   ui_help_cmd setup "" "Prepare MCloud Agent environment"
   ui_help_cmd join "" "Enroll this host in MCloud with the join string of ./zebrunner.sh node-invite (stdin)"
-  ui_help_cmd migrate "[files...]" "Move the settings of an earlier version to config/ (shows the changes, asks first)"
-  ui_help_cmd ansible "[devices] [args...]" "Deploy MCloud Agent: devices without the download of the images, args of ansible-playbook"
+  ui_help_cmd migrate "$(command_args migrate)" "Move the settings of an earlier version to config/ (shows the changes, asks first)"
+  ui_help_cmd ansible "$(command_args ansible)" "Deploy MCloud Agent: devices without the download of the images, args of ansible-playbook"
 
   ui_help_group "Operate"
   ui_help_cmd status "" "Status of MCloud Agent deployment"
   ui_help_cmd doctor "" "Check the settings, the deployment and the network to MCloud, tell what to fix"
-  ui_help_cmd autostart "[status|enable|disable]" "The containers of the devices after a reboot (off by default, asks first)"
-  ui_help_cmd mdm "<status|enroll|release|supervise> [devices] [options]" "The devices in the MDM of MCloud (README.md#mdm): status: what the MDM knows; enroll: the agent as the device owner (Android), the enrollment profile (supervised iOS); release [--uninstall]: out of the MDM; supervise [--force] [--yes]: ERASES an iOS device, supervises it, joins MDM_WIFI_SSID, enrolls it"
+  ui_help_cmd autostart "$(command_args autostart)" "The containers of the devices after a reboot (off by default, asks first)"
+  ui_help_cmd mdm "$(command_args mdm)" "The devices in the MDM of MCloud (README.md#mdm): status: what the MDM knows; enroll: the agent as the device owner (Android), the enrollment profile (supervised iOS); release [--uninstall]: out of the MDM; supervise [--force] [--yes]: ERASES an iOS device, supervises it, joins MDM_WIFI_SSID, enrolls it"
   ui_help_cmd version "" "Version of MCloud Agent components"
 
   ui_help_group "Maintain"
@@ -768,48 +902,299 @@ echo_help() {
   ui_help_cmd restore "" "Restore MCloud Agent setup"
   ui_help_cmd shutdown "" "Stop and remove MCloud Agent containers, clear volumes and environment"
 
+  ui_help_group "Help"
+  ui_help_cmd help "$(command_args help)" "This list, or the usage and the options of a command (also <command> --help)"
+  ui_help_cmd completion "$(command_args completion)" "The completion of the commands, the options and the devices in bash and zsh (README.md#completion)"
+
   echo_telegram
   echo ""
 }
 
-case "$1" in
-setup)
-  setup
+# help_text <text>: the description of a command wrapped to the width, without the empty line of ui_paragraph: the
+# groups of its options start with one
+help_text() {
+  ui_hang "  " 2 "$1" "$UI_WIDTH"
+}
+
+# command_help <command>: the usage, the description and the options of the command; the command does not run
+command_help() {
+  local command="$1"
+  local args
+  args="$(command_args "$command")"
+  ui_usage "./zebrunner.sh ${command}${args:+ ${args}}"
+  printf '\n'
+  local readme="agent-management"
+  case "$command" in
+  setup)
+    help_text "Prepares MCloud Agent in this folder: config/settings.yml and config/devices.yml from the examples of the OS (an existing file is kept, a copy goes to *.bak), the variable ZEBRUNNER_MCLOUD_AGENT_DIR of an earlier version is removed from the shell profiles; then it tells the next steps."
+    readme="clone-and-setup"
+    ;;
+  join)
+    help_text "Enrolls this host in MCloud with the join string of ./zebrunner.sh node-invite of mcloud: read from a hidden prompt at a terminal or from stdin (./zebrunner.sh join < file), never from an argument. The token of this host and the settings of MCloud go to config/settings.yml."
+    readme="node-enrollment"
+    ;;
+  migrate)
+    help_text "Moves the settings of an earlier version to config/: the files given or, without them, roles/<role>/vars/main.yml and defaults/main.yml of this folder. It shows the changes (the secrets hidden) and asks first; the files of this folder are renamed to *.migrated."
+    ui_help_group "Arguments"
+    ui_help_cmd "files..." "" "The settings of an earlier version, e.g. vars/main.yml and defaults/main.yml of a backup"
+    readme="settings"
+    ;;
+  ansible)
+    help_text "Deploys MCloud Agent with ansible-playbook (it asks for the password of sudo): agent.yml with the settings of config/. The running containers of the devices keep their settings and images: it offers to remove them first, zebrunner-farm start creates them again."
+    ui_help_group "Arguments"
+    ui_help_cmd devices "" "The files and the devices only: no download of the images, the running containers are kept"
+    ui_help_cmd "args..." "" "Arguments of ansible-playbook, e.g. --check --diff, --tags files, -vvv; --check, --syntax-check and --list-* change nothing"
+    ui_help_cmd "-h, --help" "" "This help, the deploy does not run; the options of ansible-playbook: ansible-playbook --help"
+    readme="run-ansible-playbook"
+    ;;
+  status)
+    help_text "The state of the components of the agent: the tools, Rosetta 2 of an Apple Silicon Mac, the deployed files, the launch agents, the autostart and the settings. It changes nothing."
+    ;;
+  doctor)
+    help_text "Checks the host, the settings, the enrollment in MCloud, the deployment, the network to MCloud and the devices, and tells what to fix. It changes nothing; it exits with 1 when a check fails."
+    readme="doctor"
+    ;;
+  autostart)
+    help_text "The containers of all the devices after a reboot, off by default: a systemd unit (Linux, with sudo) or a launch agent of the user (macOS). enable and disable tell what they change and ask first; nothing starts at once."
+    ui_help_group "Actions"
+    ui_help_cmd status "" "Whether the autostart is on (the default action)"
+    ui_help_cmd enable "" "Adds the autostart: zebrunner-farm start --quiet once after the boot (Linux) or the login (macOS)"
+    ui_help_cmd disable "" "Removes it, the running containers keep running"
+    readme="autostart"
+    ;;
+  mdm)
+    help_text "The devices of this host in the MDM of MCloud, the preparation of a device for the farm; it needs the enrollment of ./zebrunner.sh join. The devices are selected as by zebrunner-farm, a change shows them at a terminal and asks first."
+    ui_help_group "Actions"
+    ui_help_cmd status "" "What the MDM knows, the device is not touched; all the devices without devices"
+    ui_help_cmd enroll "" "Android: the agent of the MDM as the device owner; iOS: the enrollment profile of a supervised device"
+    ui_help_cmd release "" "Out of the MDM; --uninstall removes the Android agent too"
+    ui_help_cmd supervise "" "ERASES an iOS device, supervises it, joins MDM_WIFI_SSID and enrolls it; it asks for the word erase"
+    ui_help_group "Options"
+    ui_help_cmd "devices..." "" "Udids, names, groups (ios, android, usb, wireless, android-sim, ios-sim, proxy) or patterns in quotes ('Samsung_*')"
+    ui_help_cmd "-x" "<devices>" "Skips these devices (also -e, --exclude, -x=<devices>), may be repeated"
+    ui_help_cmd "-y, --yes" "" "No question (also -q, --quiet): supervise needs it without a terminal"
+    ui_help_cmd "--uninstall" "" "release: uninstalls the Android agent too"
+    ui_help_cmd "--force" "" "supervise: erases a supervised device too"
+    readme="mdm"
+    ;;
+  version)
+    help_text "The versions of the images of the devices of versions.yml, a NAME: value line each on stdout (the header and the footer on stderr); a line of config/settings.yml overrides one."
+    readme="run-ansible-playbook"
+    ;;
+  backup)
+    help_text "Saves config/settings.yml and config/devices.yml into a private folder backup/bak_<date>_<id>; it asks first."
+    readme="settings"
+    ;;
+  restore)
+    help_text "Brings config/ back from a folder of backup/: it asks first, then for the name of the folder. A backup of an earlier version goes to config/ with ./zebrunner.sh migrate."
+    readme="settings"
+    ;;
+  shutdown)
+    help_text "Removes the containers of the devices, the launch agents (macOS) or the udev rules (Linux), the autostart, the deployed files, the completion of zebrunner-farm and the settings of config/; it asks first and uses sudo."
+    ;;
+  help)
+    help_text "The commands, or the usage, the description and the options of a command."
+    ui_help_group "Arguments"
+    ui_help_cmd command "" "A command of ./zebrunner.sh, e.g. ./zebrunner.sh help mdm (also ./zebrunner.sh mdm --help)"
+    ;;
+  completion)
+    help_text "Prints the completion of bash and zsh for an eval: the commands, the actions, the options and the devices of this host. It runs only a zebrunner.sh of the current user or of root that others cannot write, and asks it for the candidates without docker, network or a change."
+    ui_help_group "Arguments"
+    ui_help_cmd bash "" "The completion of bash"
+    ui_help_cmd zsh "" "The completion of zsh (with bashcompinit)"
+    printf '\n'
+    help_text "The lines of ~/.bashrc and ~/.zshrc:"
+    # the lines whole, so they can be copied
+    printf '    %s\n' "$(completion_line bash)" "$(completion_line zsh)"
+    readme="completion"
+    ;;
+  esac
+  printf '\n'
+  ui_muted "README.md#${readme}"
+  echo ""
+}
+
+#### Unknown commands
+
+# is_command <word>: 0 for a command of zebrunner.sh
+is_command() {
+  [[ "$1" =~ ^[a-z]+$ && " ${COMMANDS} " == *" $1 "* ]]
+}
+
+# edit_distance <a> <b>: the Levenshtein distance of the words, by rows: no associative array for bash 3.2
+edit_distance() {
+  local a="$1"
+  local b="$2"
+  local i j cost best
+  local -a prev=()
+  local -a cur=()
+  for ((j = 0; j <= ${#b}; j++)); do
+    prev[j]=$j
+  done
+  for ((i = 1; i <= ${#a}; i++)); do
+    cur=("$i")
+    for ((j = 1; j <= ${#b}; j++)); do
+      cost=1
+      [[ "${a:i-1:1}" == "${b:j-1:1}" ]] && cost=0
+      best=$((prev[j] + 1))
+      [[ $((cur[j - 1] + 1)) -lt "$best" ]] && best=$((cur[j - 1] + 1))
+      [[ $((prev[j - 1] + cost)) -lt "$best" ]] && best=$((prev[j - 1] + cost))
+      cur[j]="$best"
+    done
+    prev=("${cur[@]}")
+  done
+  echo "${prev[${#b}]}"
+}
+
+# similar_commands <word>: the commands closest to the word, separated by spaces: an edit distance of 2 at most (less
+# than the length of the word) or the word as their start
+similar_commands() {
+  local word
+  word="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+  [[ ${#word} -le 32 ]] || return 0
+  local command distance
+  local best=3
+  local found=""
+  for command in $COMMANDS; do
+    if [[ ${#word} -ge 2 && "$command" == "$word"* ]]; then
+      distance=0
+    else
+      distance="$(edit_distance "$word" "$command")"
+    fi
+    [[ "$distance" -le 2 && "$distance" -lt ${#word} ]] || continue
+    if [[ "$distance" -lt "$best" ]]; then
+      best="$distance"
+      found="$command"
+    elif [[ "$distance" -eq "$best" ]]; then
+      found="${found} ${command}"
+    fi
+  done
+  echo "$found"
+}
+
+# unknown_command <word>: the error, the closest commands and the usage on stderr; exits with 2, the code of a wrong
+# usage
+unknown_command() {
+  local similar
+  similar="$(similar_commands "$1")"
+  {
+    ui_callout error "Unknown command '$1'."
+    if [[ -n "$similar" ]]; then
+      ui_info "Did you mean: ${similar// /, }?"
+    fi
+    ui_usage "./zebrunner.sh <command> [options]"
+    ui_muted "./zebrunner.sh help lists the commands"
+    echo ""
+  } >&2
+  exit 2
+}
+
+# wants_help <arguments...>: 0 when -h or --help is one of the arguments: the help of the command instead of the command
+wants_help() {
+  local arg
+  for arg in "$@"; do
+    if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# completion_line <bash|zsh>: the line of the profile of the shell that loads the completion
+completion_line() {
+  # the line for the profile: its $( ) runs there
+  # shellcheck disable=SC2016
+  printf 'eval "$(%q completion %s)"' "${MCLOUD_AGENT_DIR_VALUE}/zebrunner.sh" "$1"
+}
+
+# completion <bash|zsh>: patch/completion.sh for the eval of the shell (README.md#completion), the hint of the setup on
+# stderr at a terminal
+completion() {
+  case "${1:-}" in
+  bash | zsh)
+    cat "${MCLOUD_AGENT_DIR_VALUE}/patch/completion.sh" || exit 1
+    if [[ -t 1 ]]; then
+      {
+        ui_callout note "Add this line to ~/.${1}rc, the completion is in every new shell then:"
+        # the line whole, so it can be copied
+        printf '  %s\n\n' "$(completion_line "$1")"
+      } >&2
+    fi
+    ;;
+  *)
+    {
+      ui_callout error "The completion is of bash or zsh."
+      ui_usage "./zebrunner.sh completion bash|zsh"
+      echo ""
+    } >&2
+    exit 2
+    ;;
+  esac
+}
+
+#### Commands
+
+case "${1:-}" in
+"" | -h | --help)
+  echo_help
   ;;
-ansible)
-  ansible "${@:2}"
-  ;;
-status)
-  status "$2"
-  ;;
-backup)
-  backup
-  ;;
-restore)
-  restore
-  ;;
-shutdown)
-  shutdown
-  ;;
-version)
-  version
-  ;;
-doctor)
-  doctor
-  ;;
-join)
-  join
-  ;;
-migrate)
-  migrate "${@:2}"
-  ;;
-autostart)
-  autostart "$2"
-  ;;
-mdm)
-  mdm "${@:2}"
+help)
+  if [[ -z "${2:-}" ]]; then
+    echo_help
+  elif wants_help "$2"; then
+    command_help help
+  elif is_command "$2"; then
+    command_help "$2"
+  else
+    unknown_command "$2"
+  fi
   ;;
 *)
-  echo_help
+  is_command "$1" || unknown_command "$1"
+  if wants_help "${@:2}"; then
+    command_help "$1"
+    exit 0
+  fi
+  case "$1" in
+  setup)
+    setup
+    ;;
+  ansible)
+    ansible "${@:2}"
+    ;;
+  status)
+    status "$2"
+    ;;
+  backup)
+    backup
+    ;;
+  restore)
+    restore
+    ;;
+  shutdown)
+    shutdown
+    ;;
+  version)
+    version
+    ;;
+  doctor)
+    doctor
+    ;;
+  join)
+    join
+    ;;
+  migrate)
+    migrate "${@:2}"
+    ;;
+  autostart)
+    autostart "$2"
+    ;;
+  mdm)
+    mdm "${@:2}"
+    ;;
+  completion)
+    completion "$2"
+    ;;
+  esac
   ;;
 esac

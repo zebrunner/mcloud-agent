@@ -74,6 +74,66 @@ done
 check_contains "help tells where to get help" "For more help join telegram channel: https://t.me/zebrunner" "$output"
 check "help is plain text without a terminal" "" "$(grep -c $'\033' <<< "$output" | grep -v '^0$')"
 check "help --help is the help" "$output" "$(zbr "" --help)"
+check "help -h is the help" "$output" "$(zbr "" -h)"
+check "help help is the help" "$output" "$(zbr "" help)"
+check "help with an empty command is the help" "$output" "$(zbr "" "")"
+zbr "" help > /dev/null
+check "the help exits with 0" "0" "$?"
+check_contains "help groups the help commands" "[ HELP ]" "$output"
+for command in help completion; do
+  check_contains "help lists ${command}" $'\n'"   ${command} " "$output"
+done
+
+section "unknown commands"
+reset_calls
+output="$(zbr "" stauts)"
+check "an unknown command exits with 2" "2" "$?"
+check_contains "an unknown command is an error" $'  | ERROR\n  | Unknown command \'stauts\'.' "$output"
+check_contains "the closest command is suggested" "Did you mean: status?" "$output"
+check_contains "the usage follows" "> ./zebrunner.sh <command> [options]" "$output"
+check_not_contains "an unknown command shows no help" "[ SET UP ]" "$output"
+check "an unknown command runs nothing" "" "$(cat "${WORK}/calls.log")"
+check "the error goes to stderr" "" "$(env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin" TERM=dumb /bin/bash "${AGENT}/zebrunner.sh" stauts 2> /dev/null)"
+check_contains "a prefix suggests its command" "Did you mean: autostart?" "$(zbr "" auto)"
+check_contains "a command in upper case suggests it" "Did you mean: doctor?" "$(zbr "" DOCTOR)"
+check_contains "a typo suggests its command" "Did you mean: restore?" "$(zbr "" bestore)"
+check_not_contains "a word 3 edits away suggests nothing" "Did you mean" "$(zbr "" backore)"
+output="$(zbr "" xyzzy)"
+check "a word like no command exits with 2 too" "2" "$?"
+check_not_contains "a word like no command suggests nothing" "Did you mean" "$output"
+check_not_contains "a short word suggests nothing" "Did you mean" "$(zbr "" x)"
+zbr "" --version > /dev/null
+check "an unknown option is an unknown command" "2" "$?"
+output="$(zbr "" help stauts)"
+check "the help of an unknown command exits with 2" "2" "$?"
+check_contains "the help of an unknown command suggests one" "Did you mean: status?" "$output"
+
+section "the help of a command"
+reset_calls
+cp -R "${AGENT}/config" "${WORK}/config.before-help"
+for command in setup join migrate ansible status doctor autostart mdm version backup restore shutdown help completion; do
+  output="$(zbr "" help "$command")"
+  check "help ${command} exits with 0" "0" "$?"
+  check_contains "help ${command} shows its usage" "> ./zebrunner.sh ${command}" "$output"
+  check_contains "help ${command} tells its section of README.md" "README.md#" "$output"
+  check "${command} --help is its help" "$output" "$(zbr "" "$command" --help)"
+  check "${command} -h is its help" "$output" "$(zbr "" "$command" -h)"
+done
+check "the help of a command runs nothing" "" "$(cat "${WORK}/calls.log")"
+check "the help of a command changes no setting" "" "$(diff -r "${WORK}/config.before-help" "${AGENT}/config")"
+rm -rf "${WORK}/config.before-help"
+check_contains "the help of mdm tells its actions" "   supervise " "$(zbr "" help mdm)"
+check_contains "the help of mdm tells its options" "   --uninstall " "$(zbr "" help mdm)"
+check_contains "the help of autostart tells its actions" "   enable " "$(zbr "" help autostart)"
+check_contains "the help of migrate tells its arguments" "   files... " "$(zbr "" help migrate)"
+check_contains "the help of ansible tells where the options of ansible-playbook are" "ansible-playbook --help" "$(unwrapped "$(zbr "" help ansible)")"
+reset_calls
+output="$(zbr "" ansible devices -vvv --help)"
+check "ansible with --help among its arguments shows the help" "$(zbr "" help ansible)" "$output"
+check "ansible with --help deploys nothing" "" "$(calls ansible-playbook)$(calls zebrunner-farm)"
+check "mdm with --help among its arguments shows the help" "$(zbr "" help mdm)" "$(zbr "" mdm enroll Galaxy --help)"
+check "join with --help reads no join string" "$(zbr "" help join)" "$(zbr "mcloud-join://x\n" join --help)"
+check "shutdown with --help asks nothing" "$(zbr "" help shutdown)" "$(zbr "y\n" shutdown -h)"
 
 section "setup"
 printf 'alias ll="ls -l"\nexport ZEBRUNNER_MCLOUD_AGENT_DIR=/old/path\n' > "${WORK}/home/.bashrc"
@@ -111,8 +171,108 @@ rm -rf "${AGENT}/roles/mac-devices/vars" "${AGENT}/config/"*.bak
 mv "${WORK}/devices.yml" "${AGENT}/config/devices.yml"
 check_contains "unknown OS is rejected" "Unknown OS" "$(OS=FreeBSD zbr "" setup)"
 
+section "completion"
+# candidates <index> <words...>: the candidates of zebrunner.sh __complete separated by spaces, stdout only; $FARM_ENV
+# is ZEBRUNNER_FARM_ENV, the settings of the deployed zebrunner-farm
+candidates() {
+  env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
+    ZEBRUNNER_FARM_ENV="${FARM_ENV:-${WORK}/no-farm.env}" /bin/bash "${AGENT}/zebrunner.sh" __complete "$@" 2> /dev/null |
+    paste -s -d ' ' -
+}
+# the tools of the commands fail when the completion runs them
+mkdir -p "${WORK}/tools"
+for tool in docker ansible-playbook sudo curl launchctl systemctl zebrunner-farm python3; do
+  [[ -f "${WORK}/bin/${tool}" ]] && mv "${WORK}/bin/${tool}" "${WORK}/tools/${tool}"
+  stub "$tool" "(IFS='|'; echo \"${tool}|\$*\") >> '${WORK}/calls.log'; exit 1"
+done
+reset_calls
+touch "${WORK}/before-completion"
+SECONDS=0
+check "the commands" "setup join migrate ansible status doctor autostart mdm version backup restore shutdown help completion --help -h" "$(candidates 1 "")"
+check "the commands of a typed prefix too, the shell keeps the ones of the prefix" "$(candidates 1 "")" "$(candidates 1 st)"
+check "the actions of mdm" "status enroll release supervise" "$(candidates 2 mdm "")"
+check "the devices of mdm: the groups and the devices of config/devices.yml" \
+  "ios android usb wireless android-sim ios-sim proxy R28M1384YQY Samsung_Galaxy_S10 d6afc6b3a65584ca0813eb8957c6479b9b6ebb11 iPhone_8_Plus" \
+  "$(candidates 3 mdm status "")"
+check "the devices after -x" "$(candidates 3 mdm status "")" "$(candidates 5 mdm enroll Galaxy -x "")"
+check "the options of mdm release" "--help -x --exclude -y --yes -q --quiet --uninstall" "$(candidates 3 mdm release --)"
+check "the options of mdm supervise" "--help -x --exclude -y --yes -q --quiet --force" "$(candidates 4 mdm supervise iPhone -)"
+printf '%s\n' "# The devices of zebrunner-farm: a comment with id=comment|name=comment" \
+  "id=192.168.1.50:5555|os=android|name=WiFi_Phone|location=|connection=wireless" \
+  "id=00008020-0005308201DA002E|os=ios|name=iPhone_XR|location=loc|connection=usb" > "${WORK}/devices.txt"
+printf "FARM_OS=linux\nMCLOUD_DEVICES='%s'\nMCLOUD_NODE_TOKEN=secret\n" "${WORK}/devices.txt" > "${WORK}/farm.env"
+check "the devices of mdm: the deployed ones, the ones mdm selects from" \
+  "ios android usb wireless android-sim ios-sim proxy 00008020-0005308201DA002E 192.168.1.50:5555 WiFi_Phone iPhone_XR" \
+  "$(FARM_ENV="${WORK}/farm.env" candidates 3 mdm status "")"
+rm -f "${WORK}/devices.txt" "${WORK}/farm.env"
+cp "${AGENT}/config/devices.yml" "${WORK}/devices.yml"
+printf '%s\n' '  - {id: "emulator-5554", os: android, name: My Emulator, appium_port: 7501}  # the emulator' >> "${AGENT}/config/devices.yml"
+output="$(candidates 3 mdm status "")"
+check_contains "the udid of the flow style of YAML" " emulator-5554 " "$output"
+check_contains "the name of the flow style of YAML, its spaces are _ as in the deployed list" " My_Emulator " "$output"
+mv "${WORK}/devices.yml" "${AGENT}/config/devices.yml"
+touch "${WORK}/before-completion"
+check "ansible: devices" "devices" "$(candidates 2 ansible "")"
+check_contains "ansible: the options of ansible-playbook" "--help --check --diff --tags" "$(candidates 2 ansible --)"
+check "autostart: its actions" "status enable disable" "$(candidates 2 autostart "")"
+check "help: the commands" "setup join migrate ansible status doctor autostart mdm version backup restore shutdown help completion" "$(candidates 2 help "")"
+check "completion: the shells" "bash zsh" "$(candidates 2 completion "")"
+check "migrate: nothing, the shell offers the files" "" "$(candidates 2 migrate "")"
+check "a command without arguments: its help" "--help" "$(candidates 2 status -)"
+check "a command without arguments: nothing else" "" "$(candidates 2 doctor "")"
+check "an invalid index: nothing" "" "$(candidates x mdm)"
+check "no index: nothing" "" "$(candidates)"
+env -i PATH="${WORK}/bin:/usr/bin:/bin" /bin/bash "${AGENT}/zebrunner.sh" __complete 2 mdm "" > /dev/null 2>&1
+check "the completion exits with 0" "0" "$?"
+check "the completion answers at once" "yes" "$([[ "$SECONDS" -le 5 ]] && echo yes)"
+check "the completion runs no tool: no docker, no ansible, no network" "" "$(cat "${WORK}/calls.log")"
+check "the completion writes no file" "" "$(find "$AGENT" "${WORK}/home" -newer "${WORK}/before-completion" -type f)"
+check "the completion prints nothing on stderr" "" \
+  "$(env -i PATH="${WORK}/bin:/usr/bin:/bin" /bin/bash "${AGENT}/zebrunner.sh" __complete 3 mdm status "" 2>&1 > /dev/null)"
+rm -f "${WORK}/before-completion"
+for tool in docker ansible-playbook sudo curl launchctl systemctl zebrunner-farm python3; do
+  rm -f "${WORK}/bin/${tool}"
+  [[ -f "${WORK}/tools/${tool}" ]] && mv "${WORK}/tools/${tool}" "${WORK}/bin/${tool}"
+done
+
+check "completion bash prints patch/completion.sh" "same" \
+  "$(zbr "" completion bash > "${WORK}/completion.sh" && cmp -s "${WORK}/completion.sh" "${AGENT}/patch/completion.sh" && echo same)"
+check "completion zsh prints it too" "same" \
+  "$(zbr "" completion zsh > "${WORK}/completion.sh" && cmp -s "${WORK}/completion.sh" "${AGENT}/patch/completion.sh" && echo same)"
+output="$(zbr "" completion fish)"
+check "completion of another shell exits with 2" "2" "$?"
+check_contains "completion of another shell shows its usage" "> ./zebrunner.sh completion bash|zsh" "$output"
+zbr "" completion > /dev/null
+check "completion without a shell exits with 2" "2" "$?"
+# complete_line <command line>: the completion of bash end to end, the function of complete for the command line of a
+# person
+complete_line() {
+  # the code runs in a child bash
+  # shellcheck disable=SC2016
+  env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin" TERM=dumb /bin/bash -c '
+    source "$1"
+    COMP_LINE="$2"
+    COMP_POINT=${#COMP_LINE}
+    read -r -a COMP_WORDS <<< "$COMP_LINE"
+    [[ "$COMP_LINE" == *" " ]] && COMP_WORDS+=("")
+    COMP_CWORD=$((${#COMP_WORDS[@]} - 1))
+    _zebrunner_complete
+    printf "%s\n" "${COMPREPLY[@]}"' _ "${WORK}/completion.sh" "$1" | paste -s -d ' ' -
+}
+check "bash completes a command" "autostart" "$(complete_line "${AGENT}/zebrunner.sh au")"
+check "bash completes an action of mdm" "release" "$(complete_line "${AGENT}/zebrunner.sh mdm rel")"
+check "bash completes a device" "iPhone_8_Plus" "$(complete_line "${AGENT}/zebrunner.sh mdm status iP")"
+chmod g+w "${AGENT}/zebrunner.sh"
+check "bash runs no zebrunner.sh that others can write" "" "$(complete_line "${AGENT}/zebrunner.sh au")"
+chmod g-w "${AGENT}/zebrunner.sh"
+rm -f "${WORK}/completion.sh"
+
 section "version"
 check_contains "versions of the folder of zebrunner.sh" "DEVICE_VERSION:" "$(zbr "" version)"
+check "stdout has the NAME: value lines of versions.yml only" "$(grep -i version "${AGENT}/versions.yml" | grep -v '^ *#')" \
+  "$(env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin" TERM=dumb /bin/bash "${AGENT}/zebrunner.sh" version 2> /dev/null)"
+check_contains "the header goes to stderr" "[ VERSIONS ]" \
+  "$(env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin" TERM=dumb /bin/bash "${AGENT}/zebrunner.sh" version 2>&1 > /dev/null)"
 output="$(cd / && AGENT_DIR=/old/path zbr "" version)"
 check_contains "versions of the folder of zebrunner.sh from any folder, whatever the variable" "APPIUM_VERSION:" "$output"
 check_not_contains "no variable is needed" "is not set" "$output"
@@ -752,6 +912,7 @@ check "Linux: no launch agents" "" "$(calls launchctl)"
 check "Linux: udev rules and deployed files are removed" "rm|-vf|/etc/udev/rules.d/90_mcloud.rules
 rm|-vf|/etc/systemd/system/mcloud-device-restart@.service
 rm|-vf|/etc/systemd/system/mcloud-device-down@.service
+rm|-vf|/etc/bash_completion.d/zebrunner-farm
 rm|-vf|/usr/local/bin/zebrunner-farm
 rm|-vf|/usr/local/etc/zebrunner-farm.env
 rm|-vf|/usr/local/bin/mcloud-devices.txt" "$(calls sudo | grep '^rm|')"

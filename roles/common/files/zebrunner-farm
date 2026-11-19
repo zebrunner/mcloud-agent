@@ -1986,12 +1986,12 @@ debug_command() {
 #### Help and completion
 
 # the commands of zebrunner-farm
-COMMANDS=(status start stop restart down logs shell exec ansible version completion help)
+FARM_COMMANDS=(status start stop restart down logs shell exec ansible version completion help)
 
-# is_command <word>: 0 for a command of zebrunner-farm
-is_command() {
+# farm_is_command <word>: 0 for a command of zebrunner-farm
+farm_is_command() {
   local command
-  for command in "${COMMANDS[@]}"; do
+  for command in "${FARM_COMMANDS[@]}"; do
     [[ "$command" != "$1" ]] || return 0
   done
   return 1
@@ -2069,8 +2069,8 @@ selection_help() {
   ui_help_cmd "-x" "<devices>" "Skip these devices, may be repeated (also -e, --exclude, -x=<devices>)"
 }
 
-# command_help <command>: the usage, the description, the options and examples of the command
-command_help() {
+# farm_command_help <command>: the usage, the description, the options and examples of the command
+farm_command_help() {
   ui_usage "$(command_usage "$1")"
   printf '\n'
   case "$1" in
@@ -2141,10 +2141,10 @@ command_help() {
   esac
 }
 
-# unknown_command <word>: the error of a word that is no command with the closest commands and the usage; status 2
-unknown_command() {
+# farm_unknown_command <word>: the error of a word that is no command with the closest commands and the usage; status 2
+farm_unknown_command() {
   {
-    ui_callout error "unknown command: ${1}$(printf '%s\n' "${COMMANDS[@]}" | did_you_mean "$1")"
+    ui_callout error "unknown command: ${1}$(printf '%s\n' "${FARM_COMMANDS[@]}" | did_you_mean "$1")"
     ui_usage "zebrunner-farm <command> [devices...] [options]"
     ui_muted "zebrunner-farm help: the commands"
   } >&2
@@ -2163,12 +2163,12 @@ farm_complete() {
   [[ "$index" -lt 2 ]] || previous="${words[$((index - 2))]:-}"
   local command="${words[0]:-}"
   if [[ "$index" -eq 1 ]]; then
-    printf '%s\n' "${COMMANDS[@]}"
+    printf '%s\n' "${FARM_COMMANDS[@]}"
     return 0
   fi
   case "$command" in
   help)
-    [[ "$index" -ne 2 ]] || printf '%s\n' "${COMMANDS[@]}"
+    [[ "$index" -ne 2 ]] || printf '%s\n' "${FARM_COMMANDS[@]}"
     ;;
   completion)
     [[ "$index" -ne 2 ]] || printf '%s\n' bash zsh
@@ -2288,11 +2288,11 @@ main() {
   case "$command" in
   "" | help | -h | --help)
     if [[ "$command" == "help" && -n "${2:-}" ]]; then
-      is_command "$2" || {
-        unknown_command "$2"
+      farm_is_command "$2" || {
+        farm_unknown_command "$2"
         return
       }
-      command_help "$2"
+      farm_command_help "$2"
       return 0
     fi
     farm_help
@@ -2300,14 +2300,14 @@ main() {
     ;;
   ansible | exec | version | completion)
     if [[ "${2:-}" == "-h" || "${2:-}" == "--help" ]]; then
-      command_help "$command"
+      farm_command_help "$command"
       return 0
     fi
     ;;
   status | start | stop | restart | down | logs | shell)
     for arg in "${@:2}"; do
       if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
-        command_help "$command"
+        farm_command_help "$command"
         return 0
       fi
     done
@@ -2338,7 +2338,7 @@ main() {
     esac
     ;;
   *)
-    unknown_command "$command"
+    farm_unknown_command "$command"
     ;;
   esac
 }

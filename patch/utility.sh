@@ -87,8 +87,7 @@ confirm() {
   done
 }
 
-# failed <message>: the message in red; the output of zebrunner-farm and patch/mdm.sh, the other scripts print with
-# patch/ui.sh
+# failed <message>: the message in red; the output of zebrunner-farm, the other scripts print with patch/ui.sh
 failed() {
   echo -e "${RED}${1}${NC}"
 }
