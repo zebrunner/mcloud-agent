@@ -458,7 +458,13 @@ create_containers() {
 
   # the secrets are in the environment of docker only, `-e NAME` takes them from it: the arguments of a process are seen
   # by every local user (ps), its environment by its user and root only
-  STF_NODE_TOKEN="$MCLOUD_NODE_TOKEN" STF_ZMQ_CURVE_SECRET_KEY="$STF_ZMQ_CURVE_SECRET_KEY" ensure_container stf -d \
+  # the certificate of MCloud (README.md#tls-of-mcloud): MCLOUD_CA_PEM for NODE_EXTRA_CA_CERTS of the image, none for a
+  # public CA; STF_TLS_INSECURE: no verification
+  local tls_args=()
+  [[ -n "${MCLOUD_CA_PEM:-}" ]] && tls_args+=(-e MCLOUD_CA_PEM)
+  [[ "${STF_TLS_INSECURE:-false}" == "true" ]] && tls_args+=(-e NODE_TLS_REJECT_UNAUTHORIZED=0)
+  MCLOUD_CA_PEM="${MCLOUD_CA_PEM:-}" STF_NODE_TOKEN="$MCLOUD_NODE_TOKEN" STF_ZMQ_CURVE_SECRET_KEY="$STF_ZMQ_CURVE_SECRET_KEY" \
+    ensure_container stf -d \
     --log-driver=local \
     --log-opt max-size=256m \
     --log-opt max-file=2 \
@@ -483,6 +489,7 @@ create_containers() {
     -e STF_NODE_TOKEN \
     -e STF_ZMQ_CURVE_SERVER_PUBLIC_KEY="${STF_ZMQ_CURVE_SERVER_PUBLIC_KEY}" \
     -e STF_ZMQ_CURVE_SECRET_KEY \
+    "${tls_args[@]+"${tls_args[@]}"}" \
     "${DEVICE_IMAGE}:${DEVICE_VERSION}" || return 1
 
   # APPIUM_RELAXED_SECURITY: the insecure features of Appium for every session, README.md#appium-security; STF_API_URL:

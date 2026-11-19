@@ -342,6 +342,25 @@ doctor_deployment() {
 }
 
 # doctor_network: the endpoints of the MCloud server and the address of this host it connects to
+# doctor_tls: the certificate of MCloud the containers of STF trust (patch/tlstrust.py, README.md#tls-of-mcloud)
+doctor_tls() {
+  [[ "$(setting PUBLIC_IP_PROTOCOL)" == "https" ]] || return 0
+  if [[ "$(setting STF_TLS_INSECURE)" == "true" ]]; then
+    doctor_warn "STF_TLS_INSECURE: the containers of STF do not verify the certificate of MCloud" \
+      "a certificate valid for PUBLIC_IP (a public CA, or the self-signed one of the join string) and STF_TLS_INSECURE: false"
+    return 0
+  fi
+  local out
+  if ! out="$(python3 patch/tlstrust.py "$(setting PUBLIC_IP)" "$(setting PUBLIC_IP_PORT)" "$(setting MCLOUD_TLS_PIN)" 2>&1)"; then
+    doctor_fail "the containers of STF do not trust the certificate of MCloud: ${out}" \
+      "README.md#tls-of-mcloud, then ./zebrunner.sh ansible"
+  elif [[ -n "$out" ]]; then
+    doctor_ok "the containers of STF trust the pinned certificate of MCloud (MCLOUD_TLS_PIN)"
+  else
+    doctor_ok "a public CA signs the certificate of MCloud"
+  fi
+}
+
 doctor_network() {
   doctor_section "Network"
   if ! command -v python3 > /dev/null 2>&1; then
@@ -365,6 +384,7 @@ doctor_network() {
     check_endpoint "STF ZeroMQ (${name})" "${endpoint%:*}" "${endpoint##*:}" "tcp://<MCloud server>:<port> of the triproxies, see Firewall of mcloud"
   done
 
+  doctor_tls
   doctor_provider_host
   doctor_remote_connect
 

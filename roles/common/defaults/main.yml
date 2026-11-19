@@ -22,6 +22,9 @@ STF_DOCKER_NETWORK: infra
 # the optional settings of config/settings.yml.original, empty: off (an empty WDA_FILE and WDA_BUNDLEID are the values
 # by default of zebrunner-farm)
 STF_API_URL: ""
+# true: the containers of STF do not verify the certificate of MCloud (README.md#tls-of-mcloud), only for a self-signed
+# certificate of another name than PUBLIC_IP
+STF_TLS_INSECURE: false
 S3_BUCKET: ""
 S3_TENANT: ""
 S3_ENDPOINT: ""

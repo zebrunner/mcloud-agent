@@ -431,6 +431,29 @@ for role in devices mac-devices; do
   done
   setup_case
   farm "$role" start WiFi > /dev/null
+  stf="$(run_args device-WiFi-192.168.1.50-stf)"
+  check_not_contains "${role}: a public CA: STF gets no certificate of MCloud" "MCLOUD_CA_PEM" "$stf"
+  check_not_contains "${role}: STF verifies the certificate of MCloud by default" "NODE_TLS_REJECT_UNAUTHORIZED" "$stf"
+  pem=$'-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----'
+  render_farm "$role" "${WORK}/farm-${role}.env" --extra-vars "{\"common_farm_tls\": {\"stdout\": \"${pem//$'\n'/\\n}\"}}" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+  setup_case
+  farm "$role" start WiFi > /dev/null
+  check_contains "${role}: the pinned certificate of MCloud goes to STF" "|-e|MCLOUD_CA_PEM|" \
+    "$(run_args device-WiFi-192.168.1.50-stf)"
+  # the log of the environment has one line per call: the first line of the PEM
+  check_contains "${role}: the certificate is in the environment of docker" "|MCLOUD_CA_PEM=-----BEGIN CERTIFICATE-----" \
+    "$(run_env device-WiFi-192.168.1.50-stf)"
+  render_farm "$role" "${WORK}/farm-${role}.env" --extra-vars "STF_TLS_INSECURE=true" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+  setup_case
+  farm "$role" start WiFi > /dev/null
+  check_contains "${role}: STF_TLS_INSECURE: STF does not verify the certificate" "|-e|NODE_TLS_REJECT_UNAUTHORIZED=0|" \
+    "$(run_args device-WiFi-192.168.1.50-stf)"
+  render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+  setup_case
+  farm "$role" start WiFi > /dev/null
   connector="$(run_args device-WiFi-192.168.1.50-connector)"
   check_contains "${role}: the Android connector is created" "|ANDROID_DEVICE=192.168.1.50:5555|" "$connector"
   for env in PLATFORM_NAME DEVICE_UDID; do

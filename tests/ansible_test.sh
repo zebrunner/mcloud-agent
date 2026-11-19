@@ -376,6 +376,8 @@ for role in devices mac-devices; do
     farm="$(cat "${WORK}/farm")"
     pass "${role}: the settings of zebrunner-farm without the optional settings"
     check_contains "${role}: the docker network by default" "STF_DOCKER_NETWORK=infra" "$farm"
+    check "${role}: no certificate of MCloud by default" "MCLOUD_CA_PEM=''" "$(grep '^MCLOUD_CA_PEM=' "${WORK}/farm")"
+    check "${role}: STF verifies the certificate by default" "STF_TLS_INSECURE=false" "$(grep '^STF_TLS_INSECURE=' "${WORK}/farm")"
     for name in STF_API_URL S3_BUCKET S3_TENANT S3_ENDPOINT S3_ACCESS_KEY_ID S3_SECRET S3_REGION WDA_FILE WDA_BUNDLEID; do
       check "${role}: ${name} is empty by default" "${name}=''" "$(grep "^${name}=" "${WORK}/farm")"
     done
