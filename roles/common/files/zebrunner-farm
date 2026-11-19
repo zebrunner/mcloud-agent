@@ -485,10 +485,11 @@ create_containers() {
     -e STF_ZMQ_CURVE_SECRET_KEY \
     "${DEVICE_IMAGE}:${DEVICE_VERSION}" || return 1
 
-  # APPIUM_RELAXED_SECURITY: the insecure features of Appium for every session, README.md#appium-security; STF_API_URL and
-  # STF_AUTH_TOKEN: appium of both platforms moves the device to Unhealthy in STF on the errors of the device;
-  # DEVICE_LOCATION: the recording card of the videos; the secrets in the environment of docker, as of STF
-  NODE_REGISTRATION_TOKEN="$MCLOUD_NODE_TOKEN" STF_AUTH_TOKEN="$STF_AUTH_TOKEN" ensure_container appium -itd \
+  # APPIUM_RELAXED_SECURITY: the insecure features of Appium for every session, README.md#appium-security; STF_API_URL:
+  # appium of both platforms moves the device to Unhealthy in STF on the errors of the device, with the node token of
+  # the host (NODE_REGISTRATION_TOKEN, no access token of an admin of STF); DEVICE_LOCATION: the recording card of the
+  # videos; the secrets in the environment of docker, as of STF
+  NODE_REGISTRATION_TOKEN="$MCLOUD_NODE_TOKEN" ensure_container appium -itd \
     "${platform_args[@]+"${platform_args[@]}"}" \
     -m 1g \
     --log-driver=local \
@@ -522,7 +523,6 @@ create_containers() {
     -p "$dev_appium_port":"$dev_appium_port" \
     -e RELAXED_SECURITY="${APPIUM_RELAXED_SECURITY}" \
     -e STF_API_URL="${STF_API_URL}" \
-    -e STF_AUTH_TOKEN \
     "${appium_tail_args[@]+"${appium_tail_args[@]}"}" \
     "${APPIUM_IMAGE}:${APPIUM_VERSION}" || return 1
 

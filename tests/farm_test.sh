@@ -414,7 +414,7 @@ done
 
 section "the environment of the containers"
 for role in devices mac-devices; do
-  render_farm "$role" "${WORK}/farm-${role}.env" --extra-vars "STF_API_URL=https://mcloud.example.com/api/v1 STF_AUTH_TOKEN=stf-token" || exit 1
+  render_farm "$role" "${WORK}/farm-${role}.env" --extra-vars "STF_API_URL=https://mcloud.example.com/api/v1" || exit 1
   sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
   # <name>:<container prefix> of an Android and an iOS device
   for device in WiFi:device-WiFi-192.168.1.50 AppleTV:device-AppleTV-aaaa1111; do
@@ -422,10 +422,8 @@ for role in devices mac-devices; do
     farm "$role" start "${device%%:*}" > /dev/null
     appium="$(run_args "${device#*:}-appium")"
     check_contains "${role}: ${device%%:*}: appium reports the errors of the device to STF" \
-      "|STF_API_URL=https://mcloud.example.com/api/v1|-e|STF_AUTH_TOKEN|" "$appium"
-    check_contains "${role}: ${device%%:*}: the token of STF is in the environment of docker" "|STF_AUTH_TOKEN=stf-token|" \
-      "$(run_env "${device#*:}-appium")"
-    check_not_contains "${role}: ${device%%:*}: the token of STF is not an argument of docker" "stf-token" "$appium"
+      "|STF_API_URL=https://mcloud.example.com/api/v1|" "$appium"
+    check_not_contains "${role}: ${device%%:*}: appium gets no access token of an admin of STF" "STF_AUTH_TOKEN" "$appium"
     check_contains "${role}: ${device%%:*}: appium knows the location for the recording card" "|DEVICE_LOCATION=loc|" "$appium"
     for env in RETAIN_TASK CUSTOM_NODE_CONFIG ANDROID_DEVICE=; do
       check_not_contains "${role}: ${device%%:*}: appium gets no ${env%=}, it does not read it" "|${env}" "$appium"
@@ -475,18 +473,17 @@ section "secrets"
 # environment of docker, none of them is an argument of a process (ps shows them to every local user)
 host_token="node token \$HOME"
 curve_key="curve key *"
-auth_token='auth "token"'
 s3_key_id="access key id"
 s3_secret="s3 \$ecret 'x'"
 # shellcheck disable=SC2016
 secrets='{"MCLOUD_NODE_TOKEN": "node token $HOME", "STF_ZMQ_CURVE_SECRET_KEY": "curve key *",
-  "STF_AUTH_TOKEN": "auth \"token\"", "S3_ACCESS_KEY_ID": "access key id", "S3_SECRET": "s3 $ecret '"'x'"'",
+  "S3_ACCESS_KEY_ID": "access key id", "S3_SECRET": "s3 $ecret '"'x'"'",
   "S3_BUCKET": "bucket"}'
 # expected_env <container>: the secrets of the container as run_env gives them
 expected_env() {
   case "$1" in
   *-stf) echo "|STF_NODE_TOKEN=${host_token}|STF_ZMQ_CURVE_SECRET_KEY=${curve_key}|" ;;
-  *-appium) echo "|NODE_REGISTRATION_TOKEN=${host_token}|STF_AUTH_TOKEN=${auth_token}|" ;;
+  *-appium) echo "|NODE_REGISTRATION_TOKEN=${host_token}|" ;;
   *-uploader) echo "|AWS_ACCESS_KEY_ID=${s3_key_id}|AWS_SECRET_ACCESS_KEY=${s3_secret}|" ;;
   *) echo "|" ;;
   esac
@@ -505,7 +502,7 @@ for role in devices mac-devices; do
     [[ "$(run_env "$name")" == "$(expected_env "$name")" ]] || wrong+=" ${name}: $(run_env "$name")"
   done
   check "${role}: every container gets its secrets in the environment of docker" "" "$wrong"
-  for secret in "$host_token" "$curve_key" "$auth_token" "$s3_key_id" "$s3_secret"; do
+  for secret in "$host_token" "$curve_key" "$s3_key_id" "$s3_secret"; do
     check_not_contains "${role}: the secret '${secret}' is no argument of a process" "$secret" "$(cat "${WORK}/calls.log")"
   done
 

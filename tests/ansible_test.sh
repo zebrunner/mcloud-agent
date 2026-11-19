@@ -367,7 +367,7 @@ for role in devices mac-devices; do
 done
 
 # the optional settings removed from config/settings.yml: the values by default of the roles, no undefined variable
-grep -v -E '^(STF_DOCKER_NETWORK|STF_API_URL|STF_AUTH_TOKEN|S3_[A-Z_]+|WDA_FILE|WDA_BUNDLEID|WDA_SIMULATOR_FILE|REMOTE_CONNECT_HOST):' \
+grep -v -E '^(STF_DOCKER_NETWORK|STF_API_URL|S3_[A-Z_]+|WDA_FILE|WDA_BUNDLEID|WDA_SIMULATOR_FILE|REMOTE_CONNECT_HOST):' \
   "${REPO}/config/settings.yml.original" > "${WORK}/required.yml"
 for role in devices mac-devices; do
   if output="$(render "${REPO}/roles/common/templates/zebrunner-farm.env" "${WORK}/farm" --extra-vars common_farm_os=linux \
@@ -376,7 +376,7 @@ for role in devices mac-devices; do
     farm="$(cat "${WORK}/farm")"
     pass "${role}: the settings of zebrunner-farm without the optional settings"
     check_contains "${role}: the docker network by default" "STF_DOCKER_NETWORK=infra" "$farm"
-    for name in STF_API_URL STF_AUTH_TOKEN S3_BUCKET S3_TENANT S3_ENDPOINT S3_ACCESS_KEY_ID S3_SECRET S3_REGION WDA_FILE WDA_BUNDLEID; do
+    for name in STF_API_URL S3_BUCKET S3_TENANT S3_ENDPOINT S3_ACCESS_KEY_ID S3_SECRET S3_REGION WDA_FILE WDA_BUNDLEID; do
       check "${role}: ${name} is empty by default" "${name}=''" "$(grep "^${name}=" "${WORK}/farm")"
     done
   else

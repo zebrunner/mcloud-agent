@@ -701,6 +701,13 @@ echo "demo.zebrunner.farm 192.168.50.2" > "${WORK}/net/hosts"
 
 sed -i.bak 's/^MCLOUD_NODE_TOKEN:.*/MCLOUD_NODE_TOKEN: "mcn1.x"/' "$vars" && rm -f "${vars}.bak"
 check_contains "an invalid token is a problem" "MCLOUD_NODE_TOKEN is not a token of ./zebrunner.sh join" "$(doctor_run)"
+check_not_contains "no access token of an admin of STF" "STF_AUTH_TOKEN" "$(doctor_run)"
+echo 'STF_AUTH_TOKEN: "admin-token"' >> "$vars"
+output="$(doctor_run)"
+check_contains "an access token of an admin of STF is reported" \
+  "STF_AUTH_TOKEN is not used: appium marks its device Unhealthy with the node token of this host" "$output"
+check_contains "removing it is the fix" "delete its access token in STF (Settings, Keys)" "$output"
+check_not_contains "the token is not shown" "admin-token" "$output"
 chmod 644 "$vars"
 check_contains "readable settings are reported" "have secrets and are readable by other users (mode 644)" "$(doctor_run)"
 cp "${AGENT}/config/settings.yml.original" "$vars"
