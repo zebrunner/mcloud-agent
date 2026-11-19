@@ -166,6 +166,11 @@ doctor_settings() {
       doctor_fail "${name} is not a key of 64 hex characters" "./zebrunner.sh join with a new join string (README.md#node-enrollment)"
     fi
   done
+  # an access token of an admin of STF of an earlier version: appium updates its device with the node token now
+  if [[ -n "$(setting STF_AUTH_TOKEN)" ]]; then
+    doctor_warn "STF_AUTH_TOKEN is not used: appium marks its device Unhealthy with the node token of this host" \
+      "remove STF_AUTH_TOKEN from ${DOCTOR_VARS} and delete its access token in STF (Settings, Keys)"
+  fi
   # the checks of the deploy (roles/common/files/devices.py): the number of the devices or their problems
   local count
   local farm_os=linux

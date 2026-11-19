@@ -22,7 +22,6 @@ STF_DOCKER_NETWORK: infra
 # the optional settings of config/settings.yml.original, empty: off (an empty WDA_FILE and WDA_BUNDLEID are the values
 # by default of zebrunner-farm)
 STF_API_URL: ""
-STF_AUTH_TOKEN: ""
 S3_BUCKET: ""
 S3_TENANT: ""
 S3_ENDPOINT: ""

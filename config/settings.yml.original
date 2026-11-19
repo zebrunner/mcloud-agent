@@ -56,10 +56,9 @@ REMOTE_CONNECT_HOST:
 # ADB_SERVER_SOCKET_ADDRESS: host.docker.internal:5037
 
 # [OPTIONAL] the STF API: appium of the Android and iOS devices moves a device to Unhealthy in STF (no space left,
-# unfinished setup, ...) or notes its error. STF_API_URL is <STF>/api/v1, e.g. https://mcloud.example.com/api/v1 (the
-# PUBLIC_IP of MCloud), STF_AUTH_TOKEN is an access token of an admin of STF (Settings, Keys)
+# unfinished setup, ...) or notes its error with the node token of this host (MCLOUD_NODE_TOKEN). STF_API_URL is
+# <STF>/api/v1, e.g. https://mcloud.example.com/api/v1 (the PUBLIC_IP of MCloud)
 STF_API_URL:
-STF_AUTH_TOKEN:
 
 # [OPTIONAL] S3 compatible storage for the videos and the logs of the sessions: without S3_BUCKET appium records no
 # video and the devices have no uploader (README.md#recordings)
