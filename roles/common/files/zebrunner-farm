@@ -4,27 +4,36 @@
 # variables of the user, so its settings come from the env file the deploy renders from config/settings.yml.
 
 ZEBRUNNER_FARM_ENV="${ZEBRUNNER_FARM_ENV:-/usr/local/etc/zebrunner-farm.env}"
-if [[ ! -r "$ZEBRUNNER_FARM_ENV" ]]; then
-  echo "zebrunner-farm: the settings ${ZEBRUNNER_FARM_ENV} are not readable: deploy them with ./zebrunner.sh ansible" >&2
-  exit 1
-fi
-# FARM_OS (linux or macos), ZEBRUNNER_MCLOUD_AGENT_DIR, MCLOUD_DEVICES and the settings of the containers
-# shellcheck source=/dev/null
-source "$ZEBRUNNER_FARM_ENV"
-# `zebrunner-farm ansible` and `version` run zebrunner.sh of the agent, which needs it
-export ZEBRUNNER_MCLOUD_AGENT_DIR
+if [[ "${BASH_SOURCE[0]}" == "$0" && "${1:-}" == "__complete" ]]; then
+  # the completion (CONVENTIONS.md#completion) answers at once without the checks and the output below: the devices of
+  # the settings when they are readable, the commands and the options anyway
+  if [[ -r "$ZEBRUNNER_FARM_ENV" ]]; then
+    # shellcheck source=/dev/null
+    source "$ZEBRUNNER_FARM_ENV" > /dev/null 2>&1
+  fi
+else
+  if [[ ! -r "$ZEBRUNNER_FARM_ENV" ]]; then
+    echo "zebrunner-farm: the settings ${ZEBRUNNER_FARM_ENV} are not readable: deploy them with ./zebrunner.sh ansible" >&2
+    exit 1
+  fi
+  # FARM_OS (linux or macos), ZEBRUNNER_MCLOUD_AGENT_DIR, MCLOUD_DEVICES and the settings of the containers
+  # shellcheck source=/dev/null
+  source "$ZEBRUNNER_FARM_ENV"
+  # `zebrunner-farm ansible` and `version` run zebrunner.sh of the agent, which needs it
+  export ZEBRUNNER_MCLOUD_AGENT_DIR
 
-source "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/utility.sh"
-# the terminal output of patch/utility.sh (echo_telegram)
-source "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/ui.sh"
+  source "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/utility.sh"
+  # the terminal output (CONVENTIONS.md#terminal-output)
+  source "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/ui.sh"
 
-if [[ "$FARM_OS" == "macos" ]]; then
-  # Export docker env variables to avoid issues on macOS
-  export DOCKER_BUILDKIT=0
-  export COMPOSE_DOCKER_CLI_BUILD=0
-  # the images run on the platform of the Mac (arm64 on Apple Silicon: the STF provider of an iOS simulator hangs
-  # under emulation, the other ones are slower), but appium: its image is linux/amd64 only
-  unset DOCKER_DEFAULT_PLATFORM
+  if [[ "$FARM_OS" == "macos" ]]; then
+    # Export docker env variables to avoid issues on macOS
+    export DOCKER_BUILDKIT=0
+    export COMPOSE_DOCKER_CLI_BUILD=0
+    # the images run on the platform of the Mac (arm64 on Apple Silicon: the STF provider of an iOS simulator hangs
+    # under emulation, the other ones are slower), but appium: its image is linux/amd64 only
+    unset DOCKER_DEFAULT_PLATFORM
+  fi
 fi
 
 # with_device_lock <udid> <command...>: the commands of one device run one at a time: the jobs of udev
@@ -33,7 +42,8 @@ fi
 with_device_lock() {
   local id="$1"
   shift
-  if [[ -z "$id" || "$FARM_OS" == "macos" ]] || ! command -v flock > /dev/null 2>&1; then
+  # --dry-run changes nothing: it waits for no other command
+  if [[ -z "$id" || "$FARM_OS" == "macos" || -n "${DRY_RUN:-}" ]] || ! command -v flock > /dev/null 2>&1; then
     "$@"
     return
   fi
@@ -48,7 +58,8 @@ with_device_lock() {
   fi
   (
     if ! flock -w "${MCLOUD_LOCK_TIMEOUT:-1800}" 9; then
-      failed "another zebrunner-farm keeps the device ${dev_device_name:-$id} for too long"
+      farm_status fail "another zebrunner-farm keeps the device ${dev_device_name:-$id} for too long" \
+        "wait for it (ps -ef | grep zebrunner-farm), then: zebrunner-farm ${FARM_COMMAND:-restart} ${dev_device_name:-$id}"
       exit 1
     fi
     "$@"
@@ -182,10 +193,11 @@ usb_connected() {
     connected_devices="$(lsusb -v 2> /dev/null)"
   fi
   if grep -q "${dev_udid//-/}" <<< "$connected_devices"; then
-    echo "  connected over USB"
+    farm_status info "connected over USB"
     return 0
   fi
-  failed "  NOT connected over USB (${tool}): the containers are not created."
+  farm_status fail "NOT connected over USB (${tool}): the containers are not created." \
+    "plug it in (a cable with data), then: zebrunner-farm start ${dev_device_name}"
   return 1
 }
 
@@ -267,7 +279,7 @@ create_containers() {
         STF_DEVICE_UDID="$address"
         ;;
       *)
-        failed "  Unsupported connection of an Android device: ${dev_connection}. The containers will not be created."
+        farm_status fail "Unsupported connection of an Android device: ${dev_connection}. The containers will not be created."
         return 1
         ;;
       esac
@@ -305,8 +317,6 @@ create_containers() {
 
   elif [[ "$dev_platform_name" == "ios" ]]; then
 
-    echo "  WDA: ${dev_device_wda_ipa_path} (${dev_device_wda_bundle_id})"
-
     # WIRELESS=true: the device has no usbmuxd (a simulator or a proxied WebDriverAgent), the connector relays WDA
     local wireless="false"
     local wda_file_path="/tmp/zebrunner/WebDriverAgent.ipa"
@@ -327,7 +337,8 @@ create_containers() {
         ;;
       proxy)
         if [[ -z "$dev_address" ]]; then
-          failed "  The proxy device needs the address of its WebDriverAgent. The containers will not be created."
+          farm_status fail "The proxy device needs the address of its WebDriverAgent. The containers will not be created." \
+            "address: <host> of the device in config/mac-devices.yml, then: ./zebrunner.sh ansible"
           return 1
         fi
         connector_args=(-e DEVICE_CONNECTION=proxy -e DEVICE_ADDRESS="$dev_address"
@@ -336,7 +347,8 @@ create_containers() {
         ;;
       ios-sim)
         if [[ -z "$dev_wda_port" ]]; then
-          failed "  The simulator needs wda_port: the unique port of its WebDriverAgent on the host. The containers will not be created."
+          farm_status fail "The simulator needs wda_port: the unique port of its WebDriverAgent on the host. The containers will not be created." \
+            "wda_port: <port> of the device in config/mac-devices.yml, then: ./zebrunner.sh ansible"
           return 1
         fi
         # the simulator build of WDA: a .app folder or its .zip, mounted with its own name
@@ -351,22 +363,23 @@ create_containers() {
         wireless="true"
         ;;
       *)
-        failed "  Unsupported connection of an iOS device: ${dev_connection}. The containers will not be created."
+        farm_status fail "Unsupported connection of an iOS device: ${dev_connection}. The containers will not be created."
         return 1
         ;;
       esac
       wda_args=(-e WDA_HOST=connector -e WDA_PORT=8100 -e WIRELESS="$wireless")
     else
       if [[ "$dev_connection" == "android-sim" ]]; then
-        failed "  The android-sim connection is for Android devices only. The containers will not be created."
+        farm_status fail "The android-sim connection is for Android devices only. The containers will not be created."
         return 1
       fi
       if [[ "$dev_connection" == "ios-sim" ]]; then
-        failed "  The iOS simulators run on a macOS host only. The containers will not be created."
+        farm_status fail "The iOS simulators run on a macOS host only. The containers will not be created."
         return 1
       fi
       if [[ "$dev_connection" =~ ^(wireless|proxy)$ && -z "$dev_address" ]]; then
-        failed "  The ${dev_connection} iOS device needs its address in mcloud-devices.txt. The containers will not be created."
+        farm_status fail "The ${dev_connection} iOS device needs its address in mcloud-devices.txt. The containers will not be created." \
+          "address: <IP> of the device in config/devices.yml, then: ./zebrunner.sh ansible"
         return 1
       fi
       # the other containers take usbmuxd, WebDriverAgent and the shared tunnel from the connector
@@ -439,7 +452,7 @@ create_containers() {
     appium_adb_port="${dev_adb_port:-5037}"
 
   else
-    failed "  Unsupported platform: ${dev_platform_name}"
+    farm_status fail "Unsupported platform: ${dev_platform_name}"
     return 1
   fi
 
@@ -530,14 +543,161 @@ create_containers() {
     "${UPLOADER_IMAGE}:${UPLOADER_VERSION}" || return 1
 }
 
+#### Output
+
+# The output of the commands (CONVENTIONS.md#terminal-output): a title per device, a line per container with the action
+# first and the full name of the container. Without a terminal (udev, systemd, launchd, scripts: their logs) the text
+# is plain (`   ok   created  device-...`), a message is one line whatever its length, nothing is asked and nothing
+# spins.
+
+# the status of a device of start (and of the start of restart) that is skipped: a USB device that is not plugged in
+SKIPPED=3
+# true when a container of the device failed (container_line): the stop and the removal of the others go on
+DEVICE_FAILED=""
+
+# farm_status <ok|info|warn|fail> <message> [<fix>]: ui_status; wrapped to the width at a terminal only, a log keeps a
+# message on one line for grep
+farm_status() {
+  if [[ "$UI_TTY" -eq 1 ]]; then
+    ui_status "$@"
+    return
+  fi
+  # the width of ui_status of this call
+  # shellcheck disable=SC2034
+  local UI_WIDTH=1000
+  ui_status "$@"
+}
+
+# container_line <ok|info|warn|fail> <action> <name> [<detail>] [<fix>]: the line of a container (or of the volume of
+# the logs): the action aligned and the full name (docker logs <name>); the detail (e.g. the short id) muted when it
+# fits, the error of docker after the name of a failure, which marks the device as failed (DEVICE_FAILED)
+container_line() {
+  local kind="$1"
+  local name="$3"
+  local detail="${4:-}"
+  local text
+  text="$(ui_pad "$2" 7) ${name}"
+  if [[ "$kind" == "fail" ]]; then
+    DEVICE_FAILED="true"
+    [[ -z "$detail" ]] || text+=": ${detail}"
+  elif [[ -n "$detail" ]]; then
+    if [[ "$UI_TTY" -ne 1 || $((${#text} + 2 + ${#detail} + ${#UI_MUTED} + ${#UI_RESET})) -le $((UI_WIDTH - 6)) ]]; then
+      text+="  ${UI_MUTED}${detail}${UI_RESET}"
+    fi
+  fi
+  farm_status "$kind" "$text" "${5:-}"
+}
+
+# the output of the last docker_spin: stdout and stderr of its command
+SPIN_OUTPUT=""
+
+# docker_spin <message> <command...>: the command with its output in SPIN_OUTPUT, its status; at a terminal (not with
+# --quiet) a spinner and the message meanwhile, the line is cleared after it. The command runs in the background with
+# the environment of the caller: the secrets of ensure_container are in it, not in its arguments
+docker_spin() {
+  local message="$1"
+  shift
+  local file
+  if [[ "$UI_TTY" -ne 1 || -n "$QUIET" || ! -t 1 ]] || ! file="$(mktemp 2> /dev/null)"; then
+    SPIN_OUTPUT="$("$@" 2>&1)"
+    return
+  fi
+  local frames
+  local i=0
+  local pid
+  local status
+  read -r -a frames <<< "$UI_SPINNER"
+  message="${message:0:$((UI_WIDTH - 2))}"
+  "$@" > "$file" 2>&1 &
+  pid=$!
+  # Ctrl-C: the line and the file of the output are cleaned, docker finishes the change
+  # shellcheck disable=SC2064
+  trap "printf '\r\033[K'; rm -f '${file}'; exit 130" INT TERM
+  while kill -0 "$pid" 2> /dev/null; do
+    printf '\r\033[K   %s%s%s %s' "$UI_ACCENT" "${frames[$((i % ${#frames[@]}))]}" "$UI_RESET" "$message"
+    i=$((i + 1))
+    sleep 0.1
+  done
+  wait "$pid"
+  status=$?
+  trap - INT TERM
+  printf '\r\033[K'
+  SPIN_OUTPUT="$(cat "$file")"
+  rm -f "$file"
+  return "$status"
+}
+
+# device_header [<counter>]: the title of the device of get_device_fields: a pointer, its name as it is (the selector of
+# the commands), its platform, connection and udid muted, a thin line and the counter (e.g. 2/5) at the right
+device_header() {
+  local counter="${1:-}"
+  local facts="${dev_platform_name} ${UI_SEP} ${dev_connection} ${UI_SEP} ${dev_udid}"
+  local line=$((UI_WIDTH - 5 - ${#dev_device_name} - ${#facts}))
+  if [[ -n "$counter" ]]; then
+    line=$((line - 1 - ${#counter}))
+  fi
+  [[ "$line" -ge 3 ]] || line=3
+  # an empty line before it, one only after a section
+  [[ "$UI_BLANK" -eq 1 ]] || printf '\n'
+  printf '  %s%s%s %s%s%s  %s%s%s %s%s%s' "$UI_ACCENT" "$UI_POINTER" "$UI_RESET" "$UI_BOLD" "$dev_device_name" \
+    "$UI_RESET" "$UI_MUTED" "$facts" "$UI_RESET" "$UI_DARK" "$(ui_repeat "$UI_THIN" "$line")" "$UI_RESET"
+  if [[ -n "$counter" ]]; then
+    printf ' %s%s%s' "$UI_MUTED" "$counter" "$UI_RESET"
+  fi
+  printf '\n'
+  UI_BLANK=0
+}
+
+# farm_text <text>: a paragraph of a help without the empty line after it
+farm_text() {
+  ui_hang "  " 2 "$1" "$UI_WIDTH"
+}
+
+# farm_muted <text>: ui_muted of the text wrapped to the width at a terminal, on one line in a log
+farm_muted() {
+  local line
+  local width="$UI_WIDTH"
+  [[ "$UI_TTY" -eq 1 ]] || width=1000
+  while IFS= read -r line; do
+    ui_muted "$line"
+  done <<< "$(ui_wrap "$1" "$width")"
+}
+
+# device_fact <key> <value>: a fact of the device under its title, the key muted
+device_fact() {
+  local width=$((UI_WIDTH - 11))
+  [[ "$UI_TTY" -eq 1 ]] || width=1000
+  ui_hang "    ${UI_MUTED}$(ui_pad "$1" 9)${UI_RESET}" 13 "$2" "$width"
+}
+
+# human_duration <seconds>: the duration in its two largest units: 40s, 5m 3s, 4h 12m, 2d 4h
+human_duration() {
+  local seconds="$1"
+  if [[ "$seconds" -lt 60 ]]; then
+    echo "${seconds}s"
+  elif [[ "$seconds" -lt 3600 ]]; then
+    echo "$((seconds / 60))m $((seconds % 60))s"
+  elif [[ "$seconds" -lt 86400 ]]; then
+    echo "$((seconds / 3600))h $((seconds % 3600 / 60))m"
+  else
+    echo "$((seconds / 86400))d $((seconds % 86400 / 3600))h"
+  fi
+}
+
 #### Containers
 
 # the states of the containers of the host (`<name> <state>` lines), read before the containers of a device change
 CONTAINER_STATES=""
+# --dry-run: the states are read once, the containers it would remove are taken out of them
+CONTAINER_STATES_READ=""
 
 # read_container_states: CONTAINER_STATES of `docker ps -a`
 read_container_states() {
+  if [[ -n "${DRY_RUN:-}" && -n "$CONTAINER_STATES_READ" ]]; then
+    return 0
+  fi
   CONTAINER_STATES="$(docker ps -a --format '{{.Names}} {{.State}}' 2> /dev/null)"
+  CONTAINER_STATES_READ="true"
 }
 
 # container_state <name>: the state of the container (running, exited, ...), exists when docker gives none, nothing
@@ -547,37 +707,45 @@ container_state() {
 }
 
 # ensure_container <name suffix> <-d|-itd> <docker run arguments...>: the container of the device running: kept when it
-# runs, started when it exists, created otherwise; one line of what was done, fails when the container does not run.
-# The secrets are the assignments before its call (`NAME=value ensure_container ... -e NAME`), never the arguments
+# runs, started when it exists, created otherwise; one line of what was done (--dry-run: what it would do), fails when
+# the container does not run. The secrets are the assignments before its call (`NAME=value ensure_container ... -e
+# NAME`), never the arguments
 ensure_container() {
   local role="$1"
   local mode="$2"
   shift 2
   local name="${dev_container}-${role}"
-  local output
-  printf '  %-10s ' "$role"
   case "$(container_state "$name")" in
   running)
-    echo "running"
+    container_line info running "$name"
     ;;
   "")
-    if output="$(docker run "$mode" --name "$name" "$@" 2>&1)"; then
-      succeed "created $(tail -n 1 <<< "$output" | cut -c 1-12)"
+    if [[ -n "$DRY_RUN" ]]; then
+      container_line info "would create" "$name"
+    elif docker_spin "creating  ${name}" docker run "$mode" --name "$name" "$@"; then
+      container_line ok created "$name" "$(tail -n 1 <<< "$SPIN_OUTPUT" | cut -c 1-12)"
     else
-      failed "NOT created: $(tail -n 1 <<< "$output")"
+      container_line fail "NOT created" "$name" "$(tail -n 1 <<< "$SPIN_OUTPUT")" \
+        "the cause above, then: zebrunner-farm restart ${dev_device_name}"
       return 1
     fi
     ;;
   *)
-    if output="$(docker start "$name" 2>&1)"; then
-      succeed "started"
+    if [[ -n "$DRY_RUN" ]]; then
+      container_line info "would start" "$name"
+    elif docker_spin "starting  ${name}" docker start "$name"; then
+      container_line ok started "$name"
     else
-      failed "NOT started: $(tail -n 1 <<< "$output")"
+      container_line fail "NOT started" "$name" "$(tail -n 1 <<< "$SPIN_OUTPUT")" \
+        "docker logs --tail 50 ${name}, then: zebrunner-farm restart ${dev_device_name}"
       return 1
     fi
     ;;
   esac
 }
+
+# the roles of the containers of a device in the order of their creation
+ROLES=(connector stf appium uploader)
 
 # the containers of a device in the order of their stop: appium shares the recordings of the active sessions, the
 # uploader uploads them, then STF and the connector the others take the device from
@@ -594,55 +762,98 @@ stop_timeout() {
   esac
 }
 
-# stop_containers: the containers of the device stopped and kept, one line per container
+# stop_containers: the containers of the device stopped and kept, one line per container (--dry-run: what it would do);
+# a failed one is reported (DEVICE_FAILED) and the others are stopped anyway
 stop_containers() {
   local role
-  local output
+  local name
+  [[ -z "$DRY_RUN" ]] || read_container_states
   for role in "${STOP_ORDER[@]}"; do
-    printf '  %-10s ' "$role"
-    if output="$(docker stop -t "$(stop_timeout "$role")" "${dev_container}-${role}" 2>&1)"; then
-      echo "stopped"
-    elif grep -qi "no such container" <<< "$output"; then
-      echo "no container"
+    name="${dev_container}-${role}"
+    if [[ -n "$DRY_RUN" ]]; then
+      case "$(container_state "$name")" in
+      "") container_line info "no container" "$name" ;;
+      running) container_line info "would stop" "$name" ;;
+      *) container_line info stopped "$name" ;;
+      esac
+    elif docker_spin "stopping  ${name}" docker stop -t "$(stop_timeout "$role")" "$name"; then
+      container_line ok stopped "$name"
+    elif grep -qi "no such container" <<< "$SPIN_OUTPUT"; then
+      container_line info "no container" "$name"
     else
-      failed "$(tail -n 1 <<< "$output")"
+      container_line fail "NOT stopped" "$name" "$(tail -n 1 <<< "$SPIN_OUTPUT")" \
+        "zebrunner-farm stop ${dev_device_name}"
     fi
   done
+  return 0
+}
+
+# stop_and_remove <role>: the container of the role of the device stopped as by stop_containers (the stop of no
+# container fails, rm reports it), then removed; the output of `docker rm -f`
+stop_and_remove() {
+  local name="${dev_container}-$1"
+  docker stop -t "$(stop_timeout "$1")" "$name" > /dev/null 2>&1
+  docker rm -f "$name"
 }
 
 # remove_containers: the containers of the device stopped as by stop_containers and removed, then the volume of its
-# logs (the uploader has finished with it), one line per container
+# logs (the uploader has finished with it), one line per container (--dry-run: what it would do); a failed one is
+# reported (DEVICE_FAILED) and the others are removed anyway
 remove_containers() {
   local role
-  local output
-  for role in "${STOP_ORDER[@]}"; do
-    printf '  %-10s ' "$role"
-    # the stop of no container fails, rm reports it
-    docker stop -t "$(stop_timeout "$role")" "${dev_container}-${role}" > /dev/null 2>&1
-    # `docker rm -f` of no container succeeds without output (an error of the older docker versions)
-    if output="$(docker rm -f "${dev_container}-${role}" 2>&1)" && [[ -n "$output" ]]; then
-      echo "removed"
-    elif [[ -z "$output" ]] || grep -qi "no such container" <<< "$output"; then
-      echo "no container"
+  local name
+  if [[ -n "$DRY_RUN" ]]; then
+    read_container_states
+    for role in "${STOP_ORDER[@]}"; do
+      name="${dev_container}-${role}"
+      if [[ -n "$(container_state "$name")" ]]; then
+        container_line info "would remove" "$name"
+      else
+        container_line info "no container" "$name"
+      fi
+    done
+    if docker volume inspect "$dev_container" > /dev/null 2>&1; then
+      container_line info "would remove" "$dev_container" "volume of the logs"
     else
-      failed "$(tail -n 1 <<< "$output")"
+      container_line info "no volume" "$dev_container"
+    fi
+    # the start of restart creates them
+    CONTAINER_STATES="$(awk -v prefix="${dev_container}-" 'index($1, prefix) != 1' <<< "$CONTAINER_STATES")"
+    return 0
+  fi
+  for role in "${STOP_ORDER[@]}"; do
+    name="${dev_container}-${role}"
+    # `docker rm -f` of no container succeeds without output (an error of the older docker versions)
+    if docker_spin "removing  ${name}" stop_and_remove "$role" && [[ -n "$SPIN_OUTPUT" ]]; then
+      container_line ok removed "$name"
+    elif [[ -z "$SPIN_OUTPUT" ]] || grep -qi "no such container" <<< "$SPIN_OUTPUT"; then
+      container_line info "no container" "$name"
+    else
+      container_line fail "NOT removed" "$name" "$(tail -n 1 <<< "$SPIN_OUTPUT")" "docker rm -f ${name}"
     fi
   done
-  printf '  %-10s ' "logs"
-  if output="$(docker volume rm "$dev_container" 2>&1)"; then
-    echo "volume removed"
-  elif grep -qi "no such volume" <<< "$output"; then
-    echo "no volume"
+  if docker_spin "removing  ${dev_container}" docker volume rm "$dev_container"; then
+    container_line ok removed "$dev_container" "volume of the logs"
+  elif grep -qi "no such volume" <<< "$SPIN_OUTPUT"; then
+    container_line info "no volume" "$dev_container"
   else
-    failed "$(tail -n 1 <<< "$output")"
+    container_line fail "NOT removed" "$dev_container" "$(tail -n 1 <<< "$SPIN_OUTPUT")" \
+      "docker volume rm ${dev_container}"
   fi
+  return 0
 }
 
 # ensure_network: the docker network of the containers, created when it is missing
 ensure_network() {
-  if ! docker network inspect "$STF_DOCKER_NETWORK" > /dev/null 2>&1; then
-    echo "Creating the docker network '${STF_DOCKER_NETWORK}'"
-    docker network create "$STF_DOCKER_NETWORK" > /dev/null
+  if docker network inspect "$STF_DOCKER_NETWORK" > /dev/null 2>&1; then
+    return 0
+  fi
+  if [[ -n "$DRY_RUN" ]]; then
+    farm_status info "would create the docker network ${STF_DOCKER_NETWORK}"
+  elif docker network create "$STF_DOCKER_NETWORK" > /dev/null; then
+    farm_status ok "created the docker network ${STF_DOCKER_NETWORK}"
+  else
+    farm_status warn "the docker network ${STF_DOCKER_NETWORK} is not created: the containers need it"
   fi
 }
 
@@ -651,11 +862,20 @@ ensure_network() {
 # The devices of a command: the SELECTORS of its arguments (all the devices without them) but the EXCLUDES of -x; QUIET
 # (-q) skips the question. SELECTED are their udids in the order of mcloud-devices.txt. RESTART_STRATEGY of restart:
 # batch removes the containers of all the devices, then creates them; rolling removes and creates them device by device.
+# FARM_COMMAND is the command of zebrunner-farm (empty for ./zebrunner.sh mdm): its options DRY_RUN (--dry-run),
+# VERBOSE (-v) and WATCH (--watch, the seconds).
 SELECTORS=()
 EXCLUDES=()
 QUIET=""
 SELECTED=()
 RESTART_STRATEGY="batch"
+FARM_COMMAND=""
+DRY_RUN=""
+VERBOSE=""
+WATCH=""
+
+# the groups of the devices: the platforms and the connections
+GROUPS_LIST=(ios android usb wireless android-sim ios-sim proxy)
 
 # count <values...>: the number of the values; the length expansion of bash cannot be used, a template comment starts
 # with its characters
@@ -678,13 +898,34 @@ add_selectors() {
   done
 }
 
-# parse_selection <arguments...>: SELECTORS, EXCLUDES and QUIET of the arguments of a command
+# farm_option <option>: 0 when the option of zebrunner-farm is one of FARM_COMMAND; otherwise it is reported as an
+# unknown option (./zebrunner.sh mdm has none of them) or as an option of other commands
+farm_option() {
+  local commands
+  case "$1" in
+  --dry-run) commands="start stop restart down" ;;
+  --watch | -v | --verbose) commands="status" ;;
+  esac
+  if [[ -z "$FARM_COMMAND" ]]; then
+    farm_status fail "unknown option: $1"
+    return 1
+  fi
+  if [[ " ${commands} " != *" ${FARM_COMMAND} "* ]]; then
+    farm_status fail "$1 is an option of ${commands// /, } only"
+    return 1
+  fi
+}
+
+# parse_selection <arguments...>: SELECTORS, EXCLUDES, QUIET and the options of the arguments of a command
 parse_selection() {
   SELECTORS=()
   EXCLUDES=()
   QUIET=""
   OUTPUT_JSON=""
   RESTART_STRATEGY="batch"
+  DRY_RUN=""
+  VERBOSE=""
+  WATCH=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
     -q | --quiet | -y | --yes)
@@ -696,6 +937,28 @@ parse_selection() {
     --json)
       OUTPUT_JSON="true"
       ;;
+    --dry-run)
+      farm_option "$1" || return 1
+      DRY_RUN="true"
+      ;;
+    -v | --verbose)
+      farm_option "$1" || return 1
+      VERBOSE="true"
+      ;;
+    --watch | --watch=*)
+      farm_option "${1%%=*}" || return 1
+      WATCH=5
+      if [[ "$1" == --watch=* ]]; then
+        WATCH="${1#--watch=}"
+      elif [[ "${2:-}" =~ ^[0-9]+$ ]]; then
+        WATCH="$2"
+        shift
+      fi
+      if [[ ! "$WATCH" =~ ^[0-9]+$ || "$WATCH" -lt 1 ]]; then
+        farm_status fail "--watch takes the seconds between the updates (5 by default)"
+        return 1
+      fi
+      ;;
     --strategy | --strategy=*)
       if [[ "$1" == "--strategy" ]]; then
         RESTART_STRATEGY="$2"
@@ -704,13 +967,13 @@ parse_selection() {
         RESTART_STRATEGY="${1#--strategy=}"
       fi
       if [[ "$RESTART_STRATEGY" != "batch" && "$RESTART_STRATEGY" != "rolling" ]]; then
-        failed "--strategy is batch or rolling"
+        farm_status fail "--strategy is batch or rolling"
         return 1
       fi
       ;;
     -x | -e | --exclude)
       if [[ -z "$2" ]]; then
-        failed "$1 needs the devices to skip"
+        farm_status fail "$1 needs the devices to skip"
         return 1
       fi
       add_selectors excludes "$2"
@@ -720,7 +983,7 @@ parse_selection() {
       add_selectors excludes "${1#*=}"
       ;;
     -*)
-      failed "unknown option: $1"
+      farm_status fail "unknown option: $1"
       return 1
       ;;
     *)
@@ -791,14 +1054,67 @@ single_device() {
   fi
 }
 
+# device_words: the names and the udids of the devices list, one per line
+device_words() {
+  [[ -r "$MCLOUD_DEVICES" ]] || return 0
+  awk -F '|' '!/^#/ {
+      for (i = 1; i <= NF; i++) if ($i ~ /^(id|name)=./) print substr($i, index($i, "=") + 1)
+    }' "$MCLOUD_DEVICES"
+}
+
+# closest <word>: the words of stdin at an edit distance of 2 at most from the word, or that start with it (2
+# characters at least) or that it starts with, one per line
+closest() {
+  awk -v word="$1" '
+    BEGIN { word = tolower(word) }
+    $0 != "" && !seen[$0]++ {
+      candidate = tolower($0)
+      # the edit distance (Levenshtein) of the word and the candidate
+      for (i = 0; i <= length(word); i++) d[i, 0] = i
+      for (j = 0; j <= length(candidate); j++) d[0, j] = j
+      for (i = 1; i <= length(word); i++) {
+        for (j = 1; j <= length(candidate); j++) {
+          best = d[i - 1, j] + 1
+          if (d[i, j - 1] + 1 < best) best = d[i, j - 1] + 1
+          if (d[i - 1, j - 1] + (substr(word, i, 1) != substr(candidate, j, 1)) < best)
+            best = d[i - 1, j - 1] + (substr(word, i, 1) != substr(candidate, j, 1))
+          d[i, j] = best
+        }
+      }
+      if (d[length(word), length(candidate)] <= 2 || (length(word) >= 2 && index(candidate, word) == 1) ||
+        (length(candidate) >= 2 && index(word, candidate) == 1)) print
+    }'
+}
+
+# did_you_mean <word> <candidates on stdin>: ' (did you mean: a, b?)' of the closest candidates, nothing without them
+did_you_mean() {
+  local candidates
+  candidates="$(closest "$1" | head -n 5 | tr '\n' ',' | sed 's/,$//; s/,/, /g')"
+  [[ -z "$candidates" ]] || printf ' (did you mean: %s?)' "$candidates"
+}
+
+# device_not_found <selector>: the selector of no device with the closest names, udids and groups
+device_not_found() {
+  local suggestions
+  suggestions="$(device_candidates | did_you_mean "$1")"
+  farm_status fail "device not found: ${1}${suggestions}" "zebrunner-farm status lists the devices of this host"
+}
+
+# device_candidates: the names and the udids of the devices list and the groups, one per line
+device_candidates() {
+  device_words
+  printf '%s\n' "${GROUPS_LIST[@]}"
+}
+
 # select_devices: SELECTED of SELECTORS and EXCLUDES; an udid or a name of no device fails, so does an empty selection
 select_devices() {
   local selector
   local line
   SELECTED=()
   for selector in "${SELECTORS[@]}" "${EXCLUDES[@]}"; do
-    if is_exact "$selector"; then
-      get_device_fields "$selector" || return 1
+    if is_exact "$selector" && [[ -z "$(device_line "$selector")" ]]; then
+      device_not_found "$selector"
+      return 1
     fi
   done
   while IFS= read -r line; do
@@ -809,7 +1125,8 @@ select_devices() {
     fi
   done < "$MCLOUD_DEVICES"
   if [[ "$(count "${SELECTED[@]}")" -eq 0 ]]; then
-    warn "No device matches: ${SELECTORS[*]:-all devices}${EXCLUDES[*]:+ without ${EXCLUDES[*]}}"
+    farm_status warn "No device matches: ${SELECTORS[*]:-all devices}${EXCLUDES[*]:+ without ${EXCLUDES[*]}}" \
+      "zebrunner-farm status lists the devices of this host"
     return 1
   fi
 }
@@ -843,6 +1160,28 @@ refine_selection() {
   SELECTED=("${kept[@]}")
 }
 
+# pick_devices: SELECTED with the devices a person picks with fzf (TAB marks several); unchanged when it is cancelled
+pick_devices() {
+  local picked
+  local udid
+  local line
+  local -a kept=()
+  picked="$(for udid in "${SELECTED[@]}"; do
+    get_device_fields "$udid" > /dev/null || continue
+    printf '%s\t%s\t%s\t%s\t%s\n' "$dev_udid" "$dev_device_name" "$dev_platform_name" "$dev_connection" "$dev_udid"
+  done | fzf --multi --delimiter $'\t' --with-nth 2.. --prompt "devices> " \
+    --header "TAB marks the devices, Enter picks them, Esc goes back")" || return 0
+  for udid in "${SELECTED[@]}"; do
+    while IFS=$'\t' read -r line _; do
+      if [[ "$line" == "$udid" ]]; then
+        kept+=("$udid")
+        break
+      fi
+    done <<< "$picked"
+  done
+  [[ "$(count "${kept[@]}")" -eq 0 ]] || SELECTED=("${kept[@]}")
+}
+
 # containers_summary: the state of the containers of the device of get_device_fields in CONTAINER_STATES
 containers_summary() {
   awk -v prefix="${dev_container}-" '
@@ -858,41 +1197,84 @@ containers_summary() {
     }' <<< "$CONTAINER_STATES"
 }
 
+# farm_table <rows...>: the rows, their cells separated by '|', in aligned columns; the first one is the header
+farm_table() {
+  local line
+  local head="true"
+  while IFS= read -r line; do
+    if [[ -n "$head" ]]; then
+      ui_table_head "$line"
+      head=""
+    else
+      printf '%s\n' "$line"
+    fi
+  done <<< "$(printf '%s\n' "$@" | awk -F '|' '
+    {
+      for (i = 1; i <= NF; i++) {
+        cell[NR, i] = $i
+        if (length($i) > width[i]) width[i] = length($i)
+      }
+      if (NF > columns) columns = NF
+    }
+    END {
+      for (row = 1; row <= NR; row++) {
+        line = "   "
+        for (i = 1; i < columns; i++) line = line sprintf("%-" (width[i] + 2) "s", cell[row, i])
+        print line cell[row, columns]
+      }
+    }')"
+}
+
 # print_selection: the numbered list of SELECTED with the state of their containers
 print_selection() {
   local udid
   local number=0
+  local rows=("#|NAME|UDID|PLATFORM|CONNECTION|LOCATION|CONTAINERS")
   read_container_states
-  {
-    echo "No|Name|UDID|Platform|Connection|Location|Containers"
-    for udid in "${SELECTED[@]}"; do
-      number=$((number + 1))
-      get_device_fields "$udid" > /dev/null || continue
-      echo "${number}|${dev_device_name}|${dev_udid}|${dev_platform_name}|${dev_connection}|${dev_location:--}|$(containers_summary)"
-    done
-  } | column -t -s '|' | sed 's/^/  /'
+  for udid in "${SELECTED[@]}"; do
+    number=$((number + 1))
+    get_device_fields "$udid" > /dev/null || continue
+    rows+=("${number}|${dev_device_name}|${dev_udid}|${dev_platform_name}|${dev_connection}|${dev_location:--}|$(containers_summary)")
+  done
+  farm_table "${rows[@]}"
 }
 
 # confirm_selection <command>: shows SELECTED to a person at the terminal, who runs the command for them, filters or
-# excludes devices first, or cancels; no question with QUIET, for a single device named exactly or without a terminal
-# (udev, launchd, scripts; MCLOUD_FARM_INTERACTIVE=true asks anyway)
+# excludes devices first (or picks them with fzf), or cancels; no question with QUIET, --dry-run, for a single device
+# named exactly or without a terminal (udev, launchd, scripts; MCLOUD_FARM_INTERACTIVE=true asks anyway)
 confirm_selection() {
   local command="$1"
   local answer
   local value
-  if [[ -n "$QUIET" || -n "$(single_device)" ]] || [[ ! -t 0 && "$MCLOUD_FARM_INTERACTIVE" != "true" ]]; then
+  if [[ -n "$QUIET" || -n "$(single_device)" || -n "$DRY_RUN" ]] ||
+    [[ ! -t 0 && "$MCLOUD_FARM_INTERACTIVE" != "true" ]]; then
     return 0
   fi
-  local switch=""
+  # p: fzf at a terminal
+  local pick=""
+  if command -v fzf > /dev/null 2>&1 && [[ -t 0 && -t 1 ]]; then
+    pick="true"
+  fi
+  local hint
+  local keys
   while true; do
-    echo -e "\nThe devices to ${command} ($(count "${SELECTED[@]}")):"
+    printf '\n'
+    ui_muted "The devices to ${command} ($(count "${SELECTED[@]}")):"
     print_selection
-    echo ""
+    printf '\n'
+    hint="Y/n/f/x"
+    keys="y runs it ${UI_SEP} n cancels ${UI_SEP} f <devices> keeps only them ${UI_SEP} x <devices> excludes them"
     if [[ "$command" == "restart" ]]; then
-      echo "Strategy: $(strategy_description)"
-      switch=", [s]trategy"
+      farm_muted "Strategy: $(strategy_description)"
+      hint+="/s"
+      keys+=" ${UI_SEP} s switches the strategy"
     fi
-    read -r -p "Run '${command}' for them? [Y]es, [n]o, [f]ilter the list, e[x]clude devices${switch}: " answer || return 1
+    if [[ -n "$pick" ]]; then
+      hint+="/p"
+      keys+=" ${UI_SEP} p picks them with fzf"
+    fi
+    farm_muted "${keys}; <devices>: numbers, udids, names, groups or patterns"
+    read -r -p "$(ui_prompt "Run '${command}' for $(count "${SELECTED[@]}") devices?" "[${hint}]")" answer || return 1
     case "$answer" in
     [sS])
       if [[ "$RESTART_STRATEGY" == "batch" ]]; then
@@ -909,20 +1291,29 @@ confirm_selection() {
       ;;
     [fF] | [fF]" "*)
       value="${answer#?}"
-      [[ -n "${value// /}" ]] || read -r -p "Keep the devices (numbers, udids, names, patterns, groups): " value
+      [[ -n "${value// /}" ]] ||
+        read -r -p "$(ui_prompt "Keep the devices" "(numbers, udids, names, patterns, groups)")" value
       refine_selection keep "$value"
       ;;
     [xX] | [xX]" "*)
       value="${answer#?}"
-      [[ -n "${value// /}" ]] || read -r -p "Exclude the devices (numbers, udids, names, patterns, groups): " value
+      [[ -n "${value// /}" ]] ||
+        read -r -p "$(ui_prompt "Exclude the devices" "(numbers, udids, names, patterns, groups)")" value
       refine_selection drop "$value"
       ;;
+    [pP])
+      if [[ -n "$pick" ]]; then
+        pick_devices
+      else
+        ui_warn "p picks the devices with fzf at a terminal: install fzf"
+      fi
+      ;;
     *)
-      echo "Answer y (run), n (cancel), f (keep only some devices) or x (exclude devices)."
+      ui_warn "Answer y (run), n (cancel), f (keep only some devices) or x (exclude devices)${pick:+, p (pick them)}."
       ;;
     esac
     if [[ "$(count "${SELECTED[@]}")" -eq 0 ]]; then
-      warn "No device is left."
+      ui_warn "No device is left."
       return 1
     fi
   done
@@ -937,59 +1328,124 @@ strategy_description() {
   fi
 }
 
+#### Commands of the devices
+
+# the devices of the last run_selected that failed and that were skipped (their names)
+FAILED_DEVICES=()
+SKIPPED_DEVICES=()
+
+# add_device <failed|skipped> <name>: the name in FAILED_DEVICES or SKIPPED_DEVICES once
+add_device() {
+  local name
+  if [[ "$1" == "failed" ]]; then
+    for name in "${FAILED_DEVICES[@]}"; do
+      [[ "$name" != "$2" ]] || return 0
+    done
+    FAILED_DEVICES+=("$2")
+  else
+    for name in "${SKIPPED_DEVICES[@]}" "${FAILED_DEVICES[@]}"; do
+      [[ "$name" != "$2" ]] || return 0
+    done
+    SKIPPED_DEVICES+=("$2")
+  fi
+}
+
 # restart_selected: restart of SELECTED by RESTART_STRATEGY
 restart_selected() {
   if [[ "$RESTART_STRATEGY" == "rolling" || "$(count "${SELECTED[@]}")" -eq 1 ]]; then
     run_selected restart
     return
   fi
-  echo -e "\nRemoving the containers of $(count "${SELECTED[@]}") devices (batch restart)"
+  [[ "$UI_BLANK" -eq 1 ]] || printf '\n'
+  ui_muted "Removing the containers of $(count "${SELECTED[@]}") devices (batch restart)"
   run_selected down
-  echo -e "\nCreating the containers of $(count "${SELECTED[@]}") devices again"
+  printf '\n'
+  ui_muted "Creating the containers of $(count "${SELECTED[@]}") devices again"
   run_selected start
 }
 
-# run_selected <command>: the command (start, stop, restart, down, status) for every device of SELECTED, one at a time
-# with the other commands of the device (with_device_lock)
+# run_selected <command>: the command (start, stop, restart, down) for every device of SELECTED, one at a time with the
+# other commands of the device (with_device_lock): its title, then its lines; the failed devices in FAILED_DEVICES,
+# the skipped ones in SKIPPED_DEVICES
 run_selected() {
   local command="$1"
   local udid
+  local status
+  local number=0
+  local total
+  total="$(count "${SELECTED[@]}")"
   for udid in "${SELECTED[@]}"; do
-    get_device_fields "$udid" || continue
-    echo -e "\n==> ${dev_device_name} (${dev_udid}, ${dev_platform_name}, ${dev_connection})"
-    if [[ "$command" == "status" ]]; then
-      status_device
+    number=$((number + 1))
+    if ! get_device_fields "$udid" > /dev/null; then
+      add_device failed "$udid"
+      continue
+    fi
+    if [[ "$total" -gt 1 ]]; then
+      device_header "${number}/${total}"
     else
-      with_device_lock "$dev_udid" "${command}_device"
+      device_header
+    fi
+    if [[ "$command" =~ ^(start|restart)$ && "$dev_platform_name" == "ios" ]] && ! start_skipped; then
+      device_fact WDA "${dev_device_wda_ipa_path} (${dev_device_wda_bundle_id})"
+    fi
+    printf '\n'
+    status=0
+    with_device_lock "$dev_udid" "${command}_device" || status=$?
+    # Ctrl-C in the subshell of the lock (Linux): the trap of docker_spin exits it with 130, bash goes on after a child
+    # that handled SIGINT itself: the whole run stops, as without the spinner
+    if [[ "$status" -eq 130 ]]; then
+      exit 130
+    fi
+    if [[ "$status" -eq "$SKIPPED" ]]; then
+      add_device skipped "$dev_device_name"
+    elif [[ "$status" -ne 0 ]]; then
+      add_device failed "$dev_device_name"
     fi
   done
 }
 
+# stop_device: the containers of the device stopped; fails when one of them failed
 stop_device() {
+  DEVICE_FAILED=""
   stop_containers
+  [[ -z "$DEVICE_FAILED" ]]
 }
 
+# down_device: the containers of the device removed; fails when one of them failed
 down_device() {
+  DEVICE_FAILED=""
   remove_containers
+  [[ -z "$DEVICE_FAILED" ]]
 }
 
+# restart_device: the containers of the device removed and created again; fails when one of them failed, SKIPPED as
+# start_device
 restart_device() {
+  DEVICE_FAILED=""
   remove_containers
+  local removed="$DEVICE_FAILED"
   start_device
+  local status=$?
+  [[ -z "$removed" ]] || return 1
+  return "$status"
 }
 
-status_device() {
-  verify_containers
+# start_skipped: 0 when start skips the device of get_device_fields: on Linux a USB device that is not plugged in (no
+# symlink of udev) unless the device is named exactly
+start_skipped() {
+  [[ "$FARM_OS" != "macos" && -z "$(single_device)" && "$dev_connection" == "usb" && ! -L "/dev/${dev_container}" ]]
 }
 
-# start_device: the containers of the device of get_device_fields created and running; on Linux the USB devices that
-# are not plugged in (no symlink of udev) are skipped unless the device is named exactly
+# start_device: the containers of the device of get_device_fields created and running; fails when one of them failed;
+# SKIPPED for a device of start_skipped
 start_device() {
-  if [[ "$FARM_OS" != "macos" && -z "$(single_device)" && "$dev_connection" == "usb" && ! -L "/dev/${dev_container}" ]]; then
-    echo "  not plugged in: skipped, udev starts it when it is connected"
-    return 0
+  if start_skipped; then
+    farm_status info "not plugged in: skipped, udev starts it when it is connected"
+    return "$SKIPPED"
   fi
-  create_containers
+  DEVICE_FAILED=""
+  create_containers || return 1
+  [[ -z "$DEVICE_FAILED" ]]
 }
 
 # listener_applies: 0 when the command is for the iOS devices of macOS as a group (all the devices or ios): the
@@ -1003,6 +1459,68 @@ listener_applies() {
   done
   return 1
 }
+
+# devices_listener <load|unload>: the devices listener of macOS loaded or unloaded (--dry-run: what it would do)
+devices_listener() {
+  if [[ -n "$DRY_RUN" ]]; then
+    farm_status info "would $1 the devices listener"
+    return 0
+  fi
+  launchctl "$1" "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
+}
+
+# run_command <command>: the command for SELECTED, the docker network first for the new containers; a group has a
+# title and a summary; fails when a device failed (not with --dry-run)
+run_command() {
+  local command="$1"
+  local start="$SECONDS"
+  local total
+  total="$(count "${SELECTED[@]}")"
+  FAILED_DEVICES=()
+  SKIPPED_DEVICES=()
+  if [[ "$total" -gt 1 ]]; then
+    local detail="${total} devices"
+    [[ "$command" != "restart" ]] || detail+=" ${UI_SEP} ${RESTART_STRATEGY}"
+    [[ -z "$DRY_RUN" ]] || detail+=" ${UI_SEP} dry run"
+    ui_section "$command" "$detail"
+  fi
+  if [[ "$command" != "start" ]] && listener_applies; then
+    devices_listener unload
+  fi
+  if [[ "$command" == "start" || "$command" == "restart" ]]; then
+    ensure_network
+  fi
+  if [[ "$command" == "restart" ]]; then
+    restart_selected
+  else
+    run_selected "$command"
+  fi
+  # the listener is loaded after the last container, otherwise it starts the devices in parallel
+  if [[ "$command" == "start" || "$command" == "restart" ]] && listener_applies; then
+    devices_listener load
+  fi
+  local failed
+  failed="$(count "${FAILED_DEVICES[@]}")"
+  if [[ "$total" -gt 1 ]]; then
+    local skipped
+    skipped="$(count "${SKIPPED_DEVICES[@]}")"
+    ui_summary $((total - failed - skipped)) "$skipped" "$failed"
+    if [[ "$failed" -gt 0 ]]; then
+      ui_muted "failed: ${FAILED_DEVICES[*]} ${UI_SEP} done in $(human_duration $((SECONDS - start)))"
+      ui_muted "retry: zebrunner-farm ${command} ${FAILED_DEVICES[*]}"
+    else
+      ui_muted "${total} devices ${UI_SEP} done in $(human_duration $((SECONDS - start)))"
+    fi
+  fi
+  if [[ -n "$DRY_RUN" ]]; then
+    printf '\n'
+    ui_muted "--dry-run: nothing was changed"
+    return 0
+  fi
+  [[ "$failed" -eq 0 ]]
+}
+
+#### Status
 
 # epoch <docker time>: the seconds of a time of docker inspect (UTC), 0 for the zero time of a container never finished
 epoch() {
@@ -1075,139 +1593,644 @@ status_json() {
   printf '\n]\n'
 }
 
-detect_uptime() {
-  local started_at
-  started_at="$(docker inspect --format='{{.State.StartedAt}}' "$1")"
-  local finished_at
-  finished_at="$(docker inspect --format='{{.State.FinishedAt}}' "$1")"
+# the details of the containers of SELECTED of one docker inspect: `/<name>|<status>|<health>|<started>|<restarts>|<exit
+# code>` lines
+CONTAINER_DETAILS=""
 
-  local started_at_epoch
-  started_at_epoch="$(epoch "$started_at")"
-  local finished_at_epoch
-  finished_at_epoch="$(epoch "$finished_at")"
+# read_container_details: CONTAINER_STATES and CONTAINER_DETAILS of the existing containers of SELECTED
+read_container_details() {
+  local udid
+  local role
+  local names=()
+  read_container_states
+  for udid in "${SELECTED[@]}"; do
+    get_device_fields "$udid" > /dev/null 2>&1 || continue
+    for role in "${ROLES[@]}"; do
+      [[ -z "$(container_state "${dev_container}-${role}")" ]] || names+=("${dev_container}-${role}")
+    done
+  done
+  CONTAINER_DETAILS=""
+  if [[ "$(count "${names[@]}")" -gt 0 ]]; then
+    CONTAINER_DETAILS="$(docker inspect --format \
+      '{{.Name}}|{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{end}}|{{.State.StartedAt}}|{{.RestartCount}}|{{.State.ExitCode}}' \
+      "${names[@]}" 2> /dev/null)"
+  fi
+}
 
-  local uptime="UNKNOWN"
-  if [[ "$started_at_epoch" -ge "$finished_at_epoch" ]]; then
-    local current_time="UNKNOWN"
-    current_time="$(date "+%s")"
-    local elapsed=$((current_time - started_at_epoch))
-    uptime="$(printf "%02d:%02d:%02d" $((elapsed / 3600 % 24)) $((elapsed / 60 % 60)) $((elapsed % 60)))"
-    # date based formatting wrapped around after 24 hours
-    if ((elapsed >= 86400)); then
-      uptime="$((elapsed / 86400))d ${uptime}"
+# container_detail <name>: cd_status (nothing without the container), cd_health, cd_up (the seconds since its start of a
+# running one, nothing otherwise), cd_restarts and cd_exit of the container in CONTAINER_DETAILS
+container_detail() {
+  local line
+  local started
+  local started_epoch
+  line="$(awk -F '|' -v name="/$1" '$1 == name { print; exit }' <<< "$CONTAINER_DETAILS")"
+  IFS='|' read -r _ cd_status cd_health started cd_restarts cd_exit <<< "$line"
+  [[ -n "$line" ]] || cd_status="$(container_state "$1")"
+  [[ "$cd_restarts" =~ ^[0-9]+$ ]] || cd_restarts=0
+  cd_up=""
+  if [[ "$cd_status" == "running" ]]; then
+    started_epoch="$(epoch "$started" 2> /dev/null)"
+    if [[ "$started_epoch" =~ ^[0-9]+$ && "$started_epoch" -gt 0 ]]; then
+      cd_up=$(($(date "+%s") - started_epoch))
+      [[ "$cd_up" -ge 0 ]] || cd_up=0
     fi
   fi
-  echo "$uptime"
 }
 
-detect_state() {
-  local device_state="UNKNOWN"
-  device_state="$(docker inspect --format='{{.State.Health.Status}}' "$1" 2> /dev/null)"
-  echo "${device_state:-UNKNOWN}"
+# state_kind <status> <health>: the kind of the state of a container: ok (running, healthy or without a health check),
+# warn (starting, unhealthy, restarting, paused), fail (exited, dead, created and not started), none (no container)
+state_kind() {
+  case "$1" in
+  "") echo none ;;
+  running)
+    case "$2" in
+    starting | unhealthy) echo warn ;;
+    *) echo ok ;;
+    esac
+    ;;
+  exited | dead | created) echo fail ;;
+  *) echo warn ;;
+  esac
 }
 
-detect_status() {
-  local device_status="UNKNOWN"
-  device_status="$(docker inspect --format='{{.State.Status}}' "$1" 2> /dev/null)"
-  echo "${device_status:-UNKNOWN}"
+# state_mark <kind>: the mark of a container of the table of status: a colored dot, without colors a letter: R running,
+# S starting or unhealthy, X exited, - no container
+state_mark() {
+  if [[ "$UI_COLOR_ON" -eq 1 ]]; then
+    case "$1" in
+    ok) printf '%s%s%s' "$UI_OK" "$UI_DOT" "$UI_RESET" ;;
+    warn) printf '%s%s%s' "$UI_WARN" "$UI_DOT" "$UI_RESET" ;;
+    fail) printf '%s%s%s' "$UI_FAIL" "$UI_DOT" "$UI_RESET" ;;
+    *) printf '%s%s%s' "$UI_MUTED" "$UI_DOT" "$UI_RESET" ;;
+    esac
+    return
+  fi
+  case "$1" in
+  ok) printf 'R' ;;
+  warn) printf 'S' ;;
+  fail) printf 'X' ;;
+  *) printf '%s' '-' ;;
+  esac
 }
 
-detect_restarts() {
-  local device_restarts="UNKNOWN"
-  device_restarts="$(docker inspect --format='{{.RestartCount}}' "$1" 2> /dev/null)"
-  echo "${device_restarts:-UNKNOWN}"
+# disconnected: 0 when the device of get_device_fields is a USB device that is not plugged in
+disconnected() {
+  [[ "$dev_connection" == "usb" ]] && ! usb_present > /dev/null 2>&1
 }
 
-verify_containers() {
-  local ps_out
-  ps_out="$(docker ps -a)"
+# status_device: the containers of the device of get_device_fields, one line per container: its state, health, uptime
+# and full name; the fix of a container that restarted, is unhealthy or exited
+status_device() {
+  if disconnected; then
+    farm_status warn "disconnected: the USB device is not plugged in"
+    return 0
+  fi
+  local role
+  local name
+  local kind
+  local fix
+  local text
+  for role in "${ROLES[@]}"; do
+    name="${dev_container}-${role}"
+    container_detail "$name"
+    kind="$(state_kind "$cd_status" "$cd_health")"
+    if [[ "$kind" == "none" ]]; then
+      container_line info "no container" "$name"
+      continue
+    fi
+    text="$(ui_pad "$cd_status" 9)$(ui_pad "${cd_health:--}" 11)"
+    if [[ -n "$cd_up" ]]; then
+      text+="$(ui_pad "up $(human_duration "$cd_up")" 11)"
+    elif [[ -n "$cd_exit" && "$cd_status" != "running" ]]; then
+      text+="$(ui_pad "code ${cd_exit}" 11)"
+    else
+      text+="$(ui_pad "-" 11)"
+    fi
+    text+="$name"
+    fix=""
+    if [[ "$kind" == "fail" ]]; then
+      fix="docker logs --tail 50 ${name}, then: zebrunner-farm restart ${dev_device_name}"
+    elif [[ "$cd_restarts" -gt 0 || "$cd_health" == "unhealthy" || "$cd_status" != "running" ]]; then
+      kind="warn"
+      fix="docker logs --tail 50 ${name}"
+      [[ "$cd_restarts" -eq 0 ]] || fix="${cd_restarts} restarts: ${fix}"
+    elif [[ "$cd_health" == "starting" ]]; then
+      kind="info"
+    fi
+    farm_status "$kind" "$text" "$fix"
+  done
+}
 
-  if [[ "$dev_connection" == "usb" ]] && ! usb_present; then
-    failed "\n--- DISCONNECTED ---\n"
+# status_row <name width> <platform width> <connection width>: the row of the device of get_device_fields in the table
+# of status: a mark per container (connector, stf, appium, uploader), the uptime of appium (or of the oldest running
+# container), the restarts and the container that has them, or the first container that exited
+status_row() {
+  local head
+  head="   $(ui_pad "$dev_device_name" "$1")$(ui_pad "$dev_platform_name" "$2")$(ui_pad "$dev_connection" "$3")"
+  if disconnected; then
+    printf '%s%sdisconnected%s\n' "$head" "$UI_MUTED" "$UI_RESET"
+    return
+  fi
+  local role
+  local kind
+  local marks=""
+  local up=""
+  local oldest=""
+  local restarts=0
+  local restarted=""
+  local note=""
+  for role in "${ROLES[@]}"; do
+    container_detail "${dev_container}-${role}"
+    kind="$(state_kind "$cd_status" "$cd_health")"
+    marks+="$(state_mark "$kind") "
+    if [[ -n "$cd_up" ]]; then
+      [[ "$role" != "appium" ]] || up="$cd_up"
+      [[ -n "$oldest" && "$oldest" -ge "$cd_up" ]] || oldest="$cd_up"
+    fi
+    if [[ "$cd_restarts" -gt 0 ]]; then
+      restarts=$((restarts + cd_restarts))
+      restarted+="${restarted:+,}${role}"
+    fi
+    if [[ "$kind" == "fail" && -z "$note" ]]; then
+      note="${role} ${cd_status}${cd_exit:+ (${cd_exit})}"
+    fi
+  done
+  up="${up:-$oldest}"
+  if [[ -n "$up" ]]; then
+    up="$(human_duration "$up")"
+  fi
+  local last="0"
+  if [[ -n "$note" ]]; then
+    last="${UI_FAIL}${note}${UI_RESET}"
+  elif [[ "$restarts" -gt 0 ]]; then
+    last="${UI_WARN}${restarts} ${restarted}${UI_RESET}"
+  fi
+  printf '%s%s %s%s\n' "$head" "$marks" "$(ui_pad "${up:--}" 10)" "$last"
+}
+
+# status_table: SELECTED as a table of status, a row per device, and the legend of its marks
+status_table() {
+  local udid
+  local name_width=6
+  local platform_width=8
+  local connection_width=10
+  for udid in "${SELECTED[@]}"; do
+    get_device_fields "$udid" > /dev/null 2>&1 || continue
+    [[ "${#dev_device_name}" -le "$name_width" ]] || name_width="${#dev_device_name}"
+    [[ "${#dev_platform_name}" -le "$platform_width" ]] || platform_width="${#dev_platform_name}"
+    [[ "${#dev_connection}" -le "$connection_width" ]] || connection_width="${#dev_connection}"
+  done
+  name_width=$((name_width + 2))
+  platform_width=$((platform_width + 2))
+  connection_width=$((connection_width + 2))
+  ui_table_head "   $(ui_pad DEVICE "$name_width")$(ui_pad PLATFORM "$platform_width")$(ui_pad CONNECTION \
+    "$connection_width")$(ui_pad "C S A U" 9)$(ui_pad UPTIME 10)RESTARTS"
+  for udid in "${SELECTED[@]}"; do
+    get_device_fields "$udid" > /dev/null 2>&1 || continue
+    status_row "$name_width" "$platform_width" "$connection_width"
+  done
+  printf '\n'
+  if [[ "$UI_COLOR_ON" -eq 1 ]]; then
+    printf '  %s running  %s starting, unhealthy  %s exited  %s no container\n' "$(state_mark ok)" \
+      "$(state_mark warn)" "$(state_mark fail)" "$(state_mark none)"
   else
-    local stf_state="UNKNOWN"
-    local stf_status="UNKNOWN"
-    local stf_uptime="UNKNOWN"
-    local stf_restarts="UNKNOWN"
-
-    if grep -q "${dev_container}-stf" <<< "$ps_out"; then
-      stf_state="$(detect_state "${dev_container}-stf")"
-      stf_status="$(detect_status "${dev_container}-stf")"
-      stf_uptime="$(detect_uptime "${dev_container}-stf")"
-      stf_restarts="$(detect_restarts "${dev_container}-stf")"
-    fi
-
-    local appium_state="UNKNOWN"
-    local appium_status="UNKNOWN"
-    local appium_uptime="UNKNOWN"
-    local appium_restarts="UNKNOWN"
-    if grep -q "${dev_container}-appium" <<< "$ps_out"; then
-      appium_state="$(detect_state "${dev_container}-appium")"
-      appium_status="$(detect_status "${dev_container}-appium")"
-      appium_uptime="$(detect_uptime "${dev_container}-appium")"
-      appium_restarts="$(detect_restarts "${dev_container}-appium")"
-    fi
-
-    local connector_state="UNKNOWN"
-    local connector_status="UNKNOWN"
-    local connector_uptime="UNKNOWN"
-    local connector_restarts="UNKNOWN"
-    if grep -q "${dev_container}-connector" <<< "$ps_out"; then
-      connector_state="$(detect_state "${dev_container}-connector")"
-      connector_status="$(detect_status "${dev_container}-connector")"
-      connector_uptime="$(detect_uptime "${dev_container}-connector")"
-      connector_restarts="$(detect_restarts "${dev_container}-connector")"
-    fi
-
-    local uploader_state="UNKNOWN"
-    local uploader_status="UNKNOWN"
-    local uploader_uptime="UNKNOWN"
-    local uploader_restarts="UNKNOWN"
-    if grep -q "${dev_container}-uploader" <<< "$ps_out"; then
-      uploader_state="$(detect_state "${dev_container}-uploader")"
-      uploader_status="$(detect_status "${dev_container}-uploader")"
-      uploader_uptime="$(detect_uptime "${dev_container}-uploader")"
-      uploader_restarts="$(detect_restarts "${dev_container}-uploader")"
-    fi
-
-    echo -e ",| Container,| State,| Status,| Uptime,| Restarts,|
-,| ---------,| ---------,| ---------,| ---------,| ---------,|
-,| Connector,| ${connector_state},| ${connector_status},| ${connector_uptime},| ${connector_restarts},|
-,| Appium,| ${appium_state},| ${appium_status},| ${appium_uptime},| ${appium_restarts},|
-,| STF,| ${stf_state},| ${stf_status},| ${stf_uptime},| ${stf_restarts},|
-,| Uploader,| ${uploader_state},| ${uploader_status},| ${uploader_uptime},| ${uploader_restarts},|" | column -t -s ','
-
+    farm_muted "R running; S starting, unhealthy, restarting; X exited, dead; - no container"
   fi
+  farm_muted "C connector ${UI_SEP} S stf ${UI_SEP} A appium ${UI_SEP} U uploader ${UI_SEP} zebrunner-farm status <device>: its containers"
 }
 
-echo_help() {
-  echo "
-      Usage: zebrunner-farm <command> [devices...] [-x|--exclude <devices>]... [-q|--quiet] [--batch|--rolling] [--json]
-      Commands:
-          status [devices]     The containers of the devices; --json: as a JSON array for the monitoring
-          start [devices]      Create (or start) and run the containers of the devices
-          stop [devices]       Stop and keep the containers of the devices
-          restart [devices]    Remove and create again the containers of the devices: --batch (default) removes
-                               the containers of all of them, then creates them; --rolling device by device
-          down [devices]       Stop and remove the containers of the devices
-          ansible [devices] [args...]  ./zebrunner.sh ansible: deploy the agent again, args of ansible-playbook
-          version              Show version of MCloud Agent components
-      Devices: udid or name of a whitelisted device, a group: ios, android, usb, wireless, android-sim, ios-sim,
-      proxy, or a pattern of the udids, names and locations in quotes ('Samsung_*'); several ones separated by spaces
-      or commas. All whitelisted devices are used if the devices are omitted.
-          -x, -e, --exclude <devices>  Skip these devices, may be repeated (also -x=<devices>)
-          -q, --quiet              No list of the devices and no question
-      In a terminal start, stop, restart and down of a group of devices show the devices first and ask to run the
-      command, to cancel, to filter the list (f) or to exclude devices (x) by their numbers, udids, names, groups or
-      patterns."
+# status_selected: the status of SELECTED: the table of a group, the containers of one device (of every one with -v)
+status_selected() {
+  local total
+  local udid
+  local number=0
+  total="$(count "${SELECTED[@]}")"
+  read_container_details
+  if [[ "$total" -gt 1 ]]; then
+    ui_section "status" "${total} devices"
+    if [[ -z "$VERBOSE" ]]; then
+      status_table
+      return 0
+    fi
+  fi
+  for udid in "${SELECTED[@]}"; do
+    number=$((number + 1))
+    get_device_fields "$udid" > /dev/null 2>&1 || continue
+    if [[ "$total" -gt 1 ]]; then
+      device_header "${number}/${total}"
+    else
+      device_header
+    fi
+    printf '\n'
+    status_device
+  done
+  return 0
+}
+
+# status_watch: status_selected again every WATCH seconds at a terminal until Ctrl-C
+status_watch() {
+  local screen
+  trap 'printf "\n"; exit 0' INT
+  while true; do
+    screen="$(status_selected)"
+    printf '\033[H\033[2J'
+    ui_muted "zebrunner-farm status ${UI_SEP} every ${WATCH}s ${UI_SEP} $(date '+%H:%M:%S') ${UI_SEP} Ctrl-C quits"
+    printf '%s\n' "$screen"
+    sleep "$WATCH"
+  done
+}
+
+#### Debug commands
+
+# valid_role <role>: 0 for a role of the containers of a device
+valid_role() {
+  local role
+  for role in "${ROLES[@]}"; do
+    [[ "$role" != "$1" ]] || return 0
+  done
+  return 1
+}
+
+# one_device <selector>: the device of get_device_fields of a selector of one device; a selector of no device or of
+# several fails with the devices
+one_device() {
+  SELECTORS=("$1")
+  EXCLUDES=()
+  select_devices || return 1
+  if [[ "$(count "${SELECTED[@]}")" -gt 1 ]]; then
+    local udid
+    local names=()
+    for udid in "${SELECTED[@]}"; do
+      get_device_fields "$udid" > /dev/null 2>&1 && names+=("$dev_device_name")
+    done
+    farm_status fail "$1 is $(count "${SELECTED[@]}") devices: ${names[*]}" \
+      "one of them: zebrunner-farm ${FARM_COMMAND} ${names[0]}"
+    return 1
+  fi
+  get_device_fields "${SELECTED[0]}" > /dev/null
+}
+
+# usage_error <command> <message>: a wrong use of the command, its usage after it; the status 2
+usage_error() {
+  {
+    ui_callout error "$2"
+    ui_usage "$(command_usage "$1")"
+    ui_muted "zebrunner-farm help $1: its options and examples"
+  } >&2
+  return 2
+}
+
+# debug_command <logs|shell|exec> <arguments...>: docker logs, a shell or a command in a container of one device
+debug_command() {
+  local command="$1"
+  shift
+  local device=""
+  local role=""
+  local follow=""
+  local tail=200
+  local cmd=()
+  while [[ $# -gt 0 ]]; do
+    if [[ "$command" == "exec" && -n "$role" ]]; then
+      cmd=("$@")
+      break
+    fi
+    case "$1" in
+    -f | --follow)
+      [[ "$command" == "logs" ]] || {
+        usage_error "$command" "unknown option: $1"
+        return
+      }
+      follow="true"
+      ;;
+    --tail | --tail=*)
+      [[ "$command" == "logs" ]] || {
+        usage_error "$command" "unknown option: $1"
+        return
+      }
+      if [[ "$1" == "--tail" ]]; then
+        tail="${2:-}"
+        shift
+      else
+        tail="${1#--tail=}"
+      fi
+      [[ "$tail" =~ ^([0-9]+|all)$ ]] || {
+        usage_error "$command" "--tail takes the number of the lines (or all)"
+        return
+      }
+      ;;
+    -*)
+      usage_error "$command" "unknown option: $1"
+      return
+      ;;
+    *)
+      if [[ -z "$device" ]]; then
+        device="$1"
+      elif [[ -z "$role" ]]; then
+        role="$1"
+      else
+        usage_error "$command" "too many arguments: $1"
+        return
+      fi
+      ;;
+    esac
+    shift
+  done
+  [[ -n "$device" ]] || {
+    usage_error "$command" "${command} needs a device: its name or udid"
+    return
+  }
+  if [[ "$command" == "exec" ]]; then
+    [[ -n "$role" && "$(count "${cmd[@]}")" -gt 0 ]] || {
+      usage_error "$command" "exec needs a device, a role (${ROLES[*]}) and a command"
+      return
+    }
+  fi
+  role="${role:-appium}"
+  valid_role "$role" || {
+    usage_error "$command" "unknown role: ${role}$(printf '%s\n' "${ROLES[@]}" | did_you_mean "$role"); the roles: ${ROLES[*]}"
+    return
+  }
+  check_devices_list || return 1
+  one_device "$device" || return 1
+  local name="${dev_container}-${role}"
+  read_container_states
+  if [[ -z "$(container_state "$name")" ]]; then
+    farm_status fail "no container ${name}" "zebrunner-farm start ${dev_device_name}"
+    return 1
+  fi
+  case "$command" in
+  logs)
+    if [[ -n "$follow" ]]; then
+      exec docker logs --follow --tail "$tail" "$name"
+    fi
+    exec docker logs --tail "$tail" "$name"
+    ;;
+  shell)
+    local flags="-i"
+    [[ ! -t 0 ]] || flags="-it"
+    # bash when the image has it
+    # shellcheck disable=SC2016
+    exec docker exec "$flags" "$name" sh -c 'if command -v bash > /dev/null 2>&1; then exec bash; fi; exec sh'
+    ;;
+  *)
+    # a pseudo-terminal only for a terminal on both sides: with it the output of a redirect or a pipe gets CRLF and
+    # stderr (a screenshot of adb exec-out is broken); -i passes a piped stdin to the command
+    if [[ -t 0 && -t 1 ]]; then
+      exec docker exec -it "$name" "${cmd[@]}"
+    fi
+    exec docker exec -i "$name" "${cmd[@]}"
+    ;;
+  esac
+}
+
+#### Help and completion
+
+# the commands of zebrunner-farm
+COMMANDS=(status start stop restart down logs shell exec ansible version completion help)
+
+# is_command <word>: 0 for a command of zebrunner-farm
+is_command() {
+  local command
+  for command in "${COMMANDS[@]}"; do
+    [[ "$command" != "$1" ]] || return 0
+  done
+  return 1
+}
+
+# farm_version: the version of the agent folder (git describe), nothing when git does not know it; the git of macOS
+# without the command line tools would ask to install them
+farm_version() {
+  local version
+  [[ -d "${ZEBRUNNER_MCLOUD_AGENT_DIR}/.git" || -f "${ZEBRUNNER_MCLOUD_AGENT_DIR}/.git" ]] || return 0
+  if [[ "$FARM_OS" == "macos" ]] && ! xcode-select -p > /dev/null 2>&1; then
+    return 0
+  fi
+  version="$(git -C "$ZEBRUNNER_MCLOUD_AGENT_DIR" describe --tags --always 2> /dev/null)" || return 0
+  [[ -z "$version" ]] || echo "MCloud Agent ${version}"
+}
+
+# farm_help: the commands, the options, the device selectors and examples
+farm_help() {
+  ui_banner "zebrunner-farm" "$(farm_version)"
+  ui_usage "zebrunner-farm <command> [devices...] [options]"
+  ui_help_group "Devices"
+  ui_help_cmd status "[devices]" "The containers of the devices: a table of a group, the containers of one device; --json for the monitoring, --watch refreshes it"
+  ui_help_cmd start "[devices]" "Create (or start) and run the containers of the devices"
+  ui_help_cmd stop "[devices]" "Stop and keep the containers of the devices"
+  ui_help_cmd restart "[devices]" "Remove and create again the containers of the devices: --batch (default) removes the containers of all of them, then creates them; --rolling device by device"
+  ui_help_cmd down "[devices]" "Stop and remove the containers of the devices"
+  ui_help_group "Debug"
+  ui_help_cmd logs "<device> [role]" "docker logs of a container of the device: appium by default, -f follows, --tail <n> (200)"
+  ui_help_cmd shell "<device> [role]" "A shell in a container of the device, appium by default"
+  ui_help_cmd exec "<device> <role> cmd" "Run a command in a container of the device"
+  ui_help_group "Agent"
+  ui_help_cmd ansible "[devices] [args...]" "./zebrunner.sh ansible: deploy the agent again, args of ansible-playbook"
+  ui_help_cmd version "" "Show version of MCloud Agent components"
+  ui_help_cmd completion "<bash|zsh>" "The completion of the commands and the devices: eval \"\$(zebrunner-farm completion bash)\" in ~/.bashrc"
+  ui_help_cmd help "[command]" "This help, the options and examples of a command"
+  ui_help_group "Options"
+  ui_help_cmd "-x" "<devices>" "Skip these devices, may be repeated (also -e, --exclude, -x=<devices>)"
+  ui_help_cmd "-q, --quiet" "" "No list of the devices, no question and no spinner"
+  ui_help_cmd "--batch" "" "restart: all the devices removed, then created (default)"
+  ui_help_cmd "--rolling" "" "restart: device by device (also --strategy rolling)"
+  ui_help_cmd "--dry-run" "" "start, stop, restart, down: what they would do, nothing changed"
+  ui_help_cmd "--json" "" "status: the devices as a JSON array for the monitoring"
+  ui_help_cmd "--watch" "[seconds]" "status: again every 5 seconds at a terminal until Ctrl-C"
+  ui_help_cmd "-v" "" "status: the containers of every device (also --verbose)"
+  ui_help_group "Device selectors"
+  ui_paragraph "Devices: udid or name of a whitelisted device, a group: ios, android, usb, wireless, android-sim, ios-sim, proxy, or a pattern of the udids, names and locations in quotes ('Samsung_*'); several ones separated by spaces or commas. All whitelisted devices are used if the devices are omitted. -x, -e, --exclude <devices> skips some of them."
+  farm_text "In a terminal start, stop, restart and down of a group of devices show the devices first and ask to run the command, to cancel, to filter the list (f) or to exclude devices (x) by their numbers, udids, names, groups or patterns, to pick them with fzf (p)."
+  ui_help_group "Examples"
+  ui_help_cmd "status" "" "the devices and their containers"
+  ui_help_cmd "restart ios -x 'Dummy_*'" "" "every iOS device but the dummy ones"
+  ui_help_cmd "logs Pixel_7 -f" "" "follow the log of appium of the device"
+  ui_help_cmd "status --json | jq" "" "the monitoring"
+  printf '\n'
+  ui_muted "zebrunner-farm help <command>: its options and examples"
   echo_telegram
-  exit 0
+}
+
+# command_usage <command>: the usage line of the command
+command_usage() {
+  case "$1" in
+  status | start | stop | restart | down) echo "zebrunner-farm $1 [devices...] [options]" ;;
+  logs) echo "zebrunner-farm logs <device> [role] [-f] [--tail <n>]" ;;
+  shell) echo "zebrunner-farm shell <device> [role]" ;;
+  exec) echo "zebrunner-farm exec <device> <role> <command...>" ;;
+  ansible) echo "zebrunner-farm ansible [devices] [args...]" ;;
+  completion) echo "zebrunner-farm completion <bash|zsh>" ;;
+  help) echo "zebrunner-farm help [command]" ;;
+  *) echo "zebrunner-farm $1" ;;
+  esac
+}
+
+# selection_help: the options of the selection of the devices of a command
+selection_help() {
+  ui_help_cmd "-x" "<devices>" "Skip these devices, may be repeated (also -e, --exclude, -x=<devices>)"
+}
+
+# command_help <command>: the usage, the description, the options and examples of the command
+command_help() {
+  ui_usage "$(command_usage "$1")"
+  printf '\n'
+  case "$1" in
+  status)
+    farm_text "The containers of the devices: a table of a group (a mark per container, the uptime and the restarts), the containers of one device with their state, health and uptime; a USB device that is not plugged in is disconnected."
+    ui_help_group "Options"
+    selection_help
+    ui_help_cmd "--json" "" "The devices and their containers as a JSON array for the monitoring, the messages on stderr"
+    ui_help_cmd "--watch" "[seconds]" "Again every 5 (or the seconds) seconds at a terminal until Ctrl-C"
+    ui_help_cmd "-v" "" "The containers of every device of a group (also --verbose)"
+    ui_help_group "Examples"
+    ui_help_cmd "status ios --watch" "" "the iOS devices every 5 seconds"
+    ui_help_cmd "status --json | jq -r '.[].name'" "" "the names of the devices for a script"
+    ;;
+  start | stop | restart | down)
+    case "$1" in
+    start) ui_paragraph "Create the missing containers of the devices, start the stopped ones, keep the running ones. On Linux a USB device that is not plugged in is skipped (unless it is named exactly): udev starts it when it is connected." ;;
+    stop) ui_paragraph "Stop and keep the containers of the devices: appium first (it finishes the recordings), then the uploader (it uploads them), STF and the connector." ;;
+    restart) ui_paragraph "Remove and create again the containers of the devices, e.g. with new settings or images: --batch (default) removes the containers of all the devices, then creates them; --rolling device by device, the other devices keep working." ;;
+    down) ui_paragraph "Stop and remove the containers of the devices and the volume of their logs." ;;
+    esac
+    farm_text "A group asks first at a terminal. The status is 1 when a device failed: the summary lists them and the command to retry."
+    ui_help_group "Options"
+    selection_help
+    ui_help_cmd "-q, --quiet" "" "No list of the devices, no question and no spinner"
+    if [[ "$1" == "restart" ]]; then
+      ui_help_cmd "--batch" "" "All the devices removed, then created (default; --strategy batch)"
+      ui_help_cmd "--rolling" "" "Device by device (--strategy rolling)"
+    fi
+    ui_help_cmd "--dry-run" "" "What it would do for every device and container, nothing changed"
+    ui_help_group "Examples"
+    ui_help_cmd "$1 android -x Pixel_8_Pro" "" "the Android devices but one"
+    ui_help_cmd "$1 'Samsung_*' --dry-run" "" "what it would do"
+    ;;
+  logs)
+    farm_text "docker logs of a container of one device (its name or udid). The roles: connector, stf, appium (by default), uploader."
+    ui_help_group "Options"
+    ui_help_cmd "-f" "" "Follow the log until Ctrl-C (also --follow)"
+    ui_help_cmd "--tail" "<n>" "The last lines (200 by default, all)"
+    ui_help_group "Examples"
+    ui_help_cmd "logs Pixel_7 stf -f" "" "follow the log of STF of the device"
+    ;;
+  shell)
+    farm_text "A shell (bash, or sh without it) in a container of one device (its name or udid). The roles: connector, stf, appium (by default), uploader."
+    ui_help_group "Examples"
+    ui_help_cmd "shell iPhone_15 connector" "" "a shell in the connector of the device"
+    ;;
+  exec)
+    farm_text "Run a command in a container of one device (its name or udid), at a terminal with a terminal (docker exec -it). The roles: connector, stf, appium, uploader."
+    ui_help_group "Examples"
+    ui_help_cmd "exec Pixel_7 connector adb devices" "" "the devices of adb of the connector"
+    ;;
+  ansible)
+    farm_text "./zebrunner.sh ansible of the agent folder of the settings: deploy the agent again from any folder; the arguments of ansible-playbook."
+    ;;
+  version)
+    farm_text "Show version of MCloud Agent components (./zebrunner.sh version)."
+    ;;
+  completion)
+    farm_text "The completion of the commands, the options and the devices of zebrunner-farm in bash and zsh: patch/completion.sh of the agent."
+    ui_help_group "Examples"
+    ui_help_cmd "eval \"\$(zebrunner-farm completion bash)\"" "" "in ~/.bashrc"
+    ui_help_cmd "eval \"\$(zebrunner-farm completion zsh)\"" "" "in ~/.zshrc"
+    ;;
+  help)
+    farm_text "The commands of zebrunner-farm, or the options and examples of one command."
+    ;;
+  esac
+}
+
+# unknown_command <word>: the error of a word that is no command with the closest commands and the usage; status 2
+unknown_command() {
+  {
+    ui_callout error "unknown command: ${1}$(printf '%s\n' "${COMMANDS[@]}" | did_you_mean "$1")"
+    ui_usage "zebrunner-farm <command> [devices...] [options]"
+    ui_muted "zebrunner-farm help: the commands"
+  } >&2
+  return 2
+}
+
+# farm_complete <index> <words...>: the candidates of the word of the index of the words of the command line, one per
+# line (CONVENTIONS.md#completion); nothing else runs: no docker, no file written
+farm_complete() {
+  local index="$1"
+  shift
+  [[ "$index" =~ ^[0-9]+$ && "$index" -ge 1 ]] || return 0
+  local words=("$@")
+  local current="${words[$((index - 1))]:-}"
+  local previous=""
+  [[ "$index" -lt 2 ]] || previous="${words[$((index - 2))]:-}"
+  local command="${words[0]:-}"
+  if [[ "$index" -eq 1 ]]; then
+    printf '%s\n' "${COMMANDS[@]}"
+    return 0
+  fi
+  case "$command" in
+  help)
+    [[ "$index" -ne 2 ]] || printf '%s\n' "${COMMANDS[@]}"
+    ;;
+  completion)
+    [[ "$index" -ne 2 ]] || printf '%s\n' bash zsh
+    ;;
+  ansible)
+    [[ "$index" -ne 2 ]] || device_candidates
+    ;;
+  logs | shell | exec)
+    [[ "$previous" != "--tail" ]] || return 0
+    if [[ "$current" == -* ]]; then
+      if [[ "$command" == "logs" ]]; then
+        printf '%s\n' -f --follow --tail --help
+      else
+        printf '%s\n' --help
+      fi
+      return 0
+    fi
+    # the place of the word among the arguments that are not options
+    local position=0
+    local i=1
+    while [[ "$i" -lt $((index - 1)) ]]; do
+      case "${words[$i]}" in
+      --tail) i=$((i + 1)) ;;
+      -*) ;;
+      *) position=$((position + 1)) ;;
+      esac
+      i=$((i + 1))
+    done
+    case "$position" in
+    0) device_words ;;
+    1) printf '%s\n' "${ROLES[@]}" ;;
+    esac
+    ;;
+  status | start | stop | restart | down)
+    case "$previous" in
+    -x | -e | --exclude)
+      device_candidates
+      return 0
+      ;;
+    --strategy)
+      printf '%s\n' batch rolling
+      return 0
+      ;;
+    esac
+    if [[ "$current" == -* ]]; then
+      case "$command" in
+      status) printf '%s\n' --json --watch -v --verbose -x -e --exclude --help ;;
+      restart) printf '%s\n' -q --quiet --batch --rolling --strategy --dry-run -x -e --exclude --help ;;
+      *) printf '%s\n' -q --quiet --dry-run -x -e --exclude --help ;;
+      esac
+      return 0
+    fi
+    device_candidates
+    ;;
+  esac
+  return 0
 }
 
 # check_devices_list: mcloud-devices.txt of an earlier version (positional fields) needs the deploy of this version
 check_devices_list() {
   if grep -v '^#' "$MCLOUD_DEVICES" 2> /dev/null | grep -q . && ! grep -Eq '(^|[|])id=' "$MCLOUD_DEVICES"; then
-    failed "The devices list ${MCLOUD_DEVICES} is of an earlier version: deploy it with ./zebrunner.sh ansible"
+    farm_status fail "The devices list ${MCLOUD_DEVICES} is of an earlier version: deploy it with ./zebrunner.sh ansible"
     return 1
   fi
 }
@@ -1216,6 +2239,7 @@ check_devices_list() {
 farm_command() {
   local command="$1"
   shift
+  FARM_COMMAND="$command"
   # status --json: the JSON only on stdout, the messages on stderr
   local messages=1
   [[ " $* " == *" --json "* ]] && messages=2
@@ -1223,7 +2247,15 @@ farm_command() {
     check_devices_list || return 1
     parse_selection "$@" || return 1
     if [[ -n "$OUTPUT_JSON" && "$command" != "status" ]]; then
-      failed "--json is an option of status only"
+      farm_status fail "--json is an option of status only"
+      return 1
+    fi
+    if [[ -n "$OUTPUT_JSON" && -n "$WATCH" ]]; then
+      farm_status fail "--watch is for a person at a terminal, --json for the monitoring: one of them"
+      return 1
+    fi
+    if [[ -n "$WATCH" && ! ("$UI_TTY" -eq 1 && -t 1) ]]; then
+      farm_status fail "--watch needs a terminal" "zebrunner-farm status without --watch"
       return 1
     fi
     select_devices || return 1
@@ -1231,41 +2263,63 @@ farm_command() {
   if [[ "$command" == "status" ]]; then
     if [[ -n "$OUTPUT_JSON" ]]; then
       status_json
+    elif [[ -n "$WATCH" ]]; then
+      status_watch
     else
-      run_selected status
+      status_selected
     fi
     return
   fi
   if ! confirm_selection "$command"; then
-    echo "Cancelled."
+    ui_info "Cancelled."
     return 0
   fi
   run_command "$command"
 }
 
-# run_command <command>: the command for SELECTED, the docker network first for the new containers
-run_command() {
-  if [[ "$1" != "start" ]] && listener_applies; then
-    launchctl unload "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
-  fi
-  if [[ "$1" == "start" || "$1" == "restart" ]]; then
-    ensure_network
-  fi
-  if [[ "$1" == "restart" ]]; then
-    restart_selected
-  else
-    run_selected "$1"
-  fi
-  # the listener is loaded after the last container, otherwise it starts the devices in parallel
-  if [[ "$1" == "start" || "$1" == "restart" ]] && listener_applies; then
-    launchctl load "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
-  fi
-}
-
 main() {
-  case "$1" in
+  # the completion first: nothing above it may fail or print
+  if [[ "${1:-}" == "__complete" ]]; then
+    farm_complete "${@:2}"
+    return 0
+  fi
+  local command="${1:-}"
+  local arg
+  case "$command" in
+  "" | help | -h | --help)
+    if [[ "$command" == "help" && -n "${2:-}" ]]; then
+      is_command "$2" || {
+        unknown_command "$2"
+        return
+      }
+      command_help "$2"
+      return 0
+    fi
+    farm_help
+    return 0
+    ;;
+  ansible | exec | version | completion)
+    if [[ "${2:-}" == "-h" || "${2:-}" == "--help" ]]; then
+      command_help "$command"
+      return 0
+    fi
+    ;;
+  status | start | stop | restart | down | logs | shell)
+    for arg in "${@:2}"; do
+      if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
+        command_help "$command"
+        return 0
+      fi
+    done
+    ;;
+  esac
+  case "$command" in
   status | start | stop | restart | down)
     farm_command "$@"
+    ;;
+  logs | shell | exec)
+    FARM_COMMAND="$command"
+    debug_command "$@"
     ;;
   ansible)
     "${ZEBRUNNER_MCLOUD_AGENT_DIR}"/zebrunner.sh ansible "${@:2}"
@@ -1273,8 +2327,18 @@ main() {
   version)
     "${ZEBRUNNER_MCLOUD_AGENT_DIR}"/zebrunner.sh version
     ;;
+  completion)
+    case "${2:-}" in
+    bash | zsh)
+      cat "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/completion.sh"
+      ;;
+    *)
+      usage_error completion "completion needs the shell: bash or zsh"
+      ;;
+    esac
+    ;;
   *)
-    echo_help
+    unknown_command "$command"
     ;;
   esac
 }

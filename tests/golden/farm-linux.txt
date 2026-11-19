@@ -1,11 +1,13 @@
 ### zebrunner-farm start R28M1384YQY
 
-==> Galaxy (R28M1384YQY, android, usb)
-  connected over USB
-  connector  created id
-  stf        created id
-  appium     created id
-  uploader   created id
+  > Galaxy  android - usb - R28M1384YQY --------------------------------------
+
+   info connected over USB
+   ok   created  device-Galaxy-R28M1384YQY-connector  id
+   ok   created  device-Galaxy-R28M1384YQY-stf  id
+   ok   created  device-Galaxy-R28M1384YQY-appium  id
+   ok   created  device-Galaxy-R28M1384YQY-uploader  id
+### status 0
 ### calls
 docker|network|inspect|infra
 docker|ps|-a|--format|{{.Names}} {{.State}}
@@ -15,11 +17,13 @@ docker|run|-itd|--name|device-Galaxy-R28M1384YQY-appium|-m|1g|--log-driver=local
 docker|run|-d|--name|device-Galaxy-R28M1384YQY-uploader|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-v|device-Galaxy-R28M1384YQY:/tmp/log|-e|ENDPOINT_URL=|-e|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|-e|AWS_ACCESS_KEY_ID|-e|AWS_SECRET_ACCESS_KEY|-e|AWS_DEFAULT_REGION=|public.ecr.aws/zebrunner/uploader:3.6.2
 ### zebrunner-farm start WiFi
 
-==> WiFi (192.168.1.50, android, wireless)
-  connector  created id
-  stf        created id
-  appium     created id
-  uploader   created id
+  > WiFi  android - wireless - 192.168.1.50 ----------------------------------
+
+   ok   created  device-WiFi-192.168.1.50-connector  id
+   ok   created  device-WiFi-192.168.1.50-stf  id
+   ok   created  device-WiFi-192.168.1.50-appium  id
+   ok   created  device-WiFi-192.168.1.50-uploader  id
+### status 0
 ### calls
 docker|network|inspect|infra
 docker|ps|-a|--format|{{.Names}} {{.State}}
@@ -29,13 +33,15 @@ docker|run|-itd|--name|device-WiFi-192.168.1.50-appium|-m|1g|--log-driver=local|
 docker|run|-d|--name|device-WiFi-192.168.1.50-uploader|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-v|device-WiFi-192.168.1.50:/tmp/log|-e|ENDPOINT_URL=|-e|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|-e|AWS_ACCESS_KEY_ID|-e|AWS_SECRET_ACCESS_KEY|-e|AWS_DEFAULT_REGION=|public.ecr.aws/zebrunner/uploader:3.6.2
 ### zebrunner-farm start iPhone_8_Plus
 
-==> iPhone_8_Plus (d6afc6b3a65584ca0813eb8957c6479b9b6ebb11, ios, usb)
-  connected over USB
-  WDA: /opt/wda.ipa (com.facebook.WebDriverAgentRunner.xctrunner)
-  connector  created id
-  stf        created id
-  appium     created id
-  uploader   created id
+  > iPhone_8_Plus  ios - usb - d6afc6b3a65584ca0813eb8957c6479b9b6ebb11 ------
+    WDA      /opt/wda.ipa (com.facebook.WebDriverAgentRunner.xctrunner)
+
+   info connected over USB
+   ok   created  device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-connector  id
+   ok   created  device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-stf  id
+   ok   created  device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-appium  id
+   ok   created  device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-uploader  id
+### status 0
 ### calls
 docker|network|inspect|infra
 docker|ps|-a|--format|{{.Names}} {{.State}}
@@ -45,12 +51,14 @@ docker|run|-itd|--name|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6e
 docker|run|-d|--name|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-uploader|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-v|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11:/tmp/log|-e|ENDPOINT_URL=|-e|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|-e|AWS_ACCESS_KEY_ID|-e|AWS_SECRET_ACCESS_KEY|-e|AWS_DEFAULT_REGION=|public.ecr.aws/zebrunner/uploader:3.6.2
 ### zebrunner-farm start AppleTV
 
-==> AppleTV (aaaa1111, ios, proxy)
-  WDA: /opt/wda.ipa (com.facebook.WebDriverAgentRunner.xctrunner)
-  connector  created id
-  stf        created id
-  appium     created id
-  uploader   created id
+  > AppleTV  ios - proxy - aaaa1111 ------------------------------------------
+    WDA      /opt/wda.ipa (com.facebook.WebDriverAgentRunner.xctrunner)
+
+   ok   created  device-AppleTV-aaaa1111-connector  id
+   ok   created  device-AppleTV-aaaa1111-stf  id
+   ok   created  device-AppleTV-aaaa1111-appium  id
+   ok   created  device-AppleTV-aaaa1111-uploader  id
+### status 0
 ### calls
 docker|network|inspect|infra
 docker|ps|-a|--format|{{.Names}} {{.State}}
@@ -60,12 +68,14 @@ docker|run|-itd|--name|device-AppleTV-aaaa1111-appium|-m|1g|--log-driver=local|-
 docker|run|-d|--name|device-AppleTV-aaaa1111-uploader|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-v|device-AppleTV-aaaa1111:/tmp/log|-e|ENDPOINT_URL=|-e|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|-e|AWS_ACCESS_KEY_ID|-e|AWS_SECRET_ACCESS_KEY|-e|AWS_DEFAULT_REGION=|public.ecr.aws/zebrunner/uploader:3.6.2
 ### zebrunner-farm start iPhoneWiFi
 
-==> iPhoneWiFi (bbbb2222, ios, wireless)
-  WDA: /opt/wda.ipa (com.facebook.WebDriverAgentRunner.xctrunner)
-  connector  created id
-  stf        created id
-  appium     created id
-  uploader   created id
+  > iPhoneWiFi  ios - wireless - bbbb2222 ------------------------------------
+    WDA      /opt/wda.ipa (com.facebook.WebDriverAgentRunner.xctrunner)
+
+   ok   created  device-iPhoneWiFi-bbbb2222-connector  id
+   ok   created  device-iPhoneWiFi-bbbb2222-stf  id
+   ok   created  device-iPhoneWiFi-bbbb2222-appium  id
+   ok   created  device-iPhoneWiFi-bbbb2222-uploader  id
+### status 0
 ### calls
 docker|network|inspect|infra
 docker|ps|-a|--format|{{.Names}} {{.State}}
@@ -75,11 +85,13 @@ docker|run|-itd|--name|device-iPhoneWiFi-bbbb2222-appium|-m|1g|--log-driver=loca
 docker|run|-d|--name|device-iPhoneWiFi-bbbb2222-uploader|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-v|device-iPhoneWiFi-bbbb2222:/tmp/log|-e|ENDPOINT_URL=|-e|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|-e|AWS_ACCESS_KEY_ID|-e|AWS_SECRET_ACCESS_KEY|-e|AWS_DEFAULT_REGION=|public.ecr.aws/zebrunner/uploader:3.6.2
 ### zebrunner-farm start Emu
 
-==> Emu (emu1, android, android-sim)
-  connector  created id
-  stf        created id
-  appium     created id
-  uploader   created id
+  > Emu  android - android-sim - emu1 ----------------------------------------
+
+   ok   created  device-Emu-emu1-connector  id
+   ok   created  device-Emu-emu1-stf  id
+   ok   created  device-Emu-emu1-appium  id
+   ok   created  device-Emu-emu1-uploader  id
+### status 0
 ### calls
 docker|network|inspect|infra
 docker|ps|-a|--format|{{.Names}} {{.State}}
@@ -89,49 +101,66 @@ docker|run|-itd|--name|device-Emu-emu1-appium|-m|1g|--log-driver=local|--log-opt
 docker|run|-d|--name|device-Emu-emu1-uploader|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-v|device-Emu-emu1:/tmp/log|-e|ENDPOINT_URL=|-e|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|-e|AWS_ACCESS_KEY_ID|-e|AWS_SECRET_ACCESS_KEY|-e|AWS_DEFAULT_REGION=|public.ecr.aws/zebrunner/uploader:3.6.2
 ### zebrunner-farm start Sim
 
-==> Sim (B1B07E76, ios, ios-sim)
-  WDA: /tmp/wda-sim.zip (com.facebook.WebDriverAgentRunner.xctrunner)
-  The iOS simulators run on a macOS host only. The containers will not be created.
+  > Sim  ios - ios-sim - B1B07E76 --------------------------------------------
+    WDA      /tmp/wda-sim.zip (com.facebook.WebDriverAgentRunner.xctrunner)
+
+   FAIL The iOS simulators run on a macOS host only. The containers will not be created.
+### status 1
 ### calls
 docker|network|inspect|infra
 docker|ps|-a|--format|{{.Names}} {{.State}}
 ### zebrunner-farm start
 
-==> Galaxy (R28M1384YQY, android, usb)
-  not plugged in: skipped, udev starts it when it is connected
+  [ START ] -------------------------------------------------------- 7 devices
 
-==> WiFi (192.168.1.50, android, wireless)
-  connector  created id
-  stf        created id
-  appium     created id
-  uploader   created id
+  > Galaxy  android - usb - R28M1384YQY ---------------------------------- 1/7
 
-==> iPhone_8_Plus (d6afc6b3a65584ca0813eb8957c6479b9b6ebb11, ios, usb)
-  not plugged in: skipped, udev starts it when it is connected
+   info not plugged in: skipped, udev starts it when it is connected
 
-==> AppleTV (aaaa1111, ios, proxy)
-  WDA: /opt/wda.ipa (com.facebook.WebDriverAgentRunner.xctrunner)
-  connector  created id
-  stf        created id
-  appium     created id
-  uploader   created id
+  > WiFi  android - wireless - 192.168.1.50 ------------------------------ 2/7
 
-==> iPhoneWiFi (bbbb2222, ios, wireless)
-  WDA: /opt/wda.ipa (com.facebook.WebDriverAgentRunner.xctrunner)
-  connector  created id
-  stf        created id
-  appium     created id
-  uploader   created id
+   ok   created  device-WiFi-192.168.1.50-connector  id
+   ok   created  device-WiFi-192.168.1.50-stf  id
+   ok   created  device-WiFi-192.168.1.50-appium  id
+   ok   created  device-WiFi-192.168.1.50-uploader  id
 
-==> Emu (emu1, android, android-sim)
-  connector  created id
-  stf        created id
-  appium     created id
-  uploader   created id
+  > iPhone_8_Plus  ios - usb - d6afc6b3a65584ca0813eb8957c6479b9b6ebb11 --- 3/7
 
-==> Sim (B1B07E76, ios, ios-sim)
-  WDA: /tmp/wda-sim.zip (com.facebook.WebDriverAgentRunner.xctrunner)
-  The iOS simulators run on a macOS host only. The containers will not be created.
+   info not plugged in: skipped, udev starts it when it is connected
+
+  > AppleTV  ios - proxy - aaaa1111 -------------------------------------- 4/7
+    WDA      /opt/wda.ipa (com.facebook.WebDriverAgentRunner.xctrunner)
+
+   ok   created  device-AppleTV-aaaa1111-connector  id
+   ok   created  device-AppleTV-aaaa1111-stf  id
+   ok   created  device-AppleTV-aaaa1111-appium  id
+   ok   created  device-AppleTV-aaaa1111-uploader  id
+
+  > iPhoneWiFi  ios - wireless - bbbb2222 -------------------------------- 5/7
+    WDA      /opt/wda.ipa (com.facebook.WebDriverAgentRunner.xctrunner)
+
+   ok   created  device-iPhoneWiFi-bbbb2222-connector  id
+   ok   created  device-iPhoneWiFi-bbbb2222-stf  id
+   ok   created  device-iPhoneWiFi-bbbb2222-appium  id
+   ok   created  device-iPhoneWiFi-bbbb2222-uploader  id
+
+  > Emu  android - android-sim - emu1 ------------------------------------ 6/7
+
+   ok   created  device-Emu-emu1-connector  id
+   ok   created  device-Emu-emu1-stf  id
+   ok   created  device-Emu-emu1-appium  id
+   ok   created  device-Emu-emu1-uploader  id
+
+  > Sim  ios - ios-sim - B1B07E76 ---------------------------------------- 7/7
+    WDA      /tmp/wda-sim.zip (com.facebook.WebDriverAgentRunner.xctrunner)
+
+   FAIL The iOS simulators run on a macOS host only. The containers will not be created.
+
+  ----------------------------------------------------------------------------
+  4 ok, 2 warn, 1 fail
+  failed: Sim - done in <time>
+  retry: zebrunner-farm start Sim
+### status 1
 ### calls
 docker|network|inspect|infra
 docker|ps|-a|--format|{{.Names}} {{.State}}
@@ -157,47 +186,61 @@ docker|run|-d|--name|device-Emu-emu1-uploader|--log-driver=local|--log-opt|max-s
 docker|ps|-a|--format|{{.Names}} {{.State}}
 ### zebrunner-farm stop
 
-==> Galaxy (R28M1384YQY, android, usb)
-  appium     stopped
-  uploader   stopped
-  stf        stopped
-  connector  stopped
+  [ STOP ] --------------------------------------------------------- 7 devices
 
-==> WiFi (192.168.1.50, android, wireless)
-  appium     stopped
-  uploader   stopped
-  stf        stopped
-  connector  stopped
+  > Galaxy  android - usb - R28M1384YQY ---------------------------------- 1/7
 
-==> iPhone_8_Plus (d6afc6b3a65584ca0813eb8957c6479b9b6ebb11, ios, usb)
-  appium     stopped
-  uploader   stopped
-  stf        stopped
-  connector  stopped
+   ok   stopped  device-Galaxy-R28M1384YQY-appium
+   ok   stopped  device-Galaxy-R28M1384YQY-uploader
+   ok   stopped  device-Galaxy-R28M1384YQY-stf
+   ok   stopped  device-Galaxy-R28M1384YQY-connector
 
-==> AppleTV (aaaa1111, ios, proxy)
-  appium     stopped
-  uploader   stopped
-  stf        stopped
-  connector  stopped
+  > WiFi  android - wireless - 192.168.1.50 ------------------------------ 2/7
 
-==> iPhoneWiFi (bbbb2222, ios, wireless)
-  appium     stopped
-  uploader   stopped
-  stf        stopped
-  connector  stopped
+   ok   stopped  device-WiFi-192.168.1.50-appium
+   ok   stopped  device-WiFi-192.168.1.50-uploader
+   ok   stopped  device-WiFi-192.168.1.50-stf
+   ok   stopped  device-WiFi-192.168.1.50-connector
 
-==> Emu (emu1, android, android-sim)
-  appium     stopped
-  uploader   stopped
-  stf        stopped
-  connector  stopped
+  > iPhone_8_Plus  ios - usb - d6afc6b3a65584ca0813eb8957c6479b9b6ebb11 --- 3/7
 
-==> Sim (B1B07E76, ios, ios-sim)
-  appium     stopped
-  uploader   stopped
-  stf        stopped
-  connector  stopped
+   ok   stopped  device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-appium
+   ok   stopped  device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-uploader
+   ok   stopped  device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-stf
+   ok   stopped  device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-connector
+
+  > AppleTV  ios - proxy - aaaa1111 -------------------------------------- 4/7
+
+   ok   stopped  device-AppleTV-aaaa1111-appium
+   ok   stopped  device-AppleTV-aaaa1111-uploader
+   ok   stopped  device-AppleTV-aaaa1111-stf
+   ok   stopped  device-AppleTV-aaaa1111-connector
+
+  > iPhoneWiFi  ios - wireless - bbbb2222 -------------------------------- 5/7
+
+   ok   stopped  device-iPhoneWiFi-bbbb2222-appium
+   ok   stopped  device-iPhoneWiFi-bbbb2222-uploader
+   ok   stopped  device-iPhoneWiFi-bbbb2222-stf
+   ok   stopped  device-iPhoneWiFi-bbbb2222-connector
+
+  > Emu  android - android-sim - emu1 ------------------------------------ 6/7
+
+   ok   stopped  device-Emu-emu1-appium
+   ok   stopped  device-Emu-emu1-uploader
+   ok   stopped  device-Emu-emu1-stf
+   ok   stopped  device-Emu-emu1-connector
+
+  > Sim  ios - ios-sim - B1B07E76 ---------------------------------------- 7/7
+
+   ok   stopped  device-Sim-B1B07E76-appium
+   ok   stopped  device-Sim-B1B07E76-uploader
+   ok   stopped  device-Sim-B1B07E76-stf
+   ok   stopped  device-Sim-B1B07E76-connector
+
+  ----------------------------------------------------------------------------
+  7 ok, 0 warn, 0 fail
+  7 devices - done in <time>
+### status 0
 ### calls
 docker|stop|-t|40|device-Galaxy-R28M1384YQY-appium
 docker|stop|-t|130|device-Galaxy-R28M1384YQY-uploader
@@ -229,45 +272,58 @@ docker|stop|-t|30|device-Sim-B1B07E76-stf
 docker|stop|-t|10|device-Sim-B1B07E76-connector
 ### zebrunner-farm restart android
 
-Removing the containers of 3 devices (batch restart)
+  [ RESTART ] ---------------------------------------------- 3 devices - batch
 
-==> Galaxy (R28M1384YQY, android, usb)
-  appium     no container
-  uploader   no container
-  stf        no container
-  connector  no container
-  logs       volume removed
+  Removing the containers of 3 devices (batch restart)
 
-==> WiFi (192.168.1.50, android, wireless)
-  appium     no container
-  uploader   no container
-  stf        no container
-  connector  no container
-  logs       volume removed
+  > Galaxy  android - usb - R28M1384YQY ---------------------------------- 1/3
 
-==> Emu (emu1, android, android-sim)
-  appium     no container
-  uploader   no container
-  stf        no container
-  connector  no container
-  logs       volume removed
+   info no container  device-Galaxy-R28M1384YQY-appium
+   info no container  device-Galaxy-R28M1384YQY-uploader
+   info no container  device-Galaxy-R28M1384YQY-stf
+   info no container  device-Galaxy-R28M1384YQY-connector
+   ok   removed  device-Galaxy-R28M1384YQY  volume of the logs
 
-Creating the containers of 3 devices again
+  > WiFi  android - wireless - 192.168.1.50 ------------------------------ 2/3
 
-==> Galaxy (R28M1384YQY, android, usb)
-  not plugged in: skipped, udev starts it when it is connected
+   info no container  device-WiFi-192.168.1.50-appium
+   info no container  device-WiFi-192.168.1.50-uploader
+   info no container  device-WiFi-192.168.1.50-stf
+   info no container  device-WiFi-192.168.1.50-connector
+   ok   removed  device-WiFi-192.168.1.50  volume of the logs
 
-==> WiFi (192.168.1.50, android, wireless)
-  connector  created id
-  stf        created id
-  appium     created id
-  uploader   created id
+  > Emu  android - android-sim - emu1 ------------------------------------ 3/3
 
-==> Emu (emu1, android, android-sim)
-  connector  created id
-  stf        created id
-  appium     created id
-  uploader   created id
+   info no container  device-Emu-emu1-appium
+   info no container  device-Emu-emu1-uploader
+   info no container  device-Emu-emu1-stf
+   info no container  device-Emu-emu1-connector
+   ok   removed  device-Emu-emu1  volume of the logs
+
+  Creating the containers of 3 devices again
+
+  > Galaxy  android - usb - R28M1384YQY ---------------------------------- 1/3
+
+   info not plugged in: skipped, udev starts it when it is connected
+
+  > WiFi  android - wireless - 192.168.1.50 ------------------------------ 2/3
+
+   ok   created  device-WiFi-192.168.1.50-connector  id
+   ok   created  device-WiFi-192.168.1.50-stf  id
+   ok   created  device-WiFi-192.168.1.50-appium  id
+   ok   created  device-WiFi-192.168.1.50-uploader  id
+
+  > Emu  android - android-sim - emu1 ------------------------------------ 3/3
+
+   ok   created  device-Emu-emu1-connector  id
+   ok   created  device-Emu-emu1-stf  id
+   ok   created  device-Emu-emu1-appium  id
+   ok   created  device-Emu-emu1-uploader  id
+
+  ----------------------------------------------------------------------------
+  2 ok, 1 warn, 0 fail
+  3 devices - done in <time>
+### status 0
 ### calls
 docker|network|inspect|infra
 docker|stop|-t|40|device-Galaxy-R28M1384YQY-appium
@@ -309,33 +365,44 @@ docker|run|-itd|--name|device-Emu-emu1-appium|-m|1g|--log-driver=local|--log-opt
 docker|run|-d|--name|device-Emu-emu1-uploader|--log-driver=local|--log-opt|max-size=256m|--log-opt|max-file=2|--net=infra|--restart|on-failure:50|-v|device-Emu-emu1:/tmp/log|-e|ENDPOINT_URL=|-e|S3_KEY_PATTERN=s3://bucket/tenant/artifacts/test-sessions|-e|AWS_ACCESS_KEY_ID|-e|AWS_SECRET_ACCESS_KEY|-e|AWS_DEFAULT_REGION=|public.ecr.aws/zebrunner/uploader:3.6.2
 ### zebrunner-farm down ios
 
-==> iPhone_8_Plus (d6afc6b3a65584ca0813eb8957c6479b9b6ebb11, ios, usb)
-  appium     no container
-  uploader   no container
-  stf        no container
-  connector  no container
-  logs       volume removed
+  [ DOWN ] --------------------------------------------------------- 4 devices
 
-==> AppleTV (aaaa1111, ios, proxy)
-  appium     no container
-  uploader   no container
-  stf        no container
-  connector  no container
-  logs       volume removed
+  > iPhone_8_Plus  ios - usb - d6afc6b3a65584ca0813eb8957c6479b9b6ebb11 --- 1/4
 
-==> iPhoneWiFi (bbbb2222, ios, wireless)
-  appium     no container
-  uploader   no container
-  stf        no container
-  connector  no container
-  logs       volume removed
+   info no container  device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-appium
+   info no container  device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-uploader
+   info no container  device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-stf
+   info no container  device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-connector
+   ok   removed  device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11  volume of the logs
 
-==> Sim (B1B07E76, ios, ios-sim)
-  appium     no container
-  uploader   no container
-  stf        no container
-  connector  no container
-  logs       volume removed
+  > AppleTV  ios - proxy - aaaa1111 -------------------------------------- 2/4
+
+   info no container  device-AppleTV-aaaa1111-appium
+   info no container  device-AppleTV-aaaa1111-uploader
+   info no container  device-AppleTV-aaaa1111-stf
+   info no container  device-AppleTV-aaaa1111-connector
+   ok   removed  device-AppleTV-aaaa1111  volume of the logs
+
+  > iPhoneWiFi  ios - wireless - bbbb2222 -------------------------------- 3/4
+
+   info no container  device-iPhoneWiFi-bbbb2222-appium
+   info no container  device-iPhoneWiFi-bbbb2222-uploader
+   info no container  device-iPhoneWiFi-bbbb2222-stf
+   info no container  device-iPhoneWiFi-bbbb2222-connector
+   ok   removed  device-iPhoneWiFi-bbbb2222  volume of the logs
+
+  > Sim  ios - ios-sim - B1B07E76 ---------------------------------------- 4/4
+
+   info no container  device-Sim-B1B07E76-appium
+   info no container  device-Sim-B1B07E76-uploader
+   info no container  device-Sim-B1B07E76-stf
+   info no container  device-Sim-B1B07E76-connector
+   ok   removed  device-Sim-B1B07E76  volume of the logs
+
+  ----------------------------------------------------------------------------
+  4 ok, 0 warn, 0 fail
+  4 devices - done in <time>
+### status 0
 ### calls
 docker|stop|-t|40|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-appium
 docker|rm|-f|device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11-appium
@@ -375,60 +442,19 @@ docker|rm|-f|device-Sim-B1B07E76-connector
 docker|volume|rm|device-Sim-B1B07E76
 ### zebrunner-farm status
 
-==> Galaxy (R28M1384YQY, android, usb)
+  [ STATUS ] ------------------------------------------------------- 7 devices
 
---- DISCONNECTED ---
+   DEVICE         PLATFORM  CONNECTION   C S A U  UPTIME    RESTARTS
+   Galaxy         android   usb          disconnected
+   WiFi           android   wireless     - - - -  -         0
+   iPhone_8_Plus  ios       usb          disconnected
+   AppleTV        ios       proxy        - - - -  -         0
+   iPhoneWiFi     ios       wireless     - - - -  -         0
+   Emu            android   android-sim  - - - -  -         0
+   Sim            ios       ios-sim      - - - -  -         0
 
-
-==> WiFi (192.168.1.50, android, wireless)
-| Container  | State      | Status     | Uptime     | Restarts   |
-| ---------  | ---------  | ---------  | ---------  | ---------  |
-| Connector  | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
-| Appium     | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
-| STF        | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
-| Uploader   | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
-
-==> iPhone_8_Plus (d6afc6b3a65584ca0813eb8957c6479b9b6ebb11, ios, usb)
-
---- DISCONNECTED ---
-
-
-==> AppleTV (aaaa1111, ios, proxy)
-| Container  | State      | Status     | Uptime     | Restarts   |
-| ---------  | ---------  | ---------  | ---------  | ---------  |
-| Connector  | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
-| Appium     | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
-| STF        | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
-| Uploader   | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
-
-==> iPhoneWiFi (bbbb2222, ios, wireless)
-| Container  | State      | Status     | Uptime     | Restarts   |
-| ---------  | ---------  | ---------  | ---------  | ---------  |
-| Connector  | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
-| Appium     | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
-| STF        | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
-| Uploader   | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
-
-==> Emu (emu1, android, android-sim)
-| Container  | State      | Status     | Uptime     | Restarts   |
-| ---------  | ---------  | ---------  | ---------  | ---------  |
-| Connector  | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
-| Appium     | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
-| STF        | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
-| Uploader   | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
-
-==> Sim (B1B07E76, ios, ios-sim)
-| Container  | State      | Status     | Uptime     | Restarts   |
-| ---------  | ---------  | ---------  | ---------  | ---------  |
-| Connector  | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
-| Appium     | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
-| STF        | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
-| Uploader   | UNKNOWN    | UNKNOWN    | UNKNOWN    | UNKNOWN    |
+  R running; S starting, unhealthy, restarting; X exited, dead; - no container
+  C connector - S stf - A appium - U uploader - zebrunner-farm status <device>: its containers
+### status 0
 ### calls
-docker|ps|-a
-docker|ps|-a
-docker|ps|-a
-docker|ps|-a
-docker|ps|-a
-docker|ps|-a
-docker|ps|-a
+docker|ps|-a|--format|{{.Names}} {{.State}}
