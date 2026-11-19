@@ -21,6 +21,35 @@
     mode: "0755"
   tags: [devices, files]
 
+# the certificate of MCloud the containers of STF trust (README.md#tls-of-mcloud): none for a certificate of a public CA,
+# the pinned one of the join string (MCLOUD_TLS_PIN) for a self-signed one, MCLOUD_CA_PEM of zebrunner-farm.env
+- name: Find the certificate of MCloud the containers of STF trust
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_playbook_python }}"
+      - "{{ agent_dir }}/patch/tlstrust.py"
+      - "{{ PUBLIC_IP }}"
+      - "{{ PUBLIC_IP_PORT }}"
+      - "{{ MCLOUD_TLS_PIN | default('', true) }}"
+  register: common_farm_tls
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  delegate_to: localhost
+  become: false
+  when: PUBLIC_IP_PROTOCOL == 'https' and not STF_TLS_INSECURE | bool
+  tags: [devices, files]
+
+- name: Check the certificate of MCloud
+  ansible.builtin.assert:
+    that: common_farm_tls is skipped or common_farm_tls.rc == 0
+    fail_msg: "{{ common_farm_tls.stderr | default('') }}"
+    success_msg: >-
+      {{ 'STF_TLS_INSECURE: the containers of STF do not verify the certificate of MCloud' if STF_TLS_INSECURE | bool
+         else ('the containers of STF trust the pinned certificate of MCloud' if common_farm_tls.stdout | default('')
+               else 'the containers of STF verify the certificate of MCloud') }}
+  tags: [devices, files]
+
 - name: Copy 'zebrunner-farm' settings file
   ansible.builtin.template:
     src: zebrunner-farm.env

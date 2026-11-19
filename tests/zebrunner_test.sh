@@ -552,6 +552,21 @@ elif command == "kind":
     ip = ipaddress.ip_address(args[0])
     print("loopback" if ip.is_loopback else "private" if ip.is_private else "public")
 PYTHON
+# the certificate of MCloud: ${WORK}/net/tls is "pinned" (a self-signed one of the pin) or "fail <reason>", a public CA
+# without it
+cp "${AGENT}/patch/tlstrust.py" "${WORK}/tlstrust.py"
+cat > "${AGENT}/patch/tlstrust.py" << 'PYTHON'
+import os
+import sys
+
+path = os.path.join(os.environ["STUB_DIR"], "net", "tls")
+state = open(path).read().strip() if os.path.exists(path) else ""
+if state == "pinned":
+    print("-----BEGIN CERTIFICATE-----")
+elif state.startswith("fail "):
+    print(state[5:], file=sys.stderr)
+    sys.exit(1)
+PYTHON
 cp "${WORK}/bin/docker" "${WORK}/docker"
 # docker of no container (inspect fails) and no device
 # the stub body is expanded when the stub runs
@@ -692,6 +707,17 @@ else
   skip_check "the settings of the deployed zebrunner-farm" "no ansible"
 fi
 
+check_contains "a certificate of a public CA" "a public CA signs the certificate of MCloud" "$(doctor_run)"
+echo pinned > "${WORK}/net/tls"
+check_contains "the pinned self-signed certificate" "the containers of STF trust the pinned certificate of MCloud" "$(doctor_run)"
+echo "fail the TLS key is not the pinned one" > "${WORK}/net/tls"
+check_contains "a certificate the containers do not trust is a problem" \
+  "the containers of STF do not trust the certificate of MCloud: the TLS key is not the pinned one" "$(doctor_run)"
+echo 'STF_TLS_INSECURE: true' >> "$vars"
+check_contains "STF_TLS_INSECURE is a warning" "STF_TLS_INSECURE: the containers of STF do not verify the certificate of MCloud" \
+  "$(doctor_run)"
+sed -i.bak '/^STF_TLS_INSECURE:/d' "$vars" && rm -f "${vars}.bak"
+rm -f "${WORK}/net/tls"
 echo "192.168.50.2:4446" > "${WORK}/net/closed"
 check_contains "a closed port is a problem" "192.168.50.2:4446 (192.168.50.2) does not accept connections: Connection refused" "$(doctor_run)"
 : > "${WORK}/net/closed"
@@ -738,6 +764,7 @@ rm -f "$vars"
 check_contains "no settings" "config/settings.yml does not exist" "$(doctor_run)"
 mv "${WORK}/docker" "${WORK}/bin/docker"
 mv "${WORK}/netcheck.py" "${AGENT}/patch/netcheck.py"
+mv "${WORK}/tlstrust.py" "${AGENT}/patch/tlstrust.py"
 rm -f "${WORK}/bin/curl"
 mv "${WORK}/vars.before-join" "$vars"
 

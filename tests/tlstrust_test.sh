@@ -1,0 +1,47 @@
+#!/bin/bash
+# patch/tlstrust.py: the certificate of MCloud the containers of STF trust, against a local https server with a
+# self-signed certificate of localhost
+source "$(dirname "$0")/lib.sh"
+require_cmd python3
+require_cmd openssl
+
+openssl req -x509 -newkey rsa:2048 -nodes -keyout "${WORK}/key.pem" -out "${WORK}/cert.pem" -days 2 \
+  -subj "/CN=localhost" -addext "subjectAltName=DNS:localhost" > /dev/null 2>&1
+pin="$(openssl x509 -in "${WORK}/cert.pem" -pubkey -noout | openssl pkey -pubin -outform der |
+  openssl dgst -sha256 -binary | base64)"
+# the server answers until the test ends (the cleanup of lib.sh removes WORK, the server stops with its file)
+python3 - "$WORK" > "${WORK}/server.log" 2>&1 << 'PYTHON' &
+import http.server, os, socket, ssl, sys, threading, time
+work = sys.argv[1]
+context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+context.load_cert_chain(os.path.join(work, "cert.pem"), os.path.join(work, "key.pem"))
+server = http.server.HTTPServer(("127.0.0.1", 0), http.server.SimpleHTTPRequestHandler)
+server.socket = context.wrap_socket(server.socket, server_side=True)
+open(os.path.join(work, "port"), "w").write(str(server.server_address[1]))
+threading.Thread(target=server.serve_forever, daemon=True).start()
+while os.path.exists(os.path.join(work, "cert.pem")):
+    time.sleep(0.5)
+PYTHON
+for _ in $(seq 1 50); do
+  [[ -s "${WORK}/port" ]] && break
+  sleep 0.1
+done
+port="$(cat "${WORK}/port")"
+
+trust() {
+  python3 "${REPO}/patch/tlstrust.py" "$@" 2>&1
+  echo "rc=$?"
+}
+
+section "tlstrust.py"
+check "the pinned self-signed certificate is printed" "-----BEGIN CERTIFICATE-----" "$(trust localhost "$port" "$pin" | head -n 1)"
+check "it is the certificate of the server" "$(openssl x509 -in "${WORK}/cert.pem" -outform der | openssl dgst -sha256)" \
+  "$(python3 "${REPO}/patch/tlstrust.py" localhost "$port" "$pin" | openssl x509 -outform der | openssl dgst -sha256)"
+check_contains "another key is refused" "is not the pinned one of the join string" "$(trust localhost "$port" "AAAA${pin:4}")"
+check_contains "a certificate of another host is refused" "is not valid for 127.0.0.1" "$(trust 127.0.0.1 "$port" "$pin")"
+check_contains "no pin: no trust" "MCLOUD_TLS_PIN is empty" "$(trust localhost "$port" "")"
+check_contains "a closed port" "is not reachable over https" "$(trust localhost 1 "$pin")"
+check_contains "the errors exit with 1" "rc=1" "$(trust localhost "$port" "")"
+check "the usage" "rc=2" "$(trust localhost | tail -n 1)"
+rm -f "${WORK}/cert.pem"
+finish

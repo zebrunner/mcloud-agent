@@ -271,6 +271,16 @@ The MCloud server checks a host too: `./zebrunner.sh nodes check <label>` of [mc
 
 Every check is a line: a green, amber or red dot on a terminal (`ok`, `warn`, `FAIL` without colors), a muted circle (`info`) for a fact, and `fix` under a problem; the last lines count them (`12 ok, 1 warn, 0 fail` without colors) and tell what to do. It exits with `1` when a check fails.
 
+### TLS of MCloud
+
+The containers of STF of the devices talk to MCloud over https (`PUBLIC_IP`, the storage and the API) and verify its certificate. The deploy (`patch/tlstrust.py`) finds which one they trust:
+
+- a certificate of a public CA valid for `PUBLIC_IP`: nothing to do, the containers trust it already;
+- otherwise (a self-signed certificate): the certificates the server sends, only when their key is the pinned one of the join string (`MCLOUD_TLS_PIN`) and they are valid for `PUBLIC_IP`; `zebrunner-farm` passes them to the containers in `MCLOUD_CA_PEM` (`NODE_EXTRA_CA_CERTS` of mcloud-device);
+- another key, a certificate of another name or no server: the deploy stops with the reason. Use the name or the address of the certificate in `PUBLIC_IP`; for a self-signed certificate of another name only, `STF_TLS_INSECURE: true` of `config/settings.yml` turns the verification off (`NODE_TLS_REJECT_UNAUTHORIZED=0`), anyone in the path then reads the node token and changes the apps installed on the devices.
+
+`./zebrunner.sh doctor` runs the same check. A new certificate of MCloud: a public one needs nothing, a new self-signed one `./zebrunner.sh ansible` and `zebrunner-farm restart` (a new TLS key: a new join string).
+
 ### Device hosts in a private network
 
 Many device hosts without public addresses can work with one MCloud server of their network: the users reach the MCloud server only. The screens go from the browser to stf-proxy of mcloud (`/d/<STF_PROVIDER_HOST>/...`) and from it to the device host, the tests go to mcloud-grid and from it to the Appium node of the device host (`http://<STF_PROVIDER_HOST>:<appium_port>`); ZeroMQ, the storage and S3 are connections of the device host to the server.
