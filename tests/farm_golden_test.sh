@@ -38,8 +38,8 @@ settings='{"MCLOUD_NODE_TOKEN": "token", "STF_PROVIDER_HOST": "10.1.1.1", "PUBLI
   "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY": "server-key", "STF_ZMQ_CURVE_SECRET_KEY": "secret-key", "S3_BUCKET": "bucket",
   "S3_TENANT": "tenant", "S3_SECRET": "s3 $ecret", "WDA_FILE": "/opt/wda.ipa", "REMOTE_CONNECT_HOST": "relay.example.com"}'
 
-# golden <devices|mac-devices>: the calls and the output of the commands; the paths of the test replaced, without the
-# colors and the indent of the status table (column -t of util-linux keeps its empty first column, the one of macOS not)
+# golden <devices|mac-devices>: the calls, the output and the status of the commands; the paths of the test and the
+# time of a group replaced
 golden() {
   local role="$1"
   local args
@@ -56,9 +56,10 @@ golden() {
     # shellcheck disable=SC2086
     env -i HOME="$WORK" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" MCLOUD_LOCK_DIR="$WORK" \
       ZEBRUNNER_FARM_ENV="${WORK}/farm.env" /bin/bash "$FARM_SCRIPT" $args < /dev/null 2>&1
+    echo "### status $?"
     echo "### calls"
     cat "${WORK}/calls.log" 2> /dev/null
-  done | sed -e "s|${WORK}|<work>|g" -e "s|${REPO}|<agent>|g" -e $'s/\033\\[[0-9;]*m//g' -e 's/^ *|/|/'
+  done | sed -e "s|${WORK}|<work>|g" -e "s|${REPO}|<agent>|g" -e 's/done in [0-9][0-9a-z ]*$/done in <time>/'
 }
 
 for role in devices mac-devices; do
