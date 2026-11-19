@@ -514,14 +514,19 @@ for role in devices mac-devices; do
 done
 
 section "macOS device listener"
+# -x of a USB iOS device (the ones of the listener) keeps the listener as it is: it keeps working for that device
 for command in start stop down; do
-  for filter in "" ios android iPhone_8_Plus; do
+  for filter in "" ios android iPhone_8_Plus "-x iPhone_8_Plus" "ios -x AppleTV" "-x Galaxy" "ios -x=iPhone_8_Plus"; do
     setup_case
+    # the words of the filter are the arguments
+    # shellcheck disable=SC2086
     farm mac-devices "$command" $filter > /dev/null
     expected=""
-    if [[ -z "$filter" || "$filter" == "ios" ]]; then
+    case "$filter" in
+    "" | ios | "ios -x AppleTV" | "-x Galaxy")
       [[ "$command" == "start" ]] && expected="load" || expected="unload"
-    fi
+      ;;
+    esac
     check "${command} '${filter}' handles the listener with '${expected}'" "$expected" "$(calls launchctl | cut -d '|' -f 1 | paste -s -d ' ' -)"
   done
 done

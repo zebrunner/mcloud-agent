@@ -864,8 +864,8 @@ ensure_network() {
 # batch removes the containers of all the devices, then creates them; rolling removes and creates them device by device.
 # FARM_COMMAND is the command of zebrunner-farm (empty for ./zebrunner.sh mdm): its options DRY_RUN (--dry-run),
 # VERBOSE (-v), WATCH (--watch, the seconds) and PICK (--pick: a person picks the devices with fzf first). REFINED: a
-# person dropped a device of the devices listener of macOS (iOS, USB) from SELECTED at the question (f, x, p) or with
-# --pick: the listener keeps working for it.
+# person dropped a device of the devices listener of macOS (iOS, USB) from the group: with -x, at the question (f, x,
+# p) or with --pick; the listener keeps working for it.
 SELECTORS=()
 EXCLUDES=()
 QUIET=""
@@ -1035,21 +1035,23 @@ device_matches() {
   esac
 }
 
+# in_selectors: 0 when the device of get_device_fields matches SELECTORS (every device without them), -x aside
+in_selectors() {
+  local selector
+  [[ "$(count "${SELECTORS[@]}")" -gt 0 ]] || return 0
+  for selector in "${SELECTORS[@]}"; do
+    if device_matches "$selector"; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 # in_selection: 0 when the device of get_device_fields is one of SELECTORS (any device without them) and none of
 # EXCLUDES
 in_selection() {
   local selector
-  local included="true"
-  if [[ "$(count "${SELECTORS[@]}")" -gt 0 ]]; then
-    included=""
-    for selector in "${SELECTORS[@]}"; do
-      if device_matches "$selector"; then
-        included="true"
-        break
-      fi
-    done
-  fi
-  [[ -n "$included" ]] || return 1
+  in_selectors || return 1
   for selector in "${EXCLUDES[@]}"; do
     if device_matches "$selector"; then
       return 1
@@ -1133,6 +1135,9 @@ select_devices() {
     get_device_fields "${BASH_REMATCH[1]}" > /dev/null || continue
     if in_selection; then
       SELECTED+=("$dev_udid")
+    elif listener_device && in_selectors; then
+      # -x dropped a device of the listener from the group: the listener keeps working for it
+      REFINED="true"
     fi
   done < "$MCLOUD_DEVICES"
   if [[ "$(count "${SELECTED[@]}")" -eq 0 ]]; then
