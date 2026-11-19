@@ -225,12 +225,24 @@ for role in devices mac-devices; do
 done
 
 section "file tasks of ${OS_ROLE} (check mode)"
-output="$(playbook "$OS_ROLE" --check --tags files)"
+# the folder of the bash completions of the test: the system one is of root (Linux), the one of Homebrew of the user
+mkdir -p "${WORK}/bash_completion.d"
+output="$(playbook "$OS_ROLE" --check --tags files --extra-vars "common_farm_completion_dir=${WORK}/bash_completion.d")"
 check_contains "file tasks pass" "failed=0" "$output"
 check_contains "zebrunner-farm is deployed" "Copy 'zebrunner-farm' script file" "$output"
 if [[ "$OS_ROLE" == "mac-devices" ]]; then
   check_contains "usbmuxd_watch binary is copied, not templated" "Copy 'usbmuxd_watch' binary file" "$output"
+  completion_task="Copy the bash completion of 'zebrunner-farm' into the folder of Homebrew"
+else
+  completion_task="Copy the bash completion of 'zebrunner-farm'"
 fi
+check_contains "the completion of zebrunner-farm is deployed into the folder of bash-completion" \
+  "TASK [common : ${completion_task}] **"$'\n'"changed: [localhost]" "$(sed -E 's/\*+$/**/' <<< "$output")"
+output="$(playbook "$OS_ROLE" --check --tags files --start-at-task "Check the folder of the bash completions" \
+  --extra-vars "common_farm_completion_dir=${WORK}/no-bash-completion")"
+check_contains "without bash-completion the deploy passes" "failed=0" "$output"
+check_not_contains "without bash-completion the completion is not deployed" "changed: [localhost]" \
+  "$(sed -n "/${completion_task}/,/^\$/p" <<< "$output")"
 
 section "images download"
 # docker: pulls fail for images matching $FAIL_PULL, only images matching $LOCAL_IMAGE exist locally

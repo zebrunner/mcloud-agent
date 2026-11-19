@@ -21,7 +21,7 @@ mdm_ready() {
   [[ -n "$MCLOUD_TLS_PIN" ]] || missing+=" MCLOUD_TLS_PIN"
   [[ -n "$MCLOUD_NODE_TOKEN" ]] || missing+=" MCLOUD_NODE_TOKEN"
   if [[ -n "$missing" ]]; then
-    failed "this host is not enrolled in MCloud, empty:${missing}: ./zebrunner.sh join (README.md#node-enrollment)"
+    ui_fail "This host is not enrolled in MCloud, empty:${missing}" "./zebrunner.sh join (README.md#node-enrollment)"
     return 1
   fi
 }
@@ -40,7 +40,7 @@ mdm_call() {
   if ! answer="$(printf 'Authorization: Bearer %s\n' "$MCLOUD_NODE_TOKEN" | curl -sS -k --max-time 120 \
     --pinnedpubkey "sha256//${MCLOUD_TLS_PIN}" -H @- -X "$method" "${out_args[@]+"${out_args[@]}"}" \
     -w '\n%{http_code}' "${MCLOUD_URL%/}${path}" 2>&1)"; then
-    failed "  MCloud ${MCLOUD_URL} does not answer: ${answer##*$'\n'}" >&2
+    ui_fail "MCloud ${MCLOUD_URL} does not answer: ${answer##*$'\n'}" >&2
     return 1
   fi
   MDM_STATUS="${answer##*$'\n'}"
@@ -55,11 +55,11 @@ mdm_call() {
     [[ -n "$output" ]] || printf '%s\n' "$answer"
     return 0
     ;;
-  401) failed "  MCloud refuses the node token of this host: ./zebrunner.sh doctor" >&2 ;;
-  403) failed "  MCloud refuses this address: the public address of this site is not in MDM_SITE_ADDRESSES of MCloud" >&2 ;;
-  404) failed "  no MDM on MCloud (MDM_ENABLED of its .env) or no Android there (${path%%\?*})" >&2 ;;
-  409) failed "  ${answer##*error=}" >&2 ;;
-  *) failed "  MCloud answers ${MDM_STATUS}: ${answer}" >&2 ;;
+  401) ui_fail "MCloud refuses the node token of this host" "./zebrunner.sh doctor" >&2 ;;
+  403) ui_fail "MCloud refuses this address: the public address of this site is not in MDM_SITE_ADDRESSES of MCloud" >&2 ;;
+  404) ui_fail "No MDM on MCloud (MDM_ENABLED of its .env) or no Android there (${path%%\?*})" >&2 ;;
+  409) ui_fail "${answer##*error=}" >&2 ;;
+  *) ui_fail "MCloud answers ${MDM_STATUS}: ${answer}" >&2 ;;
   esac
   return 1
 }
@@ -116,13 +116,13 @@ mdm_with_device_free() {
   read_container_states
   if [[ "$(container_state "${dev_container}-connector")" == "running" ]]; then
     had=1
-    echo "  stopping the containers of the device"
+    ui_info "Stopping the containers of the device"
     stop_containers > /dev/null
   fi
   local status=0
   "$@" || status=$?
   if [[ -n "$had" ]]; then
-    echo "  starting the containers of the device again"
+    ui_info "Starting the containers of the device again"
     create_containers > /dev/null || status=1
   fi
   return "$status"
@@ -193,7 +193,7 @@ mdm_android() {
   local work="$MDM_WORK"
   local command
   if [[ "$action" == "enroll" ]]; then
-    echo "  the setup of the agent from the MDM"
+    ui_info "Getting the agent and its setup from the MDM"
     mdm_call GET /android/agent.apk "${work}/agent.apk" || return 1
     command="$(mdm_call GET "/android/enroll?serial=$(mdm_query "$dev_udid")&name=$(mdm_query "$dev_device_name")&format=shell")" || return 1
   else
@@ -202,7 +202,7 @@ mdm_android() {
   command="$(head -n 1 <<< "$command")"
   # the command goes into single quotes of the script: an answer with one is refused
   if [[ "$command" != "content call "* || "$command" == *"'"* ]]; then
-    failed "  an unexpected answer of the MDM"
+    ui_fail "An unexpected answer of the MDM"
     return 1
   fi
   local env_args=()
@@ -218,11 +218,11 @@ mdm_android() {
 # mdm_ios_enroll: the enrollment profile installed over USB with the supervision identity, no prompt on the device
 mdm_ios_enroll() {
   if [[ -z "$MDM_SUPERVISION_P12" || ! -r "$MDM_SUPERVISION_P12" ]]; then
-    failed "  MDM_SUPERVISION_P12 of config/settings.yml is not a readable file: the supervision identity of the farm (README.md#mdm)"
+    ui_fail "MDM_SUPERVISION_P12 of config/settings.yml is not a readable file: the supervision identity of the farm (README.md#mdm)"
     return 1
   fi
   local work="$MDM_WORK"
-  echo "  the enrollment profile from the MDM"
+  ui_info "Getting the enrollment profile from the MDM"
   mdm_call GET "/mdm/enroll?udid=$(mdm_query "$dev_udid")&name=$(mdm_query "$dev_device_name")" "${work}/enroll.mobileconfig" || return 1
   cp "$MDM_SUPERVISION_P12" "${work}/supervision.p12"
   chmod 644 "${work}/supervision.p12" "${work}/enroll.mobileconfig"
@@ -288,8 +288,11 @@ EOF
 mdm_ios_release() {
   local answer
   answer="$(mdm_call POST "/mdm/release?udid=$(mdm_query "$dev_udid")&format=shell")" || return 1
-  echo "  the MDM sent RemoveProfile (${answer##*command=}): the device leaves it once it is online"
+  ui_ok "The MDM sent RemoveProfile (${answer##*command=}): the device leaves it once it is online"
 }
+
+# the number of the device of mdm_main and the number of its devices (1/3), in the title of the device
+MDM_COUNTER=""
 
 # mdm_device <status|enroll|release>: the command for the device of get_device_fields; MDM_WORK is a folder of the
 # files of the one-shot container (the agent, the enrollment profile), removed at the end
@@ -306,13 +309,13 @@ mdm_device() {
 
 mdm_device_in() {
   local action="$1"
-  echo "==> ${dev_device_name} (${dev_udid}, ${dev_platform_name}, ${dev_connection})"
+  ui_section "mdm ${action}" "$MDM_COUNTER" "${dev_device_name} (${dev_udid}, ${dev_platform_name}, ${dev_connection})"
   if [[ "$action" == "status" ]]; then
     mdm_status
     return
   fi
   if [[ "$dev_connection" != "usb" ]]; then
-    failed "  the MDM takes the USB devices only (the connection of this one is ${dev_connection})"
+    ui_fail "The MDM takes the USB devices only (the connection of this one is ${dev_connection})"
     return 1
   fi
   case "${dev_platform_name}:${action}" in
@@ -321,31 +324,32 @@ mdm_device_in() {
     ;;
   ios:enroll)
     usb_connected > /dev/null || {
-      failed "  not connected over USB"
+      ui_fail "Not connected over USB"
       return 1
     }
     mdm_with_device_free mdm_ios_enroll
     ;;
   ios:supervise)
     usb_connected > /dev/null || {
-      failed "  not connected over USB"
+      ui_fail "Not connected over USB"
       return 1
     }
     mdm_ios_supervise
     ;;
   android:supervise)
-    failed "  supervise is for iOS: an Android device needs no erase, ./zebrunner.sh mdm enroll makes the agent its device owner"
+    ui_fail "supervise is for iOS: an Android device needs no erase, enroll makes the agent its device owner" \
+      "./zebrunner.sh mdm enroll ${dev_device_name}"
     return 1
     ;;
   android:*)
     usb_connected > /dev/null || {
-      failed "  not connected over USB"
+      ui_fail "Not connected over USB"
       return 1
     }
     mdm_with_device_free mdm_android "$action"
     ;;
   *)
-    failed "  the MDM takes Android and iOS devices only"
+    ui_fail "The MDM takes Android and iOS devices only"
     return 1
     ;;
   esac
@@ -393,7 +397,7 @@ mdm_supervision_der() {
     MDM_P12_PASSWORD="$MDM_SUPERVISION_P12_PASSWORD" openssl pkcs12 -legacy -in "$MDM_SUPERVISION_P12" -clcerts -nokeys \
       -passin env:MDM_P12_PASSWORD 2> /dev/null)"
   if [[ "$pem" != *"BEGIN CERTIFICATE"* ]] || ! printf '%s\n' "$pem" | openssl x509 -outform DER -out "$out" 2> /dev/null; then
-    failed "  MDM_SUPERVISION_P12 cannot be read with MDM_SUPERVISION_P12_PASSWORD (openssl pkcs12)"
+    ui_fail "MDM_SUPERVISION_P12 cannot be read with MDM_SUPERVISION_P12_PASSWORD (openssl pkcs12)"
     return 1
   fi
 }
@@ -439,7 +443,7 @@ mdm_neighbors_lock() {
     fi
     eval "exec ${fd}< \"\$lock\""
     flock -w "${MCLOUD_LOCK_TIMEOUT:-1800}" "$fd" || {
-      failed "  another zebrunner-farm keeps the device ${id} for too long"
+      ui_fail "Another zebrunner-farm keeps the device ${id} for too long"
       return 1
     }
     fd=$((fd + 1))
@@ -476,7 +480,8 @@ mdm_containers() {
         echo "$id"
       fi
     else
-      create_containers > /dev/null || warn "  the containers of ${dev_device_name} did not start: ./zebrunner-farm start ${dev_device_name}"
+      create_containers > /dev/null ||
+        ui_warn "The containers of ${dev_device_name} did not start" "zebrunner-farm start ${dev_device_name}"
     fi
   done
   get_device_fields "$self" > /dev/null
@@ -652,14 +657,14 @@ mdm_finish_setup() {
   local connector="${dev_container}-connector"
   local port="${dev_wda_port:-8100}"
   local i
-  echo "  waiting for WebDriverAgent of the connector"
+  ui_info "Waiting for WebDriverAgent of the connector"
   local tries="${MDM_WDA_TRIES:-72}"
   for i in $(seq 1 "$tries"); do
     if docker exec "$connector" sh -c "curl -s -m 3 localhost:${port}/status" 2> /dev/null | grep -q '"ready" *: *true'; then
       break
     fi
     if [[ "$i" -eq "$tries" ]]; then
-      warn "  WebDriverAgent is not ready: check the screen of the device (the Setup Assistant may wait for 'Continue with Partial Setup')"
+      ui_warn "WebDriverAgent is not ready: check the screen of the device (the Setup Assistant may wait for 'Continue with Partial Setup')"
       return 0
     fi
     sleep 5
@@ -732,11 +737,11 @@ EOF
 # to the Wi-Fi of the farm and enrolls it; a device supervised already is only enrolled (--force erases it anyway)
 mdm_ios_supervise() {
   if [[ -z "$MDM_SUPERVISION_P12" || ! -r "$MDM_SUPERVISION_P12" ]]; then
-    failed "  MDM_SUPERVISION_P12 of config/settings.yml is not a readable file: the supervision identity of the farm (README.md#mdm)"
+    ui_fail "MDM_SUPERVISION_P12 of config/settings.yml is not a readable file: the supervision identity of the farm (README.md#mdm)"
     return 1
   fi
   if [[ -z "$MDM_WIFI_SSID" ]]; then
-    failed "  MDM_WIFI_SSID of config/settings.yml is empty: the Wi-Fi network of the farm the erased device joins (README.md#mdm)"
+    ui_fail "MDM_WIFI_SSID of config/settings.yml is empty: the Wi-Fi network of the farm the erased device joins (README.md#mdm)"
     return 1
   fi
   local work="$MDM_WORK"
@@ -753,7 +758,7 @@ mdm_ios_supervise() {
     local bus
     bus="$(mdm_bus)"
     if [[ -z "$bus" ]]; then
-      failed "  /dev/${dev_container} is not a USB device: reconnect it"
+      ui_fail "/dev/${dev_container} is not a USB device: reconnect it"
       return 1
     fi
     usb_args=(--device-cgroup-rule='c 189:* rmw' -v "${bus}:${bus}" -v "${dev_container}-lockdown:/var/lib/lockdown")
@@ -761,23 +766,23 @@ mdm_ios_supervise() {
       [[ -n "$id" ]] && neighbors+=("$id")
     done < <(mdm_neighbors "$bus")
     if [[ "${#neighbors[@]}" -gt 0 ]]; then
-      echo "  the other iPhones of the USB bus ${bus} stop meanwhile: ${neighbors[*]}"
+      ui_info "The other iPhones of the USB bus ${bus} stop meanwhile: ${neighbors[*]}"
       mdm_neighbors_lock "${neighbors[@]}" || return 1
     fi
   fi
   # the device restarts on the bus with other numbers: its containers are created again at the end, the ones of the
   # neighbors only stop
-  [[ -n "$(mdm_containers remove "$dev_udid")" ]] && echo "  the containers of the device removed"
+  [[ -n "$(mdm_containers remove "$dev_udid")" ]] && ui_info "The containers of the device are removed"
   while IFS= read -r id; do
     [[ -n "$id" ]] && stopped+=("$id")
   done < <(mdm_containers stop "${neighbors[@]+"${neighbors[@]}"}")
-  [[ "${#stopped[@]}" -gt 0 ]] && echo "  the containers of the neighbors stopped: ${#stopped[@]} device(s)"
+  [[ "${#stopped[@]}" -gt 0 ]] && ui_info "The containers of the neighbors are stopped: ${#stopped[@]} device(s)"
 
   local status=0
   local image="${IOS_CONNECTOR_IMAGE}:${IOS_CONNECTOR_VERSION}"
   mdm_supervise_script | mdm_one_shot "$image" "${usb_args[@]+"${usb_args[@]}"}" -v "${work}:/mdm:ro" || status=$?
   if [[ "$status" -eq 0 ]]; then
-    echo "  the enrollment profile from the MDM"
+    ui_info "Getting the enrollment profile from the MDM"
     if mdm_call GET "/mdm/enroll?udid=$(mdm_query "$dev_udid")&name=$(mdm_query "$dev_device_name")" "${work}/enroll.mobileconfig"; then
       chmod 644 "${work}/enroll.mobileconfig"
       MDM_PROFILE_TRIES=8 mdm_ios_script | mdm_one_shot "$image" "${usb_args[@]+"${usb_args[@]}"}" -v "${work}:/mdm:ro" || status=1
@@ -786,15 +791,15 @@ mdm_ios_supervise() {
     fi
   fi
 
-  [[ "${#stopped[@]}" -gt 0 ]] && echo "  starting the containers of the neighbors again"
+  [[ "${#stopped[@]}" -gt 0 ]] && ui_info "Starting the containers of the neighbors again"
   mdm_containers start "${stopped[@]+"${stopped[@]}"}"
   mdm_neighbors_unlock
   # the containers of the device, new (a new device gets them too) once it stays on the bus
   mdm_usb_settled
-  echo "  creating the containers of the device"
+  ui_info "Creating the containers of the device"
   mdm_containers start "$dev_udid"
   if [[ "$status" -eq 0 ]]; then
-    echo "  supervised and enrolled: ./zebrunner.sh mdm status ${dev_device_name}"
+    ui_ok "Supervised and enrolled: ./zebrunner.sh mdm status ${dev_device_name} shows it"
   fi
   return "$status"
 }
@@ -821,12 +826,12 @@ mdm_confirm_erase() {
   local answer
   [[ -n "$MDM_YES" ]] && return 0
   if [[ ! -t 0 ]]; then
-    failed "supervise ERASES the devices: run it at a terminal or with --yes"
+    ui_fail "supervise ERASES the devices: run it at a terminal or with --yes"
     return 1
   fi
-  echo -e "\nsupervise ERASES these devices: all their data and apps go (Find My must be off, no passcode):"
+  ui_callout warn "supervise ERASES these devices: all their data and apps go (Find My must be off, no passcode)."
   print_selection
-  read -r -p "Type erase to go on: " answer || return 1
+  read -r -p "$(ui_prompt "Type erase to go on:")" answer || return 1
   [[ "$answer" == "erase" ]]
 }
 
@@ -838,7 +843,11 @@ mdm_main() {
   case "$action" in
   status | enroll | release | supervise) ;;
   *)
-    echo "Usage: ./zebrunner.sh mdm <status|enroll|release|supervise> [devices] [options] (./zebrunner.sh help, README.md#mdm)"
+    if [[ -n "$action" ]]; then
+      ui_callout error "Unknown action '${action}' of mdm."
+    fi
+    ui_usage "./zebrunner.sh mdm <status|enroll|release|supervise> [devices...] [options]"
+    ui_muted "./zebrunner.sh help mdm, README.md#mdm"
     return 1
     ;;
   esac
@@ -851,14 +860,14 @@ mdm_main() {
     case "$arg" in
     --uninstall)
       if [[ "$action" != "release" ]]; then
-        failed "--uninstall is an option of release only"
+        ui_fail "--uninstall is an option of release only"
         return 1
       fi
       MDM_UNINSTALL=1
       ;;
     --force)
       if [[ "$action" != "supervise" ]]; then
-        failed "--force is an option of supervise only"
+        ui_fail "--force is an option of supervise only"
         return 1
       fi
       MDM_FORCE=1
@@ -868,7 +877,7 @@ mdm_main() {
       args+=("$arg")
       ;;
     --json | --batch | --rolling | --strategy*)
-      failed "unknown option: $arg"
+      ui_fail "Unknown option: ${arg}" "./zebrunner.sh help mdm"
       return 1
       ;;
     *)
@@ -879,17 +888,18 @@ mdm_main() {
   check_devices_list || return 1
   parse_selection "${args[@]+"${args[@]}"}" || return 1
   if [[ "$action" != "status" && "$(count "${SELECTORS[@]}")" -eq 0 ]]; then
-    failed "./zebrunner.sh mdm ${action} <devices>: the devices (udids, names, groups such as ios or android, patterns)"
+    ui_fail "mdm ${action} needs the devices: udids, names, groups such as ios or android, patterns" \
+      "./zebrunner.sh mdm ${action} <devices>"
     return 1
   fi
   select_devices || return 1
   mdm_ready || return 1
   if [[ "$action" != "status" ]] && ! confirm_selection "mdm ${action}"; then
-    echo "Cancelled."
+    ui_info "Cancelled."
     return 0
   fi
   if [[ "$action" == "supervise" ]] && ! mdm_confirm_erase; then
-    echo "Cancelled."
+    ui_info "Cancelled."
     return 1
   fi
   # the listener of macOS (the iOS devices) would start the containers of the devices meanwhile
@@ -906,7 +916,13 @@ mdm_main() {
     launchctl unload "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
   fi
   local failures=()
+  local total
+  local number=0
+  total="$(count "${SELECTED[@]}")"
   for udid in "${SELECTED[@]}"; do
+    number=$((number + 1))
+    # the counter of the section of the device
+    MDM_COUNTER="${number}/${total}"
     get_device_fields "$udid" > /dev/null || continue
     if [[ "$action" == "status" ]]; then
       mdm_device status || failures+=("$dev_device_name")
@@ -921,8 +937,9 @@ mdm_main() {
     launchctl load "${HOME}/Library/LaunchAgents/ZebrunnerDevicesListener.plist" > /dev/null 2>&1
   fi
   if [[ "${#failures[@]}" -gt 0 ]]; then
-    if [[ "$(count "${SELECTED[@]}")" -gt 1 ]]; then
-      failed "mdm ${action} failed for: ${failures[*]}"
+    if [[ "$total" -gt 1 ]]; then
+      echo ""
+      ui_fail "mdm ${action} failed for: ${failures[*]}"
     fi
     return 1
   fi

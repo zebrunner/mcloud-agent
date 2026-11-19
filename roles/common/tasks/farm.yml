@@ -39,3 +39,48 @@
     owner: root
     group: "{{ 'wheel' if common_farm_os == 'macos' else 'root' }}"
   tags: [devices, files]
+
+# the completion of zebrunner-farm (and ./zebrunner.sh) in bash, patch/completion.sh (README.md#completion): in the
+# folder of bash-completion of the system on Linux, of Homebrew of the user on macOS; only when the folder exists:
+# nothing loads it without bash-completion. common_farm_completion_dir overrides the folder (the tests); zsh evals
+# `zebrunner-farm completion zsh` in ~/.zshrc instead
+- name: Find the prefix of Homebrew
+  ansible.builtin.shell: PATH="/opt/homebrew/bin:/usr/local/bin:$PATH" brew --prefix
+  register: common_farm_brew_prefix
+  changed_when: false
+  failed_when: false
+  # it reads only; brew refuses to run as root
+  check_mode: false
+  become: false
+  when: common_farm_os == 'macos' and not common_farm_completion_dir | default('')
+  tags: [devices, files]
+
+- name: Check the folder of the bash completions
+  ansible.builtin.stat:
+    path: >-
+      {{ common_farm_completion_dir | default('', true)
+         or ('/etc/bash_completion.d' if common_farm_os == 'linux'
+             else (common_farm_brew_prefix.stdout | default('', true) | trim or '/nonexistent') ~ '/etc/bash_completion.d') }}
+  register: common_farm_completion
+  become: false
+  tags: [devices, files]
+
+- name: Copy the bash completion of 'zebrunner-farm'
+  ansible.builtin.copy:
+    src: "{{ agent_dir }}/patch/completion.sh"
+    dest: "{{ common_farm_completion.stat.path }}/zebrunner-farm"
+    mode: "0644"
+    owner: root
+    group: root
+  when: common_farm_os == 'linux' and common_farm_completion.stat.isdir | default(false)
+  tags: [devices, files]
+
+# the folder of Homebrew is of the user
+- name: Copy the bash completion of 'zebrunner-farm' into the folder of Homebrew
+  ansible.builtin.copy:
+    src: "{{ agent_dir }}/patch/completion.sh"
+    dest: "{{ common_farm_completion.stat.path }}/zebrunner-farm"
+    mode: "0644"
+  become: false
+  when: common_farm_os == 'macos' and common_farm_completion.stat.isdir | default(false)
+  tags: [devices, files]
