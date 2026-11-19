@@ -38,7 +38,8 @@ stub docker '(IFS="|"; echo "docker|$*") >> "${STUB_DIR}/calls.log"
 exit 0'
 record_stub zebrunner-farm
 
-# zbr <stdin text> <zebrunner.sh arguments...>: runs zebrunner.sh of the repo copy without the user's
+# zbr <stdin text> <zebrunner.sh arguments...>: runs zebrunner.sh of the repo copy (unwrap: the messages on one line)
+# without the user's
 # environment; $OS sets uname, $AGENT_DIR the ZEBRUNNER_MCLOUD_AGENT_DIR variable of the shell when not empty (it is
 # not used: zebrunner.sh knows its folder)
 zbr() {
@@ -46,7 +47,8 @@ zbr() {
   shift
   printf '%b' "$input" | env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb \
     STUB_DIR="$WORK" FAKE_UNAME="${OS:-Linux}" ANSIBLE_EXIT="${ANSIBLE_EXIT:-0}" ZEBRUNNER_PYTHON="$YAML_PYTHON" \
-    ${AGENT_DIR:+ZEBRUNNER_MCLOUD_AGENT_DIR=$AGENT_DIR} /bin/bash "${AGENT}/zebrunner.sh" "$@" 2>&1
+    ${AGENT_DIR:+ZEBRUNNER_MCLOUD_AGENT_DIR=$AGENT_DIR} /bin/bash "${AGENT}/zebrunner.sh" "$@" 2>&1 | unwrap
+  return "${PIPESTATUS[1]}"
 }
 
 # unwrapped <text>: the text as one line, without the bars of the callouts and the indents of the wrapped lines
@@ -212,7 +214,8 @@ rosetta() {
   local arm64="$1" installed="$2"
   shift 2
   printf '' | env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
-    FAKE_UNAME=Darwin FAKE_ARM64="$arm64" FAKE_ROSETTA="$installed" /bin/bash "${AGENT}/zebrunner.sh" "$@" 2>&1
+    FAKE_UNAME=Darwin FAKE_ARM64="$arm64" FAKE_ROSETTA="$installed" /bin/bash "${AGENT}/zebrunner.sh" "$@" 2>&1 | unwrap
+  return "${PIPESTATUS[1]}"
 }
 settings_dir="${WORK}/home/Library/Group Containers/group.com.docker"
 mkdir -p "$settings_dir"
@@ -412,7 +415,8 @@ doctor_run() {
   printf '' | env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
     FAKE_UNAME=Linux DOCTOR_FARM="${WORK}/farm" DOCTOR_FARM_ENV="${WORK}/farm.env" DOCTOR_DEVICES="${WORK}/devices.txt" \
     ZEBRUNNER_PYTHON="$YAML_PYTHON" \
-    /bin/bash "${AGENT}/zebrunner.sh" doctor 2>&1
+    /bin/bash "${AGENT}/zebrunner.sh" doctor 2>&1 | unwrap
+  return "${PIPESTATUS[1]}"
 }
 rm -f "${WORK}/farm" "${WORK}/devices.txt"
 cp "${WORK}/vars.joined" "$vars"

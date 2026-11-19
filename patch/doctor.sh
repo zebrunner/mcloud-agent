@@ -42,7 +42,7 @@ doctor_fail() {
 
 # doctor_section <title> [detail]: the title of a group of checks, the detail (e.g. the file of the checks) under it
 doctor_section() {
-  print_section "$@"
+  ui_section "$1" "" "${2:-}"
 }
 
 # setting <name>: the value of a setting as the playbooks load it (DOCTOR_SETTINGS of doctor_settings)

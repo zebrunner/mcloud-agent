@@ -40,54 +40,6 @@ echo_telegram() {
   ui_muted "For more help join telegram channel: https://t.me/zebrunner"
 }
 
-# print_section <title> [detail]: the title of a section of the output, the detail (e.g. the folder) muted under it
-print_section() {
-  ui_section "$1"
-  if [[ -n "${2:-}" ]]; then
-    ui_muted "$2"
-    echo ""
-  fi
-}
-
-# wrap_words <text> <width>: the text wrapped at the spaces to the width, one line per line; a longer word (e.g. a path)
-# stays whole on its own line, so it can be copied
-wrap_words() {
-  printf '%s\n' "$1" | awk -v width="$2" '{
-    line = ""
-    for (i = 1; i <= NF; i++) {
-      if (line == "") {
-        line = $i
-      } else if (length(line) + 1 + length($i) <= width) {
-        line = line " " $i
-      } else {
-        print line
-        line = $i
-      }
-    }
-    print line
-  }'
-}
-
-# print_paragraph <text>: a paragraph wrapped to the width of the terminal output, an empty line after it
-print_paragraph() {
-  local line
-  while IFS= read -r line; do
-    printf '  %s\n' "$line"
-  done <<< "$(wrap_words "$1" "$UI_WIDTH")"
-  echo ""
-}
-
-# print_step <number> <text>: a numbered step of a list, the text wrapped under itself, an empty line after it
-print_step() {
-  local head="   ${UI_ACCENT}${1}.${UI_RESET} "
-  local line
-  while IFS= read -r line; do
-    printf '%s%s\n' "$head" "$line"
-    head="      "
-  done <<< "$(wrap_words "$2" $((UI_WIDTH - 4)))"
-  echo ""
-}
-
 # confirm_prompt <question> <default y|n>: the prompt of confirm: the question without the indent of the earlier
 # callers and the hint of the default ([Y/n] or [y/N])
 confirm_prompt() {

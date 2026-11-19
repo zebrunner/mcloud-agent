@@ -9,7 +9,7 @@ backup_files() {
 
 # backup: the settings of config/ into a private folder of backup/ (README.md#settings)
 backup() {
-  print_section "Backup" "Backup MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
+  ui_section "Backup" "" "Backup MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
 
   confirm "" "Do you want to do a backup now?" "n" || exit 0
   local backup_dir_name
@@ -36,7 +36,7 @@ backup() {
 
 # restore: the settings of config/ from a folder of backup/, asks which one
 restore() {
-  print_section "Restore" "Restore MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
+  ui_section "Restore" "" "Restore MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}'"
 
   ui_warn "Before restoring do the following:" "zebrunner-farm down"
 
