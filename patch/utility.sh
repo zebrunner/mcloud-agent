@@ -1,5 +1,12 @@
 #!/bin/bash
-# The helpers of the host scripts; the messages need the functions of patch/ui.sh, sourced after this file
+# The helpers of the host scripts; the messages need the functions of patch/ui.sh
+
+# patch/ui.sh for every script that sources this file, also a zebrunner-farm deployed before patch/ui.sh with the
+# folder updated since (git pull without the deploy)
+if ! declare -F ui_init > /dev/null; then
+  # shellcheck source=patch/ui.sh
+  source "$(dirname "${BASH_SOURCE[0]}")/ui.sh"
+fi
 
 # the colors of failed, warn and succeed
 GREEN='\033[0;32m'

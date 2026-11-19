@@ -7,6 +7,13 @@ source "${REPO}/patch/utility.sh"
 source "${REPO}/patch/ui.sh"
 UI_ASCII=true UI_COLOR=never COLUMNS=80 ui_init
 
+section "patch/ui.sh"
+# a zebrunner-farm deployed before patch/ui.sh sources patch/utility.sh only: its help still prints
+# the code runs in a child bash, $1 is its argument
+# shellcheck disable=SC2016
+check "patch/utility.sh alone sources patch/ui.sh" "  For more help join telegram channel: https://t.me/zebrunner" \
+  "$(env -u UI_COLOR LANG=C bash -c 'source "$1/patch/utility.sh"; echo_telegram' _ "$REPO" 2>&1 | tail -1)"
+
 section "confirm"
 # answer <stdin text> <default>: exit code of confirm
 answer() {
