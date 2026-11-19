@@ -863,7 +863,8 @@ ensure_network() {
 # (-q) skips the question. SELECTED are their udids in the order of mcloud-devices.txt. RESTART_STRATEGY of restart:
 # batch removes the containers of all the devices, then creates them; rolling removes and creates them device by device.
 # FARM_COMMAND is the command of zebrunner-farm (empty for ./zebrunner.sh mdm): its options DRY_RUN (--dry-run),
-# VERBOSE (-v) and WATCH (--watch, the seconds).
+# VERBOSE (-v), WATCH (--watch, the seconds) and PICK (--pick: a person picks the devices with fzf first). REFINED: a
+# person narrowed SELECTED at the question (f, x, p) or with --pick: not the group of the selectors any more.
 SELECTORS=()
 EXCLUDES=()
 QUIET=""
@@ -873,6 +874,8 @@ FARM_COMMAND=""
 DRY_RUN=""
 VERBOSE=""
 WATCH=""
+PICK=""
+REFINED=""
 
 # the groups of the devices: the platforms and the connections
 GROUPS_LIST=(ios android usb wireless android-sim ios-sim proxy)
@@ -905,6 +908,7 @@ farm_option() {
   case "$1" in
   --dry-run) commands="start stop restart down" ;;
   --watch | -v | --verbose) commands="status" ;;
+  --pick) commands="status start stop restart down" ;;
   esac
   if [[ -z "$FARM_COMMAND" ]]; then
     farm_status fail "unknown option: $1"
@@ -926,8 +930,14 @@ parse_selection() {
   DRY_RUN=""
   VERBOSE=""
   WATCH=""
+  PICK=""
+  REFINED=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
+    --pick)
+      farm_option "$1" || return 1
+      PICK="true"
+      ;;
     -q | --quiet | -y | --yes)
       QUIET="true"
       ;;
@@ -1158,19 +1168,33 @@ refine_selection() {
     fi
   done
   SELECTED=("${kept[@]}")
+  REFINED="true"
 }
 
-# pick_devices: SELECTED with the devices a person picks with fzf (TAB marks several); unchanged when it is cancelled
+# can_pick: 0 when a person can pick the devices with fzf: fzf is installed, stdin and stdout are a terminal
+can_pick() {
+  command -v fzf > /dev/null 2>&1 && [[ -t 0 && -t 1 ]]
+}
+
+# pick_devices [one] [<header>]: SELECTED with the devices a person picks with fzf from SELECTED (TAB marks several, one
+# picks a single device); fails and keeps SELECTED when it is cancelled (Esc) or nothing is picked
 pick_devices() {
+  local mode="${1:-}"
+  local header="${2:-TAB marks the devices, Enter picks them, Esc goes back}"
   local picked
   local udid
   local line
   local -a kept=()
+  local -a multi=(--multi)
+  if [[ "$mode" == "one" ]]; then
+    multi=()
+  fi
+  # the udid is the hidden first field: the names, platforms and connections are shown
   picked="$(for udid in "${SELECTED[@]}"; do
     get_device_fields "$udid" > /dev/null || continue
     printf '%s\t%s\t%s\t%s\t%s\n' "$dev_udid" "$dev_device_name" "$dev_platform_name" "$dev_connection" "$dev_udid"
-  done | fzf --multi --delimiter $'\t' --with-nth 2.. --prompt "devices> " \
-    --header "TAB marks the devices, Enter picks them, Esc goes back")" || return 0
+  done | fzf ${multi[@]+"${multi[@]}"} --delimiter $'\t' --with-nth 2.. --prompt "devices> " --header "$header")" ||
+    return 1
   for udid in "${SELECTED[@]}"; do
     while IFS=$'\t' read -r line _; do
       if [[ "$line" == "$udid" ]]; then
@@ -1179,7 +1203,9 @@ pick_devices() {
       fi
     done <<< "$picked"
   done
-  [[ "$(count "${kept[@]}")" -eq 0 ]] || SELECTED=("${kept[@]}")
+  [[ "$(count ${kept[@]+"${kept[@]}"})" -gt 0 ]] || return 1
+  SELECTED=("${kept[@]}")
+  REFINED="true"
 }
 
 # containers_summary: the state of the containers of the device of get_device_fields in CONTAINER_STATES
@@ -1252,7 +1278,7 @@ confirm_selection() {
   fi
   # p: fzf at a terminal
   local pick=""
-  if command -v fzf > /dev/null 2>&1 && [[ -t 0 && -t 1 ]]; then
+  if can_pick; then
     pick="true"
   fi
   local hint
@@ -1303,7 +1329,8 @@ confirm_selection() {
       ;;
     [pP])
       if [[ -n "$pick" ]]; then
-        pick_devices
+        # Esc or nothing picked: the list stays
+        pick_devices || true
       else
         ui_warn "p picks the devices with fzf at a terminal: install fzf"
       fi
@@ -1452,6 +1479,8 @@ start_device() {
 # devices listener handles the USB iOS devices, stop and down unload it, start loads it
 listener_applies() {
   [[ "$FARM_OS" == "macos" ]] || return 1
+  # some devices of the group picked by a person: the listener keeps the other iOS devices
+  [[ -z "$REFINED" ]] || return 1
   local selector
   [[ "$(count "${SELECTORS[@]}")" -eq 0 ]] && return 0
   for selector in "${SELECTORS[@]}"; do
@@ -1880,12 +1909,14 @@ usage_error() {
   return 2
 }
 
-# debug_command <logs|shell|exec> <arguments...>: docker logs, a shell or a command in a container of one device
+# debug_command <logs|shell|exec> <arguments...>: docker logs, a shell or a command in a container of one device; the
+# device is picked with fzf with --pick (in its place) or for logs and shell without one when a person can pick it
 debug_command() {
   local command="$1"
   shift
   local device=""
   local role=""
+  local pick=""
   local follow=""
   local tail=200
   local cmd=()
@@ -1895,6 +1926,9 @@ debug_command() {
       break
     fi
     case "$1" in
+    --pick)
+      pick="true"
+      ;;
     -f | --follow)
       [[ "$command" == "logs" ]] || {
         usage_error "$command" "unknown option: $1"
@@ -1923,7 +1957,7 @@ debug_command() {
       return
       ;;
     *)
-      if [[ -z "$device" ]]; then
+      if [[ -z "$device" && -z "$pick" ]]; then
         device="$1"
       elif [[ -z "$role" ]]; then
         role="$1"
@@ -1935,13 +1969,29 @@ debug_command() {
     esac
     shift
   done
-  [[ -n "$device" ]] || {
-    usage_error "$command" "${command} needs a device: its name or udid"
+  # can_pick here: in a command substitution its stdout is no terminal
+  local pickable=""
+  if can_pick; then
+    pickable="true"
+  fi
+  # --pick after the role of logs or shell (logs stf --pick): the word is the role
+  if [[ -n "$pick" && -n "$device" ]]; then
+    if [[ -z "$role" && "$command" != "exec" ]]; then
+      role="$device"
+      device=""
+    else
+      usage_error "$command" "--pick takes the place of the device: $(command_usage "$command" | sed 's/<device|--pick>/--pick/')"
+      return
+    fi
+  fi
+  # a person picks the device of logs and shell without one; exec asks for --pick (its words are a role and a command)
+  if [[ -z "$device" && -z "$pick" && ("$command" == "exec" || -z "$pickable") ]]; then
+    usage_error "$command" "${command} needs a device: its name or udid${pickable:+, or --pick to pick it with fzf}"
     return
-  }
+  fi
   if [[ "$command" == "exec" ]]; then
-    [[ -n "$role" && "$(count "${cmd[@]}")" -gt 0 ]] || {
-      usage_error "$command" "exec needs a device, a role (${ROLES[*]}) and a command"
+    [[ -n "$role" && "$(count ${cmd[@]+"${cmd[@]}"})" -gt 0 ]] || {
+      usage_error "$command" "exec needs a device (or --pick), a role (${ROLES[*]}) and a command"
       return
     }
   fi
@@ -1951,6 +2001,20 @@ debug_command() {
     return
   }
   check_devices_list || return 1
+  if [[ -z "$device" ]]; then
+    if [[ -z "$pickable" ]]; then
+      farm_status fail "--pick needs fzf at a terminal" "install fzf, or name the device: $(command_usage "$command")"
+      return 1
+    fi
+    SELECTORS=()
+    EXCLUDES=()
+    select_devices || return 1
+    if ! pick_devices one "Enter picks the device for ${command} ${role}, Esc cancels"; then
+      ui_info "Cancelled."
+      return 0
+    fi
+    device="${SELECTED[0]}"
+  fi
   one_device "$device" || return 1
   local name="${dev_container}-${role}"
   read_container_states
@@ -2054,9 +2118,9 @@ farm_help() {
 command_usage() {
   case "$1" in
   status | start | stop | restart | down) echo "zebrunner-farm $1 [devices...] [options]" ;;
-  logs) echo "zebrunner-farm logs <device> [role] [-f] [--tail <n>]" ;;
-  shell) echo "zebrunner-farm shell <device> [role]" ;;
-  exec) echo "zebrunner-farm exec <device> <role> <command...>" ;;
+  logs) echo "zebrunner-farm logs <device|--pick> [role] [-f] [--tail <n>]" ;;
+  shell) echo "zebrunner-farm shell <device|--pick> [role]" ;;
+  exec) echo "zebrunner-farm exec <device|--pick> <role> <command...>" ;;
   ansible) echo "zebrunner-farm ansible [devices] [args...]" ;;
   completion) echo "zebrunner-farm completion <bash|zsh>" ;;
   help) echo "zebrunner-farm help [command]" ;;
@@ -2081,6 +2145,7 @@ farm_command_help() {
     ui_help_cmd "--json" "" "The devices and their containers as a JSON array for the monitoring, the messages on stderr"
     ui_help_cmd "--watch" "[seconds]" "Again every 5 (or the seconds) seconds at a terminal until Ctrl-C"
     ui_help_cmd "-v" "" "The containers of every device of a group (also --verbose)"
+    ui_help_cmd "--pick" "" "Pick the devices of the selection with fzf first (at a terminal)"
     ui_help_group "Examples"
     ui_help_cmd "status ios --watch" "" "the iOS devices every 5 seconds"
     ui_help_cmd "status --json | jq -r '.[].name'" "" "the names of the devices for a script"
@@ -2101,27 +2166,33 @@ farm_command_help() {
       ui_help_cmd "--rolling" "" "Device by device (--strategy rolling)"
     fi
     ui_help_cmd "--dry-run" "" "What it would do for every device and container, nothing changed"
+    ui_help_cmd "--pick" "" "Pick the devices of the selection (all without one) with fzf first, then the question; Esc cancels"
     ui_help_group "Examples"
     ui_help_cmd "$1 android -x Pixel_8_Pro" "" "the Android devices but one"
+    ui_help_cmd "$1 ios --pick" "" "some iOS devices picked with fzf"
     ui_help_cmd "$1 'Samsung_*' --dry-run" "" "what it would do"
     ;;
   logs)
-    farm_text "docker logs of a container of one device (its name or udid). The roles: connector, stf, appium (by default), uploader."
+    farm_text "docker logs of a container of one device (its name or udid). The roles: connector, stf, appium (by default), uploader. Without a device fzf picks it at a terminal."
     ui_help_group "Options"
+    ui_help_cmd "--pick" "" "Pick the device with fzf (in the place of the device)"
     ui_help_cmd "-f" "" "Follow the log until Ctrl-C (also --follow)"
     ui_help_cmd "--tail" "<n>" "The last lines (200 by default, all)"
     ui_help_group "Examples"
     ui_help_cmd "logs Pixel_7 stf -f" "" "follow the log of STF of the device"
     ;;
   shell)
-    farm_text "A shell (bash, or sh without it) in a container of one device (its name or udid). The roles: connector, stf, appium (by default), uploader."
+    farm_text "A shell (bash, or sh without it) in a container of one device (its name or udid). The roles: connector, stf, appium (by default), uploader. Without a device fzf picks it at a terminal."
+    ui_help_group "Options"
+    ui_help_cmd "--pick" "" "Pick the device with fzf (in the place of the device)"
     ui_help_group "Examples"
     ui_help_cmd "shell iPhone_15 connector" "" "a shell in the connector of the device"
     ;;
   exec)
-    farm_text "Run a command in a container of one device (its name or udid), at a terminal with a terminal (docker exec -it). The roles: connector, stf, appium, uploader."
+    farm_text "Run a command in a container of one device (its name or udid, or --pick: fzf picks it), with a terminal (docker exec -it) when its input and output are a terminal. The roles: connector, stf, appium, uploader."
     ui_help_group "Examples"
     ui_help_cmd "exec Pixel_7 connector adb devices" "" "the devices of adb of the connector"
+    ui_help_cmd "exec --pick connector adb devices" "" "the same in a device picked with fzf"
     ;;
   ansible)
     farm_text "./zebrunner.sh ansible of the agent folder of the settings: deploy the agent again from any folder; the arguments of ansible-playbook."
@@ -2180,18 +2251,19 @@ farm_complete() {
     [[ "$previous" != "--tail" ]] || return 0
     if [[ "$current" == -* ]]; then
       if [[ "$command" == "logs" ]]; then
-        printf '%s\n' -f --follow --tail --help
+        printf '%s\n' --pick -f --follow --tail --help
       else
-        printf '%s\n' --help
+        printf '%s\n' --pick --help
       fi
       return 0
     fi
-    # the place of the word among the arguments that are not options
+    # the place of the word among the arguments that are not options; --pick is the device
     local position=0
     local i=1
     while [[ "$i" -lt $((index - 1)) ]]; do
       case "${words[$i]}" in
       --tail) i=$((i + 1)) ;;
+      --pick) position=$((position + 1)) ;;
       -*) ;;
       *) position=$((position + 1)) ;;
       esac
@@ -2215,9 +2287,9 @@ farm_complete() {
     esac
     if [[ "$current" == -* ]]; then
       case "$command" in
-      status) printf '%s\n' --json --watch -v --verbose -x -e --exclude --help ;;
-      restart) printf '%s\n' -q --quiet --batch --rolling --strategy --dry-run -x -e --exclude --help ;;
-      *) printf '%s\n' -q --quiet --dry-run -x -e --exclude --help ;;
+      status) printf '%s\n' --json --watch -v --verbose --pick -x -e --exclude --help ;;
+      restart) printf '%s\n' -q --quiet --batch --rolling --strategy --dry-run --pick -x -e --exclude --help ;;
+      *) printf '%s\n' -q --quiet --dry-run --pick -x -e --exclude --help ;;
       esac
       return 0
     fi
@@ -2258,8 +2330,21 @@ farm_command() {
       farm_status fail "--watch needs a terminal" "zebrunner-farm status without --watch"
       return 1
     fi
+    # --pick asks a person: never the devices of the selection without one (udev, launchd, a script, no fzf)
+    if [[ -n "$PICK" && (-n "$QUIET" || -n "$OUTPUT_JSON") ]]; then
+      farm_status fail "--pick asks a person, $([[ -n "$QUIET" ]] && echo "--quiet asks nobody" || echo "--json is for the monitoring"): one of them"
+      return 1
+    fi
+    if [[ -n "$PICK" ]] && ! can_pick; then
+      farm_status fail "--pick needs fzf at a terminal" "install fzf, or name the devices: zebrunner-farm ${command} <devices>"
+      return 1
+    fi
     select_devices || return 1
   } >&"$messages"
+  if [[ -n "$PICK" ]] && ! pick_devices "" "TAB marks the devices, Enter picks them for ${command}, Esc cancels"; then
+    ui_info "Cancelled."
+    return 0
+  fi
   if [[ "$command" == "status" ]]; then
     if [[ -n "$OUTPUT_JSON" ]]; then
       status_json
