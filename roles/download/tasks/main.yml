@@ -35,10 +35,12 @@
   changed_when: false
   tags: [pull, download]
 
+# the shared network of DEVICE_NETWORK_ISOLATION=false; zebrunner-farm creates the network of every device otherwise
 - name: Create infra network if absent
   ansible.builtin.shell: docker network inspect "{{ STF_DOCKER_NETWORK }}" >/dev/null 2>&1 || docker network create "{{ STF_DOCKER_NETWORK }}"
   become: false
   changed_when: false
+  when: not DEVICE_NETWORK_ISOLATION | bool
   tags: [pull, download]
 
 # The Developer Disk Images of the iOS devices (README.md#developer-disk-images): a shallow sparse clone, updated by every

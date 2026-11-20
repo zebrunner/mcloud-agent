@@ -224,6 +224,12 @@ create_containers() {
     usb_connected || return 1
   fi
 
+  # the network of the device (README.md#docker-network): its containers, and the container of its emulator or simulator
+  local dev_network
+  dev_network="$(device_network)"
+  ensure_device_network || return 1
+  connect_device_host
+
   # the videos and the logs of the sessions go to S3 (S3_BUCKET): without it appium records no video and the device has
   # no uploader (README.md#recordings)
   local S3_KEY_PATTERN=""
@@ -298,7 +304,7 @@ create_containers() {
       --log-driver=local \
       --log-opt max-size=256m \
       --log-opt max-file=2 \
-      --net="$STF_DOCKER_NETWORK" \
+      --net="$dev_network" \
       --restart "on-failure:${RESTARTS_LIMIT}" \
       "${bus_args[@]+"${bus_args[@]}"}" \
       -v mcloud-key-volume:/root/.android \
@@ -414,7 +420,7 @@ create_containers() {
       --log-driver=local \
       --log-opt max-size=256m \
       --log-opt max-file=2 \
-      --net="$STF_DOCKER_NETWORK" \
+      --net="$dev_network" \
       "${host_args[@]+"${host_args[@]}"}" \
       --restart "on-failure:${RESTARTS_LIMIT}" \
       "${os_args[@]+"${os_args[@]}"}" \
@@ -468,7 +474,7 @@ create_containers() {
     --log-driver=local \
     --log-opt max-size=256m \
     --log-opt max-file=2 \
-    --net="$STF_DOCKER_NETWORK" \
+    --net="$dev_network" \
     "${stf_head_args[@]}" \
     -e PLATFORM_NAME="$dev_platform_name" \
     -e STF_PROVIDER_DEVICE_NAME="$dev_device_name" \
@@ -502,7 +508,7 @@ create_containers() {
     --log-driver=local \
     --log-opt max-size=256m \
     --log-opt max-file=2 \
-    --net="$STF_DOCKER_NETWORK" \
+    --net="$dev_network" \
     --restart "on-failure:${RESTARTS_LIMIT}" \
     "${appium_head_args[@]}" \
     -v appium-storage-volume:/opt/appium-storage \
@@ -539,7 +545,7 @@ create_containers() {
     --log-driver=local \
     --log-opt max-size=256m \
     --log-opt max-file=2 \
-    --net="$STF_DOCKER_NETWORK" \
+    --net="$dev_network" \
     --restart "on-failure:${RESTARTS_LIMIT}" \
     -v "${dev_container}":/tmp/log \
     -e ENDPOINT_URL="${S3_ENDPOINT}" \
@@ -824,6 +830,7 @@ remove_containers() {
     else
       container_line info "no volume" "$dev_container"
     fi
+    remove_device_network
     # the start of restart creates them
     CONTAINER_STATES="$(awk -v prefix="${dev_container}-" 'index($1, prefix) != 1' <<< "$CONTAINER_STATES")"
     return 0
@@ -847,11 +854,133 @@ remove_containers() {
     container_line fail "NOT removed" "$dev_container" "$(tail -n 1 <<< "$SPIN_OUTPUT")" \
       "docker volume rm ${dev_container}"
   fi
+  remove_device_network
   return 0
 }
 
-# ensure_network: the docker network of the containers, created when it is missing
+# device_network: the docker network of the containers of the device: a network of its own (the name of its containers
+# and of its volume, DEVICE_NETWORK_ISOLATION=true, README.md#docker-network), STF_DOCKER_NETWORK otherwise
+device_network() {
+  if [[ "${DEVICE_NETWORK_ISOLATION:-true}" == "true" ]]; then
+    echo "$dev_container"
+  else
+    echo "$STF_DOCKER_NETWORK"
+  fi
+}
+
+# free_device_subnets <pool>: the /28 subnets of the pool (an IPv4 CIDR of a prefix of 8 to 28) that overlap no docker
+# network, in their order; nothing for an invalid pool
+free_device_subnets() {
+  local ids
+  ids="$(docker network ls -q 2> /dev/null)"
+  {
+    # the subnets of the networks, one per line, then the pool
+    if [[ -n "$ids" ]]; then
+      # the ids are words
+      # shellcheck disable=SC2086
+      docker network inspect -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}' $ids 2> /dev/null | tr ' ' '\n'
+    fi
+    echo "pool $1"
+  } | awk '
+    /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\/[0-9]+$/ {
+      split($1, c, "/"); split(c[1], o, ".")
+      size = 2 ^ (32 - c[2]); first = ((o[1] * 256 + o[2]) * 256 + o[3]) * 256 + o[4]; first -= first % size
+      used_first[++used] = first; used_last[used] = first + size - 1
+    }
+    $1 == "pool" {
+      if ($2 !~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\/[0-9]+$/) exit
+      split($2, c, "/"); split(c[1], o, ".")
+      if (c[2] < 8 || c[2] > 28) exit
+      size = 2 ^ (32 - c[2]); base = ((o[1] * 256 + o[2]) * 256 + o[3]) * 256 + o[4]; base -= base % size
+      for (start = base; start < base + size; start += 16) {
+        free = 1
+        for (i = 1; i <= used; i++) if (start <= used_last[i] && start + 15 >= used_first[i]) { free = 0; break }
+        if (free) print int(start / 16777216) "." int(start / 65536) % 256 "." int(start / 256) % 256 "." start % 256 "/28"
+      }
+    }'
+}
+
+# ensure_device_network: the network of the device with a free /28 of DEVICE_NETWORK_SUBNETS (10.233.0.0/16 by
+# default, not a pool of docker: they are about 30 networks and may overlap the networks of the sites); a subnet a
+# parallel start took meanwhile is skipped
+ensure_device_network() {
+  [[ "${DEVICE_NETWORK_ISOLATION:-true}" == "true" ]] || return 0
+  if docker network inspect "$dev_network" > /dev/null 2>&1; then
+    return 0
+  fi
+  if [[ -n "$DRY_RUN" ]]; then
+    container_line info "would create" "$dev_network" "network of the device"
+    return 0
+  fi
+  local pool="${DEVICE_NETWORK_SUBNETS:-10.233.0.0/16}"
+  local subnet
+  local output
+  local attempt
+  for attempt in 1 2 3 4 5; do
+    subnet="$(free_device_subnets "$pool" | head -n 1)"
+    if [[ -z "$subnet" ]]; then
+      container_line fail "NOT created" "$dev_network" "no free /28 subnet in DEVICE_NETWORK_SUBNETS ${pool}" \
+        "a larger or another free range of DEVICE_NETWORK_SUBNETS (README.md#docker-network), then: zebrunner-farm start ${dev_device_name}"
+      return 1
+    fi
+    if output="$(docker network create --driver bridge --subnet "$subnet" --label "com.zebrunner.mcloud.device=${dev_container}" \
+      "$dev_network" 2>&1)"; then
+      container_line ok created "$dev_network" "network of the device, ${subnet}"
+      return 0
+    fi
+    # a parallel start of another device took the subnet, or the network
+    if docker network inspect "$dev_network" > /dev/null 2>&1; then
+      return 0
+    fi
+    grep -qi "overlap" <<< "$output" || break
+    [[ "$attempt" -lt 5 ]] || break
+  done
+  container_line fail "NOT created" "$dev_network" "$(tail -n 1 <<< "$output")" \
+    "docker network create --subnet <a free /28> ${dev_network}, then: zebrunner-farm start ${dev_device_name}"
+  return 1
+}
+
+# connect_device_host: the container of the emulator or the simulator of the device, the host of its address (e.g.
+# mcloud-dummy of mcloud-dummy:15555), joins the network of the device: the connector reaches it by its name
+connect_device_host() {
+  [[ "${DEVICE_NETWORK_ISOLATION:-true}" == "true" ]] || return 0
+  [[ "$dev_connection" =~ ^(android-sim|proxy)$ && -n "$dev_address" ]] || return 0
+  local host="${dev_address%%:*}"
+  [[ "$host" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ && ! "$host" =~ ^[0-9.]+$ && "$host" != "host.docker.internal" ]] || return 0
+  docker inspect --type container "$host" > /dev/null 2>&1 || return 0
+  if [[ -n "$DRY_RUN" ]]; then
+    container_line info "would join" "$host" "network of the device"
+  elif docker network connect "$dev_network" "$host" > /dev/null 2>&1; then
+    container_line ok joined "$host" "network of the device"
+  fi
+  return 0
+}
+
+# remove_device_network: the network of the device without its containers (its emulator leaves it), down
+remove_device_network() {
+  [[ "${DEVICE_NETWORK_ISOLATION:-true}" == "true" ]] || return 0
+  local network="$dev_container"
+  docker network inspect "$network" > /dev/null 2>&1 || return 0
+  if [[ -n "$DRY_RUN" ]]; then
+    container_line info "would remove" "$network" "network of the device"
+    return 0
+  fi
+  local member
+  for member in $(docker network inspect -f '{{range .Containers}}{{.Name}} {{end}}' "$network" 2> /dev/null); do
+    docker network disconnect -f "$network" "$member" > /dev/null 2>&1
+  done
+  if docker_spin "removing  ${network}" docker network rm "$network"; then
+    container_line ok removed "$network" "network of the device"
+  else
+    container_line fail "NOT removed" "$network" "$(tail -n 1 <<< "$SPIN_OUTPUT")" "docker network rm ${network}"
+  fi
+}
+
+# ensure_network: the shared docker network of the containers (DEVICE_NETWORK_ISOLATION=false), created when it is
+# missing
 ensure_network() {
+  # every device has a network of its own (ensure_device_network)
+  [[ "${DEVICE_NETWORK_ISOLATION:-true}" == "true" ]] && return 0
   if docker network inspect "$STF_DOCKER_NETWORK" > /dev/null 2>&1; then
     return 0
   fi

@@ -412,6 +412,62 @@ for role in devices mac-devices; do
   sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
 done
 
+section "the network of a device"
+# render <role> [ansible arguments...]: the settings of zebrunner-farm with the devices of the test
+render_settings() {
+  local role="$1"
+  shift
+  render_farm "$role" "${WORK}/farm-${role}.env" "$@" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+}
+cp "${WORK}/devices.txt" "${WORK}/devices.txt.orig"
+echo "id=dummy1|os=android|name=Dummy|location=loc|appium_port=7491|adb_port=7492|min_port=7495|max_port=7500|connection=android-sim|wda_file=/dev/null|wda_bundleid=x|address=mcloud-dummy:15555|wda_port=|mjpeg_port=|connect_port=" \
+  >> "${WORK}/devices.txt"
+network="device-WiFi-192.168.1.50"
+for role in devices mac-devices; do
+  setup_case
+  DOCKER_NO_NETWORK=1 farm "$role" start WiFi > /dev/null
+  check_contains "${role}: start creates the network of the device with the first /28 of DEVICE_NETWORK_SUBNETS" \
+    "network|create|--driver|bridge|--subnet|10.233.0.0/28|--label|com.zebrunner.mcloud.device=${network}|${network}" \
+    "$(calls docker)"
+  for container in connector stf appium; do
+    check_contains "${role}: the ${container} is on the network of the device only" "|--net=${network}|" \
+      "$(run_args "${network}-${container}")"
+  done
+  check_not_contains "${role}: no shared network" "infra" "$(calls docker)"
+  setup_case
+  farm "$role" start WiFi > /dev/null
+  check_not_contains "${role}: an existing network is kept" "network|create" "$(calls docker)"
+  setup_case
+  farm "$role" down WiFi > /dev/null
+  check_contains "${role}: down removes the network of the device" "network|rm|${network}" "$(calls docker)"
+  setup_case
+  DOCKER_NO_NETWORK=1 farm "$role" start Dummy > /dev/null
+  check_contains "${role}: the container of the emulator joins the network of the device" \
+    "network|connect|device-Dummy-dummy1|mcloud-dummy" "$(calls docker)"
+  setup_case
+  DOCKER_NO_NETWORK=1 farm "$role" start Emu > /dev/null
+  check_not_contains "${role}: host.docker.internal is not a container" "network|connect" "$(calls docker)"
+
+  render_settings "$role" --extra-vars "DEVICE_NETWORK_SUBNETS=10.233.0.0/30"
+  setup_case
+  output="$(DOCKER_NO_NETWORK=1 farm "$role" start WiFi 2>&1)"
+  check_contains "${role}: no free subnet: the device is not started" "no free /28 subnet in DEVICE_NETWORK_SUBNETS 10.233.0.0/30" "$output"
+  check "${role}: no free subnet: no container" "" "$(calls docker | grep '^run|')"
+
+  render_settings "$role" --extra-vars "DEVICE_NETWORK_ISOLATION=false"
+  setup_case
+  DOCKER_NO_NETWORK=1 farm "$role" start WiFi > /dev/null
+  check_contains "${role}: DEVICE_NETWORK_ISOLATION=false: the shared network is created" "network|create|infra" "$(calls docker)"
+  check_contains "${role}: DEVICE_NETWORK_ISOLATION=false: the containers share it" "|--net=infra|" \
+    "$(run_args "${network}-connector")"
+  setup_case
+  farm "$role" down WiFi > /dev/null
+  check_not_contains "${role}: DEVICE_NETWORK_ISOLATION=false: down keeps the shared network" "network|rm" "$(calls docker)"
+  render_settings "$role"
+done
+mv "${WORK}/devices.txt.orig" "${WORK}/devices.txt"
+
 section "the environment of the containers"
 for role in devices mac-devices; do
   render_farm "$role" "${WORK}/farm-${role}.env" --extra-vars "STF_API_URL=https://mcloud.example.com/api/v1" || exit 1
@@ -1000,7 +1056,8 @@ for role in devices mac-devices; do
   check_contains "${role}: start --dry-run keeps a running container" "info running  device-WiFi-192.168.1.50-connector" "$output"
   check_contains "${role}: start --dry-run would start a stopped one" "info would start  device-WiFi-192.168.1.50-stf" "$output"
   check_contains "${role}: start --dry-run would create a missing one" "info would create  device-WiFi-192.168.1.50-appium" "$output"
-  check_contains "${role}: start --dry-run would create the network" "would create the docker network" "$output"
+  check_contains "${role}: start --dry-run would create the network of the device" \
+    "would create  device-WiFi-192.168.1.50  network of the device" "$output"
   output="$(farm "$role" stop WiFi --dry-run)"
   check_contains "${role}: stop --dry-run would stop a running container" "would stop  device-WiFi-192.168.1.50-connector" "$output"
   output="$(farm "$role" restart WiFi --dry-run)"

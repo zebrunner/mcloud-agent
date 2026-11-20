@@ -278,8 +278,12 @@ printf 'DDI_REPO: "file://%s"\nDDI_DIR: "%s"\n' "${WORK}/ddi-origin" "${WORK}/dd
 reset_calls
 output="$(playbook download)"
 check_contains "all images pulled" "failed=0" "$output"
-check "network is created after pulling" "1" "$(calls docker | grep -c '^network|')"
-check "the network of the value by default of STF_DOCKER_NETWORK" "network|inspect|infra" "$(calls docker | grep '^network|')"
+check "no shared network with a network per device (the default)" "0" "$(calls docker | grep -c '^network|')"
+printf 'DEVICE_NETWORK_ISOLATION: false\n' >> "${WORK}/play-download/config/settings.yml"
+reset_calls
+playbook download > /dev/null
+check "DEVICE_NETWORK_ISOLATION=false: the shared network is created after pulling" "network|inspect|infra" \
+  "$(calls docker | grep '^network|')"
 check "the images are pulled for the platform of the host" "4" "$(calls docker | grep -c '^pull|public.ecr.aws/')"
 check "appium is pulled for linux/amd64" "pull|--platform|linux/amd64|public.ecr.aws/zebrunner/appium:" \
   "$(calls docker | grep '^pull|.*appium:' | sed 's/:[^:]*$/:/')"
@@ -376,6 +380,8 @@ for role in devices mac-devices; do
     farm="$(cat "${WORK}/farm")"
     pass "${role}: the settings of zebrunner-farm without the optional settings"
     check_contains "${role}: the docker network by default" "STF_DOCKER_NETWORK=infra" "$farm"
+    check_contains "${role}: a network per device by default" "DEVICE_NETWORK_ISOLATION=true" "$farm"
+    check_contains "${role}: the subnets of the networks of the devices" "DEVICE_NETWORK_SUBNETS=10.233.0.0/16" "$farm"
     check "${role}: no certificate of MCloud by default" "MCLOUD_CA_PEM=''" "$(grep '^MCLOUD_CA_PEM=' "${WORK}/farm")"
     check "${role}: STF verifies the certificate by default" "STF_TLS_INSECURE=false" "$(grep '^STF_TLS_INSECURE=' "${WORK}/farm")"
     for name in STF_API_URL S3_BUCKET S3_TENANT S3_ENDPOINT S3_ACCESS_KEY_ID S3_SECRET S3_REGION WDA_FILE WDA_BUNDLEID; do
