@@ -305,7 +305,14 @@ The Appium node of a device registers in mcloud-grid with the token of this host
 
 ### Docker network
 
-The docker network of the containers of the devices (`STF_DOCKER_NETWORK`, `infra` by default) is trusted: every container on it reaches the ports of the connectors without authentication, the adb server of every Android device and, of every iOS device, usbmuxd (`2222`), WebDriverAgent and MJPEG and the go-ios tunnel API and port ([mcloud-ios-connector](https://github.com/zebrunner/mcloud-ios-connector#network)); attach only the containers of the farm (and of mcloud on the same machine) to it.
+Every device has a docker network of its own (`DEVICE_NETWORK_ISOLATION: true`, the default), named as its containers and its volume (`device-<name>-<udid>`): its connector, stf, appium and uploader are on it and on no other network. The ports of a connector are open to its network without authentication (the adb server of an Android device; usbmuxd `2222`, WebDriverAgent and MJPEG, the go-ios tunnel API and port of an iOS device, [mcloud-ios-connector](https://github.com/zebrunner/mcloud-ios-connector#network)), as are the screen broadcast (`2223`) and VNC of its stf container: with a network per device only the containers of that device reach them, not the containers of the other devices, of mcloud on the same machine or of other projects. The containers reach MCloud by its published ports (`PUBLIC_IP`, `SELENIUM_HUB_HOST`, the triproxies), and the internet through the NAT of docker, as before.
+
+- `zebrunner-farm start` creates the network of a device with a free `/28` of `DEVICE_NETWORK_SUBNETS` (`10.233.0.0/16` by default, 4096 devices; a subnet of another docker network is skipped), not of the address pools of docker, which give about 30 networks and may overlap the networks of the sites. Set another range when `10.233.0.0/16` is routed in your network. `zebrunner-farm down` removes the network.
+- The container of the emulator or the simulator of an `android-sim` or `proxy` device, when the host of its `address` is a container of this host (e.g. `mcloud-dummy` of `mcloud-dummy:15555`), joins the network of the device.
+- A network costs a Linux bridge and a few rules of docker: hundreds of devices on a host are fine.
+- `DEVICE_NETWORK_ISOLATION: false`: the containers of all the devices share `STF_DOCKER_NETWORK` (`infra` by default), which is then trusted: attach only the containers of the farm to it.
+
+The containers of a device created before keep their network until they are created again (`zebrunner-farm down` and `start`; `./zebrunner.sh ansible` asks to remove them before the deploy).
 
 ### Appium security
 

@@ -16,7 +16,11 @@ APPIUM_APP_WAITING_TIMEOUT: 90
 
 RESTARTS_LIMIT: 50
 
-# the docker network of the containers of the devices, the deploy and zebrunner-farm create it
+# every device has a docker network of its own (README.md#docker-network): its containers reach only its connector; the
+# networks are /28 subnets of DEVICE_NETWORK_SUBNETS. false: the containers of all the devices share STF_DOCKER_NETWORK
+DEVICE_NETWORK_ISOLATION: true
+DEVICE_NETWORK_SUBNETS: 10.233.0.0/16
+# the shared docker network of DEVICE_NETWORK_ISOLATION=false, the deploy and zebrunner-farm create it
 STF_DOCKER_NETWORK: infra
 
 # the optional settings of config/settings.yml.original, empty: off (an empty WDA_FILE and WDA_BUNDLEID are the values
