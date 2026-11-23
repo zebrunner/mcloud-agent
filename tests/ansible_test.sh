@@ -133,6 +133,11 @@ for role in devices mac-devices; do
 [{"id": "emulator-5554", "name": "Emu", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 6, "connection": "wireless"}]=failed=0
 [{"id": "10.0.0.7:5555", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 6, "connection": "wireless"}]=Invalid id '10.0.0.7:5555' of device 'A'
 [{"id": "a", "name": "A|B", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6}]=Invalid name 'A|B' of device 'A|B'
+[{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6, "allow_reboot": true}]=failed=0
+[{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6, "allow_reboot": false, "connection": "wireless", "address": "10.0.0.7"}]=failed=0
+[{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6, "allow_reboot": "yes"}]=Invalid allow_reboot of device 'A'
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 6, "allow_reboot": true, "connection": "wireless"}]=Invalid allow_reboot of device 'A'
+[{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6, "allow_reboot": true, "connection": "proxy", "address": "10.0.0.7"}]=Invalid allow_reboot of device 'A'
 [{"id": "a", "name": "-A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6}]=Invalid name '-A' of device '-A'
 [{"id": "a/b", "name": "", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6}]=Invalid id 'a/b', name '' of device ''
 [{"id": "a", "name": "A", "location": "NYC, 2nd floor", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6}]=Invalid location 'NYC, 2nd floor' of device 'A'
@@ -398,18 +403,18 @@ cat > "${WORK}/devices.yml" << 'EOF'
 devices:
   - {id: " R28M-1384YQY ", os: android, name: " Galaxy S10 ", appium_port: 1, adb_port: 2, min_port: 3, max_port: 4}
   - {id: 12345, os: android, name: Numeric, appium_port: 5, adb_port: 6, proxy_port: 7, server_proxy_port: 8, min_port: 9, max_port: 10, connection: Wireless, connect_port: 7999}
-  - {id: abc, os: ios, name: Phone, appium_port: 11, adb_port: 12, min_port: 13, max_port: 14, wda_file: /wda.ipa, wda_bundleid: my.wda, wda_port: 8101}
+  - {id: abc, os: ios, name: Phone, appium_port: 11, adb_port: 12, min_port: 13, max_port: 14, wda_file: /wda.ipa, wda_bundleid: my.wda, wda_port: 8101, allow_reboot: true}
   - {id: tv, os: ios, name: TV, appium_port: 15, adb_port: 16, min_port: 17, max_port: 18, connection: proxy, address: 10.0.0.6}
   - {id: sim, os: ios, name: Sim, appium_port: 19, adb_port: 20, min_port: 21, max_port: 22, connection: iOS-Sim, wda_port: 8110, mjpeg_port: 8111}
-  - {id: phone, os: ios, name: WiFi, appium_port: 23, adb_port: 24, min_port: 25, max_port: 26, connection: wireless, address: 10.0.0.7}
+  - {id: phone, os: ios, name: WiFi, appium_port: 23, adb_port: 24, min_port: 25, max_port: 26, connection: wireless, address: 10.0.0.7, allow_reboot: false}
 EOF
 render "${REPO}/roles/common/templates/mcloud-devices.txt" "${WORK}/devices.txt" --extra-vars "@${WORK}/devices.yml" || exit 1
 check "devices list: the fields key=value of every device" "id=R28M-1384YQY|os=android|name=Galaxy_S10|location=|appium_port=1|adb_port=2|min_port=3|max_port=4|connection=usb|wda_file=|wda_bundleid=|address=|wda_port=|mjpeg_port=|connect_port=
 id=12345|os=android|name=Numeric|location=|appium_port=5|adb_port=6|min_port=9|max_port=10|connection=wireless|wda_file=|wda_bundleid=|address=|wda_port=|mjpeg_port=|connect_port=7999
-id=abc|os=ios|name=Phone|location=|appium_port=11|adb_port=12|min_port=13|max_port=14|connection=usb|wda_file=/wda.ipa|wda_bundleid=my.wda|address=|wda_port=8101|mjpeg_port=|connect_port=
+id=abc|os=ios|name=Phone|location=|appium_port=11|adb_port=12|min_port=13|max_port=14|connection=usb|wda_file=/wda.ipa|wda_bundleid=my.wda|address=|wda_port=8101|mjpeg_port=|connect_port=|allow_reboot=true
 id=tv|os=ios|name=TV|location=|appium_port=15|adb_port=16|min_port=17|max_port=18|connection=proxy|wda_file=|wda_bundleid=|address=10.0.0.6|wda_port=|mjpeg_port=|connect_port=
 id=sim|os=ios|name=Sim|location=|appium_port=19|adb_port=20|min_port=21|max_port=22|connection=ios-sim|wda_file=|wda_bundleid=|address=|wda_port=8110|mjpeg_port=8111|connect_port=
-id=phone|os=ios|name=WiFi|location=|appium_port=23|adb_port=24|min_port=25|max_port=26|connection=wireless|wda_file=|wda_bundleid=|address=10.0.0.7|wda_port=|mjpeg_port=|connect_port=" "$(grep -v '^#' "${WORK}/devices.txt")"
+id=phone|os=ios|name=WiFi|location=|appium_port=23|adb_port=24|min_port=25|max_port=26|connection=wireless|wda_file=|wda_bundleid=|address=10.0.0.7|wda_port=|mjpeg_port=|connect_port=|allow_reboot=false" "$(grep -v '^#' "${WORK}/devices.txt")"
 check "devices list: the comment of its format" "# One device per line, its fields key=value separated by '|' in any order; an empty value is the value by default." \
   "$(grep '^# One device' "${WORK}/devices.txt")"
 render "${REPO}/roles/devices/templates/90_mcloud.rules" "${WORK}/rules" --extra-vars "@${WORK}/devices.yml" || exit 1

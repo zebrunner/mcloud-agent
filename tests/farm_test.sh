@@ -744,6 +744,23 @@ for role in devices mac-devices; do
   check_not_contains "${role}: other commands have no strategy" "Strategy:" "$output"
 done
 
+section "allow_reboot"
+cp "${WORK}/devices.txt" "${WORK}/devices.saved"
+sed -e 's/^\(id=bbbb2222|.*\)$/\1|allow_reboot=true/' -e 's/^\(id=aaaa1111|.*\)$/\1|allow_reboot=false/' \
+  "${WORK}/devices.saved" > "${WORK}/devices.txt"
+for role in devices mac-devices; do
+  setup_case
+  farm "$role" start iPhoneWiFi AppleTV > /dev/null
+  check_contains "${role}: allow_reboot lets the connector reboot the device" "|-e|ALLOW_REBOOT=true|" \
+    "$(run_args device-iPhoneWiFi-bbbb2222-connector)"
+  check_not_contains "${role}: allow_reboot=false passes nothing" "ALLOW_REBOOT" "$(run_args device-AppleTV-aaaa1111-connector)"
+done
+mv "${WORK}/devices.saved" "${WORK}/devices.txt"
+setup_case
+farm devices start iPhoneWiFi > /dev/null
+check_not_contains "without allow_reboot the connector gets no ALLOW_REBOOT" "ALLOW_REBOOT" \
+  "$(run_args device-iPhoneWiFi-bbbb2222-connector)"
+
 section "remote debug port"
 cp "${WORK}/devices.txt" "${WORK}/devices.saved"
 # WiFi: the port in the range, Emu: the port out of it
@@ -759,6 +776,7 @@ for role in devices mac-devices; do
   check_contains "${role}: appium knows the remote debug port" "|ADB_PORT=7999|" "$(run_args device-Emu-emu1-appium)"
 done
 mv "${WORK}/devices.saved" "${WORK}/devices.txt"
+
 for role in devices mac-devices; do
   setup_case
   farm "$role" start WiFi > /dev/null

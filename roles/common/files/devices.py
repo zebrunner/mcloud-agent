@@ -117,6 +117,15 @@ def settings_problems(devices, farm_os):
                 "first one a letter or a digit (the spaces of a name become '_'); a wireless Android device at "
                 "ip:port has its id without ':' and the address in address."
             )
+        if "allow_reboot" in device and (
+            not isinstance(device["allow_reboot"], bool)
+            or device["os"] != "ios"
+            or connection(device) not in ("usb", "wireless")
+        ):
+            problems.append(
+                f"Invalid allow_reboot of device '{label(device)}': true or false, of an iOS device with the usb or "
+                "wireless connection (zebrunner/mcloud-ios-connector#132)."
+            )
         ports = range(to_int(device["min_port"]), to_int(device["max_port"]) + 1)
         needed = STF_PORTS + (1 if "connect_port" in device and to_int(device["connect_port"]) in ports else 0)
         if device["os"] == "android" and len(ports) < needed:
