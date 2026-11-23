@@ -310,6 +310,7 @@ Every device has a docker network of its own (`DEVICE_NETWORK_ISOLATION: true`, 
 - `zebrunner-farm start` creates the network of a device with a free `/28` of `DEVICE_NETWORK_SUBNETS` (`10.233.0.0/16` by default, 4096 devices; a subnet of another docker network is skipped), not of the address pools of docker, which give about 30 networks and may overlap the networks of the sites. Set another range when `10.233.0.0/16` is routed in your network. `zebrunner-farm down` removes the network.
 - The container of the emulator or the simulator of an `android-sim` or `proxy` device, when the host of its `address` is a container of this host (e.g. `mcloud-dummy` of `mcloud-dummy:15555`), joins the network of the device.
 - A network costs a Linux bridge and a few rules of docker: hundreds of devices on a host are fine.
+- The other services the containers use, e.g. `S3_ENDPOINT` of the uploader (a MinIO on this host), are reached by an address and a published port, as MCloud: a name of a container of `STF_DOCKER_NETWORK` (`http://minio:9000`) does not resolve on the network of a device, the uploads fail.
 - `DEVICE_NETWORK_ISOLATION: false`: the containers of all the devices share `STF_DOCKER_NETWORK` (`infra` by default), which is then trusted: attach only the containers of the farm to it.
 
 The containers of a device created before keep their network until they are created again (`zebrunner-farm down` and `start`; `./zebrunner.sh ansible` asks to remove them before the deploy).

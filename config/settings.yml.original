@@ -77,10 +77,11 @@ S3_ACCESS_KEY_ID:
 S3_SECRET:
 S3_REGION:
 
-# For local s3 compatible minio storage recommended settings are:
+# For local s3 compatible minio storage recommended settings are (the uploader of a device is on the docker network of
+# its device, README.md#docker-network: the address of the host of MinIO and its published port, not a container name):
 # S3_BUCKET: zebrunner
 # S3_TENANT:
-# S3_ENDPOINT: http://minio:9000
+# S3_ENDPOINT: http://192.168.1.10:9000
 # S3_ACCESS_KEY_ID: zebrunner
 # S3_SECRET: J33dNyeTDj
 # S3_REGION: us-east-1
