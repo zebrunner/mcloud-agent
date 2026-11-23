@@ -26,8 +26,10 @@
 #     they have no udev rules.
 #   address, wda_port and mjpeg_port: [optional] see connection
 #   wda_file and wda_bundleid: [optional] iOS device specific overrides of WDA_FILE and WDA_BUNDLEID
-#   allow_reboot: [optional] true: iOS (usb, wireless): the connector reboots the device when WebDriverAgent can't start
-#     because testmanagerd of the device does not answer, at most once per 6 hours (README.md#reboot-of-an-ios-device)
+#   allow_reboot: [optional] true: the connector reboots the device when only a reboot helps, at most once per 6 hours:
+#     iOS (usb, wireless): WebDriverAgent can't start because testmanagerd of the device does not answer
+#     (README.md#reboot-of-an-ios-device); Android: no free app UIDs, no app can be installed
+#     (README.md#reboot-of-an-android-device)
 
 devices:
   - id: R28M1384YQY

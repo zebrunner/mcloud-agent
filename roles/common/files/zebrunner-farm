@@ -265,6 +265,12 @@ create_containers() {
   local appium_platform_args=()
   local appium_tail_args=()
   local appium_adb_port=""
+  # 'allow_reboot': the connector reboots the device when only a reboot helps (ALLOW_REBOOT, once per its
+  # REBOOT_INTERVAL): iOS: WDA can't start because testmanagerd does not answer; Android: no free app UIDs
+  local reboot_args=()
+  if [[ "$dev_allow_reboot" == "true" ]]; then
+    reboot_args=(-e ALLOW_REBOOT=true)
+  fi
 
   if [[ "$dev_platform_name" == "android" ]]; then
     # Linux: the USB device (DEVICE_BUS) or the adb address (ANDROID_DEVICE) of the connector; macOS: the adb server of
@@ -313,6 +319,7 @@ create_containers() {
       -v "${dev_container}":/tmp/log \
       "${android_args[@]+"${android_args[@]}"}" \
       "${connector_args[@]+"${connector_args[@]}"}" \
+      "${reboot_args[@]+"${reboot_args[@]}"}" \
       "${ANDROID_CONNECTOR_IMAGE}:${ANDROID_CONNECTOR_VERSION}" || return 1
 
     stf_head_args=(--link "${dev_container}-connector":connector -e STF_PROVIDER_ADB_HOST=connector -e STF_PROVIDER_ADB_PORT=5037
@@ -407,13 +414,6 @@ create_containers() {
     local ddi_dir="${DDI_DIR:-${ZEBRUNNER_MCLOUD_AGENT_DIR}/DeveloperDiskImages}"
     if [[ "$DDI_ENABLED" != "false" && "$dev_connection" != "ios-sim" && -d "$ddi_dir" ]]; then
       ddi_args=(-v "${ddi_dir}:/opt/zebrunner/ddi:ro")
-    fi
-
-    # 'allow_reboot': the connector reboots the device when WDA can't start because testmanagerd of the device does not
-    # answer (ALLOW_REBOOT of mcloud-ios-connector, once per its REBOOT_INTERVAL)
-    local reboot_args=()
-    if [[ "$dev_allow_reboot" == "true" ]]; then
-      reboot_args=(-e ALLOW_REBOOT=true)
     fi
 
     # Linux: the connection before WDA_BUNDLEID, macOS: after DEVICE_UDID
