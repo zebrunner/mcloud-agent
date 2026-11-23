@@ -31,6 +31,8 @@
 #     proxy     - iOS: WebDriverAgent started by another tool and published on address (wda_port, mjpeg_port: 8100, 8101)
 #   address, wda_port and mjpeg_port: [optional] see connection
 #   wda_file and wda_bundleid: [optional] device specific overrides of WDA_FILE and WDA_BUNDLEID
+#   allow_reboot: [optional] true: iOS (usb, wireless): the connector reboots the device when WebDriverAgent can't start
+#     because testmanagerd of the device does not answer, at most once per 6 hours (README.md#reboot-of-an-ios-device)
 
 devices:
   - id: d6afc6b3a65584ca0813eb8957c6479b9b6ebb11

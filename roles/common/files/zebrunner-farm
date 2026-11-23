@@ -95,6 +95,7 @@ get_device_fields() {
   dev_mjpeg_port=""
   dev_connect_port=""
   dev_remote_port=""
+  dev_allow_reboot=""
 
   local line
   # exact match of the udid (id) or the name
@@ -127,6 +128,7 @@ get_device_fields() {
     wda_port) dev_wda_port="$value" ;;
     mjpeg_port) dev_mjpeg_port="$value" ;;
     connect_port) dev_connect_port="$value" ;;
+    allow_reboot) dev_allow_reboot="$value" ;;
     esac
   done
 
@@ -407,6 +409,13 @@ create_containers() {
       ddi_args=(-v "${ddi_dir}:/opt/zebrunner/ddi:ro")
     fi
 
+    # 'allow_reboot': the connector reboots the device when WDA can't start because testmanagerd of the device does not
+    # answer (ALLOW_REBOOT of mcloud-ios-connector, once per its REBOOT_INTERVAL)
+    local reboot_args=()
+    if [[ "$dev_allow_reboot" == "true" ]]; then
+      reboot_args=(-e ALLOW_REBOOT=true)
+    fi
+
     # Linux: the connection before WDA_BUNDLEID, macOS: after DEVICE_UDID
     local linux_connector_args=()
     local macos_connector_args=()
@@ -434,6 +443,7 @@ create_containers() {
       -v "${dev_container}-lockdown":/var/lib/lockdown \
       -v "${dev_container}":/tmp/log \
       -e DEVICE_UDID="$dev_udid" \
+      "${reboot_args[@]+"${reboot_args[@]}"}" \
       "${macos_connector_args[@]+"${macos_connector_args[@]}"}" \
       "${IOS_CONNECTOR_IMAGE}:${IOS_CONNECTOR_VERSION}" || return 1
 
