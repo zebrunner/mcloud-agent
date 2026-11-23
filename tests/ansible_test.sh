@@ -136,7 +136,9 @@ for role in devices mac-devices; do
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6, "allow_reboot": true}]=failed=0
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6, "allow_reboot": false, "connection": "wireless", "address": "10.0.0.7"}]=failed=0
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6, "allow_reboot": "yes"}]=Invalid allow_reboot of device 'A'
-[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 6, "allow_reboot": true, "connection": "wireless"}]=Invalid allow_reboot of device 'A'
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 6, "allow_reboot": true, "connection": "wireless"}]=failed=0
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 6, "allow_reboot": true, "connection": "android-sim", "address": "emu:5555"}]=failed=0
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 6, "allow_reboot": "true", "connection": "wireless"}]=Invalid allow_reboot of device 'A'
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6, "allow_reboot": true, "connection": "proxy", "address": "10.0.0.7"}]=Invalid allow_reboot of device 'A'
 [{"id": "a", "name": "-A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6}]=Invalid name '-A' of device '-A'
 [{"id": "a/b", "name": "", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6}]=Invalid id 'a/b', name '' of device ''

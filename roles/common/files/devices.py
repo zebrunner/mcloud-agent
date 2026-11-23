@@ -119,12 +119,11 @@ def settings_problems(devices, farm_os):
             )
         if "allow_reboot" in device and (
             not isinstance(device["allow_reboot"], bool)
-            or device["os"] != "ios"
-            or connection(device) not in ("usb", "wireless")
+            or (device["os"] == "ios" and connection(device) not in ("usb", "wireless"))
         ):
             problems.append(
-                f"Invalid allow_reboot of device '{label(device)}': true or false, of an iOS device with the usb or "
-                "wireless connection (zebrunner/mcloud-ios-connector#132)."
+                f"Invalid allow_reboot of device '{label(device)}': true or false, of an Android device or of an iOS "
+                "device with the usb or wireless connection."
             )
         ports = range(to_int(device["min_port"]), to_int(device["max_port"]) + 1)
         needed = STF_PORTS + (1 if "connect_port" in device and to_int(device["connect_port"]) in ports else 0)

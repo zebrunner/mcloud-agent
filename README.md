@@ -368,6 +368,10 @@ The node token, the setup of the agent and the passwords of the identity and of 
 - Connect an Android device physically to a USB direct port or through the hub.
 - For the 1st connection, trust the device by picking "always trust..." on the device.
 
+#### Reboot of an Android device
+
+A device that has not been rebooted for long, with many installs and uninstalls of apps, runs out of the app UIDs of its PackageManager: no app can be installed (STF: `STFService.apk could not be installed [INSTALL_FAILED_INSUFFICIENT_STORAGE: ... could not be assigned a valid UID]` while the storage is free, its container spends its restarts) and only a reboot of the device helps. `allow_reboot: true` of the device in `config/devices.yml` (or `config/mac-devices.yml`) lets its connector reboot it (`ALLOW_REBOOT` of [mcloud-android-connector](https://github.com/zebrunner/mcloud-android-connector#reboot)), at most once per 6 hours; the same failure after its reboot is left to a person. Without it the connector log recommends the reboot. A change needs `./zebrunner.sh ansible` and `zebrunner-farm restart <device>`.
+
 ### Wireless devices
 
 - Android: enable Wireless debugging (or `adb tcpip 5555` over USB), set `connection: wireless` and `address` (the IP, the `id` by default).

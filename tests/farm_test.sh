@@ -747,19 +747,23 @@ done
 section "allow_reboot"
 cp "${WORK}/devices.txt" "${WORK}/devices.saved"
 sed -e 's/^\(id=bbbb2222|.*\)$/\1|allow_reboot=true/' -e 's/^\(id=aaaa1111|.*\)$/\1|allow_reboot=false/' \
-  "${WORK}/devices.saved" > "${WORK}/devices.txt"
+  -e 's/^\(id=192.168.1.50|.*\)$/\1|allow_reboot=true/' "${WORK}/devices.saved" > "${WORK}/devices.txt"
 for role in devices mac-devices; do
   setup_case
-  farm "$role" start iPhoneWiFi AppleTV > /dev/null
-  check_contains "${role}: allow_reboot lets the connector reboot the device" "|-e|ALLOW_REBOOT=true|" \
+  farm "$role" start iPhoneWiFi AppleTV WiFi Emu > /dev/null
+  check_contains "${role}: allow_reboot lets the iOS connector reboot the device" "|-e|ALLOW_REBOOT=true|" \
     "$(run_args device-iPhoneWiFi-bbbb2222-connector)"
+  check_contains "${role}: allow_reboot lets the Android connector reboot the device" "|-e|ALLOW_REBOOT=true|" \
+    "$(run_args device-WiFi-192.168.1.50-connector)"
   check_not_contains "${role}: allow_reboot=false passes nothing" "ALLOW_REBOOT" "$(run_args device-AppleTV-aaaa1111-connector)"
+  check_not_contains "${role}: an Android device without allow_reboot gets no ALLOW_REBOOT" "ALLOW_REBOOT" \
+    "$(run_args device-Emu-emu1-connector)"
 done
 mv "${WORK}/devices.saved" "${WORK}/devices.txt"
 setup_case
-farm devices start iPhoneWiFi > /dev/null
+farm devices start iPhoneWiFi WiFi > /dev/null
 check_not_contains "without allow_reboot the connector gets no ALLOW_REBOOT" "ALLOW_REBOOT" \
-  "$(run_args device-iPhoneWiFi-bbbb2222-connector)"
+  "$(run_args device-iPhoneWiFi-bbbb2222-connector)$(run_args device-WiFi-192.168.1.50-connector)"
 
 section "remote debug port"
 cp "${WORK}/devices.txt" "${WORK}/devices.saved"
