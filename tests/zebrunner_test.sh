@@ -34,7 +34,8 @@ stub launchctl '(IFS="|"; echo "launchctl|$*") >> "${STUB_DIR}/calls.log"'
 # the stub body is expanded when the stub runs
 # shellcheck disable=SC2016
 stub docker '(IFS="|"; echo "docker|$*") >> "${STUB_DIR}/calls.log"
-[[ "$1 $2" == "volume ls" ]] && echo "local     appium-storage-volume"
+# volume ls: the volumes of the agent and of other projects, FAKE_VOLUMES overrides them
+[[ "$1 $2" == "volume ls" ]] && printf "%s\n" ${FAKE_VOLUMES-appium-storage-volume device-iPhone-0001-lockdown device-Old-0002 devimages_cache mcloud-key-volume mcloud_rethinkdb other-volume}
 exit 0'
 record_stub zebrunner-farm
 
@@ -46,7 +47,7 @@ zbr() {
   local input="$1"
   shift
   printf '%b' "$input" | env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb \
-    STUB_DIR="$WORK" FAKE_UNAME="${OS:-Linux}" ANSIBLE_EXIT="${ANSIBLE_EXIT:-0}" ZEBRUNNER_PYTHON="$YAML_PYTHON" \
+    STUB_DIR="$WORK" ${FAKE_VOLUMES+FAKE_VOLUMES="$FAKE_VOLUMES"} FAKE_UNAME="${OS:-Linux}" ANSIBLE_EXIT="${ANSIBLE_EXIT:-0}" ZEBRUNNER_PYTHON="$YAML_PYTHON" \
     ${AGENT_DIR:+ZEBRUNNER_MCLOUD_AGENT_DIR=$AGENT_DIR} /bin/bash "${AGENT}/zebrunner.sh" "$@" 2>&1 | unwrap
   return "${PIPESTATUS[1]}"
 }
@@ -927,7 +928,11 @@ check "macOS: launch agents are unloaded: the listener, usbmuxd and the autostar
 check "macOS: launch agents are removed" "0" "$(find "${WORK}/home/Library/LaunchAgents" -name '*.plist' | wc -l | tr -d ' ')"
 check "macOS: the variable is removed from the profiles" "0 0" "$(exports .bashrc) $(exports .zshrc)"
 check "macOS: containers are removed" "down" "$(calls zebrunner-farm)"
-check "macOS: appium storage is removed" "volume|rm|appium-storage-volume" "$(calls docker | grep '^volume|rm|')"
+check "macOS: the volumes of the agent are removed, the others are kept" "volume|rm|appium-storage-volume
+volume|rm|device-iPhone-0001-lockdown
+volume|rm|device-Old-0002
+volume|rm|devimages_cache
+volume|rm|mcloud-key-volume" "$(calls docker | grep '^volume|rm|')"
 check "macOS: deployed files are removed" "rm|-vf|/usr/local/bin/zebrunner-device-listener
 rm|-vf|/usr/local/bin/usbmuxd_watch
 rm|-vf|/etc/newsyslog.d/zebrunner-mcloud.conf
@@ -943,6 +948,8 @@ touch "${AGENT}/config/settings.yml" "${AGENT}/config/devices.yml"
 reset_calls
 OS=Linux zbr "y\n" shutdown > /dev/null
 check "Linux: no launch agents" "" "$(calls launchctl)"
+check "Linux: the pair records of the iOS devices are removed" "volume|rm|device-iPhone-0001-lockdown" \
+  "$(calls docker | grep '^volume|rm|device-iPhone')"
 check "Linux: udev rules and deployed files are removed" "rm|-vf|/etc/udev/rules.d/90_mcloud.rules
 rm|-vf|/etc/systemd/system/mcloud-device-restart@.service
 rm|-vf|/etc/systemd/system/mcloud-device-down@.service
@@ -954,5 +961,12 @@ check "Linux: udev and systemd forget the removed rules and units" "udevadm|cont
 systemctl|daemon-reload" "$(calls sudo | grep -E '^(udevadm|systemctl)\|')"
 check "Linux: settings are removed" "no no" \
   "$([[ -f "${AGENT}/config/settings.yml" ]] && echo yes || echo no) $([[ -f "${AGENT}/config/devices.yml" ]] && echo yes || echo no)"
+
+touch "${AGENT}/config/settings.yml" "${AGENT}/config/devices.yml"
+reset_calls
+output="$(FAKE_VOLUMES="other-volume" OS=Linux zbr "y\n" shutdown)"
+check_contains "no volume of the agent is reported" "No MCloud Agent volumes found" "$output"
+check "no volume of the agent: nothing is removed" "" "$(calls docker | grep '^volume|rm|')"
+check_contains "the confirmation tells that the devices trust the host again" "the devices ask to trust it again after a new setup" "$output"
 
 finish
