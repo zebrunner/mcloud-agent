@@ -552,6 +552,36 @@ doctor_devices() {
   done <<< "$(device_list_fields id name connection)"
 }
 
+# doctor_usb: Linux: the USB ports that flapped in 7 days (patch/usb_stats.py, README.md#usb-stability), a warning each:
+# the agent works, a device of such a port drops its sessions
+doctor_usb() {
+  [[ "$(uname)" == "Linux" ]] || return 0
+  doctor_section "USB stability" "the kernel log of 7 days"
+  local output
+  local status
+  local line
+  if ! command -v python3 > /dev/null 2>&1; then
+    doctor_info "not checked: no python3"
+    return 0
+  fi
+  output="$(python3 patch/usb_stats.py --summary --devices "$DOCTOR_DEVICES" 2>&1)"
+  status=$?
+  case "$status" in
+  0)
+    doctor_ok "no USB port flapped (more than 10 disconnects a day) in 7 days"
+    ;;
+  1)
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      doctor_warn "$line" "zebrunner-farm usb-stats: the details and the hint (README.md#usb-stability)"
+    done <<< "$output"
+    ;;
+  *)
+    doctor_info "not checked: ${output}"
+    ;;
+  esac
+}
+
 # count_values <values...>: the number of the values
 count_values() {
   echo "$#"
@@ -576,6 +606,7 @@ doctor() {
     doctor_deployment
     doctor_network
     doctor_devices
+    doctor_usb
   fi
   ui_summary "$DOCTOR_PASSED" "$DOCTOR_WARNINGS" "$DOCTOR_PROBLEMS"
   if [[ "$DOCTOR_PROBLEMS" -gt 0 ]]; then

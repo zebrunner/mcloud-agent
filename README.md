@@ -266,6 +266,7 @@ STF of MCloud accepts on its ZeroMQ ports only the enrolled device hosts: the CU
 - the network: the name resolution and the ports of `PUBLIC_IP`, mcloud-grid and the ZeroMQ triproxies; `STF_PROVIDER_HOST` is an address of this host, or a public address of a NAT while the MCloud server is in the network of this host (see [Device hosts in a private network](#device-hosts-in-a-private-network)); MCloud on this machine and the devices using its ports (see [Devices on the MCloud server](#devices-on-the-mcloud-server));
 - the remote debug: with `REMOTE_CONNECT_HOST` the adb relay of mcloud accepts the remote debug ports of the Android devices (printed);
 - the devices: their containers, the refused grid registrations of Appium and the refused CURVE key in the logs of the last 30 minutes.
+- the USB stability (Linux): the USB ports that flapped in the last 7 days, a warning each with the verdict, see [USB stability](#usb-stability).
 
 The MCloud server checks a host too: `./zebrunner.sh nodes check <label>` of [mcloud](https://github.com/zebrunner/mcloud#nodes) shows its record, its devices and whether the server reaches their screens.
 
@@ -341,9 +342,31 @@ With S3 (`S3_BUCKET` and the other `S3_*` settings of `config/settings.yml`) app
 - The status of `start`, `stop`, `restart` and `down` is `0` when every device succeeded (a skipped one too), `1` when a device failed (a container not created, started, stopped or removed; the lock of the device not taken; an invalid device): the unit of udev of the device is failed then (`systemctl --failed`), the others go on. `2` is a wrong use (an unknown command, role or option of `logs`, `shell`, `exec`, `completion`).
 - `status` of a group is a table, a row per device: the mark of each container (`C S A U`: connector, STF, appium, uploader), the uptime of appium (or of its oldest running container) and the restarts with the containers that have them, or the first container that exited; a USB device that is not plugged in is `disconnected`. The marks are green (running), amber (starting, unhealthy, restarting), red (exited, dead) and muted (no container) dots at a terminal with colors, the letters `R`, `S`, `X` and `-` without colors. `status <device>` (or `-v` for every device of a group) shows its containers: state, health, uptime and the full name, a warning with `docker logs --tail 50 <container>` for a container that restarted or is unhealthy, a failure for one that exited. `--watch [seconds]` shows it again every 5 seconds (or the seconds) at a terminal until Ctrl-C. The status of `status` is `0` (`1` for an invalid device).
 - `status --json` prints the devices and their containers as a JSON array for the monitoring, the messages go to stderr: per device `id`, `name`, `os`, `connection`, `location`, `plugged_in` (a USB device: `true` or `false`, `null` of the other connections) and `containers` (`connector`, `stf`, `appium`, `uploader`): `exists`, and of an existing one `status` (docker: `running`, `exited`, ...), `health` (`healthy`, `unhealthy`, `starting`, `null` without a health check), `started_at`, `uptime_seconds` (of a running one) and `restarts`, e.g. `zebrunner-farm status --json android | jq -r '.[] | select(.containers.stf.health != "healthy") | .name'`.
+- `usb-stats [devices] [--days <n>] [--threshold <n>] [--json]` (Linux): the stability of the USB ports and whether the port or the device is to blame, see [USB stability](#usb-stability).
 - `logs <device> [role] [-f|--follow] [--tail <n>]` is `docker logs` of a container of one device (its name or udid; the last 200 lines by default), `shell <device> [role]` a shell in it (bash, or sh without it), `exec <device> <role> <command...>` runs a command in it (`docker exec -it` when both its input and its output are a terminal, else `docker exec -i`: a redirected or piped output stays byte for byte, e.g. `adb exec-out screencap -p > shot.png`); the roles are `connector`, `stf`, `appium` (the default of `logs` and `shell`) and `uploader`, e.g. `zebrunner-farm logs Pixel_7 stf -f`, `zebrunner-farm exec Pixel_7 connector adb devices`.
 - The completion of the commands, the options, the devices, the groups and the roles in bash and zsh: `eval "$(zebrunner-farm completion bash)"` in `~/.bashrc` (`zsh` and `~/.zshrc` for zsh); it is `patch/completion.sh` of the agent, which asks `zebrunner-farm __complete` for the candidates: it reads the devices list only, runs no docker and changes nothing.
 - `stop`, `restart` and `down` stop the containers of a device one by one and wait for them: appium first (up to 40 s: it finishes the recordings of the active sessions), then the uploader (up to 130 s: it uploads them, its `FINISH_TIMEOUT` is 120 s), STF (30 s) and the connector (10 s); `restart` and `down` remove a container after its stop and the volume of the logs after all of them. The stop of a device with the recordings to upload takes a few minutes, the macOS devices listener waits for its actions up to 30 minutes as the units of udev of Linux.
+
+### USB stability
+
+A device that loses its USB connection again and again (a worn cable, a worn port of a hub, a broken connector of the device) looks like many other failures: its containers come and go, STF and the battery level are stale, the sessions break. `zebrunner-farm usb-stats [devices] [--days <n>] [--threshold <n>] [--json]` (Linux) reads the kernel log (`journalctl -k`, all the boots of the period of a persistent journal) and the docker log and reports every port with a disconnection:
+
+```text
+USB stability, 7 days (2026-11-11 .. 2026-11-18), threshold 10 disconnects/day
+
+PORT         DEVICE                                 DISC  MAX/DAY  ERRORS  NOT_A_NODE  VERDICT
+1-6.4.2      iPhone_15_Pro_Max (S3_A1)               517      188       3         214  port: different devices flapped here: Samsung_Note_10 (S3_A2), iPhone_15_Pro_Max (S3_A1)
+1-13.4.2     Samsung_Note_10 (S3_A2)                   1        1       0           0  ok
+
+Ports held by more than one device in the period:
+1-6.4.2      Samsung_Note_10 (S3_A2) until 2026-11-07, iPhone_15_Pro_Max (S3_A1) since 2026-11-07
+1-13.4.2     iPhone_15_Pro_Max (S3_A1) until 2026-11-07, Samsung_Note_10 (S3_A2) since 2026-11-07
+```
+
+- `DISC` the disconnections of the port, `MAX/DAY` the most of a day, `ERRORS` the errors of the USB protocol (`-71`, `-110`, `-32`, `-62`), `NOT_A_NODE` the failed starts of the containers of its device (`not a device node` of the docker log: the device was gone again); the device is the last one of the port (by its serial: the adb serial of Android, the UDID of iOS without its dash), an unknown device is one that is not in the devices list.
+- A port flaps when it has more than `--threshold` (10) disconnections on a day: a reboot of a device, the switch of the USB mode of an iPhone or a plug by hand are 1-2 a day. The verdict of a flapping port: `port` when different devices flapped on it or its device is stable on another port (replace the cable or use another port), `device` when the device flaps on other ports too or another device was stable on the port (check the connector and the cable of the device), `unknown` for one device on one port all the period (swap it with a stable device of another port, then run it again).
+- `[devices]` (names, udids, groups, patterns, `-x`): the ports these devices were on; all the ports with a disconnection without them. `--days` is the period (7 by default), `--json` the report for the monitoring (per port the days, the devices it held, the verdict). The status is `1` with a flapping port, `2` when the logs are not readable: the groups `adm` or `systemd-journal` read them (or `sudo`).
+- A volatile journal has the current boot only: the report says when the kernel log starts. `./zebrunner.sh doctor` warns about the flapping ports of the last 7 days (see [Doctor](#doctor)).
 
 ### MDM
 

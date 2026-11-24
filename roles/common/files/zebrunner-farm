@@ -2213,10 +2213,79 @@ debug_command() {
   esac
 }
 
+#### USB stability
+
+# usb_stats [devices...] [--days <n>] [--threshold <n>] [--json] [-x <devices>]: the report of patch/usb_stats.py of the
+# kernel log of this Linux host (README.md#usb-stability), of the ports of the devices of the selection (all the ports
+# with a disconnect without one); its status: 1 with a flapping port, 2 for unreadable logs
+usb_stats() {
+  local args=()
+  local option
+  local value
+  SELECTORS=()
+  EXCLUDES=()
+  if [[ "$FARM_OS" == "macos" ]]; then
+    farm_status fail "usb-stats reads the kernel log of Linux: not on macOS"
+    return 1
+  fi
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --days | --threshold | --days=* | --threshold=*)
+      option="${1%%=*}"
+      if [[ "$1" == *=* ]]; then
+        value="${1#*=}"
+      else
+        value="${2:-}"
+        shift
+      fi
+      if [[ ! "$value" =~ ^[1-9][0-9]*$ ]]; then
+        farm_status fail "${option} takes a number of 1 or more"
+        return 1
+      fi
+      args+=("$option" "$value")
+      ;;
+    --json)
+      args+=(--json)
+      ;;
+    -x | -e | --exclude)
+      if [[ -z "${2:-}" ]]; then
+        farm_status fail "$1 needs the devices to skip"
+        return 1
+      fi
+      add_selectors excludes "$2"
+      shift
+      ;;
+    -x=* | -e=* | --exclude=*)
+      add_selectors excludes "${1#*=}"
+      ;;
+    -*)
+      farm_status fail "unknown option: $1" "zebrunner-farm help usb-stats"
+      return 1
+      ;;
+    *)
+      add_selectors selectors "$1"
+      ;;
+    esac
+    shift
+  done
+  if [[ "$(count "${SELECTORS[@]}")" -gt 0 || "$(count "${EXCLUDES[@]}")" -gt 0 ]]; then
+    check_devices_list || return 1
+    select_devices || return 1
+    for value in "${SELECTED[@]}"; do
+      args+=(--device "$value")
+    done
+  fi
+  if ! command -v python3 > /dev/null 2>&1; then
+    farm_status fail "usb-stats needs python3" "install Python 3"
+    return 1
+  fi
+  python3 "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/usb_stats.py" --devices "$MCLOUD_DEVICES" "${args[@]+"${args[@]}"}"
+}
+
 #### Help and completion
 
 # the commands of zebrunner-farm
-FARM_COMMANDS=(status start stop restart down logs shell exec ansible version completion help)
+FARM_COMMANDS=(status start stop restart down logs shell exec usb-stats ansible version completion help)
 
 # farm_is_command <word>: 0 for a command of zebrunner-farm
 farm_is_command() {
@@ -2253,6 +2322,7 @@ farm_help() {
   ui_help_cmd logs "<device> [role]" "docker logs of a container of the device: appium by default, -f follows, --tail <n> (200)"
   ui_help_cmd shell "<device> [role]" "A shell in a container of the device, appium by default"
   ui_help_cmd exec "<device> <role> cmd" "Run a command in a container of the device"
+  ui_help_cmd usb-stats "[devices]" "Linux: the stability of the USB ports, whether the port or the device is to blame"
   ui_help_group "Agent"
   ui_help_cmd ansible "[devices] [args...]" "./zebrunner.sh ansible: deploy the agent again, args of ansible-playbook"
   ui_help_cmd version "" "Show version of MCloud Agent components"
@@ -2287,6 +2357,7 @@ command_usage() {
   logs) echo "zebrunner-farm logs <device|--pick> [role] [-f] [--tail <n>]" ;;
   shell) echo "zebrunner-farm shell <device|--pick> [role]" ;;
   exec) echo "zebrunner-farm exec <device|--pick> <role> <command...>" ;;
+  usb-stats) echo "zebrunner-farm usb-stats [devices...] [--days <n>] [--threshold <n>] [--json]" ;;
   ansible) echo "zebrunner-farm ansible [devices] [args...]" ;;
   completion) echo "zebrunner-farm completion <bash|zsh>" ;;
   help) echo "zebrunner-farm help [command]" ;;
@@ -2360,6 +2431,17 @@ farm_command_help() {
     ui_help_cmd "exec Pixel_7 connector adb devices" "" "the devices of adb of the connector"
     ui_help_cmd "exec --pick connector adb devices" "" "the same in a device picked with fzf"
     ;;
+  usb-stats)
+    farm_text "Linux: the stability of the USB ports from the kernel log (journalctl -k): per port the disconnects, the most of a day, the protocol errors (-71, -110, -32, -62), the devices it held (the serials of the devices list) and the failed starts of their containers (not a device node of the docker log). A port with more disconnects than the threshold on a day flaps; the verdict tells whether the port (different devices flapped on it, or its device is stable on another port) or the device (it flaps on other ports too, or another device was stable on the port) is to blame, unknown for one device on one port. The status is 1 with a flapping port, 2 when the logs are not readable (the groups adm or systemd-journal read them, or sudo). README.md#usb-stability."
+    ui_help_group "Options"
+    ui_help_cmd "--days" "<n>" "The days of the logs, 7 by default"
+    ui_help_cmd "--threshold" "<n>" "The disconnects of a day from which a port flaps (more than it), 10 by default"
+    ui_help_cmd "--json" "" "The report as JSON for the monitoring"
+    selection_help
+    ui_help_group "Examples"
+    ui_help_cmd "usb-stats" "" "every port with a disconnect in 7 days"
+    ui_help_cmd "usb-stats iPhone_15 --days 30" "" "the ports of a device in 30 days"
+    ;;
   ansible)
     farm_text "./zebrunner.sh ansible of the agent folder of the settings: deploy the agent again from any folder; the arguments of ansible-playbook."
     ;;
@@ -2412,6 +2494,20 @@ farm_complete() {
     ;;
   ansible)
     [[ "$index" -ne 2 ]] || device_candidates
+    ;;
+  usb-stats)
+    case "$previous" in
+    --days | --threshold) return 0 ;;
+    -x | -e | --exclude)
+      device_candidates
+      return 0
+      ;;
+    esac
+    if [[ "$current" == -* ]]; then
+      printf '%s\n' --days --threshold --json -x -e --exclude --help
+      return 0
+    fi
+    device_candidates
     ;;
   logs | shell | exec)
     [[ "$previous" != "--tail" ]] || return 0
@@ -2555,7 +2651,7 @@ main() {
       return 0
     fi
     ;;
-  status | start | stop | restart | down | logs | shell)
+  status | start | stop | restart | down | logs | shell | usb-stats)
     for arg in "${@:2}"; do
       if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
         farm_command_help "$command"
@@ -2571,6 +2667,10 @@ main() {
   logs | shell | exec)
     FARM_COMMAND="$command"
     debug_command "$@"
+    ;;
+  usb-stats)
+    FARM_COMMAND="$command"
+    usb_stats "${@:2}"
     ;;
   ansible)
     "${ZEBRUNNER_MCLOUD_AGENT_DIR}"/zebrunner.sh ansible "${@:2}"

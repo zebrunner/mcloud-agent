@@ -994,6 +994,41 @@ sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/f
 check "a simulator gets none" "" "$(ddi_mount mac-devices Sim device-Sim-B1B07E76)"
 check "the proxied device gets it" "${WORK}/ddi:/opt/zebrunner/ddi:ro" "$(ddi_mount mac-devices AppleTV device-AppleTV-aaaa1111)"
 
+section "usb-stats"
+# python3 of patch/usb_stats.py records its arguments, its status is the one of ${STUB_DIR}/usb-status
+# the stub body is expanded when the stub runs
+# shellcheck disable=SC2016
+stub python3 '(IFS="|"; echo "python3|$*") >> "${STUB_DIR}/calls.log"
+exit "$(cat "${STUB_DIR}/usb-status" 2> /dev/null || echo 0)"'
+reset_calls
+farm devices usb-stats > /dev/null
+check "usb-stats: the report of every port of the devices list" "|--devices|${WORK}/devices.txt" \
+  "$(calls python3 | sed 's/^[^|]*usb_stats\.py//')"
+reset_calls
+farm devices usb-stats iPhone_8_Plus Galaxy --days 30 --threshold 5 --json > /dev/null
+check "usb-stats: the options and the devices of the selection" \
+  "|--devices|${WORK}/devices.txt|--days|30|--threshold|5|--json|--device|R28M1384YQY|--device|d6afc6b3a65584ca0813eb8957c6479b9b6ebb11" \
+  "$(calls python3 | sed 's/^[^|]*usb_stats\.py//')"
+reset_calls
+farm devices usb-stats usb -x Galaxy --days=3 > /dev/null
+check "usb-stats: a group without a device" "|--devices|${WORK}/devices.txt|--days|3|--device|d6afc6b3a65584ca0813eb8957c6479b9b6ebb11" \
+  "$(calls python3 | sed 's/^[^|]*usb_stats\.py//')"
+echo 1 > "${WORK}/usb-status"
+farm devices usb-stats > /dev/null
+check "usb-stats: the status of a flapping port" "1" "$?"
+rm -f "${WORK}/usb-status"
+check_contains "usb-stats: --days takes a number" "--days takes a number of 1 or more" "$(farm devices usb-stats --days 0)"
+check_contains "usb-stats: an unknown option" "unknown option: --verbose" "$(farm devices usb-stats --verbose)"
+check_contains "usb-stats: an unknown device" "device not found: Galxy" "$(farm devices usb-stats Galxy)"
+reset_calls
+check_contains "usb-stats: Linux only" "usb-stats reads the kernel log of Linux: not on macOS" "$(farm mac-devices usb-stats)"
+check "usb-stats: nothing runs on macOS" "" "$(calls python3)"
+check_contains "usb-stats: its help" "whether the port (different devices flapped on it" "$(farm devices help usb-stats | tr -s ' \n' '  ')"
+check "usb-stats: the options of the completion" "--days --threshold --json -x -e --exclude --help" "$(
+  env -i PATH="${WORK}/bin:/usr/bin:/bin" ZEBRUNNER_FARM_ENV="${WORK}/farm-devices.env" /bin/bash "$FARM_SCRIPT" __complete 2 usb-stats - | paste -s -d ' ' -
+)"
+rm -f "${WORK}/bin/python3"
+
 section "help"
 output="$(farm devices | tr -s ' \n' '  ')"
 check_contains "help describes the devices argument" "Devices: udid or name of a whitelisted device, a group: ios, android, usb" "$output"
@@ -1154,7 +1189,7 @@ check_contains "an unknown device suggests a udid by its prefix" "(did you mean:
 check_contains "an unknown device suggests a group" "(did you mean: android?)" "$(farm devices stop androd)"
 
 section "help of a command"
-for command in status start stop restart down logs shell exec ansible version completion help; do
+for command in status start stop restart down logs shell exec usb-stats ansible version completion help; do
   output="$(farm devices help "$command")"
   check "help ${command} succeeds" "0" "$?"
   check_contains "help ${command} has its usage" "> zebrunner-farm ${command}" "$output"
@@ -1165,7 +1200,7 @@ check "--help changes nothing" "" "$(calls docker | grep -v '^ps|')"
 output="$(farm devices help nope)"
 check "help of an unknown command is a usage error" "2" "$?"
 output="$(farm devices | tr -s ' \n' '  ')"
-for command in status start stop restart down logs shell exec ansible version completion help; do
+for command in status start stop restart down logs shell exec usb-stats ansible version completion help; do
   check_contains "help has ${command}" " ${command} " "$output"
 done
 for option in -x "-q," --quiet --batch --rolling --dry-run --json --watch -v; do
@@ -1225,7 +1260,7 @@ complete() {
     /bin/bash "$FARM_SCRIPT" __complete "$@" | paste -s -d ' ' -
 }
 ENV="${WORK}/farm-devices.env"
-check "the commands" "status start stop restart down logs shell exec ansible version completion help" "$(complete "$ENV" 1 "")"
+check "the commands" "status start stop restart down logs shell exec usb-stats ansible version completion help" "$(complete "$ENV" 1 "")"
 devices="R28M1384YQY Galaxy 192.168.1.50 WiFi d6afc6b3a65584ca0813eb8957c6479b9b6ebb11 iPhone_8_Plus aaaa1111 AppleTV bbbb2222 iPhoneWiFi emu1 Emu B1B07E76 Sim"
 groups="ios android usb wireless android-sim ios-sim proxy"
 check "the devices and the groups of a command" "${devices} ${groups}" "$(complete "$ENV" 2 restart "")"
@@ -1243,11 +1278,11 @@ check "the options of logs" "--pick -f --follow --tail --help" "$(complete "$ENV
 check "the roles of exec" "connector stf appium uploader" "$(complete "$ENV" 3 exec WiFi "")"
 check "nothing for the command of exec" "" "$(complete "$ENV" 4 exec WiFi stf "")"
 check "the roles of shell" "connector stf appium uploader" "$(complete "$ENV" 3 shell Emu "")"
-check "the commands of help" "status start stop restart down logs shell exec ansible version completion help" \
+check "the commands of help" "status start stop restart down logs shell exec usb-stats ansible version completion help" \
   "$(complete "$ENV" 2 help "")"
 check "the shells of completion" "bash zsh" "$(complete "$ENV" 2 completion "")"
 check "nothing for version" "" "$(complete "$ENV" 2 version "")"
-check "the commands without the settings" "status start stop restart down logs shell exec ansible version completion help" \
+check "the commands without the settings" "status start stop restart down logs shell exec usb-stats ansible version completion help" \
   "$(complete "${WORK}/missing.env" 1 "")"
 check "the options without the settings" "-q --quiet --dry-run --pick -x -e --exclude --help" "$(complete "${WORK}/missing.env" 2 start -)"
 check "nothing on stderr without the settings" "" \
