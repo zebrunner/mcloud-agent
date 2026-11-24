@@ -590,10 +590,13 @@ echo 200 > "${WORK}/mcloud/self_code"
 doctor_run() {
   printf '' | env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
     FAKE_UNAME=Linux DOCTOR_FARM="${WORK}/farm" DOCTOR_FARM_ENV="${WORK}/farm.env" DOCTOR_DEVICES="${WORK}/devices.txt" \
-    ZEBRUNNER_PYTHON="$YAML_PYTHON" \
-    /bin/bash "${AGENT}/zebrunner.sh" doctor 2>&1 | unwrap
+    ZEBRUNNER_PYTHON="$YAML_PYTHON" USB_STATS_KERNEL_LOG="${WORK}/kernel.log" USB_STATS_DOCKER_LOG="${WORK}/docker.log" \
+    USB_STATS_SYSFS="${WORK}/sysfs" /bin/bash "${AGENT}/zebrunner.sh" doctor 2>&1 | unwrap
   return "${PIPESTATUS[1]}"
 }
+# the kernel log of the USB stability (patch/usb_stats.py): no disconnection
+: > "${WORK}/kernel.log"
+: > "${WORK}/docker.log"
 rm -f "${WORK}/farm" "${WORK}/devices.txt"
 cp "${WORK}/vars.joined" "$vars"
 chmod 600 "$vars"
@@ -620,6 +623,21 @@ check "the summary counts every status without colors" \
   "$(grep -E '^  [0-9]+ ok, [0-9]+ warn, [0-9]+ fail$' <<< "$output")"
 check_contains "the advice follows the summary" "No problems, $(grep -c '^   warn ' <<< "$output") warnings" "$output"
 check "the output is plain text without a terminal" "0" "$(grep -c $'\033' <<< "$output")"
+check_contains "the USB stability of a host without a flapping port" "no USB port flapped (more than 10 disconnects a day) in 7 days" "$output"
+# a port that flaps on a day: a warning with the summary of patch/usb_stats.py
+python3 -c 'import datetime
+day = datetime.date.today() - datetime.timedelta(days=1)
+print("\n".join(["%sT10:00:00+0100 host kernel: usb 1-6.4.2: SerialNumber: R28M1384YQY" % day]
+    + ["%sT10:%02d:00+0100 host kernel: usb 1-6.4.2: USB disconnect, device number 5" % (day, i) for i in range(12)]))' \
+  > "${WORK}/kernel.log"
+usb_output="$(doctor_run)"
+check "a flapping USB port is a warning, not a problem" "0" "$?"
+check_contains "a flapping USB port is reported with its counts" "USB port 1-6.4.2 (unknown device R28M1384YQY): 12 disconnects in 7 days, up to 12 a day; unknown: one device on one port" "$usb_output"
+check_contains "the fix of a flapping USB port" "zebrunner-farm usb-stats: the details and the hint" "$usb_output"
+: > "${WORK}/kernel.log"
+rm -f "${WORK}/kernel.log"
+check_contains "unreadable logs of the USB stability are a fact" "info not checked: The logs are not readable" "$(doctor_run)"
+: > "${WORK}/kernel.log"
 for secret in "$node_token" "$(sed -n 's/^STF_ZMQ_CURVE_SECRET_KEY: "\(.*\)"$/\1/p' "$vars")"; do
   check_not_contains "a secret is not printed" "$secret" "$output"
 done
