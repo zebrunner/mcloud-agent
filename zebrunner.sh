@@ -525,6 +525,7 @@ shutdown() {
 
   ### Confirm shutdown
   echo_warning "Shutdown will erase all settings and data for '${ZEBRUNNER_MCLOUD_AGENT_DIR}'!"
+  ui_info "Also the docker volumes of the agent: the pair records of the iOS devices and the adb key of this host, so the devices ask to trust it again after a new setup."
   echo ""
   confirm "" "Do you want to continue?" "n" || {
     ui_info "Shutdown cancelled"
@@ -615,11 +616,25 @@ shutdown() {
     ui_fail "Can't find 'zebrunner-farm' executable file"
   fi
 
-  if docker volume ls | grep -q "appium-storage-volume"; then
-    ui_spin "Removing volume 'appium-storage-volume'" docker volume rm appium-storage-volume
-  else
-    ui_info "Volume 'appium-storage-volume' not found"
+  ### Remove the volumes of the agent: the ones of the devices zebrunner-farm down did not remove (the pair records
+  ### of the iOS devices, device-*-lockdown, and the logs of the devices removed from the settings), the cache of the
+  ### Developer Disk Images, the adb key of the host (also the times of the reboots of the Android devices) and the
+  ### storage of the earlier appium
+  ui_section "Volumes"
+  local volume
+  local volumes=()
+  while IFS= read -r volume; do
+    case "$volume" in
+    device-* | devimages_cache | mcloud-key-volume | appium-storage-volume) volumes+=("$volume") ;;
+    esac
+  done <<< "$(docker volume ls --format '{{.Name}}' 2> /dev/null)"
+  if ((${#volumes[@]} == 0)); then
+    ui_info "No MCloud Agent volumes found"
   fi
+  for volume in "${volumes[@]+"${volumes[@]}"}"; do
+    ui_spin "Removing volume '${volume}'" docker volume rm "$volume" ||
+      ui_warn "Volume '${volume}' is not removed: a container still uses it (docker ps -a --filter volume=${volume})"
+  done
 
   ### Remove files
   ui_section "Files"
