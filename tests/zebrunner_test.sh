@@ -858,7 +858,7 @@ devices:
     min_port: 7425
     max_port: 7430
 EOF
-printf 'DEVICE_IMAGE: public.ecr.aws/zebrunner/mcloud-device\nDEVICE_VERSION: 9.9-local\nAPPIUM_RELAXED_SECURITY: false\n' > "${AGENT}/defaults/main.yml"
+printf 'DEVICE_IMAGE: public.ecr.aws/zebrunner/mcloud-device\nDEVICE_VERSION: 9.9-local\nAPPIUM_RELAXED_SECURITY: true\n' > "${AGENT}/defaults/main.yml"
 output="$(OS=Linux zbr "n\n" migrate)"
 check_contains "the files of an earlier version are found" "roles/devices/vars/main.yml defaults/main.yml" "$output"
 check_contains "a changed setting is shown" '+PUBLIC_IP: "old.example.com"' "$output"
@@ -866,7 +866,7 @@ check_contains "a number keeps its type" "+PUBLIC_IP_PORT: 80" "$output"
 check_contains "a secret is hidden" "+MCLOUD_NODE_TOKEN: ******" "$output"
 check_not_contains "the value of a secret is not shown" "secret-token-value" "$output"
 check_contains "a changed version is shown" '+DEVICE_VERSION: "9.9-local"' "$output"
-check_contains "a changed option of Appium is shown" "+APPIUM_RELAXED_SECURITY: false" "$output"
+check_contains "a changed option of Appium is shown" "+APPIUM_RELAXED_SECURITY: true" "$output"
 check_not_contains "a value the deploy has already is not shown" "STF_PROVIDER_NAME" "$output"
 check_not_contains "an unchanged image is not shown" "DEVICE_IMAGE" "$output"
 check_contains "the devices are shown" "+  - id: OLD1" "$output"
