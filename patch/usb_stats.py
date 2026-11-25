@@ -346,7 +346,10 @@ def print_table(report, rows, ports, names):
             print(f"{port.name:<12} {holders_text(port, names)}")
     if any(row["verdict"] == "unknown" for row in rows if row["flapping"]):
         print()
-        print("unknown: swap the device with a stable device of another port, then run zebrunner-farm usb-stats again.")
+        print(
+            "unknown: swap the device with a stable device of another port, "
+            "then run zebrunner-farm doctor usb-stats again."
+        )
     if any(row["verdict"] == "port" for row in rows if row["flapping"]):
         print("port: replace the cable or use another port of the hub (or another hub) for the device.")
     if any(row["verdict"] == "device" for row in rows if row["flapping"]):
