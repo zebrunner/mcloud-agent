@@ -545,6 +545,8 @@ create_containers() {
     -e APPIUM_PORT="$dev_appium_port" \
     -p "$dev_appium_port":"$dev_appium_port" \
     -e RELAXED_SECURITY="${APPIUM_RELAXED_SECURITY}" \
+    -e ADB_SHELL="${APPIUM_ADB_SHELL:-true}" \
+    -e CHROMEDRIVER_AUTODOWNLOAD="${APPIUM_CHROMEDRIVER_AUTODOWNLOAD:-true}" \
     -e STF_API_URL="${STF_API_URL}" \
     "${appium_tail_args[@]+"${appium_tail_args[@]}"}" \
     "${APPIUM_IMAGE}:${APPIUM_VERSION}" || return 1

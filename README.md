@@ -320,7 +320,7 @@ The containers of a device created before keep their network until they are crea
 
 The Appium port of a device (`appium_port`) is published on the host for mcloud-grid. Appium of the device answers only the requests of the grid, which carry the token of this host, and the ones of its own container: the others get `401` (also Appium Inspector and the WebSockets of the sessions, e.g. the logcat broadcast; use the grid, `/mcloud/wd/hub` of mcloud).
 
-`APPIUM_RELAXED_SECURITY` of `roles/common/defaults/main.yml` is `true`: every session, also through the grid, gets the insecure features of Appium: `mobile: shell` (adb shell of the device), the Appium log of the earlier sessions of the device (`get_server_logs`), the emulator console, the screen streaming, the download of chromedriver. Set it to `false` in `config/settings.yml` when the tests do not need them.
+`APPIUM_RELAXED_SECURITY` of `roles/common/defaults/main.yml` is `false`: a session does not get the blanket insecure features of Appium. In particular `get_server_logs` is off, so one session cannot read the Appium log of the earlier sessions of the device (another user's capabilities and inputs). The features the tests usually need are enabled granularly instead: `APPIUM_ADB_SHELL` (`true` by default) for `mobile: shell` (adb shell of the device) and `APPIUM_CHROMEDRIVER_AUTODOWNLOAD` (`true` by default) for the automatic download of the matching chromedriver of the web and hybrid tests. Set `APPIUM_RELAXED_SECURITY: true` in `config/settings.yml` only for a feature not covered by those (the emulator console, the screen streaming, `get_server_logs`).
 
 ### Recordings
 

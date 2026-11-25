@@ -5,9 +5,18 @@
 APPIUM_APP_SIZE_DISABLE: false
 
 # Put false to forbid insecure appium features by starting appium without --relaxed-security. true enables them for
-# every session: mobile: shell (adb shell of the device), the Appium log of the earlier sessions of the device
-# (get_server_logs), the emulator console, the screen streaming, the download of chromedriver (README.md#appium-security)
-APPIUM_RELAXED_SECURITY: true
+# APPIUM_RELAXED_SECURITY enables ALL insecure Appium features for every session, including get_server_logs, which
+# returns the Appium log of the earlier sessions of the device (another user's capabilities and inputs). It is off by
+# default; the features the tests usually need are enabled granularly instead (below). Set it to true only for a feature
+# not covered by those: the emulator console, the screen streaming, get_server_logs (README.md#appium-security).
+APPIUM_RELAXED_SECURITY: false
+
+# mobile: shell (adb shell of the device) for the tests: a granular insecure feature of Appium, enabled without the
+# blanket APPIUM_RELAXED_SECURITY
+APPIUM_ADB_SHELL: true
+
+# the automatic download of the matching chromedriver for the web and hybrid tests: a granular insecure feature of Appium
+APPIUM_CHROMEDRIVER_AUTODOWNLOAD: true
 
 # Optimized app verifications for AppCenter and AWS S3 storages
 APPIUM_APP_FETCH_RETRIES: 2
