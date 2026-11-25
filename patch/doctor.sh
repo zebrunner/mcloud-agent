@@ -552,11 +552,12 @@ doctor_devices() {
   done <<< "$(device_list_fields id name connection)"
 }
 
-# doctor_usb: Linux: the USB ports that flapped in 7 days (patch/usb_stats.py, README.md#usb-stability), a warning each:
-# the agent works, a device of such a port drops its sessions
+# doctor_usb: Linux: the USB devices of the farm that are not on USB (patch/usb_map.py, README.md#usb-map) and the USB
+# ports that flapped in 7 days (patch/usb_stats.py, README.md#usb-stability), a warning each: the agent works, such a
+# device has no containers or drops its sessions
 doctor_usb() {
   [[ "$(uname)" == "Linux" ]] || return 0
-  doctor_section "USB stability" "the kernel log of 7 days"
+  doctor_section "USB" "the USB tree of sysfs, the kernel log of 7 days"
   local output
   local status
   local line
@@ -564,6 +565,23 @@ doctor_usb() {
     doctor_info "not checked: no python3"
     return 0
   fi
+  # the note of an unreadable kernel log (no last port of a device) is not a line of the summary
+  output="$(python3 patch/usb_map.py --summary --devices "$DOCTOR_DEVICES" 2> /dev/null)"
+  status=$?
+  case "$status" in
+  0)
+    doctor_ok "every USB device of the farm is on USB"
+    ;;
+  1)
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      doctor_warn "$line" "plug it in (or check its cable and battery): zebrunner-farm doctor usb-map shows the hubs and the free ports (README.md#usb-map)"
+    done <<< "$output"
+    ;;
+  *)
+    doctor_info "the USB tree is not checked: no USB devices in sysfs"
+    ;;
+  esac
   output="$(python3 patch/usb_stats.py --summary --devices "$DOCTOR_DEVICES" 2>&1)"
   status=$?
   case "$status" in
@@ -573,7 +591,7 @@ doctor_usb() {
   1)
     while IFS= read -r line; do
       [[ -n "$line" ]] || continue
-      doctor_warn "$line" "zebrunner-farm usb-stats: the details and the hint (README.md#usb-stability)"
+      doctor_warn "$line" "zebrunner-farm doctor usb-stats: the details and the hint (README.md#usb-stability)"
     done <<< "$output"
     ;;
   *)

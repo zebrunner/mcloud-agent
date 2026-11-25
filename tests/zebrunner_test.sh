@@ -591,11 +591,15 @@ doctor_run() {
   printf '' | env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
     FAKE_UNAME=Linux DOCTOR_FARM="${WORK}/farm" DOCTOR_FARM_ENV="${WORK}/farm.env" DOCTOR_DEVICES="${WORK}/devices.txt" \
     ZEBRUNNER_PYTHON="$YAML_PYTHON" USB_STATS_KERNEL_LOG="${WORK}/kernel.log" USB_STATS_DOCKER_LOG="${WORK}/docker.log" \
-    USB_STATS_SYSFS="${WORK}/sysfs" /bin/bash "${AGENT}/zebrunner.sh" doctor 2>&1 | unwrap
+    USB_STATS_SYSFS="${WORK}/sysfs" USB_MAP_SYSFS="${WORK}/usb-sysfs" /bin/bash "${AGENT}/zebrunner.sh" doctor 2>&1 | unwrap
   return "${PIPESTATUS[1]}"
 }
 # the kernel log of the USB stability (patch/usb_stats.py): no disconnection
 : > "${WORK}/kernel.log"
+# the USB tree of sysfs (patch/usb_map.py): a root hub
+mkdir -p "${WORK}/usb-sysfs/usb1"
+echo 09 > "${WORK}/usb-sysfs/usb1/bDeviceClass"
+echo 4 > "${WORK}/usb-sysfs/usb1/maxchild"
 : > "${WORK}/docker.log"
 rm -f "${WORK}/farm" "${WORK}/devices.txt"
 cp "${WORK}/vars.joined" "$vars"
@@ -633,7 +637,22 @@ print("\n".join(["%sT10:00:00+0100 host kernel: usb 1-6.4.2: SerialNumber: R28M1
 usb_output="$(doctor_run)"
 check "a flapping USB port is a warning, not a problem" "0" "$?"
 check_contains "a flapping USB port is reported with its counts" "USB port 1-6.4.2 (unknown device R28M1384YQY): 12 disconnects in 7 days, up to 12 a day; unknown: one device on one port" "$usb_output"
-check_contains "the fix of a flapping USB port" "zebrunner-farm usb-stats: the details and the hint" "$usb_output"
+check_contains "the fix of a flapping USB port" "zebrunner-farm doctor usb-stats: the details and the hint" "$usb_output"
+check_contains "no USB device of the farm is missing" "every USB device of the farm is on USB" "$usb_output"
+# a USB device of the farm that is not on USB: a warning with the last port of the kernel log
+printf '%s\n' "id=R28M1384YQY|os=android|name=Galaxy|location=S3_A1|connection=usb" \
+  "id=emu1|os=android|name=Emu|location=|connection=android-sim" > "${WORK}/devices.txt"
+usb_output="$(doctor_run)"
+check "a device not on USB is a warning, not a problem" "0" "$?"
+check_contains "a device not on USB is reported with its last port" \
+  "Galaxy (S3_A1) R28M1384YQY is not on USB (last seen $(date -d yesterday +%F 2> /dev/null || date -v-1d +%F) 10:11:00 on 1-6.4.2)" \
+  "$usb_output"
+check_contains "the fix of a device not on USB" "zebrunner-farm doctor usb-map shows the hubs and the free ports" "$usb_output"
+check_not_contains "a simulator is not on USB" "Emu is not on USB" "$usb_output"
+mkdir -p "${WORK}/usb-sysfs/1-6"
+echo R28M1384YQY > "${WORK}/usb-sysfs/1-6/serial"
+check_contains "a device on USB" "every USB device of the farm is on USB" "$(doctor_run)"
+rm -rf "${WORK}/usb-sysfs/1-6" "${WORK}/devices.txt"
 : > "${WORK}/kernel.log"
 rm -f "${WORK}/kernel.log"
 check_contains "unreadable logs of the USB stability are a fact" "info not checked: The logs are not readable" "$(doctor_run)"

@@ -966,7 +966,7 @@ command_help() {
     help_text "The state of the components of the agent: the tools, Rosetta 2 of an Apple Silicon Mac, the deployed files, the launch agents, the autostart and the settings. It changes nothing."
     ;;
   doctor)
-    help_text "Checks the host, the settings, the enrollment in MCloud, the deployment, the network to MCloud and the devices, and tells what to fix. It changes nothing; it exits with 1 when a check fails."
+    help_text "Checks the host, the settings, the enrollment in MCloud, the deployment, the network to MCloud, the devices and their USB (Linux), and tells what to fix. It changes nothing; it exits with 1 when a check fails. zebrunner-farm doctor runs it from any folder; zebrunner-farm doctor usb-stats and usb-map show the details of the USB checks."
     readme="doctor"
     ;;
   autostart)
