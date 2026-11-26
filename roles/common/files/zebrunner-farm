@@ -456,8 +456,9 @@ create_containers() {
     fi
 
     # Linking with appium required to share usbmuxd via socat
+    # WDA_BUNDLEID: the cleanup of STF keeps WebDriverAgent of the device by its exact bundle id
     stf_head_args=(--restart "on-failure:${RESTARTS_LIMIT}" --link "${dev_container}-connector":connector "${stf_wda_args[@]}"
-      -e WDA_WAIT_TIMEOUT=60)
+      -e WDA_WAIT_TIMEOUT=60 -e WDA_BUNDLEID="$dev_device_wda_bundle_id")
     stf_dealer_args=(-e STF_PROVIDER_CONNECT_APP_DEALER="${STF_PROVIDER_CONNECT_APP_DEALER}"
       -e STF_PROVIDER_CONNECT_DEV_DEALER="${STF_PROVIDER_CONNECT_DEV_DEALER}")
     # appium takes usbmuxd from the connector, not the USB device
