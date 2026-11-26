@@ -333,6 +333,16 @@ When a device is released (the end of a test session, a user of STF leaves it), 
 
 A change needs `./zebrunner.sh ansible` and `zebrunner-farm restart`. The apps of the start are the ones the device has when its container starts: install an app that must stay before `zebrunner-farm restart`, or list it in `CLEANUP_KEEP_PACKAGES`.
 
+### Port forwarding
+
+The port forwarding of STF (a port of the device to a host and a port the user gives, Android) connects from this host. It reaches public addresses only: a private, loopback, link-local or metadata address (also the ones a host name resolves to) is refused, so a user cannot reach the services, the docker networks or the LAN of this host through a device.
+
+| Setting of `config/settings.yml` | Default | Description |
+| --- | --- | --- |
+| `STF_FORWARD_ALLOW` | empty | the networks the forwards may reach besides the public addresses, CIDRs or addresses separated by commas, e.g. the LAN of the users `192.168.10.0/24` |
+
+A change needs `./zebrunner.sh ansible` and `zebrunner-farm restart`.
+
 ### Recordings
 
 With S3 (`S3_BUCKET` and the other `S3_*` settings of `config/settings.yml`) appium records the video of every session and the uploader container of the device uploads it with the logs of the session to `s3://<S3_BUCKET>[/<S3_TENANT>]/artifacts/test-sessions/<session id>/`. Without `S3_BUCKET` appium records no video (`RECORD_ARTIFACTS=false`) and the device has no uploader: there is nothing to upload to, the videos filled the disk. Appium still keeps the log of every session in a folder of the volume of the logs of the device, the volume is removed with the containers (`zebrunner-farm restart`, `down`, a disconnection of a USB device). A change of S3 needs `./zebrunner.sh ansible` and `zebrunner-farm restart`.
