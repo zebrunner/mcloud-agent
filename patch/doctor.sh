@@ -377,7 +377,9 @@ doctor_network() {
     "the devices reach the public name of MCloud: resolve it to the address of the MCloud server in its network (e.g. /etc/hosts, README.md#device-hosts-in-a-private-network)"
   check_endpoint "mcloud-grid (SELENIUM_HUB_HOST)" "$(setting SELENIUM_HUB_HOST)" "$(setting SELENIUM_HUB_PORT)" \
     "the address of the MCloud server and the port of mcloud-grid (4446), see Firewall of mcloud"
-  for name in STF_PROVIDER_CONNECT_SUB STF_PROVIDER_CONNECT_PUSH STF_PROVIDER_CONNECT_APP_DEALER STF_PROVIDER_CONNECT_DEV_DEALER; do
+  # the devices connect to the SUB and the PUSH of the triproxies only: the dealers are no port of the nodes (MCloud
+  # refuses the keys of the nodes there and need not publish them)
+  for name in STF_PROVIDER_CONNECT_SUB STF_PROVIDER_CONNECT_PUSH; do
     endpoint="$(setting "$name")"
     [[ -n "$endpoint" ]] || continue
     endpoint="${endpoint#tcp://}"
