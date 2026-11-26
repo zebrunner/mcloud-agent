@@ -479,6 +479,11 @@ create_containers() {
   local tls_args=()
   [[ -n "${MCLOUD_CA_PEM:-}" ]] && tls_args+=(-e MCLOUD_CA_PEM)
   [[ "${STF_TLS_INSECURE:-false}" == "true" ]] && tls_args+=(-e NODE_TLS_REJECT_UNAUTHORIZED=0)
+  # the cleanup between the uses (README.md#cleanup): the settings of this host only, otherwise the defaults of the
+  # image; an empty -e would replace the default of the image
+  local cleanup_args=()
+  [[ -n "${STF_PROVIDER_CLEANUP:-}" ]] && cleanup_args+=(-e STF_PROVIDER_CLEANUP="${STF_PROVIDER_CLEANUP}")
+  [[ -n "${CLEANUP_KEEP_PACKAGES:-}" ]] && cleanup_args+=(-e CLEANUP_KEEP_PACKAGES="${CLEANUP_KEEP_PACKAGES}")
   MCLOUD_CA_PEM="${MCLOUD_CA_PEM:-}" STF_NODE_TOKEN="$MCLOUD_NODE_TOKEN" STF_ZMQ_CURVE_SECRET_KEY="$STF_ZMQ_CURVE_SECRET_KEY" \
     ensure_container stf -d \
     --log-driver=local \
@@ -506,6 +511,7 @@ create_containers() {
     -e STF_ZMQ_CURVE_SERVER_PUBLIC_KEY="${STF_ZMQ_CURVE_SERVER_PUBLIC_KEY}" \
     -e STF_ZMQ_CURVE_SECRET_KEY \
     "${tls_args[@]+"${tls_args[@]}"}" \
+    "${cleanup_args[@]+"${cleanup_args[@]}"}" \
     "${DEVICE_IMAGE}:${DEVICE_VERSION}" || return 1
 
   # APPIUM_RELAXED_SECURITY: the insecure features of Appium for every session, README.md#appium-security; STF_API_URL:

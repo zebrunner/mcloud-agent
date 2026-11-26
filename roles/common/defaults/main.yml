@@ -18,6 +18,12 @@ APPIUM_ADB_SHELL: true
 # the automatic download of the matching chromedriver for the web and hybrid tests: a granular insecure feature of Appium
 APPIUM_CHROMEDRIVER_AUTODOWNLOAD: true
 
+# The cleanup between the uses of a device (README.md#cleanup): empty keeps the default of mcloud-device (on: the apps
+# installed during a use are uninstalled when the device is released, the helpers of the farm stay), true or false
+STF_PROVIDER_CLEANUP: ''
+# more apps the cleanup keeps on this host: ids or prefixes ending with *, separated by commas
+CLEANUP_KEEP_PACKAGES: ''
+
 # Optimized app verifications for AppCenter and AWS S3 storages
 APPIUM_APP_FETCH_RETRIES: 2
 APPIUM_MAX_LOCK_FILE_LIFETIME: 180

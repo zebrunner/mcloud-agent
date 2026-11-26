@@ -171,6 +171,19 @@ check_contains "appium chromedriver autodownload is on by the defaults" "|CHROME
 check_contains "appium app size check flag is lower case" "|APPIUM_APP_SIZE_DISABLE=false|" "$appium"
 check_contains "appium links the stf container" "|--link|device-Galaxy-R28M1384YQY-stf:device|" "$appium"
 check_not_contains "appium gets no proxy ports" "PROXY_PORT" "$appium"
+stf="$(run_args device-Galaxy-R28M1384YQY-stf)"
+check_not_contains "stf gets no setting of the cleanup by default: the one of the image" "STF_PROVIDER_CLEANUP" "$stf"
+check_not_contains "stf gets no keep list of the host by default" "CLEANUP_KEEP_PACKAGES" "$stf"
+
+setup_case
+echo "iSerial R28M1384YQY" > "${WORK}/usb"
+cp "${WORK}/farm-devices.env" "${WORK}/farm-devices.env.orig"
+printf "STF_PROVIDER_CLEANUP=false\nCLEANUP_KEEP_PACKAGES='com.example.app,com.example.tools.*'\n" >> "${WORK}/farm-devices.env"
+farm devices start Galaxy > /dev/null
+stf="$(run_args device-Galaxy-R28M1384YQY-stf)"
+mv "${WORK}/farm-devices.env.orig" "${WORK}/farm-devices.env"
+check_contains "stf gets the setting of the cleanup of the host" "|-e|STF_PROVIDER_CLEANUP=false|" "$stf"
+check_contains "stf gets the keep list of the host" "|-e|CLEANUP_KEEP_PACKAGES=com.example.app,com.example.tools.*|" "$stf"
 
 setup_case
 farm devices start WiFi > /dev/null

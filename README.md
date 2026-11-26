@@ -322,6 +322,17 @@ The Appium port of a device (`appium_port`) is published on the host for mcloud-
 
 `APPIUM_RELAXED_SECURITY` of `roles/common/defaults/main.yml` is `false`: a session does not get the blanket insecure features of Appium. In particular `get_server_logs` is off, so one session cannot read the Appium log of the earlier sessions of the device (another user's capabilities and inputs). The features the tests usually need are enabled granularly instead: `APPIUM_ADB_SHELL` (`true` by default) for `mobile: shell` (adb shell of the device) and `APPIUM_CHROMEDRIVER_AUTODOWNLOAD` (`true` by default) for the automatic download of the matching chromedriver of the web and hybrid tests. Set `APPIUM_RELAXED_SECURITY: true` in `config/settings.yml` only for a feature not covered by those (the emulator console, the screen streaming, `get_server_logs`).
 
+### Cleanup
+
+When a device is released (the end of a test session, a user of STF leaves it), the STF container of the device uninstalls the apps installed since the container started, so the next user does not get the apps, logins and files of the previous one ([mcloud-device](https://github.com/zebrunner/mcloud-device), Android and iOS). The apps the device had at the start stay, WebDriverAgent stays, and so do the helpers of the farm installed later (the UiAutomator2 server and the settings of Appium, the agent and the apps of the MDM). The accounts of the device (e.g. Google) and the data of the apps that stay are not reset. A cleanup stops uninstalling once the device is used again.
+
+| Setting of `config/settings.yml` | Default | Description |
+| --- | --- | --- |
+| `STF_PROVIDER_CLEANUP` | empty | empty: the default of mcloud-device (on); `false`: the apps stay from use to use (e.g. a host whose tests expect an app installed once); `true` |
+| `CLEANUP_KEEP_PACKAGES` | empty | more apps the cleanup keeps on this host: Android packages or iOS bundle ids, or prefixes ending with `*`, separated by commas, e.g. `com.example.preinstalled,com.example.tools.*` |
+
+A change needs `./zebrunner.sh ansible` and `zebrunner-farm restart`. The apps of the start are the ones the device has when its container starts: install an app that must stay before `zebrunner-farm restart`, or list it in `CLEANUP_KEEP_PACKAGES`.
+
 ### Recordings
 
 With S3 (`S3_BUCKET` and the other `S3_*` settings of `config/settings.yml`) appium records the video of every session and the uploader container of the device uploads it with the logs of the session to `s3://<S3_BUCKET>[/<S3_TENANT>]/artifacts/test-sessions/<session id>/`. Without `S3_BUCKET` appium records no video (`RECORD_ARTIFACTS=false`) and the device has no uploader: there is nothing to upload to, the videos filled the disk. Appium still keeps the log of every session in a folder of the volume of the logs of the device, the volume is removed with the containers (`zebrunner-farm restart`, `down`, a disconnection of a USB device). A change of S3 needs `./zebrunner.sh ansible` and `zebrunner-farm restart`.
