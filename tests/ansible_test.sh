@@ -225,6 +225,12 @@ for role in devices mac-devices; do
   extra='{"MCLOUD_NODE_TOKEN": "mcn1.Bad_Label.x"}'
   check_contains "${role}: an invalid token fails" "are missing or invalid in config/settings.yml: MCLOUD_NODE_TOKEN." \
     "$(playbook "$role" --tags validate --extra-vars "$extra")"
+  extra='{"STF_PROVIDER_CLEANUP": "yes"}'
+  check_contains "${role}: an invalid setting of the cleanup fails" \
+    "STF_PROVIDER_CLEANUP of config/settings.yml is empty (the default of mcloud-device), true or false, not 'yes'" \
+    "$(playbook "$role" --tags validate --extra-vars "$extra")"
+  check_contains "${role}: the settings of the cleanup pass" "The setting of the cleanup is valid." \
+    "$(playbook "$role" --tags validate)"
   check_contains "${role}: an invalid key of the server fails" "must be the 64 hex characters" \
     "$(playbook "$role" --tags validate --extra-vars "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=abc")"
   check_contains "${role}: an invalid key of the host fails" "must be the 64 hex characters" \
@@ -372,11 +378,18 @@ for role in devices mac-devices; do
   check_contains "${role}: relaxed security is off by default" "APPIUM_RELAXED_SECURITY=false" "$farm"
   check_contains "${role}: adb shell is on by default" "APPIUM_ADB_SHELL=true" "$farm"
   check_contains "${role}: chromedriver autodownload is on by default" "APPIUM_CHROMEDRIVER_AUTODOWNLOAD=true" "$farm"
+  check_contains "${role}: the cleanup is the default of the image by default" "STF_PROVIDER_CLEANUP=''" "$farm"
+  check_contains "${role}: no keep list of the host by default" "CLEANUP_KEEP_PACKAGES=''" "$farm"
   check_contains "${role}: app size check default" "APPIUM_APP_SIZE_DISABLE=false" "$farm"
   render_farm "$role" "${WORK}/farm" --extra-vars '{"APPIUM_RELAXED_SECURITY": true, "APPIUM_APP_SIZE_DISABLE": true}' || exit 1
   farm="$(cat "${WORK}/farm")"
   check_contains "${role}: relaxed security true is lower case" "APPIUM_RELAXED_SECURITY=true" "$farm"
   check_contains "${role}: app size check true is lower case" "APPIUM_APP_SIZE_DISABLE=true" "$farm"
+  extra='{"STF_PROVIDER_CLEANUP": false, "CLEANUP_KEEP_PACKAGES": "com.example.app,com.example.tools.*"}'
+  render_farm "$role" "${WORK}/farm" --extra-vars "$extra" || exit 1
+  farm="$(cat "${WORK}/farm")"
+  check_contains "${role}: the cleanup false is lower case" "STF_PROVIDER_CLEANUP=false" "$farm"
+  check_contains "${role}: the keep list of the host" "CLEANUP_KEEP_PACKAGES='com.example.app,com.example.tools.*'" "$farm"
 done
 
 # the optional settings removed from config/settings.yml: the values by default of the roles, no undefined variable

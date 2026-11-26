@@ -85,6 +85,17 @@
     success_msg: "The CURVE keys of ZeroMQ are valid."
   tags: [devices, precheck, validate]
 
+# the cleanup between the uses of the devices (README.md#cleanup): empty (the default of mcloud-device), true or false
+- name: Check the setting of the cleanup
+  ansible.builtin.assert:
+    that:
+      - ('' if STF_PROVIDER_CLEANUP is none else STF_PROVIDER_CLEANUP) | string | lower in ['', 'true', 'false']
+    fail_msg: >-
+      STF_PROVIDER_CLEANUP of config/settings.yml is empty (the default of mcloud-device), true or false, not
+      '{{ STF_PROVIDER_CLEANUP }}' (README.md#cleanup).
+    success_msg: "The setting of the cleanup is valid."
+  tags: [devices, precheck, validate]
+
 # the obligatory settings, the host ports and the connections of the devices of the OS
 - name: Validate the settings of the devices
   ansible.builtin.command:
