@@ -26,6 +26,14 @@
     common_farm_group: "{{ lookup('pipe', 'id -g') }}"
     common_farm_env_mode: "0640"
 
+# the tunnel to MCloud of WG_ENABLED (README.md#wireguard-tunnel): wg-quick@mcloud-node, removed without it
+- name: Deploy the WireGuard tunnel to MCloud
+  ansible.builtin.import_role:
+    name: common
+    tasks_from: wireguard
+  vars:
+    common_wg_os: linux
+
 - name: Copy rules file
   ansible.builtin.template:
     src: 90_mcloud.rules

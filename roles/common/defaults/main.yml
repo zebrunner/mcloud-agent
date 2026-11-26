@@ -40,6 +40,19 @@ DEVICE_NETWORK_SUBNETS: 10.233.0.0/16
 # the shared docker network of DEVICE_NETWORK_ISOLATION=false, the deploy and zebrunner-farm create it
 STF_DOCKER_NETWORK: infra
 
+# The WireGuard tunnel to MCloud (README.md#wireguard-tunnel), off by default: ./zebrunner.sh join writes these settings
+# when MCloud has the tunnel on. The deploy sets up the interface mcloud-node of this host with them, zebrunner-farm
+# publishes the ports of the devices on WG_ADDRESS only
+WG_ENABLED: false
+WG_PRIVATE_KEY: ""
+WG_ADDRESS: ""
+WG_SERVER_ADDRESS: ""
+WG_SERVER_PUBLIC_KEY: ""
+WG_ENDPOINT: ""
+WG_NETWORK: ""
+# the node keeps its NAT open for the handshakes of MCloud
+WG_PERSISTENT_KEEPALIVE: 25
+
 # the optional settings of config/settings.yml.original, empty: off (an empty WDA_FILE and WDA_BUNDLEID are the values
 # by default of zebrunner-farm)
 STF_API_URL: ""

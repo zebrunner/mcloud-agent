@@ -18,6 +18,10 @@ else
 fi
 
 server_key="$(printf '%064d' 0 | tr 0 a)"
+# the settings of the WireGuard tunnel of ./zebrunner.sh join with MCloud with the tunnel on
+wireguard="{\"WG_ENABLED\": true, \"WG_PRIVATE_KEY\": \"$(printf '%042d' 0 | tr 0 P)A=\", \"WG_SERVER_PUBLIC_KEY\": \"$(printf '%042d' 0 | tr 0 S)A=\",
+  \"WG_ADDRESS\": \"10.234.0.2\", \"WG_SERVER_ADDRESS\": \"10.234.0.1\", \"WG_ENDPOINT\": \"mcloud.example.com:51820\",
+  \"WG_NETWORK\": \"10.234.0.0/24\", \"STF_PROVIDER_HOST\": \"10.234.0.2\"}"
 secret_key="$(printf '%064d' 0 | tr 0 b)"
 node_token="mcn1.build-ua.$(printf '%043d' 0 | tr 0 A)"
 
@@ -231,6 +235,18 @@ for role in devices mac-devices; do
     "$(playbook "$role" --tags validate --extra-vars "$extra")"
   check_contains "${role}: the settings of the cleanup pass" "The setting of the cleanup is valid." \
     "$(playbook "$role" --tags validate)"
+  check_contains "${role}: the tunnel is off by default" "The WireGuard tunnel to MCloud is off." "$(playbook "$role" --tags validate)"
+  check_contains "${role}: the tunnel without its settings fails" \
+    "WG_ENABLED is true, the settings of the WireGuard tunnel are missing or invalid in config/settings.yml: WG_PRIVATE_KEY, WG_SERVER_PUBLIC_KEY, WG_ADDRESS, WG_SERVER_ADDRESS, WG_ENDPOINT, STF_PROVIDER_HOST" \
+    "$(playbook "$role" --tags validate --extra-vars '{"WG_ENABLED": true}')"
+  check_contains "${role}: the settings of the tunnel pass" "The settings of the WireGuard tunnel are valid." \
+    "$(playbook "$role" --tags validate --extra-vars "$wireguard")"
+  extra="$(sed 's/"WG_ENDPOINT": "[^"]*"/"WG_ENDPOINT": "mcloud.example.com:70000"/' <<< "$wireguard")"
+  check_contains "${role}: an invalid endpoint of the tunnel fails" "invalid in config/settings.yml: WG_ENDPOINT (" \
+    "$(playbook "$role" --tags validate --extra-vars "$extra")"
+  extra="$(sed 's/"WG_ADDRESS": "[^"]*"/"WG_ADDRESS": "10.234.0.2\\n[Peer]"/' <<< "$wireguard")"
+  check_contains "${role}: a line of the config in a setting of the tunnel fails" "invalid in config/settings.yml: WG_ADDRESS, STF_PROVIDER_HOST (" \
+    "$(playbook "$role" --tags validate --extra-vars "$extra")"
   check_contains "${role}: an invalid key of the server fails" "must be the 64 hex characters" \
     "$(playbook "$role" --tags validate --extra-vars "STF_ZMQ_CURVE_SERVER_PUBLIC_KEY=abc")"
   check_contains "${role}: an invalid key of the host fails" "must be the 64 hex characters" \
@@ -256,6 +272,25 @@ output="$(playbook "$OS_ROLE" --check --tags files --start-at-task "Check the fo
 check_contains "without bash-completion the deploy passes" "failed=0" "$output"
 check_not_contains "without bash-completion the completion is not deployed" "changed: [localhost]" \
   "$(sed -n "/${completion_task}/,/^\$/p" <<< "$output")"
+
+section "WireGuard tunnel of ${OS_ROLE} (check mode)"
+tasks="$(playbook "$OS_ROLE" --list-tasks --tags registerDevices)"
+check_contains "the tunnel is deployed by the role of the OS" "Copy the WireGuard config of the tunnel to MCloud" "$tasks"
+check_contains "the tunnel is removed by the role of the OS" \
+  "$([[ "$OS_ROLE" == devices ]] && echo "Stop and disable the tunnel to MCloud (wg-quick@mcloud-node)" || echo "Remove the launch daemon and the WireGuard config")" "$tasks"
+output="$(playbook "$OS_ROLE" --check --tags wireguard)"
+check_contains "the tunnel off: the tasks pass" "failed=0" "$output"
+check_contains "the tunnel off: nothing changes on a host without it" "changed=0" "$output"
+if [[ "$OS_ROLE" == "mac-devices" ]]; then
+  # the config of the tunnel is not written in check mode, the brew of the host is not run (a command)
+  output="$(playbook "$OS_ROLE" --check --tags wireguard --extra-vars "$wireguard")"
+  check_contains "the tunnel on: the tasks pass" "failed=0" "$output"
+  check_contains "the tunnel on: the config is deployed" "TASK [common : Copy the WireGuard config of the tunnel to MCloud]" "$output"
+  check_not_contains "the tunnel on: the private key is not shown" "$(printf '%042d' 0 | tr 0 P)A=" \
+    "$(playbook "$OS_ROLE" --check --diff --tags wireguard --extra-vars "$wireguard")"
+else
+  skip_check "the tunnel on in check mode" "apt of the runner"
+fi
 
 section "images download"
 # docker: pulls fail for images matching $FAIL_PULL, only images matching $LOCAL_IMAGE exist locally
@@ -392,7 +427,39 @@ for role in devices mac-devices; do
   check_contains "${role}: the cleanup false is lower case" "STF_PROVIDER_CLEANUP=false" "$farm"
   check_contains "${role}: the keep list of the host" "CLEANUP_KEEP_PACKAGES='com.example.app,com.example.tools.*'" "$farm"
   check_contains "${role}: the forward networks of the host" "STF_FORWARD_ALLOW=10.1.2.0/24" "$farm"
+  render_farm "$role" "${WORK}/farm" || exit 1
+  farm="$(cat "${WORK}/farm")"
+  check_contains "${role}: the tunnel is off by default" "WG_ENABLED=false" "$farm"
+  check_contains "${role}: no address of the tunnel by default" "WG_ADDRESS=''" "$farm"
+  render_farm "$role" "${WORK}/farm" --extra-vars "$wireguard" || exit 1
+  farm="$(cat "${WORK}/farm")"
+  check_contains "${role}: the tunnel on" "WG_ENABLED=true" "$farm"
+  check_contains "${role}: the address of the tunnel" "WG_ADDRESS=10.234.0.2" "$farm"
+  check_not_contains "${role}: zebrunner-farm needs no key of the tunnel" "WG_PRIVATE_KEY" "$farm"
 done
+
+render "${REPO}/roles/common/templates/mcloud-wireguard.conf" "${WORK}/mcloud-node.conf" --extra-vars "$wireguard" || exit 1
+check "the config of the tunnel" "[Interface]
+PrivateKey = $(printf '%042d' 0 | tr 0 P)A=
+Address = 10.234.0.2/32
+[Peer]
+PublicKey = $(printf '%042d' 0 | tr 0 S)A=
+Endpoint = mcloud.example.com:51820
+AllowedIPs = 10.234.0.1/32
+PersistentKeepalive = 25" "$(grep -v -e '^#' -e '^$' "${WORK}/mcloud-node.conf")"
+render "${REPO}/roles/common/templates/ZebrunnerWireguard.plist" "${WORK}/ZebrunnerWireguard.plist" \
+  --extra-vars "common_wg_bin=/opt/homebrew/bin" || exit 1
+check_contains "the launch daemon of the tunnel runs wg-quick up of the config" "<string>/opt/homebrew/bin/wg-quick</string>
+        <string>up</string>
+        <string>/etc/wireguard/mcloud-node.conf</string>" "$(cat "${WORK}/ZebrunnerWireguard.plist")"
+if command -v plutil > /dev/null 2>&1; then
+  check "ZebrunnerWireguard: valid plist" "${WORK}/ZebrunnerWireguard.plist: OK" "$(plutil -lint "${WORK}/ZebrunnerWireguard.plist")"
+fi
+render "${REPO}/roles/devices/templates/mcloud-device-restart@.service" "${WORK}/restart.service" || exit 1
+check "the tunnel off: the unit of a device after docker" "After=docker.service" "$(grep '^After=' "${WORK}/restart.service")"
+render "${REPO}/roles/devices/templates/mcloud-device-restart@.service" "${WORK}/restart.service" --extra-vars "$wireguard" || exit 1
+check "the tunnel on: the unit of a device after the tunnel" "After=docker.service wg-quick@mcloud-node.service" \
+  "$(grep '^After=' "${WORK}/restart.service")"
 
 # the optional settings removed from config/settings.yml: the values by default of the roles, no undefined variable
 grep -v -E '^(STF_DOCKER_NETWORK|STF_API_URL|S3_[A-Z_]+|WDA_FILE|WDA_BUNDLEID|WDA_SIMULATOR_FILE|REMOTE_CONNECT_HOST):' \

@@ -55,6 +55,15 @@
     common_farm_group: wheel
     common_farm_env_mode: "0600"
 
+# the tunnel to MCloud of WG_ENABLED (README.md#wireguard-tunnel): the launch daemon com.zebrunner.wireguard, removed
+# without it
+- name: Deploy the WireGuard tunnel to MCloud
+  ansible.builtin.import_role:
+    name: common
+    tasks_from: wireguard
+  vars:
+    common_wg_os: macos
+
 - name: Copy 'zebrunner-device-listener' script file
   ansible.builtin.template:
     src: zebrunner-device-listener

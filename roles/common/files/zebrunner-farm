@@ -243,12 +243,17 @@ create_containers() {
     record_artifacts="true"
   fi
 
+  # the WireGuard tunnel to MCloud (README.md#wireguard-tunnel): the ports of the device are published on the address
+  # of this host in the tunnel only, MCloud reaches them through it and the other networks of the host do not
+  local publish=""
+  [[ "${WG_ENABLED:-false}" == "true" && -n "${WG_ADDRESS:-}" ]] && publish="${WG_ADDRESS}:"
+
   # the fixed remote debug port of an Android device, published when it is out of min_port-max_port
   local connect_args=()
   if [[ -n "$dev_connect_port" ]]; then
     connect_args=(-e STF_PROVIDER_CONNECT_PORT="$dev_connect_port")
     if ((dev_connect_port < dev_stf_min_port || dev_connect_port > dev_stf_max_port)); then
-      connect_args+=(-p "${dev_connect_port}:${dev_connect_port}")
+      connect_args+=(-p "${publish}${dev_connect_port}:${dev_connect_port}")
     fi
   fi
 
@@ -503,7 +508,7 @@ create_containers() {
     -e STF_PROVIDER_MIN_PORT="$dev_stf_min_port" \
     -e STF_PROVIDER_MAX_PORT="$dev_stf_max_port" \
     "${connect_args[@]+"${connect_args[@]}"}" \
-    -p "${dev_stf_min_port}-${dev_stf_max_port}":"${dev_stf_min_port}-${dev_stf_max_port}" \
+    -p "${publish}${dev_stf_min_port}-${dev_stf_max_port}":"${dev_stf_min_port}-${dev_stf_max_port}" \
     -e STF_PROVIDER_PUBLIC_IP="${PUBLIC_IP}" \
     -e PUBLIC_IP_PORT="${PUBLIC_IP_PORT}" \
     -e PUBLIC_IP_PROTOCOL="${PUBLIC_IP_PROTOCOL}" \
@@ -552,7 +557,7 @@ create_containers() {
     -e DEVICE_LOCATION="$dev_location" \
     -e ADB_PORT="$appium_adb_port" \
     -e APPIUM_PORT="$dev_appium_port" \
-    -p "$dev_appium_port":"$dev_appium_port" \
+    -p "${publish}${dev_appium_port}":"$dev_appium_port" \
     -e RELAXED_SECURITY="${APPIUM_RELAXED_SECURITY}" \
     -e ADB_SHELL="${APPIUM_ADB_SHELL:-true}" \
     -e CHROMEDRIVER_AUTODOWNLOAD="${APPIUM_CHROMEDRIVER_AUTODOWNLOAD:-true}" \

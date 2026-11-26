@@ -32,6 +32,10 @@ SELENIUM_HUB_PORT:
 # the ZeroMQ security (CURVE): the public key of the server and the key of this host (join makes it when it is empty)
 STF_ZMQ_CURVE_SERVER_PUBLIC_KEY:
 STF_ZMQ_CURVE_SECRET_KEY:
+# the WireGuard tunnel to MCloud, off by default (README.md#wireguard-tunnel): join writes WG_ENABLED: true, the key of
+# this host (WG_PRIVATE_KEY, a secret), its address in the tunnel (WG_ADDRESS, the address of the invite), MCloud in the
+# tunnel (WG_SERVER_ADDRESS, WG_SERVER_PUBLIC_KEY, WG_ENDPOINT) and WG_NETWORK when MCloud has the tunnel on
+# WG_ENABLED: false
 
 # [OPTIONAL] The host STF shows to the users in `adb connect <host>:<port>` (the remote debug), STF_PROVIDER_HOST by
 # default. For a host in a private network: the public name of MCloud with the adb relay of mcloud (ADB_RELAY=true), it
