@@ -380,16 +380,18 @@ for role in devices mac-devices; do
   check_contains "${role}: chromedriver autodownload is on by default" "APPIUM_CHROMEDRIVER_AUTODOWNLOAD=true" "$farm"
   check_contains "${role}: the cleanup is the default of the image by default" "STF_PROVIDER_CLEANUP=''" "$farm"
   check_contains "${role}: no keep list of the host by default" "CLEANUP_KEEP_PACKAGES=''" "$farm"
+  check_contains "${role}: no forward networks by default" "STF_FORWARD_ALLOW=''" "$farm"
   check_contains "${role}: app size check default" "APPIUM_APP_SIZE_DISABLE=false" "$farm"
   render_farm "$role" "${WORK}/farm" --extra-vars '{"APPIUM_RELAXED_SECURITY": true, "APPIUM_APP_SIZE_DISABLE": true}' || exit 1
   farm="$(cat "${WORK}/farm")"
   check_contains "${role}: relaxed security true is lower case" "APPIUM_RELAXED_SECURITY=true" "$farm"
   check_contains "${role}: app size check true is lower case" "APPIUM_APP_SIZE_DISABLE=true" "$farm"
-  extra='{"STF_PROVIDER_CLEANUP": false, "CLEANUP_KEEP_PACKAGES": "com.example.app,com.example.tools.*"}'
+  extra='{"STF_PROVIDER_CLEANUP": false, "CLEANUP_KEEP_PACKAGES": "com.example.app,com.example.tools.*", "STF_FORWARD_ALLOW": "10.1.2.0/24"}'
   render_farm "$role" "${WORK}/farm" --extra-vars "$extra" || exit 1
   farm="$(cat "${WORK}/farm")"
   check_contains "${role}: the cleanup false is lower case" "STF_PROVIDER_CLEANUP=false" "$farm"
   check_contains "${role}: the keep list of the host" "CLEANUP_KEEP_PACKAGES='com.example.app,com.example.tools.*'" "$farm"
+  check_contains "${role}: the forward networks of the host" "STF_FORWARD_ALLOW=10.1.2.0/24" "$farm"
 done
 
 # the optional settings removed from config/settings.yml: the values by default of the roles, no undefined variable

@@ -23,6 +23,8 @@ APPIUM_CHROMEDRIVER_AUTODOWNLOAD: true
 STF_PROVIDER_CLEANUP: ''
 # more apps the cleanup keeps on this host: ids or prefixes ending with *, separated by commas
 CLEANUP_KEEP_PACKAGES: ''
+# the networks the port forwards of the users of STF may reach from this host besides the public addresses (README.md#port-forwarding)
+STF_FORWARD_ALLOW: ''
 
 # Optimized app verifications for AppCenter and AWS S3 storages
 APPIUM_APP_FETCH_RETRIES: 2
