@@ -1,9 +1,10 @@
 ---
-# The WireGuard tunnel of this host to MCloud (README.md#wireguard-tunnel): the interface mcloud of wg-quick with the
-# settings of ./zebrunner.sh join (WG_*), up at the boot; removed when WG_ENABLED is not true, a host that never had it
-# is not changed. Imported by the roles of the OS (import_role tasks_from: wireguard) with:
-#   common_wg_os: linux (wireguard-tools of apt, the unit wg-quick@mcloud) or macos (wireguard-tools and wireguard-go
-#   of Homebrew, the launch daemon com.zebrunner.wireguard)
+# The WireGuard tunnel of this host to MCloud (README.md#wireguard-tunnel): the interface mcloud-node of wg-quick with
+# the settings of ./zebrunner.sh join (WG_*), up at the boot; removed when WG_ENABLED is not true, a host that never had
+# it is not changed. The head of MCloud names its interface mcloud: a node on the machine of the head has both.
+# Imported by the roles of the OS (import_role tasks_from: wireguard) with:
+#   common_wg_os: linux (wireguard-tools of apt, the unit wg-quick@mcloud-node) or macos (wireguard-tools and
+#   wireguard-go of Homebrew, the launch daemon com.zebrunner.wireguard)
 # The config has the private key of this host: root only (600), never in a diff.
 
 - name: Set up the WireGuard tunnel to MCloud on Linux
@@ -29,7 +30,7 @@
     - name: Copy the WireGuard config of the tunnel to MCloud
       ansible.builtin.template:
         src: mcloud-wireguard.conf
-        dest: /etc/wireguard/mcloud.conf
+        dest: /etc/wireguard/mcloud-node.conf
         mode: "0600"
         owner: root
         group: root
@@ -37,15 +38,15 @@
       register: common_wg_config
 
     # the name of the endpoint may not resolve yet at the boot: wg-quick tries again
-    - name: Create the folder of the settings of wg-quick@mcloud
+    - name: Create the folder of the settings of wg-quick@mcloud-node
       ansible.builtin.file:
-        path: /etc/systemd/system/wg-quick@mcloud.service.d
+        path: /etc/systemd/system/wg-quick@mcloud-node.service.d
         state: directory
         mode: "0755"
         owner: root
         group: root
 
-    - name: Copy the settings of wg-quick@mcloud
+    - name: Copy the settings of wg-quick@mcloud-node
       ansible.builtin.copy:
         content: |
           # the tunnel to MCloud (README.md#wireguard-tunnel), deployed by ./zebrunner.sh ansible: wg-quick tries again
@@ -53,16 +54,16 @@
           [Service]
           Restart=on-failure
           RestartSec=10
-        dest: /etc/systemd/system/wg-quick@mcloud.service.d/zebrunner.conf
+        dest: /etc/systemd/system/wg-quick@mcloud-node.service.d/zebrunner.conf
         mode: "0644"
         owner: root
         group: root
       register: common_wg_dropin
 
     # check mode: the unit comes with the package, which is not installed then
-    - name: Enable and start the tunnel to MCloud (wg-quick@mcloud)
+    - name: Enable and start the tunnel to MCloud (wg-quick@mcloud-node)
       ansible.builtin.systemd:
-        name: wg-quick@mcloud
+        name: wg-quick@mcloud-node
         enabled: true
         state: started
         daemon_reload: "{{ common_wg_dropin is changed }}"
@@ -72,7 +73,7 @@
     # a new config of a tunnel that was up already: a new key or address of a new join
     - name: Restart the tunnel to MCloud with the new config
       ansible.builtin.systemd:
-        name: wg-quick@mcloud
+        name: wg-quick@mcloud-node
         state: restarted
       when: common_wg_config is changed and common_wg_service is not skipped and common_wg_service is not changed
 
@@ -82,26 +83,27 @@
   block:
     - name: Check the WireGuard config of the tunnel to MCloud
       ansible.builtin.stat:
-        path: /etc/wireguard/mcloud.conf
+        path: /etc/wireguard/mcloud-node.conf
       register: common_wg_config_file
 
-    - name: Stop and disable the tunnel to MCloud (wg-quick@mcloud)
+    - name: Stop and disable the tunnel to MCloud (wg-quick@mcloud-node)
       ansible.builtin.systemd:
-        name: wg-quick@mcloud
+        name: wg-quick@mcloud-node
         enabled: false
         state: stopped
       when: common_wg_config_file.stat.exists
 
-    - name: Remove the WireGuard config and the settings of wg-quick@mcloud
+    - name: Remove the WireGuard config and the settings of wg-quick@mcloud-node
       ansible.builtin.file:
         path: "{{ item }}"
         state: absent
       loop:
-        - /etc/wireguard/mcloud.conf
-        - /etc/systemd/system/wg-quick@mcloud.service.d
+        - /etc/wireguard/mcloud-node.conf
+        - /etc/systemd/system/wg-quick@mcloud-node.service.d
       when: common_wg_config_file.stat.exists
 
-# macOS: wireguard-go is the interface (a utun of the kernel); /var/run/wireguard/mcloud.name of wg-quick names it
+# macOS: wireguard-go is the interface (a utun of the kernel); /var/run/wireguard/mcloud-node.name of wg-quick names
+# it
 - name: Set up the WireGuard tunnel to MCloud on macOS
   when: common_wg_os == 'macos' and WG_ENABLED | default(false) | bool
   tags: [devices, wireguard]
@@ -139,7 +141,7 @@
     - name: Copy the WireGuard config of the tunnel to MCloud
       ansible.builtin.template:
         src: mcloud-wireguard.conf
-        dest: /etc/wireguard/mcloud.conf
+        dest: /etc/wireguard/mcloud-node.conf
         mode: "0600"
         owner: root
         group: wheel
@@ -159,7 +161,7 @@
 
     - name: Check the interface of the tunnel to MCloud
       ansible.builtin.stat:
-        path: /var/run/wireguard/mcloud.name
+        path: /var/run/wireguard/mcloud-node.name
       register: common_wg_up
 
     # the daemon runs wg-quick up once at its load and at the boot: down first, an interface of the earlier config stays
@@ -167,8 +169,8 @@
     - name: Start the tunnel to MCloud (the launch daemon com.zebrunner.wireguard)
       ansible.builtin.shell: |
         launchctl bootout system/com.zebrunner.wireguard 2> /dev/null
-        if [ -e /var/run/wireguard/mcloud.name ]; then
-          PATH="{{ common_wg_brew_prefix.stdout | trim }}/bin:$PATH" wg-quick down /etc/wireguard/mcloud.conf
+        if [ -e /var/run/wireguard/mcloud-node.name ]; then
+          PATH="{{ common_wg_brew_prefix.stdout | trim }}/bin:$PATH" wg-quick down /etc/wireguard/mcloud-node.conf
         fi
         # launchd may still be removing the earlier daemon
         launchctl bootstrap system /Library/LaunchDaemons/com.zebrunner.wireguard.plist ||
@@ -188,8 +190,8 @@
     - name: Stop the tunnel to MCloud
       ansible.builtin.shell: |
         launchctl bootout system/com.zebrunner.wireguard 2> /dev/null
-        if [ -e /var/run/wireguard/mcloud.name ]; then
-          PATH="/opt/homebrew/bin:/usr/local/bin:$PATH" wg-quick down /etc/wireguard/mcloud.conf
+        if [ -e /var/run/wireguard/mcloud-node.name ]; then
+          PATH="/opt/homebrew/bin:/usr/local/bin:$PATH" wg-quick down /etc/wireguard/mcloud-node.conf
         fi
         exit 0
       changed_when: true
@@ -201,5 +203,5 @@
         state: absent
       loop:
         - /Library/LaunchDaemons/com.zebrunner.wireguard.plist
-        - /etc/wireguard/mcloud.conf
+        - /etc/wireguard/mcloud-node.conf
       when: common_wg_daemon_file.stat.exists

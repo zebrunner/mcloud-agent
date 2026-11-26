@@ -277,7 +277,7 @@ section "WireGuard tunnel of ${OS_ROLE} (check mode)"
 tasks="$(playbook "$OS_ROLE" --list-tasks --tags registerDevices)"
 check_contains "the tunnel is deployed by the role of the OS" "Copy the WireGuard config of the tunnel to MCloud" "$tasks"
 check_contains "the tunnel is removed by the role of the OS" \
-  "$([[ "$OS_ROLE" == devices ]] && echo "Stop and disable the tunnel to MCloud (wg-quick@mcloud)" || echo "Remove the launch daemon and the WireGuard config")" "$tasks"
+  "$([[ "$OS_ROLE" == devices ]] && echo "Stop and disable the tunnel to MCloud (wg-quick@mcloud-node)" || echo "Remove the launch daemon and the WireGuard config")" "$tasks"
 output="$(playbook "$OS_ROLE" --check --tags wireguard)"
 check_contains "the tunnel off: the tasks pass" "failed=0" "$output"
 check_contains "the tunnel off: nothing changes on a host without it" "changed=0" "$output"
@@ -438,7 +438,7 @@ for role in devices mac-devices; do
   check_not_contains "${role}: zebrunner-farm needs no key of the tunnel" "WG_PRIVATE_KEY" "$farm"
 done
 
-render "${REPO}/roles/common/templates/mcloud-wireguard.conf" "${WORK}/mcloud.conf" --extra-vars "$wireguard" || exit 1
+render "${REPO}/roles/common/templates/mcloud-wireguard.conf" "${WORK}/mcloud-node.conf" --extra-vars "$wireguard" || exit 1
 check "the config of the tunnel" "[Interface]
 PrivateKey = $(printf '%042d' 0 | tr 0 P)A=
 Address = 10.234.0.2/32
@@ -446,19 +446,19 @@ Address = 10.234.0.2/32
 PublicKey = $(printf '%042d' 0 | tr 0 S)A=
 Endpoint = mcloud.example.com:51820
 AllowedIPs = 10.234.0.1/32
-PersistentKeepalive = 25" "$(grep -v -e '^#' -e '^$' "${WORK}/mcloud.conf")"
+PersistentKeepalive = 25" "$(grep -v -e '^#' -e '^$' "${WORK}/mcloud-node.conf")"
 render "${REPO}/roles/common/templates/ZebrunnerWireguard.plist" "${WORK}/ZebrunnerWireguard.plist" \
   --extra-vars "common_wg_bin=/opt/homebrew/bin" || exit 1
 check_contains "the launch daemon of the tunnel runs wg-quick up of the config" "<string>/opt/homebrew/bin/wg-quick</string>
         <string>up</string>
-        <string>/etc/wireguard/mcloud.conf</string>" "$(cat "${WORK}/ZebrunnerWireguard.plist")"
+        <string>/etc/wireguard/mcloud-node.conf</string>" "$(cat "${WORK}/ZebrunnerWireguard.plist")"
 if command -v plutil > /dev/null 2>&1; then
   check "ZebrunnerWireguard: valid plist" "${WORK}/ZebrunnerWireguard.plist: OK" "$(plutil -lint "${WORK}/ZebrunnerWireguard.plist")"
 fi
 render "${REPO}/roles/devices/templates/mcloud-device-restart@.service" "${WORK}/restart.service" || exit 1
 check "the tunnel off: the unit of a device after docker" "After=docker.service" "$(grep '^After=' "${WORK}/restart.service")"
 render "${REPO}/roles/devices/templates/mcloud-device-restart@.service" "${WORK}/restart.service" --extra-vars "$wireguard" || exit 1
-check "the tunnel on: the unit of a device after the tunnel" "After=docker.service wg-quick@mcloud.service" \
+check "the tunnel on: the unit of a device after the tunnel" "After=docker.service wg-quick@mcloud-node.service" \
   "$(grep '^After=' "${WORK}/restart.service")"
 
 # the optional settings removed from config/settings.yml: the values by default of the roles, no undefined variable

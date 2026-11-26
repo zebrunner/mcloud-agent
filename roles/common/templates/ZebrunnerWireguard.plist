@@ -14,13 +14,13 @@
     <key>Label</key>
       <string>com.zebrunner.wireguard</string>
 
-    <!-- The WireGuard tunnel of this host to MCloud (README.md#wireguard-tunnel): wg-quick brings the interface mcloud
-         up at the boot and exits, wireguard-go keeps it; deployed by ./zebrunner.sh ansible. -->
+    <!-- The WireGuard tunnel of this host to MCloud (README.md#wireguard-tunnel): wg-quick brings the interface
+         mcloud-node up at the boot and exits, wireguard-go keeps it; deployed by ./zebrunner.sh ansible. -->
     <key>ProgramArguments</key>
       <array>
         <string>{{ common_wg_bin }}/wg-quick</string>
         <string>up</string>
-        <string>/etc/wireguard/mcloud.conf</string>
+        <string>/etc/wireguard/mcloud-node.conf</string>
       </array>
 
     <key>RunAtLoad</key>

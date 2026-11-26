@@ -353,14 +353,14 @@ doctor_deployment() {
   fi
 }
 
-# wireguard_handshake: the seconds since the last handshake with MCloud of the interface mcloud (wg show
+# wireguard_handshake: the seconds since the last handshake with MCloud of the interface mcloud-node (wg show
 # latest-handshakes: 0 is none), nothing when wg cannot tell: it needs root (sudo without a password only) and on macOS
 # the utun of the interface (<name>.name of wg-quick)
 wireguard_handshake() {
-  local interface=mcloud
+  local interface=mcloud-node
   local output
   if [[ "$(uname)" == "Darwin" ]]; then
-    interface="$(cat "${DOCTOR_WG_RUN_DIR}/mcloud.name" 2> /dev/null)"
+    interface="$(cat "${DOCTOR_WG_RUN_DIR}/mcloud-node.name" 2> /dev/null)"
     [[ -n "$interface" ]] || return 0
   fi
   command -v wg > /dev/null 2>&1 || return 0
@@ -374,32 +374,32 @@ wireguard_handshake() {
   fi
 }
 
-# doctor_wireguard: the WireGuard tunnel to MCloud of WG_ENABLED (README.md#wireguard-tunnel): the interface mcloud has
-# WG_ADDRESS, a handshake with MCloud within 3 minutes (MCloud sends one every 2 minutes on a used tunnel, the node keeps
-# it with PersistentKeepalive), mcloud-grid answers at the address of MCloud in the tunnel
+# doctor_wireguard: the WireGuard tunnel to MCloud of WG_ENABLED (README.md#wireguard-tunnel): the interface mcloud-node
+# has WG_ADDRESS, a handshake with MCloud within 3 minutes (MCloud sends one every 2 minutes on a used tunnel, the node
+# keeps it with PersistentKeepalive), mcloud-grid answers at the address of MCloud in the tunnel
 doctor_wireguard() {
   [[ "$(setting WG_ENABLED)" == "true" ]] || return 0
-  doctor_section "WireGuard tunnel" "the interface mcloud to MCloud $(setting WG_ENDPOINT)"
+  doctor_section "WireGuard tunnel" "the interface mcloud-node to MCloud $(setting WG_ENDPOINT)"
   local address server handshake restart
   address="$(setting WG_ADDRESS)"
   server="$(setting WG_SERVER_ADDRESS)"
   if [[ "$(uname)" == "Darwin" ]]; then
     restart="sudo launchctl kickstart -k system/com.zebrunner.wireguard (its log: /var/log/zebrunner-wireguard.log); ./zebrunner.sh ansible sets it up"
   else
-    restart="sudo systemctl restart wg-quick@mcloud (its log: journalctl -u wg-quick@mcloud); ./zebrunner.sh ansible sets it up"
+    restart="sudo systemctl restart wg-quick@mcloud-node (its log: journalctl -u wg-quick@mcloud-node); ./zebrunner.sh ansible sets it up"
   fi
   if ! command -v python3 > /dev/null 2>&1; then
     doctor_warn "the tunnel is not checked without python3"
     return 0
   fi
   if probe local "$address" > /dev/null 2>&1; then
-    doctor_ok "the interface mcloud is up with WG_ADDRESS ${address}"
+    doctor_ok "the interface mcloud-node is up with WG_ADDRESS ${address}"
   else
-    doctor_fail "the interface mcloud is down: WG_ADDRESS ${address} is not an address of this host, the devices cannot publish their ports" "$restart"
+    doctor_fail "the interface mcloud-node is down: WG_ADDRESS ${address} is not an address of this host, the devices cannot publish their ports" "$restart"
   fi
   handshake="$(wireguard_handshake)"
   if [[ -z "$handshake" ]]; then
-    doctor_info "the handshake is not checked: wg show needs root (sudo wg show mcloud on Linux, sudo wg show on macOS)"
+    doctor_info "the handshake is not checked: wg show needs root (sudo wg show mcloud-node on Linux, sudo wg show on macOS)"
   elif [[ "$handshake" == "never" ]]; then
     doctor_fail "no handshake with MCloud ${server} yet" "the UDP of $(setting WG_ENDPOINT) from this host (the firewall of MCloud: NODES_WG_PORT), the key of this host in MCloud (./zebrunner.sh join again)"
   elif [[ "$handshake" -lt 180 ]]; then

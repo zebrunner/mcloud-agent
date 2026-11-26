@@ -41,8 +41,8 @@ DEVICE_NETWORK_SUBNETS: 10.233.0.0/16
 STF_DOCKER_NETWORK: infra
 
 # The WireGuard tunnel to MCloud (README.md#wireguard-tunnel), off by default: ./zebrunner.sh join writes these settings
-# when MCloud has the tunnel on. The deploy sets up the interface mcloud of this host with them, zebrunner-farm publishes
-# the ports of the devices on WG_ADDRESS only
+# when MCloud has the tunnel on. The deploy sets up the interface mcloud-node of this host with them, zebrunner-farm
+# publishes the ports of the devices on WG_ADDRESS only
 WG_ENABLED: false
 WG_PRIVATE_KEY: ""
 WG_ADDRESS: ""

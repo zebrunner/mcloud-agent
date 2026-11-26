@@ -518,22 +518,22 @@ status() {
 }
 
 # remove_wireguard: the WireGuard tunnel to MCloud of the deploy (README.md#wireguard-tunnel): stopped, its config and
-# its launch daemon (macOS) or the settings of wg-quick@mcloud (Linux) removed; wireguard-tools stays installed
+# its launch daemon (macOS) or the settings of wg-quick@mcloud-node (Linux) removed; wireguard-tools stays installed
 remove_wireguard() {
   if [[ "$(uname)" == "Darwin" ]]; then
     [[ -f /Library/LaunchDaemons/com.zebrunner.wireguard.plist ]] || return 0
     ui_info "Removing the WireGuard tunnel to MCloud: the launch daemon com.zebrunner.wireguard"
     sudo launchctl bootout system/com.zebrunner.wireguard 2> /dev/null
-    if [[ -e /var/run/wireguard/mcloud.name ]]; then
-      sudo env PATH="/opt/homebrew/bin:/usr/local/bin:${PATH}" wg-quick down /etc/wireguard/mcloud.conf
+    if [[ -e /var/run/wireguard/mcloud-node.name ]]; then
+      sudo env PATH="/opt/homebrew/bin:/usr/local/bin:${PATH}" wg-quick down /etc/wireguard/mcloud-node.conf
     fi
-    sudo rm -vf /Library/LaunchDaemons/com.zebrunner.wireguard.plist /etc/wireguard/mcloud.conf
+    sudo rm -vf /Library/LaunchDaemons/com.zebrunner.wireguard.plist /etc/wireguard/mcloud-node.conf
   else
     # the config is readable by root only, the settings of the unit mark the deploy
-    [[ -e /etc/systemd/system/wg-quick@mcloud.service.d/zebrunner.conf ]] || return 0
-    ui_info "Removing the WireGuard tunnel to MCloud: wg-quick@mcloud"
-    sudo systemctl disable --now wg-quick@mcloud
-    sudo rm -vrf /etc/wireguard/mcloud.conf /etc/systemd/system/wg-quick@mcloud.service.d
+    [[ -e /etc/systemd/system/wg-quick@mcloud-node.service.d/zebrunner.conf ]] || return 0
+    ui_info "Removing the WireGuard tunnel to MCloud: wg-quick@mcloud-node"
+    sudo systemctl disable --now wg-quick@mcloud-node
+    sudo rm -vrf /etc/wireguard/mcloud-node.conf /etc/systemd/system/wg-quick@mcloud-node.service.d
   fi
 }
 
@@ -735,7 +735,7 @@ autostart_unit() {
 Description=MCloud: the containers of the devices after a boot
 Wants=docker.service network-online.target
 # the ports of the devices are published on the address of the WireGuard tunnel to MCloud when it is on
-After=docker.service network-online.target wg-quick@mcloud.service
+After=docker.service network-online.target wg-quick@mcloud-node.service
 
 [Service]
 Type=oneshot
