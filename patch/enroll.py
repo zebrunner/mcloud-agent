@@ -274,7 +274,7 @@ def main():
     if settings.get("WG_ENABLED"):
         print(
             f"The WireGuard tunnel of MCloud is on: MCloud is {settings['WG_SERVER_ADDRESS']} in it, the interface "
-            "mcloud of this host is set up by ./zebrunner.sh ansible."
+            "mcloud-node of this host is set up by ./zebrunner.sh ansible (it needs sudo), then zebrunner-farm restart."
         )
     print(f"The settings are written to {path} (mode 600), the previous ones to {backup}.")
     return 0
