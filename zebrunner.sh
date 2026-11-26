@@ -517,6 +517,26 @@ status() {
   ui_rule
 }
 
+# remove_wireguard: the WireGuard tunnel to MCloud of the deploy (README.md#wireguard-tunnel): stopped, its config and
+# its launch daemon (macOS) or the settings of wg-quick@mcloud (Linux) removed; wireguard-tools stays installed
+remove_wireguard() {
+  if [[ "$(uname)" == "Darwin" ]]; then
+    [[ -f /Library/LaunchDaemons/com.zebrunner.wireguard.plist ]] || return 0
+    ui_info "Removing the WireGuard tunnel to MCloud: the launch daemon com.zebrunner.wireguard"
+    sudo launchctl bootout system/com.zebrunner.wireguard 2> /dev/null
+    if [[ -e /var/run/wireguard/mcloud.name ]]; then
+      sudo env PATH="/opt/homebrew/bin:/usr/local/bin:${PATH}" wg-quick down /etc/wireguard/mcloud.conf
+    fi
+    sudo rm -vf /Library/LaunchDaemons/com.zebrunner.wireguard.plist /etc/wireguard/mcloud.conf
+  else
+    # the config is readable by root only, the settings of the unit mark the deploy
+    [[ -e /etc/systemd/system/wg-quick@mcloud.service.d/zebrunner.conf ]] || return 0
+    ui_info "Removing the WireGuard tunnel to MCloud: wg-quick@mcloud"
+    sudo systemctl disable --now wg-quick@mcloud
+    sudo rm -vrf /etc/wireguard/mcloud.conf /etc/systemd/system/wg-quick@mcloud.service.d
+  fi
+}
+
 # shutdown: removes the containers of the devices, the deployed files and the settings after a confirmation
 shutdown() {
   ui_banner "MCloud Agent"
@@ -661,6 +681,8 @@ shutdown() {
   sudo rm -vf /usr/local/bin/zebrunner-farm
   sudo rm -vf /usr/local/etc/zebrunner-farm.env
   sudo rm -vf /usr/local/bin/mcloud-devices.txt
+  # after the containers: their ports are published on the address of the tunnel
+  remove_wireguard
 
   ### Final message
   ui_callout note "Restart current terminal session to apply all changes"
@@ -712,7 +734,8 @@ autostart_unit() {
 [Unit]
 Description=MCloud: the containers of the devices after a boot
 Wants=docker.service network-online.target
-After=docker.service network-online.target
+# the ports of the devices are published on the address of the WireGuard tunnel to MCloud when it is on
+After=docker.service network-online.target wg-quick@mcloud.service
 
 [Service]
 Type=oneshot
@@ -1005,7 +1028,7 @@ command_help() {
     readme="settings"
     ;;
   shutdown)
-    help_text "Removes the containers of the devices, the launch agents (macOS) or the udev rules (Linux), the autostart, the deployed files, the completion of zebrunner-farm and the settings of config/; it asks first and uses sudo."
+    help_text "Removes the containers of the devices, the launch agents (macOS) or the udev rules (Linux), the autostart, the deployed files, the completion of zebrunner-farm, the WireGuard tunnel to MCloud and the settings of config/; it asks first and uses sudo."
     ;;
   help)
     help_text "The commands, or the usage, the description and the options of a command."

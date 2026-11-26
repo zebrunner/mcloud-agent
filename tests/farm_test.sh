@@ -809,6 +809,31 @@ for role in devices mac-devices; do
   check_contains "${role}: an iOS appium keeps adb_port" "|ADB_PORT=7452|" "$(run_args device-AppleTV-aaaa1111-appium)"
 done
 
+section "WireGuard tunnel"
+cp "${WORK}/devices.txt" "${WORK}/devices.saved"
+sed -e 's/^\(id=emu1|.*\)connect_port=$/\1connect_port=7999/' "${WORK}/devices.saved" > "${WORK}/devices.txt"
+for role in devices mac-devices; do
+  setup_case
+  farm "$role" start WiFi Emu -q > /dev/null
+  check_not_contains "${role}: the tunnel off: the ports on every address of the host" "|-p|10.234." \
+    "$(run_args device-WiFi-192.168.1.50-stf)$(run_args device-Emu-emu1-stf)$(run_args device-WiFi-192.168.1.50-appium)"
+  render_farm "$role" "${WORK}/farm-${role}.env" --extra-vars '{"WG_ENABLED": true, "WG_ADDRESS": "10.234.0.2"}' || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+  setup_case
+  farm "$role" start WiFi Emu -q > /dev/null
+  check_contains "${role}: the tunnel: the screen ports on the address of the tunnel only" "|-p|10.234.0.2:7435-7440:7435-7440|" \
+    "$(run_args device-WiFi-192.168.1.50-stf)"
+  check_contains "${role}: the tunnel: the appium port on the address of the tunnel only" "|-p|10.234.0.2:7431:7431|" \
+    "$(run_args device-WiFi-192.168.1.50-appium)"
+  check_contains "${role}: the tunnel: the remote debug port on the address of the tunnel only" "|-p|10.234.0.2:7999:7999|" \
+    "$(run_args device-Emu-emu1-stf)"
+  check "${role}: the tunnel: no port on another address" "" \
+    "$(calls docker | grep '^run|' | tr '|' '\n' | grep -A1 -x -- '-p' | grep -v -x -- '-p' | grep -v '^10\.234\.0\.2:' | grep -v -x -- '--')"
+  render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+done
+mv "${WORK}/devices.saved" "${WORK}/devices.txt"
+
 section "remote connect host"
 for role in devices mac-devices; do
   setup_case

@@ -472,6 +472,10 @@ check "join makes the CURVE key of the host" "64" "${#secret}"
 check_contains "the body has the public key of the host" \
   "\"publicKey\": \"$(printf '%s\n' "$secret" | python3 "${REPO}/patch/curve_keygen.py" - | sed -n 's/^public=//p')\"" "$body"
 check_not_contains "the secret key is not sent" "$secret" "$body"
+wg_public_key="$(sed -n 's/.*"wgPublicKey": "\([^"]*\)".*/\1/p' <<< "$body")"
+check "the body has the public WireGuard key of a new pair of the host" "yes" \
+  "$([[ "$wg_public_key" =~ ^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$ ]] && echo yes)"
+check "MCloud without the WireGuard tunnel: no WG_ setting is written" "0" "$(grep -c '^WG_' "$vars")"
 check "the script makes the public key of RFC 7748" "public=8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a" \
   "$(echo 77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a | python3 "${REPO}/patch/curve_keygen.py" - | head -1)"
 check_contains "the script takes no secret key as an argument, every user sees them" "usage:" \
@@ -511,6 +515,59 @@ enroll_answer "$node_token" '192.168.30.2\nMCLOUD_NODE_TOKEN: x' > "${WORK}/mclo
 output="$(OS=Linux zbr "${join_string}\n" join)"
 check_contains "an answer cannot inject settings" "the address of this host is not a host name or address" "$output"
 check "a failed enrollment changes no setting" "same" "$(cmp -s "$vars" "${WORK}/vars.joined" && echo same)"
+rm -f "${vars}".bak-join-*
+
+# the WireGuard tunnel of MCloud on (README.md#wireguard-tunnel): the address of the invite is the one of the host in
+# the tunnel, the grid and ZeroMQ go to MCloud at its address there
+wg_server_key="$(printf '%042d' 0 | tr 0 S)A="
+# enroll_answer_wg <address> <server address> <network>: the answer of the enrollment of MCloud with the tunnel on
+enroll_answer_wg() {
+  enroll_answer "$node_token" "$1" | sed 's/}$//'
+  printf ',"wireguard":{"endpoint":"demo.zebrunner.farm:51820","publicKey":"%s","serverAddress":"%s","address":"%s",' "$wg_server_key" "$2" "$1"
+  printf '"network":"%s","persistentKeepalive":25}}' "$3"
+}
+enroll_answer_wg 10.234.0.2 10.234.0.1 10.234.0.0/24 > "${WORK}/mcloud/enroll_answer"
+stub python3 "printf '%s\\n' \"\$*\" >> '${WORK}/python-args.log'; exec '${real_python3}' \"\$@\""
+stub yaml-python "printf '%s\\n' \"\$*\" >> '${WORK}/python-args.log'; exec '${YAML_PYTHON}' \"\$@\""
+: > "${WORK}/python-args.log"
+output="$(OS=Linux YAML_PYTHON="${WORK}/bin/yaml-python" zbr "${join_string}\n" join)"
+check "join with the WireGuard tunnel of MCloud" "0" "$?"
+rm -f "${WORK}/bin/python3" "${WORK}/bin/yaml-python"
+check_contains "join reports the tunnel" "The WireGuard tunnel of MCloud is on: MCloud is 10.234.0.1 in it" "$output"
+wg_public_key="$(sed -n 's/.*"wgPublicKey": "\([^"]*\)".*/\1/p' "${WORK}/mcloud/enroll_input")"
+wg_private_key="$(sed -n 's/^WG_PRIVATE_KEY: "\(.*\)"$/\1/p' "$vars")"
+check "the private WireGuard key is written" "44" "${#wg_private_key}"
+check "the private WireGuard key is the one of the public key sent" "$wg_public_key" \
+  "$(python3 -c 'import base64, sys; sys.path.insert(0, sys.argv[1]); from curve_keygen import x25519_base
+print(base64.b64encode(x25519_base(base64.b64decode(sys.stdin.read()))).decode())' "${REPO}/patch" <<< "$wg_private_key")"
+check_not_contains "the private WireGuard key is not sent" "$wg_private_key" "$(cat "${WORK}/mcloud/enroll_input")"
+check_not_contains "the private WireGuard key is not printed" "$wg_private_key" "$output"
+check "the private WireGuard key is in no argument of python" "" "$(grep -F -- "$wg_private_key" "${WORK}/python-args.log")"
+for line in 'WG_ENABLED: true' 'WG_ADDRESS: "10.234.0.2"' 'WG_SERVER_ADDRESS: "10.234.0.1"' "WG_SERVER_PUBLIC_KEY: \"${wg_server_key}\"" \
+  'WG_ENDPOINT: "demo.zebrunner.farm:51820"' 'WG_NETWORK: "10.234.0.0/24"' 'WG_PERSISTENT_KEEPALIVE: 25' \
+  'STF_PROVIDER_HOST: "10.234.0.2"' 'SELENIUM_HUB_HOST: "10.234.0.1"' 'SELENIUM_HUB_PORT: "4446"' \
+  'STF_PROVIDER_CONNECT_SUB: "tcp://10.234.0.1:7250"' 'STF_PROVIDER_CONNECT_PUSH: "tcp://10.234.0.1:7270"' \
+  'MCLOUD_URL: "https://192.168.50.2:443"' 'PUBLIC_IP: "demo.zebrunner.farm"'; do
+  check "the tunnel: join writes ${line%%:*}" "1" "$(grep -cxF -- "$line" "$vars")"
+done
+check "the settings with the private WireGuard key are private" "600" "$(stat -c '%a' "$vars" 2> /dev/null || stat -f '%Lp' "$vars")"
+cp "$vars" "${WORK}/vars.wireguard"
+rm -f "${vars}".bak-join-*
+enroll_answer_wg 10.234.1.2 10.234.0.1 10.234.0.0/24 > "${WORK}/mcloud/enroll_answer"
+check_contains "an address of the tunnel out of its network is refused" "are not in the network 10.234.0.0/24" \
+  "$(OS=Linux zbr "${join_string}\n" join)"
+enroll_answer_wg 10.234.0.2 10.234.0.1 10.234.0.0/24 | sed 's/"publicKey":"[^"]*"/"publicKey":"x\\nWG_ENABLED: false"/' > "${WORK}/mcloud/enroll_answer"
+check_contains "an answer cannot inject settings with the key of the tunnel" "MCloud answered no valid WireGuard key" \
+  "$(OS=Linux zbr "${join_string}\n" join)"
+check "a failed enrollment with the tunnel changes no setting" "same" "$(cmp -s "$vars" "${WORK}/vars.wireguard" && echo same)"
+# MCloud turned the tunnel off: a new join clears the settings of the tunnel, the private key too
+enroll_answer "$node_token" 192.168.30.2 > "${WORK}/mcloud/enroll_answer"
+OS=Linux zbr "${join_string}\n" join > /dev/null
+check "the tunnel off: join turns it off" "1" "$(grep -cxF 'WG_ENABLED: false' "$vars")"
+check "the tunnel off: the private WireGuard key is removed" "1" "$(grep -cx 'WG_PRIVATE_KEY:' "$vars")"
+check "the tunnel off: the endpoints of the join string again" "1" "$(grep -cxF 'STF_PROVIDER_CONNECT_SUB: "tcp://192.168.50.2:7250"' "$vars")"
+cp "${WORK}/vars.joined" "$vars"
+chmod 600 "$vars"
 rm -f "${vars}".bak-join-*
 
 section "doctor"
@@ -716,6 +773,53 @@ printf '%s\n' "id=emu1|os=android|name=Emu|location=loc|appium_port=7471|adb_por
 check_contains "no port of MCloud used by the devices" "the devices use no port of MCloud on this machine" "$(doctor_run)"
 echo "192.168.30.2" > "${WORK}/net/local"
 rm -f "${WORK}/devices.txt"
+
+# the WireGuard tunnel to MCloud (README.md#wireguard-tunnel): wg shows the time of the last handshake of
+# ${WORK}/wg_handshake, fails without it (no root)
+# the stub body is expanded when the stub runs
+# shellcheck disable=SC2016
+stub wg '(IFS="|"; echo "wg|$*") >> "${STUB_DIR}/calls.log"
+[[ -f "${STUB_DIR}/wg_handshake" ]] || exit 1
+printf "%s\t%s\n" "server-key" "$(cat "${STUB_DIR}/wg_handshake")"'
+check_not_contains "the tunnel off: no check of the tunnel" "WireGuard" "$(doctor_run)"
+cp "${WORK}/vars.wireguard" "$vars"
+chmod 600 "$vars"
+self_answer 10.234.0.2 > "${WORK}/mcloud/self_answer"
+echo "10.234.0.2" > "${WORK}/net/local"
+echo "10.234.0.2" > "${WORK}/net/source"
+date +%s > "${WORK}/wg_handshake"
+reset_calls
+output="$(doctor_run)"
+check "the tunnel up passes" "0" "$?"
+check_contains "the tunnel has a section" "[ WIREGUARD TUNNEL ]" "$output"
+check_contains "the interface of the tunnel is up" "the interface mcloud is up with WG_ADDRESS 10.234.0.2" "$output"
+check_contains "a recent handshake" "the last handshake with MCloud 10.234.0.1 was" "$output"
+check_contains "the handshakes of the interface mcloud" "show|mcloud|latest-handshakes" "$(calls wg)"
+check_contains "mcloud-grid answers through the tunnel" \
+  "mcloud-grid through the tunnel (WG_SERVER_ADDRESS): 10.234.0.1:4446 (10.234.0.1) accepts connections" "$output"
+check_not_contains "the private WireGuard key is not printed" "$(sed -n 's/^WG_PRIVATE_KEY: "\(.*\)"$/\1/p' "$vars")" "$output"
+echo $(($(date +%s) - 600)) > "${WORK}/wg_handshake"
+check_contains "an old handshake is a problem" "seconds ago (more than 3 minutes)" "$(doctor_run)"
+echo 0 > "${WORK}/wg_handshake"
+check_contains "no handshake is a problem" "no handshake with MCloud 10.234.0.1 yet" "$(doctor_run)"
+rm -f "${WORK}/wg_handshake"
+check_contains "wg without root: the handshake is not checked" "the handshake is not checked: wg show needs root" "$(doctor_run)"
+echo "10.234.0.1:4446" > "${WORK}/net/closed"
+check_contains "mcloud-grid not answering through the tunnel is a problem" \
+  "mcloud-grid through the tunnel (WG_SERVER_ADDRESS): 10.234.0.1:4446 (10.234.0.1) does not accept connections" "$(doctor_run)"
+: > "${WORK}/net/closed"
+echo "192.168.30.2" > "${WORK}/net/local"
+output="$(doctor_run)"
+check "the tunnel down fails" "1" "$?"
+check_contains "the interface of the tunnel is down" "the interface mcloud is down: WG_ADDRESS 10.234.0.2 is not an address of this host" "$output"
+check_contains "the fix of the tunnel down" "sudo systemctl restart wg-quick@mcloud" "$output"
+sed -i.bak 's/^WG_SERVER_PUBLIC_KEY:.*/WG_SERVER_PUBLIC_KEY: "abc"/' "$vars" && rm -f "${vars}.bak"
+check_contains "an invalid WireGuard key is a problem" "WG_SERVER_PUBLIC_KEY is not a WireGuard key of ./zebrunner.sh join" "$(doctor_run)"
+rm -f "${WORK}/bin/wg"
+echo "192.168.30.2" > "${WORK}/net/source"
+self_answer 192.168.30.2 > "${WORK}/mcloud/self_answer"
+cp "${WORK}/vars.joined" "$vars"
+chmod 600 "$vars"
 
 # the settings of zebrunner-farm rendered with another STF_PROVIDER_HOST, then with the settings
 if command -v ansible > /dev/null 2>&1; then

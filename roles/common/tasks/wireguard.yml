@@ -1,0 +1,205 @@
+---
+# The WireGuard tunnel of this host to MCloud (README.md#wireguard-tunnel): the interface mcloud of wg-quick with the
+# settings of ./zebrunner.sh join (WG_*), up at the boot; removed when WG_ENABLED is not true, a host that never had it
+# is not changed. Imported by the roles of the OS (import_role tasks_from: wireguard) with:
+#   common_wg_os: linux (wireguard-tools of apt, the unit wg-quick@mcloud) or macos (wireguard-tools and wireguard-go
+#   of Homebrew, the launch daemon com.zebrunner.wireguard)
+# The config has the private key of this host: root only (600), never in a diff.
+
+- name: Set up the WireGuard tunnel to MCloud on Linux
+  when: common_wg_os == 'linux' and WG_ENABLED | default(false) | bool
+  tags: [devices, wireguard]
+  block:
+    - name: Install wireguard-tools
+      ansible.builtin.apt:
+        name: wireguard-tools
+        state: present
+        update_cache: true
+        cache_valid_time: 86400
+      register: common_wg_package
+
+    - name: Create the folder of the WireGuard config
+      ansible.builtin.file:
+        path: /etc/wireguard
+        state: directory
+        mode: "0700"
+        owner: root
+        group: root
+
+    - name: Copy the WireGuard config of the tunnel to MCloud
+      ansible.builtin.template:
+        src: mcloud-wireguard.conf
+        dest: /etc/wireguard/mcloud.conf
+        mode: "0600"
+        owner: root
+        group: root
+      diff: false
+      register: common_wg_config
+
+    # the name of the endpoint may not resolve yet at the boot: wg-quick tries again
+    - name: Create the folder of the settings of wg-quick@mcloud
+      ansible.builtin.file:
+        path: /etc/systemd/system/wg-quick@mcloud.service.d
+        state: directory
+        mode: "0755"
+        owner: root
+        group: root
+
+    - name: Copy the settings of wg-quick@mcloud
+      ansible.builtin.copy:
+        content: |
+          # the tunnel to MCloud (README.md#wireguard-tunnel), deployed by ./zebrunner.sh ansible: wg-quick tries again
+          # when it fails, e.g. the name of the endpoint does not resolve yet at the boot
+          [Service]
+          Restart=on-failure
+          RestartSec=10
+        dest: /etc/systemd/system/wg-quick@mcloud.service.d/zebrunner.conf
+        mode: "0644"
+        owner: root
+        group: root
+      register: common_wg_dropin
+
+    # check mode: the unit comes with the package, which is not installed then
+    - name: Enable and start the tunnel to MCloud (wg-quick@mcloud)
+      ansible.builtin.systemd:
+        name: wg-quick@mcloud
+        enabled: true
+        state: started
+        daemon_reload: "{{ common_wg_dropin is changed }}"
+      register: common_wg_service
+      when: not (ansible_check_mode and common_wg_package is changed)
+
+    # a new config of a tunnel that was up already: a new key or address of a new join
+    - name: Restart the tunnel to MCloud with the new config
+      ansible.builtin.systemd:
+        name: wg-quick@mcloud
+        state: restarted
+      when: common_wg_config is changed and common_wg_service is not skipped and common_wg_service is not changed
+
+- name: Remove the WireGuard tunnel to MCloud on Linux
+  when: common_wg_os == 'linux' and not WG_ENABLED | default(false) | bool
+  tags: [devices, wireguard]
+  block:
+    - name: Check the WireGuard config of the tunnel to MCloud
+      ansible.builtin.stat:
+        path: /etc/wireguard/mcloud.conf
+      register: common_wg_config_file
+
+    - name: Stop and disable the tunnel to MCloud (wg-quick@mcloud)
+      ansible.builtin.systemd:
+        name: wg-quick@mcloud
+        enabled: false
+        state: stopped
+      when: common_wg_config_file.stat.exists
+
+    - name: Remove the WireGuard config and the settings of wg-quick@mcloud
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/wireguard/mcloud.conf
+        - /etc/systemd/system/wg-quick@mcloud.service.d
+      when: common_wg_config_file.stat.exists
+
+# macOS: wireguard-go is the interface (a utun of the kernel); /var/run/wireguard/mcloud.name of wg-quick names it
+- name: Set up the WireGuard tunnel to MCloud on macOS
+  when: common_wg_os == 'macos' and WG_ENABLED | default(false) | bool
+  tags: [devices, wireguard]
+  block:
+    - name: Find the prefix of Homebrew for WireGuard
+      ansible.builtin.shell: PATH="/opt/homebrew/bin:/usr/local/bin:$PATH" brew --prefix
+      register: common_wg_brew_prefix
+      changed_when: false
+      failed_when: common_wg_brew_prefix.rc != 0
+      # it reads only; brew refuses to run as root
+      check_mode: false
+      become: false
+
+    - name: Check wg-quick of Homebrew
+      ansible.builtin.stat:
+        path: "{{ common_wg_brew_prefix.stdout | trim }}/bin/wg-quick"
+      register: common_wg_quick
+
+    # wireguard-tools brings wireguard-go and the bash 4+ of wg-quick; brew runs as the user
+    - name: Install wireguard-tools and wireguard-go of Homebrew
+      ansible.builtin.command:
+        argv: ["{{ common_wg_brew_prefix.stdout | trim }}/bin/brew", install, wireguard-tools, wireguard-go]
+      changed_when: true
+      when: not common_wg_quick.stat.exists
+      become: false
+
+    - name: Create the folder of the WireGuard config
+      ansible.builtin.file:
+        path: /etc/wireguard
+        state: directory
+        mode: "0700"
+        owner: root
+        group: wheel
+
+    - name: Copy the WireGuard config of the tunnel to MCloud
+      ansible.builtin.template:
+        src: mcloud-wireguard.conf
+        dest: /etc/wireguard/mcloud.conf
+        mode: "0600"
+        owner: root
+        group: wheel
+      diff: false
+      register: common_wg_config
+
+    - name: Copy the launch daemon of the tunnel to MCloud
+      ansible.builtin.template:
+        src: ZebrunnerWireguard.plist
+        dest: /Library/LaunchDaemons/com.zebrunner.wireguard.plist
+        mode: "0644"
+        owner: root
+        group: wheel
+      vars:
+        common_wg_bin: "{{ common_wg_brew_prefix.stdout | trim }}/bin"
+      register: common_wg_daemon
+
+    - name: Check the interface of the tunnel to MCloud
+      ansible.builtin.stat:
+        path: /var/run/wireguard/mcloud.name
+      register: common_wg_up
+
+    # the daemon runs wg-quick up once at its load and at the boot: down first, an interface of the earlier config stays
+    # up otherwise
+    - name: Start the tunnel to MCloud (the launch daemon com.zebrunner.wireguard)
+      ansible.builtin.shell: |
+        launchctl bootout system/com.zebrunner.wireguard 2> /dev/null
+        if [ -e /var/run/wireguard/mcloud.name ]; then
+          PATH="{{ common_wg_brew_prefix.stdout | trim }}/bin:$PATH" wg-quick down /etc/wireguard/mcloud.conf
+        fi
+        # launchd may still be removing the earlier daemon
+        launchctl bootstrap system /Library/LaunchDaemons/com.zebrunner.wireguard.plist ||
+          { sleep 2 && launchctl bootstrap system /Library/LaunchDaemons/com.zebrunner.wireguard.plist; }
+      changed_when: true
+      when: common_wg_config is changed or common_wg_daemon is changed or not common_wg_up.stat.exists
+
+- name: Remove the WireGuard tunnel to MCloud on macOS
+  when: common_wg_os == 'macos' and not WG_ENABLED | default(false) | bool
+  tags: [devices, wireguard]
+  block:
+    - name: Check the launch daemon of the tunnel to MCloud
+      ansible.builtin.stat:
+        path: /Library/LaunchDaemons/com.zebrunner.wireguard.plist
+      register: common_wg_daemon_file
+
+    - name: Stop the tunnel to MCloud
+      ansible.builtin.shell: |
+        launchctl bootout system/com.zebrunner.wireguard 2> /dev/null
+        if [ -e /var/run/wireguard/mcloud.name ]; then
+          PATH="/opt/homebrew/bin:/usr/local/bin:$PATH" wg-quick down /etc/wireguard/mcloud.conf
+        fi
+        exit 0
+      changed_when: true
+      when: common_wg_daemon_file.stat.exists
+
+    - name: Remove the launch daemon and the WireGuard config of the tunnel to MCloud
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /Library/LaunchDaemons/com.zebrunner.wireguard.plist
+        - /etc/wireguard/mcloud.conf
+      when: common_wg_daemon_file.stat.exists

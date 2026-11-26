@@ -16,6 +16,8 @@ DOCTOR_FARM="${DOCTOR_FARM:-/usr/local/bin/zebrunner-farm}"
 # the settings of zebrunner-farm, rendered by the deploy
 DOCTOR_FARM_ENV="${DOCTOR_FARM_ENV:-/usr/local/etc/zebrunner-farm.env}"
 DOCTOR_DEVICES="${DOCTOR_DEVICES:-/usr/local/bin/mcloud-devices.txt}"
+# the folder of wg-quick of macOS: <interface>.name has the utun of the interface
+DOCTOR_WG_RUN_DIR="${DOCTOR_WG_RUN_DIR:-/var/run/wireguard}"
 
 # doctor_ok <message>: a passed check
 doctor_ok() {
@@ -166,6 +168,16 @@ doctor_settings() {
       doctor_fail "${name} is not a key of 64 hex characters" "./zebrunner.sh join with a new join string (README.md#node-enrollment)"
     fi
   done
+  if [[ "$(setting WG_ENABLED)" == "true" ]]; then
+    for name in WG_PRIVATE_KEY WG_SERVER_PUBLIC_KEY; do
+      if [[ ! "$(setting "$name")" =~ ^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$ ]]; then
+        doctor_fail "${name} is not a WireGuard key of ./zebrunner.sh join" "./zebrunner.sh join with a new join string (README.md#wireguard-tunnel)"
+      fi
+    done
+    for name in WG_ADDRESS WG_SERVER_ADDRESS WG_ENDPOINT; do
+      [[ -n "$(setting "$name")" ]] || doctor_fail "WG_ENABLED is true, ${name} is empty" "./zebrunner.sh join with a new join string (README.md#wireguard-tunnel)"
+    done
+  fi
   # an access token of an admin of STF of an earlier version: appium updates its device with the node token now
   if [[ -n "$(setting STF_AUTH_TOKEN)" ]]; then
     doctor_warn "STF_AUTH_TOKEN is not used: appium marks its device Unhealthy with the node token of this host" \
@@ -338,6 +350,66 @@ doctor_deployment() {
   done <<< "$(docker ps -a --filter name=device- --format '{{.Names}}' 2> /dev/null | grep -- '-stf$')"
   if [[ "$stale" -gt 0 ]]; then
     doctor_warn "${stale} devices run with another STF_PROVIDER_HOST than ${provider_host}" "zebrunner-farm restart (after ./zebrunner.sh ansible)"
+  fi
+}
+
+# wireguard_handshake: the seconds since the last handshake with MCloud of the interface mcloud (wg show
+# latest-handshakes: 0 is none), nothing when wg cannot tell: it needs root (sudo without a password only) and on macOS
+# the utun of the interface (<name>.name of wg-quick)
+wireguard_handshake() {
+  local interface=mcloud
+  local output
+  if [[ "$(uname)" == "Darwin" ]]; then
+    interface="$(cat "${DOCTOR_WG_RUN_DIR}/mcloud.name" 2> /dev/null)"
+    [[ -n "$interface" ]] || return 0
+  fi
+  command -v wg > /dev/null 2>&1 || return 0
+  output="$(wg show "$interface" latest-handshakes 2> /dev/null || sudo -n wg show "$interface" latest-handshakes 2> /dev/null)"
+  output="$(awk 'NR == 1 { print $2 }' <<< "$output")"
+  [[ "$output" =~ ^[0-9]+$ ]] || return 0
+  if [[ "$output" -eq 0 ]]; then
+    echo "never"
+  else
+    echo "$(($(date +%s) - output))"
+  fi
+}
+
+# doctor_wireguard: the WireGuard tunnel to MCloud of WG_ENABLED (README.md#wireguard-tunnel): the interface mcloud has
+# WG_ADDRESS, a handshake with MCloud within 3 minutes (MCloud sends one every 2 minutes on a used tunnel, the node keeps
+# it with PersistentKeepalive), mcloud-grid answers at the address of MCloud in the tunnel
+doctor_wireguard() {
+  [[ "$(setting WG_ENABLED)" == "true" ]] || return 0
+  doctor_section "WireGuard tunnel" "the interface mcloud to MCloud $(setting WG_ENDPOINT)"
+  local address server handshake restart
+  address="$(setting WG_ADDRESS)"
+  server="$(setting WG_SERVER_ADDRESS)"
+  if [[ "$(uname)" == "Darwin" ]]; then
+    restart="sudo launchctl kickstart -k system/com.zebrunner.wireguard (its log: /var/log/zebrunner-wireguard.log); ./zebrunner.sh ansible sets it up"
+  else
+    restart="sudo systemctl restart wg-quick@mcloud (its log: journalctl -u wg-quick@mcloud); ./zebrunner.sh ansible sets it up"
+  fi
+  if ! command -v python3 > /dev/null 2>&1; then
+    doctor_warn "the tunnel is not checked without python3"
+    return 0
+  fi
+  if probe local "$address" > /dev/null 2>&1; then
+    doctor_ok "the interface mcloud is up with WG_ADDRESS ${address}"
+  else
+    doctor_fail "the interface mcloud is down: WG_ADDRESS ${address} is not an address of this host, the devices cannot publish their ports" "$restart"
+  fi
+  handshake="$(wireguard_handshake)"
+  if [[ -z "$handshake" ]]; then
+    doctor_info "the handshake is not checked: wg show needs root (sudo wg show mcloud on Linux, sudo wg show on macOS)"
+  elif [[ "$handshake" == "never" ]]; then
+    doctor_fail "no handshake with MCloud ${server} yet" "the UDP of $(setting WG_ENDPOINT) from this host (the firewall of MCloud: NODES_WG_PORT), the key of this host in MCloud (./zebrunner.sh join again)"
+  elif [[ "$handshake" -lt 180 ]]; then
+    doctor_ok "the last handshake with MCloud ${server} was ${handshake} seconds ago"
+  else
+    doctor_fail "the last handshake with MCloud ${server} was ${handshake} seconds ago (more than 3 minutes)" "the UDP of $(setting WG_ENDPOINT) from this host (the firewall of MCloud: NODES_WG_PORT), MCloud revoked this host or knows another key of it (./zebrunner.sh join again)"
+  fi
+  check_endpoint "mcloud-grid through the tunnel (WG_SERVER_ADDRESS)" "$server" "$(setting SELENIUM_HUB_PORT | grep . || echo 4446)" "the tunnel to MCloud (above) and NODES_WIREGUARD=true of mcloud"
+  if [[ "$(setting STF_PROVIDER_HOST)" != "$address" ]]; then
+    doctor_fail "STF_PROVIDER_HOST $(setting STF_PROVIDER_HOST) is not WG_ADDRESS ${address}: MCloud connects to this host through the tunnel" "./zebrunner.sh join with a new join string (README.md#wireguard-tunnel)"
   fi
 }
 
@@ -624,6 +696,7 @@ doctor() {
   if doctor_settings; then
     doctor_enrollment
     doctor_deployment
+    doctor_wireguard
     doctor_network
     doctor_devices
     doctor_usb

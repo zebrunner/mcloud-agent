@@ -85,6 +85,33 @@
     success_msg: "The CURVE keys of ZeroMQ are valid."
   tags: [devices, precheck, validate]
 
+# the WireGuard tunnel to MCloud of `./zebrunner.sh join` (README.md#wireguard-tunnel): the keys, the IPv4 addresses and
+# the endpoint, nothing else goes into the config of wg-quick
+- name: Check the settings of the WireGuard tunnel
+  vars:
+    common_wg_key: '^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]=$'
+    common_wg_ipv4: '^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])[.]){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$'
+    common_wg_endpoint: "{{ WG_ENDPOINT | default('', true) | string }}"
+    common_wg_invalid: >-
+      {{ (['WG_PRIVATE_KEY'] if WG_PRIVATE_KEY | default('', true) | string is not match(common_wg_key) else [])
+         + (['WG_SERVER_PUBLIC_KEY'] if WG_SERVER_PUBLIC_KEY | default('', true) | string is not match(common_wg_key) else [])
+         + (['WG_ADDRESS'] if WG_ADDRESS | default('', true) | string is not match(common_wg_ipv4) else [])
+         + (['WG_SERVER_ADDRESS'] if WG_SERVER_ADDRESS | default('', true) | string is not match(common_wg_ipv4) else [])
+         + (['WG_ENDPOINT'] if common_wg_endpoint is not match('^[A-Za-z0-9][A-Za-z0-9.-]*:[0-9]{1,5}$')
+            or (common_wg_endpoint | regex_replace('^.*:', '') | int) not in range(1, 65536) else [])
+         + (['WG_PERSISTENT_KEEPALIVE'] if WG_PERSISTENT_KEEPALIVE | default(25, true) | string is not match('^[0-9]{1,5}$') else [])
+         + (['STF_PROVIDER_HOST'] if STF_PROVIDER_HOST | default('', true) | string != WG_ADDRESS | default('', true) | string else []) }}
+  ansible.builtin.assert:
+    that: not WG_ENABLED | default(false) | bool or common_wg_invalid | length == 0
+    fail_msg: >-
+      WG_ENABLED is true, the settings of the WireGuard tunnel are missing or invalid in config/settings.yml:
+      {{ common_wg_invalid | join(', ') }} (STF_PROVIDER_HOST is WG_ADDRESS). Enroll this host again with
+      ./zebrunner.sh join (README.md#wireguard-tunnel).
+    success_msg: >-
+      {{ 'The settings of the WireGuard tunnel are valid.' if WG_ENABLED | default(false) | bool
+         else 'The WireGuard tunnel to MCloud is off.' }}
+  tags: [devices, precheck, validate]
+
 # the cleanup between the uses of the devices (README.md#cleanup): empty (the default of mcloud-device), true or false
 - name: Check the setting of the cleanup
   ansible.builtin.assert:

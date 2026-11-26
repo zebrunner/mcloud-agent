@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+
+    <!-- wg-quick of Homebrew needs its bash 4+ and wireguard-go -->
+    <key>EnvironmentVariables</key>
+      <dict>
+        <key>PATH</key>
+        <string>{{ common_wg_bin }}:/usr/bin:/bin:/usr/sbin:/sbin</string>
+      </dict>
+
+    <key>Label</key>
+      <string>com.zebrunner.wireguard</string>
+
+    <!-- The WireGuard tunnel of this host to MCloud (README.md#wireguard-tunnel): wg-quick brings the interface mcloud
+         up at the boot and exits, wireguard-go keeps it; deployed by ./zebrunner.sh ansible. -->
+    <key>ProgramArguments</key>
+      <array>
+        <string>{{ common_wg_bin }}/wg-quick</string>
+        <string>up</string>
+        <string>/etc/wireguard/mcloud.conf</string>
+      </array>
+
+    <key>RunAtLoad</key>
+      <true/>
+
+    <!-- a failed start (e.g. no network yet at the boot) is tried again, a successful one is not -->
+    <key>KeepAlive</key>
+      <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+      </dict>
+
+    <key>StandardErrorPath</key>
+      <string>/var/log/zebrunner-wireguard.log</string>
+
+    <key>StandardOutPath</key>
+      <string>/var/log/zebrunner-wireguard.log</string>
+
+  </dict>
+</plist>
