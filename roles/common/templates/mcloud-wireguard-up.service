@@ -1,0 +1,13 @@
+# The devices whose containers docker could not start before the WireGuard tunnel to MCloud was up: their ports are
+# published on its address (README.md#wireguard-tunnel). wg-quick@mcloud-node starts it once its interface is up,
+# deployed by ./zebrunner.sh ansible with WG_ENABLED. The log: journalctl -u mcloud-wireguard-up
+[Unit]
+Description=MCloud: the devices once the WireGuard tunnel to MCloud is up
+Wants=docker.service
+After=docker.service wg-quick@mcloud-node.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/zebrunner-farm __tunnel-up
+# the images may be pulled
+TimeoutStartSec=30min
