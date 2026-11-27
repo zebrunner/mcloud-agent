@@ -41,6 +41,12 @@ case "\$url" in
   */mdm/status*) body=\$'udid=00008020-0005308201DA002E\nknown=yes\nenrolled=yes' ;;
   */mdm/release*) body=\$'udid=00008020-0005308201DA002E\ncommand=CMD-1' ;;
 esac
+# staged=1 of a node with the staged form: the JSON and the command (an older MDM: the command only)
+if [[ "\$url" == */android/enroll*staged=1* && ! -f "\${STUB_DIR}/old_mdm" ]]; then
+  body=\$'staged={"baseUrl":"https://mcloud.example.com","deviceId":"R28M1384YQY","secret":"${SECRET}","token":"${SECRET}"}\ncommand='"\$body"
+elif [[ "\$url" == */android/release*staged=1* && ! -f "\${STUB_DIR}/old_mdm" ]]; then
+  body=\$'staged={"token":"${SECRET}"}\ncommand='"\$body"
+fi
 [[ "\$code" == 409 ]] && body=\$'udid=x\nerror=not an enrolled device'
 [[ -f "\${STUB_DIR}/curl_body" ]] && body="\$(cat "\${STUB_DIR}/curl_body")"
 if [[ -n "\$out" ]]; then
@@ -130,7 +136,7 @@ setup_case() {
   : > "${WORK}/run_stdin.log"
   : > "${WORK}/curl_stdin.log"
   : > "${WORK}/mdm_files.log"
-  rm -f "${WORK}/curl_status" "${WORK}/curl_body" "${WORK}/run_statuses" "${WORK}/wifi.log"
+  rm -f "${WORK}/curl_status" "${WORK}/curl_body" "${WORK}/run_statuses" "${WORK}/wifi.log" "${WORK}/old_mdm"
   # lsusb and ioreg show the serial number of an iPhone without the dash of its udid
   printf '%s\n' R28M1384YQY 000080200005308201DA002E 000081200010359E0240201E > "${WORK}/usb"
 }
@@ -212,8 +218,8 @@ setup_case
 printf '%s\n' "${GALAXY}-connector running" "${GALAXY}-stf running" "${GALAXY}-appium running" > "${WORK}/docker_ps"
 output="$(mdm "$LINUX" enroll Galaxy)"
 check "enroll succeeds" "0" "$?"
-check_contains "the agent APK and the setup of the agent from the MDM" \
-  "https://mcloud.example.com:443/android/enroll?serial=R28M1384YQY&name=Galaxy&format=shell" "$(calls curl)"
+check_contains "the agent APK and the setup of the agent from the MDM, also in the staged form" \
+  "https://mcloud.example.com:443/android/enroll?serial=R28M1384YQY&name=Galaxy&format=shell&staged=1" "$(calls curl)"
 check_contains "the agent is downloaded into the folder of the container" "agent.apk" "$(cat "${WORK}/mdm_files.log")"
 run="$(calls docker | grep '^run|')"
 check_contains "a one-shot Android connector with the USB device and the adb key of the farm" \
@@ -221,7 +227,11 @@ check_contains "a one-shot Android connector with the USB device and the adb key
 check_contains "its image and the script of its stdin" "|--entrypoint|sh|public.ecr.aws/zebrunner/mcloud-android-connector:" "$run"
 script="$(cat "${WORK}/run_stdin.log")"
 check_contains "the script sets the device owner" "dpm set-device-owner com.hmdm.launcher/.AdminReceiver" "$script"
-check_contains "the script sets the agent up with the answer of the MDM" "adb -s \"\$s\" shell 'content call --uri content://com.hmdm.launcher.mcloud --method setup" "$script"
+check_contains "the script has the setup of the argument form" "command='content call --uri content://com.hmdm.launcher.mcloud --method setup" "$script"
+check_contains "and of the staged form" "staged='{\"baseUrl\":\"https://mcloud.example.com\",\"deviceId\":\"R28M1384YQY\",\"secret\":" "$script"
+check_contains "the staged form goes on the stdin of content write" \
+  "printf '%s' \"\$staged\" | adb -s \"\$s\" shell content write --uri content://com.hmdm.launcher.mcloud/setup" "$script"
+check_contains "the argument form for an agent without the staged form" "result=\"\$(adb -s \"\$s\" shell \"\$command\")\"" "$script"
 check_contains "the adb server of the container" "adb start-server" "$script"
 check_contains "the containers of the device are stopped first" "stop" "$(calls docker | grep -m1 -E '^(stop|run)')"
 check_contains "and started again" "start|${GALAXY}-connector" "$(calls docker | grep '^start|')"
@@ -239,14 +249,79 @@ check_contains "a device that is not plugged in" "Not connected over USB" "$(mdm
 section "Android release"
 setup_case
 mdm "$LINUX" release Galaxy --uninstall > /dev/null
-check_contains "the release command of the MDM, for the serial of the device" "https://mcloud.example.com:443/android/release?serial=R28M1384YQY" "$(calls curl)"
+check_contains "the release command of the MDM, for the serial of the device" "https://mcloud.example.com:443/android/release?serial=R28M1384YQY&staged=1" "$(calls curl)"
 script="$(cat "${WORK}/run_stdin.log")"
-check_contains "the script releases the device" "shell 'content call --uri content://com.hmdm.launcher.mcloud --method release" "$script"
+check_contains "the script releases the device" "command='content call --uri content://com.hmdm.launcher.mcloud --method release" "$script"
+check_contains "in the staged form for an agent with it" "content write --uri content://com.hmdm.launcher.mcloud/release" "$script"
 check_contains "--uninstall removes the agent" "uninstall com.hmdm.launcher" "$script"
 no_secret_in_args "Android release"
 setup_case
 mdm "$LINUX" release Galaxy > /dev/null
 check_not_contains "the agent stays without --uninstall" "uninstall com.hmdm.launcher" "$(cat "${WORK}/run_stdin.log")"
+
+section "Android: the staged form and the argument form on the device"
+# run_script <script> <sdk> <features>: the script of the connector with a fake adb (its calls in adb.log, the stdin of
+# content write in adb_stdin.log), without its waits
+run_script() {
+  mkdir -p "${WORK}/fakeadb"
+  cat > "${WORK}/fakeadb/adb" << 'EOF'
+#!/bin/sh
+echo "adb $*" >> "${STUB_DIR}/adb.log"
+case "$*" in
+*get-state*) echo device ;;
+*getprop*) echo "${FAKE_SDK}" ;;
+*"content write"*) cat >> "${STUB_DIR}/adb_stdin.log" ;;
+*"--method status"*) echo "Result: Bundle[{deviceOwner=true${FAKE_FEATURES:+, features=${FAKE_FEATURES}}}]" ;;
+*"--method setup"* | *"--method release"*) echo "${FAKE_RESULT:-Result: Bundle[{configured=true}]}" ;;
+esac
+exit 0
+EOF
+  chmod +x "${WORK}/fakeadb/adb"
+  : > "${WORK}/adb.log"
+  : > "${WORK}/adb_stdin.log"
+  sed -e 's/^sleep [0-9]*$/:/' <<< "$1" | env -i PATH="${WORK}/fakeadb:/usr/bin:/bin" STUB_DIR="$WORK" FAKE_SDK="$2" \
+    FAKE_FEATURES="$3" FAKE_RESULT="${FAKE_RESULT:-}" sh -s 2>&1
+}
+for action in enroll release; do
+  setup_case
+  mdm "$LINUX" "$action" Galaxy > /dev/null
+  script="$(cat "${WORK}/run_stdin.log")"
+  output="$(run_script "$script" 30 pin,staged)"
+  check "${action}: the staged form succeeds" "0" "$?"
+  check_contains "${action}: the parameters on the stdin of content write" "\"token\":\"${SECRET}\"}" "$(cat "${WORK}/adb_stdin.log")"
+  check_not_contains "${action}: the secret in no command line of the device" "$SECRET" "$(cat "${WORK}/adb.log")"
+  check_contains "${action}: the call has no argument" "--method $([[ "$action" == enroll ]] && echo setup || echo release)" \
+    "$(grep -v 'method status' "${WORK}/adb.log" | grep -- '--method' | grep -v -- '--extra')"
+  run_script "$script" 27 pin,staged > /dev/null
+  check_contains "${action}: Android 8 gets the argument form" "token:s:${SECRET}" "$(cat "${WORK}/adb.log")"
+  check "${action}: and no content write" "" "$(cat "${WORK}/adb_stdin.log")"
+  run_script "$script" 30 "" > /dev/null
+  check_contains "${action}: an agent without the staged form gets the argument form" "token:s:${SECRET}" "$(cat "${WORK}/adb.log")"
+  output="$(FAKE_RESULT="Error while accessing provider:com.hmdm.launcher.mcloud" run_script "$script" 30 pin,staged)"
+  check "${action}: a refused call fails" "1" "$?"
+  check_contains "${action}: with the error of the agent" "of the agent failed: Error while accessing provider" "$output"
+done
+setup_case
+touch "${WORK}/old_mdm"
+mdm "$LINUX" enroll Galaxy > /dev/null
+script="$(cat "${WORK}/run_stdin.log")"
+check_contains "an older MDM: its single command" "command='content call --uri content://com.hmdm.launcher.mcloud --method setup" "$script"
+check_contains "an older MDM: no staged form" "staged=''" "$script"
+run_script "$script" 30 pin,staged > /dev/null
+check_contains "an older MDM: the argument form also for a new agent" "token:s:${SECRET}" "$(cat "${WORK}/adb.log")"
+setup_case
+printf 'staged={"token":"x'"'"'y"}\n' > "${WORK}/curl_body"
+check_contains "a quote in the staged form is refused" "An unexpected answer of the MDM" "$(mdm "$LINUX" release Galaxy)"
+check "nothing runs then" "" "$(calls docker | grep '^run|')"
+setup_case
+printf 'staged={"token":"%s"}\n' "$SECRET" > "${WORK}/curl_body"
+mdm "$LINUX" release Galaxy > /dev/null
+script="$(cat "${WORK}/run_stdin.log")"
+check "an MDM with the staged form only (MDM_ANDROID_LEGACY_SETUP=false): no command" "command=''" "$(grep '^command=' <<< "$script")"
+output="$(run_script "$script" 30 "")"
+check "an agent without the staged form then fails" "1" "$?"
+check_contains "with the reason" "the agent has no staged release" "$output"
+no_secret_in_args "the staged form"
 
 section "Android on macOS"
 setup_case

@@ -135,13 +135,20 @@ mdm_with_device_free() {
   return "$status"
 }
 
-# mdm_android_script <adb setup|release command> <action>: the script of the one-shot Android connector
+# mdm_android_script <adb setup|release command> <action> [<staged JSON>]: the script of the one-shot Android
+# connector; with the JSON the staged form of an agent that has it (the secret on the stdin of content write, printf is
+# a builtin), else the command (the argument form); both go to the container in the script on its stdin
 mdm_android_script() {
   local command="$1"
   local action="$2"
+  local staged="${3:-}"
   local serial="$dev_udid"
+  local path="setup"
+  [[ "$action" == "enroll" ]] || path="release"
   echo "set -e"
   echo "s='${serial}'"
+  echo "staged='${staged}'"
+  echo "command='${command}'"
   # Linux: the adb server of the container with the adb key of the farm; macOS: the adb server of the host
   if [[ "$FARM_OS" != "macos" ]]; then
     echo "adb start-server > /dev/null 2>&1"
@@ -171,14 +178,16 @@ else
   echo "  the agent becomes the device owner (Android refuses it with an account or a second user on the device)"
   adb -s "\$s" shell dpm set-device-owner ${MDM_AGENT_ADMIN}
 fi
-adb -s "\$s" shell '${command}' > /dev/null
+EOF
+    mdm_android_apply "$path"
+    cat << EOF
 adb -s "\$s" shell am start -n ${MDM_AGENT_PACKAGE}/.ui.MainActivity > /dev/null
 sleep 10
 adb -s "\$s" shell content call --uri content://${MDM_AGENT_PACKAGE}.mcloud --method status | sed 's/^/  /'
 EOF
   else
+    mdm_android_apply "$path"
     cat << EOF
-adb -s "\$s" shell '${command}' > /dev/null
 if adb -s "\$s" shell dpm list-owners | grep -q '${MDM_AGENT_PACKAGE}/'; then
   echo "  the agent is still the device owner"
   exit 1
@@ -194,6 +203,54 @@ EOF
   fi
 }
 
+# mdm_android_apply <setup|release>: the part of the script that sets the agent up or releases it: the staged form when
+# the MDM gave it, the agent lists the feature staged in its status and Android has content write (9+), else the
+# argument form; the call must answer a Bundle (the provider prints its errors with the exit status 0)
+mdm_android_apply() {
+  local path="$1"
+  cat << EOF
+sdk="\$(adb -s "\$s" shell getprop ro.build.version.sdk | tr -dc '0-9')"
+status="\$(adb -s "\$s" shell content call --uri content://${MDM_AGENT_PACKAGE}.mcloud --method status | tr -d '\r')"
+if test -n "\$staged" && test "\${sdk:-0}" -ge 28 && printf '%s' "\$status" | grep -q 'features=[a-z,]*staged'; then
+  printf '%s' "\$staged" | adb -s "\$s" shell content write --uri content://${MDM_AGENT_PACKAGE}.mcloud/${path}
+  result="\$(adb -s "\$s" shell content call --uri content://${MDM_AGENT_PACKAGE}.mcloud --method ${path})"
+elif test -n "\$command"; then
+  echo "  the agent has no staged ${path} (a new agent, Android 9+): the secret goes in its arguments"
+  result="\$(adb -s "\$s" shell "\$command")"
+else
+  echo "  the agent has no staged ${path} (a new agent, Android 9+) and the MDM gives no other (MDM_ANDROID_LEGACY_SETUP of mcloud-mdm)"
+  exit 1
+fi
+case "\$result" in
+*"Result: Bundle["*) ;;
+*)
+  echo "  the ${path} of the agent failed: \$(printf '%s' "\$result" | head -n 2 | tr -d '\r')"
+  exit 1
+  ;;
+esac
+EOF
+}
+
+# mdm_android_answer <answer of the MDM>: MDM_STAGED (the JSON of the staged form) and MDM_COMMAND (the adb shell
+# command of the argument form) of an answer to staged=1 (staged=, command=), or the single command of an older MDM;
+# anything else, or a quote (they go into single quotes of the script), is refused
+MDM_STAGED=""
+MDM_COMMAND=""
+mdm_android_answer() {
+  local answer="$1"
+  MDM_STAGED="$(sed -n 's/^staged=//p' <<< "$answer" | head -n 1)"
+  MDM_COMMAND="$(sed -n 's/^command=//p' <<< "$answer" | head -n 1)"
+  if [[ -z "$MDM_STAGED" && -z "$MDM_COMMAND" ]]; then
+    MDM_COMMAND="$(head -n 1 <<< "$answer")"
+  fi
+  if [[ -n "$MDM_COMMAND" && ("$MDM_COMMAND" != "content call "* || "$MDM_COMMAND" == *"'"*) ]] ||
+    [[ -n "$MDM_STAGED" && ("$MDM_STAGED" != "{"*"}" || "$MDM_STAGED" == *"'"*) ]] ||
+    [[ -z "$MDM_STAGED" && -z "$MDM_COMMAND" ]]; then
+    ui_fail "An unexpected answer of the MDM"
+    return 1
+  fi
+}
+
 # mdm_android <enroll|release>: the agent of the MDM as the device owner of the Android device, or released
 mdm_android() {
   local action="$1"
@@ -202,23 +259,19 @@ mdm_android() {
   if [[ "$action" == "enroll" ]]; then
     ui_info "Getting the agent and its setup from the MDM"
     mdm_call GET /android/agent.apk "${work}/agent.apk" || return 1
-    command="$(mdm_call GET "/android/enroll?serial=$(mdm_query "$dev_udid")&name=$(mdm_query "$dev_device_name")&format=shell")" || return 1
+    # staged=1: the staged form too (an older MDM ignores it and answers the command only)
+    command="$(mdm_call GET "/android/enroll?serial=$(mdm_query "$dev_udid")&name=$(mdm_query "$dev_device_name")&format=shell&staged=1")" || return 1
   else
     # the serial: an MCloud with MDM_ENFORCE_NODE_BINDING=true releases only a device of this node
-    command="$(mdm_call GET "/android/release?serial=$(mdm_query "$dev_udid")")" || return 1
+    command="$(mdm_call GET "/android/release?serial=$(mdm_query "$dev_udid")&staged=1")" || return 1
   fi
-  command="$(head -n 1 <<< "$command")"
-  # the command goes into single quotes of the script: an answer with one is refused
-  if [[ "$command" != "content call "* || "$command" == *"'"* ]]; then
-    ui_fail "An unexpected answer of the MDM"
-    return 1
-  fi
+  mdm_android_answer "$command" || return 1
   local env_args=()
   if [[ "$FARM_OS" == "macos" ]]; then
     env_args=(-e ADB_SERVER_SOCKET="tcp:${ADB_SERVER_SOCKET_ADDRESS:-host.docker.internal:5037}")
   fi
   mdm_usb_args
-  mdm_android_script "$command" "$action" | mdm_one_shot "${ANDROID_CONNECTOR_IMAGE}:${ANDROID_CONNECTOR_VERSION}" \
+  mdm_android_script "$MDM_COMMAND" "$action" "$MDM_STAGED" | mdm_one_shot "${ANDROID_CONNECTOR_IMAGE}:${ANDROID_CONNECTOR_VERSION}" \
     "${MDM_USB_ARGS[@]+"${MDM_USB_ARGS[@]}"}" "${env_args[@]+"${env_args[@]}"}" \
     -v mcloud-key-volume:/root/.android -v "${work}:/mdm:ro"
 }
