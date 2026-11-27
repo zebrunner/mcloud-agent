@@ -538,6 +538,16 @@ The connector mounts the Developer Disk Image of the iOS version of the device b
 - A new folder is mounted into the connectors created after it: `zebrunner-farm restart ios` recreates them.
 - Do not change the clone: the next deploy drops a local change of it.
 
+#### WebDriverAgent address
+
+WebDriverAgent has no authentication: the connector makes it listen on the loopback of the device (`USE_IP=127.0.0.1`) for the `usb` devices and on the loopback of the Mac for the simulators, the other containers of the device reach it through the connector as before, the network of the device (its Wi-Fi) does not (`WDA_BIND_ADDRESS` of [mcloud-ios-connector](https://github.com/zebrunner/mcloud-ios-connector#webdriveragent-address), zebrunner/mcloud-ios-connector#146). The `wireless` devices are reached over the network, their WebDriverAgent listens on every interface. The MJPEG port follows it with a WebDriverAgent build that binds its MJPEG server to `USE_IP` too, an older build keeps it on every interface.
+
+| Setting | Default | What it is |
+| --- | --- | --- |
+| `WDA_BIND_ADDRESS` | empty: `auto` of the connector | `all`: every interface of the device (the behaviour before), for a tool that reaches WebDriverAgent at the Wi-Fi address of the device and not through the farm; an IP address: that one |
+
+A change needs `./zebrunner.sh ansible` and `zebrunner-farm restart ios`.
+
 #### Reboot of an iOS device
 
 Sometimes testmanagerd of an iPhone stops answering (often after a mass restart of the containers): WebDriverAgent hangs at `loading Accessibility`, the connector restarts until `RESTARTS_LIMIT` and only a reboot of the device helps. `allow_reboot: true` of the device in `config/devices.yml` (or `config/mac-devices.yml`; iOS with the `usb` or `wireless` connection) lets its connector reboot it (`ALLOW_REBOOT` of [mcloud-ios-connector](https://github.com/zebrunner/mcloud-ios-connector#wda-cant-start-reboot)): after 3 starts in a row with this failure, at most once per 6 hours; a device that fails again after its reboot is left to a person, and an iOS 17+ device with a passcode is rebooted only when the connector keeps a backup of its pair record. Without it the connector log recommends the reboot. A change needs `./zebrunner.sh ansible` and `zebrunner-farm restart <device>`.

@@ -783,6 +783,36 @@ farm devices start iPhoneWiFi WiFi > /dev/null
 check_not_contains "without allow_reboot the connector gets no ALLOW_REBOOT" "ALLOW_REBOOT" \
   "$(run_args device-iPhoneWiFi-bbbb2222-connector)$(run_args device-WiFi-192.168.1.50-connector)"
 
+section "WDA_BIND_ADDRESS"
+# usb_iphone: the USB iPhone is plugged into the host
+usb_iphone() {
+  echo "iSerial d6afc6b3a65584ca0813eb8957c6479b9b6ebb11" > "${WORK}/usb"
+  echo '"USB Serial Number" = "d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"' >> "${WORK}/usb"
+}
+for role in devices mac-devices; do
+  check_contains "${role}: WDA_BIND_ADDRESS is empty by default" "WDA_BIND_ADDRESS=''" "$(cat "${WORK}/farm-${role}.env")"
+  setup_case
+  usb_iphone
+  farm "$role" start iPhone_8_Plus > /dev/null
+  farm "$role" start iPhoneWiFi > /dev/null
+  check_contains "${role}: the USB iPhone is started" "|--name|${IPHONE}-connector|" "$(run_args "${IPHONE}-connector")"
+  check_not_contains "${role}: without WDA_BIND_ADDRESS the connector chooses the address" "WDA_BIND_ADDRESS" \
+    "$(run_args "${IPHONE}-connector")$(run_args device-iPhoneWiFi-bbbb2222-connector)"
+  cp "${WORK}/farm-${role}.env" "${WORK}/farm-${role}.env.saved"
+  sed -i.bak "s/^WDA_BIND_ADDRESS=.*/WDA_BIND_ADDRESS=all/" "${WORK}/farm-${role}.env"
+  setup_case
+  usb_iphone
+  farm "$role" start iPhone_8_Plus > /dev/null
+  farm "$role" start iPhoneWiFi WiFi > /dev/null
+  check_contains "${role}: WDA_BIND_ADDRESS is passed to the iOS connector" "|-e|WDA_BIND_ADDRESS=all|" \
+    "$(run_args "${IPHONE}-connector")"
+  check_contains "${role}: WDA_BIND_ADDRESS is passed to the wireless iOS connector" "|-e|WDA_BIND_ADDRESS=all|" \
+    "$(run_args device-iPhoneWiFi-bbbb2222-connector)"
+  check_not_contains "${role}: the Android connector gets no WDA_BIND_ADDRESS" "WDA_BIND_ADDRESS" \
+    "$(run_args device-WiFi-192.168.1.50-connector)"
+  mv "${WORK}/farm-${role}.env.saved" "${WORK}/farm-${role}.env"
+done
+
 section "remote debug port"
 cp "${WORK}/devices.txt" "${WORK}/devices.saved"
 # WiFi: the port in the range, Emu: the port out of it
