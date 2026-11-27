@@ -590,7 +590,7 @@ shutdown() {
     fi
 
     local plist
-    for plist in ZebrunnerDevicesListener ZebrunnerUsbmuxd; do
+    for plist in ZebrunnerDevicesListener ZebrunnerUsbmuxd ZebrunnerWirelessWatchdog; do
       if [[ -f "${HOME}/Library/LaunchAgents/${plist}.plist" ]]; then
         if launchctl bootout gui/"$(id -u)" "${HOME}/Library/LaunchAgents/${plist}.plist" 2> /dev/null; then
           ui_ok "${plist}.plist unloaded successfully"
@@ -674,6 +674,12 @@ shutdown() {
     fi
   else
     sudo rm -vf /etc/udev/rules.d/90_mcloud.rules
+    # the wireless watchdog, deployed for the wireless devices only
+    if [[ -f /etc/systemd/system/mcloud-wireless-watchdog.timer ]]; then
+      sudo systemctl disable --now mcloud-wireless-watchdog.timer > /dev/null 2>&1 ||
+        ui_warn "Failed to stop mcloud-wireless-watchdog.timer, it might be not running"
+    fi
+    sudo rm -vf /etc/systemd/system/mcloud-wireless-watchdog.timer /etc/systemd/system/mcloud-wireless-watchdog.service
     sudo rm -vf /etc/systemd/system/mcloud-device-restart@.service
     sudo rm -vf /etc/systemd/system/mcloud-device-down@.service
     sudo rm -vf /etc/bash_completion.d/zebrunner-farm

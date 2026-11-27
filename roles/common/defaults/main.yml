@@ -33,6 +33,15 @@ APPIUM_APP_WAITING_TIMEOUT: 90
 
 RESTARTS_LIMIT: 50
 
+# How long in seconds an iOS device (usb, wireless) may stay unavailable before its connector stops
+# (DEVICE_UNAVAILABLE_TIMEOUT of mcloud-ios-connector, 600 by default; 0: forever): empty is the default of the
+# connector, unavailable_timeout of a device overrides it. A wireless device is awaited that long (README.md#wireless-devices)
+DEVICE_UNAVAILABLE_TIMEOUT:
+
+# The wireless watchdog (README.md#wireless-watchdog): on a host with wireless devices the containers of the wireless
+# devices that stopped by themselves are started every this many seconds; 0: off
+WIRELESS_WATCHDOG_INTERVAL: 300
+
 # every device has a docker network of its own (README.md#docker-network): its containers reach only its connector; the
 # networks are /28 subnets of DEVICE_NETWORK_SUBNETS. false: the containers of all the devices share STF_DOCKER_NETWORK
 DEVICE_NETWORK_ISOLATION: true

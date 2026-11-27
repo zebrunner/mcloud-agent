@@ -1063,11 +1063,13 @@ reset_calls
 mkdir -p "${WORK}/home/.ssh" "${AGENT}/ssh"
 printf 'ssh-ed25519 AAAA other@host\nrestrict ssh-ed25519 BBBB zebrunner-mcloud-simulators\n' > "${WORK}/home/.ssh/authorized_keys"
 touch "${AGENT}/ssh/id_ed25519" "${AGENT}/ssh/id_ed25519.pub"
+touch "${WORK}/home/Library/LaunchAgents/ZebrunnerWirelessWatchdog.plist"
 OS=Darwin zbr "y\n" shutdown > /dev/null
 check "macOS: the ssh key of the simulators is unauthorized, the other keys are kept" "ssh-ed25519 AAAA other@host" \
   "$(cat "${WORK}/home/.ssh/authorized_keys")"
 check "macOS: the ssh key of the simulators is removed" "no" "$([[ -e "${AGENT}/ssh" ]] && echo yes || echo no)"
-check "macOS: launch agents are unloaded: the listener, usbmuxd and the autostart" "3" "$(calls launchctl | grep -c '^bootout|')"
+check "macOS: launch agents are unloaded: the listener, usbmuxd, the wireless watchdog and the autostart" "4" \
+  "$(calls launchctl | grep -c '^bootout|')"
 check "macOS: launch agents are removed" "0" "$(find "${WORK}/home/Library/LaunchAgents" -name '*.plist' | wc -l | tr -d ' ')"
 check "macOS: the variable is removed from the profiles" "0 0" "$(exports .bashrc) $(exports .zshrc)"
 check "macOS: containers are removed" "down" "$(calls zebrunner-farm)"
@@ -1094,6 +1096,7 @@ check "Linux: no launch agents" "" "$(calls launchctl)"
 check "Linux: the pair records of the iOS devices are removed" "volume|rm|device-iPhone-0001-lockdown" \
   "$(calls docker | grep '^volume|rm|device-iPhone')"
 check "Linux: udev rules and deployed files are removed" "rm|-vf|/etc/udev/rules.d/90_mcloud.rules
+rm|-vf|/etc/systemd/system/mcloud-wireless-watchdog.timer|/etc/systemd/system/mcloud-wireless-watchdog.service
 rm|-vf|/etc/systemd/system/mcloud-device-restart@.service
 rm|-vf|/etc/systemd/system/mcloud-device-down@.service
 rm|-vf|/etc/bash_completion.d/zebrunner-farm

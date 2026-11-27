@@ -96,6 +96,7 @@ get_device_fields() {
   dev_connect_port=""
   dev_remote_port=""
   dev_allow_reboot=""
+  dev_unavailable_timeout=""
 
   local line
   # exact match of the udid (id) or the name
@@ -129,6 +130,7 @@ get_device_fields() {
     mjpeg_port) dev_mjpeg_port="$value" ;;
     connect_port) dev_connect_port="$value" ;;
     allow_reboot) dev_allow_reboot="$value" ;;
+    unavailable_timeout) dev_unavailable_timeout="$value" ;;
     esac
   done
 
@@ -426,6 +428,14 @@ create_containers() {
     if [[ -n "${WDA_BIND_ADDRESS:-}" ]]; then
       bind_args=(-e WDA_BIND_ADDRESS="$WDA_BIND_ADDRESS")
     fi
+    # how long the device may stay unavailable before the connector stops (DEVICE_UNAVAILABLE_TIMEOUT of the connector,
+    # a wireless device is awaited that long): 'unavailable_timeout' of the device, else the setting of the host, else
+    # the default of the connector
+    local unavailable_args=()
+    local unavailable_timeout="${dev_unavailable_timeout:-${DEVICE_UNAVAILABLE_TIMEOUT:-}}"
+    if [[ -n "$unavailable_timeout" && "$dev_connection" =~ ^(usb|wireless)$ ]]; then
+      unavailable_args=(-e DEVICE_UNAVAILABLE_TIMEOUT="$unavailable_timeout")
+    fi
 
     # Linux: the connection before WDA_BUNDLEID, macOS: after DEVICE_UDID
     local linux_connector_args=()
@@ -456,6 +466,7 @@ create_containers() {
       -e DEVICE_UDID="$dev_udid" \
       "${reboot_args[@]+"${reboot_args[@]}"}" \
       "${bind_args[@]+"${bind_args[@]}"}" \
+      "${unavailable_args[@]+"${unavailable_args[@]}"}" \
       "${macos_connector_args[@]+"${macos_connector_args[@]}"}" \
       "${IOS_CONNECTOR_IMAGE}:${IOS_CONNECTOR_VERSION}" || return 1
 
@@ -2440,6 +2451,45 @@ tunnel_up() {
   farm_command start --quiet "${udids[@]}"
 }
 
+# wireless_watchdog: `start` of the wireless devices whose containers stopped by themselves (README.md#wireless-watchdog):
+# a container of the device exited (the connector after DEVICE_UNAVAILABLE_TIMEOUT or RESTARTS_LIMIT, STF after its
+# budget, ...) while the connector was not stopped on purpose. A device without a connector container (not started yet
+# or removed by `zebrunner-farm down`), one whose connector docker is restarting and one whose connector was stopped (`zebrunner-farm stop`, `docker stop`, the
+# stop of docker: the connector logs 'Stopped. Exiting!' on SIGTERM) stay as they are; mcloud-wireless-watchdog.timer
+# (Linux) and the launch agent ZebrunnerWirelessWatchdog (macOS) run it every WIRELESS_WATCHDOG_INTERVAL seconds
+wireless_watchdog() {
+  local line role connector stopped
+  local udids=()
+  read_container_states
+  while IFS= read -r line; do
+    [[ "|${line}|" =~ \|id=([^|]*)\| ]] || continue
+    get_device_fields "${BASH_REMATCH[1]}" > /dev/null || continue
+    [[ "$dev_connection" == "wireless" ]] || continue
+    connector="$(container_state "${dev_container}-connector")"
+    # no connector: not started yet or removed on purpose; restarting: docker restarts it
+    [[ -n "$connector" && "$connector" != "restarting" ]] || continue
+    stopped=""
+    for role in "${ROLES[@]}"; do
+      case "$(container_state "${dev_container}-${role}")" in
+      exited | created | dead) stopped="true" ;;
+      esac
+    done
+    [[ -n "$stopped" ]] || continue
+    if [[ "$connector" =~ ^(exited|created|dead)$ ]] &&
+      docker logs --tail 5 "${dev_container}-connector" 2>&1 | grep -q 'Stopped. Exiting!'; then
+      farm_status info "${dev_device_name}: its connector was stopped (zebrunner-farm stop, docker stop), it stays stopped"
+      continue
+    fi
+    udids+=("$dev_udid")
+  done < "$MCLOUD_DEVICES"
+  if [[ "$(count "${udids[@]}")" -eq 0 ]]; then
+    farm_status info "No wireless device stopped by itself: nothing to start"
+    return 0
+  fi
+  farm_status info "The containers of $(count "${udids[@]}") wireless devices stopped by themselves: starting them"
+  farm_command start --quiet "${udids[@]}"
+}
+
 #### Help and completion
 
 # the commands of zebrunner-farm
@@ -2860,6 +2910,10 @@ main() {
     ;;
   __tunnel-ready)
     tunnel_ready
+    ;;
+  # the wireless watchdog of the deploy (README.md#wireless-watchdog)
+  __wireless-watchdog)
+    wireless_watchdog
     ;;
   ansible)
     "${ZEBRUNNER_MCLOUD_AGENT_DIR}"/zebrunner.sh ansible "${@:2}"

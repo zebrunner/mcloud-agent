@@ -1,0 +1,12 @@
+# The wireless watchdog (README.md#wireless-watchdog): mcloud-wireless-watchdog.service every
+# WIRELESS_WATCHDOG_INTERVAL seconds after its last run, deployed by ./zebrunner.sh ansible on a host with wireless
+# devices
+[Unit]
+Description=MCloud: the wireless watchdog every {{ WIRELESS_WATCHDOG_INTERVAL | int }} seconds
+
+[Timer]
+OnBootSec={{ WIRELESS_WATCHDOG_INTERVAL | int }}s
+OnUnitInactiveSec={{ WIRELESS_WATCHDOG_INTERVAL | int }}s
+
+[Install]
+WantedBy=timers.target

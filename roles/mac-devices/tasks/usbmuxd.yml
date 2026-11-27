@@ -12,7 +12,7 @@
   register: mac_devices_user_uid
   changed_when: false
   become: false
-  tags: [devices, usbmuxd, listener]
+  tags: [devices, usbmuxd, listener, watchdog]
 
 - name: Check the settings and the devices
   ansible.builtin.import_role:
@@ -240,6 +240,62 @@
           - "gui/{{ mac_devices_user_uid.stdout }}"
           - "{{ lookup('env', 'HOME') }}/Library/LaunchAgents/ZebrunnerAdb.plist"
       changed_when: false
+      become: false
+
+# The wireless watchdog (README.md#wireless-watchdog): the containers of the wireless devices that stopped by themselves
+# are started every WIRELESS_WATCHDOG_INTERVAL seconds by a launch agent; removed from a host without wireless devices
+# or with WIRELESS_WATCHDOG_INTERVAL 0
+- name: Wireless watchdog
+  vars:
+    mac_devices_watchdog: >-
+      {{ (WIRELESS_WATCHDOG_INTERVAL | int) > 0 and (devices | map(attribute='connection', default='usb') | map('string')
+         | map('lower') | select('equalto', 'wireless') | list | length > 0) }}
+  tags: [devices, watchdog]
+  block:
+    - name: Check if ZebrunnerWirelessWatchdog agent is loaded
+      ansible.builtin.command: launchctl list com.zebrunner.wireless-watchdog
+      register: mac_devices_watchdog_loaded
+      failed_when: false
+      changed_when: false
+      become: false
+
+    - name: Unload ZebrunnerWirelessWatchdog agent if loaded
+      ansible.builtin.command:
+        argv:
+          - launchctl
+          - bootout
+          - "gui/{{ mac_devices_user_uid.stdout }}"
+          - "{{ lookup('env', 'HOME') }}/Library/LaunchAgents/ZebrunnerWirelessWatchdog.plist"
+      when: mac_devices_watchdog_loaded.rc == 0
+      changed_when: false
+      become: false
+
+    - name: Copy ZebrunnerWirelessWatchdog.plist into LaunchAgents
+      ansible.builtin.template:
+        src: roles/mac-devices/templates/ZebrunnerWirelessWatchdog.plist
+        dest: "{{ lookup('env', 'HOME') }}/Library/LaunchAgents/ZebrunnerWirelessWatchdog.plist"
+        mode: "0644"
+        owner: "{{ lookup('env', 'USER') }}"
+        group: staff
+      when: mac_devices_watchdog | bool
+      tags: [files]
+
+    - name: Load ZebrunnerWirelessWatchdog agent via launchctl
+      ansible.builtin.command:
+        argv:
+          - launchctl
+          - bootstrap
+          - "gui/{{ mac_devices_user_uid.stdout }}"
+          - "{{ lookup('env', 'HOME') }}/Library/LaunchAgents/ZebrunnerWirelessWatchdog.plist"
+      when: mac_devices_watchdog | bool and not ansible_check_mode
+      changed_when: false
+      become: false
+
+    - name: Remove ZebrunnerWirelessWatchdog.plist without wireless devices
+      ansible.builtin.file:
+        path: "{{ lookup('env', 'HOME') }}/Library/LaunchAgents/ZebrunnerWirelessWatchdog.plist"
+        state: absent
+      when: not mac_devices_watchdog | bool
       become: false
 
 # The iOS simulators run on the host: their connector and Appium containers run xcrun of the host over ssh with a key of

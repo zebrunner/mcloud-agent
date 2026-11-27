@@ -104,6 +104,15 @@ S3_REGION:
 # before, e.g. for a tool that reaches WebDriverAgent at the Wi-Fi address of the device)
 # WDA_BIND_ADDRESS: all
 
+# [OPTIONAL] iOS: the seconds a device may stay unavailable before its connector stops, a wireless device is awaited
+# that long (README.md#wireless-devices): empty is the default of the connector (600), 0: forever; unavailable_timeout
+# of a device overrides it
+# DEVICE_UNAVAILABLE_TIMEOUT: 1800
+
+# [OPTIONAL] the wireless watchdog (README.md#wireless-watchdog): the containers of the wireless devices that stopped by
+# themselves are started every this many seconds (300 by default), 0: off
+# WIRELESS_WATCHDOG_INTERVAL: 300
+
 # Path to prebuild WebDriverAgent.ipa
 WDA_FILE:
 # macOS: path to the simulator build of WebDriverAgent for the simulators: a .app folder or its .zip, e.g.

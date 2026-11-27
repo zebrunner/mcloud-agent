@@ -30,6 +30,9 @@
 #     iOS (usb, wireless): WebDriverAgent can't start because testmanagerd of the device does not answer
 #     (README.md#reboot-of-an-ios-device); Android: no free app UIDs, no app can be installed
 #     (README.md#reboot-of-an-android-device)
+#   unavailable_timeout: [optional] iOS (usb, wireless): the seconds the device may stay unavailable before its connector
+#     stops (DEVICE_UNAVAILABLE_TIMEOUT of the settings, else 600 of the connector; 0: forever); a wireless device is
+#     awaited that long and added to netmuxd again when it is back (README.md#wireless-devices)
 
 devices:
   - id: R28M1384YQY

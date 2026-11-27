@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+
+    <key>EnvironmentVariables</key>
+      <dict>
+        <key>PATH</key>
+        <string>/bin:/usr/bin:/usr/local/bin:/opt/homebrew/bin:/usr/sbin:/sbin</string>
+      </dict>
+
+    <key>Label</key>
+      <string>com.zebrunner.wireless-watchdog</string>
+
+    <!-- The wireless watchdog (README.md#wireless-watchdog): the containers of the wireless devices that stopped by
+         themselves are started every WIRELESS_WATCHDOG_INTERVAL seconds; deployed on a host with wireless devices. -->
+    <key>ProgramArguments</key>
+      <array>
+        <string>/usr/local/bin/zebrunner-farm</string>
+        <string>__wireless-watchdog</string>
+      </array>
+
+    <key>StartInterval</key>
+      <integer>{{ WIRELESS_WATCHDOG_INTERVAL | int }}</integer>
+
+    <key>WorkingDirectory</key>
+      <string>{{ agent_dir }}</string>
+
+    <key>UserName</key>
+      <string>{{ lookup('env', 'USER') }}</string>
+
+    <key>StandardErrorPath</key>
+      <string>{{ agent_dir }}/logs/wireless-watchdog.log</string>
+
+    <key>StandardOutPath</key>
+      <string>{{ agent_dir }}/logs/wireless-watchdog.log</string>
+
+  </dict>
+</plist>

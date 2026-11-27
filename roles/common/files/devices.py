@@ -125,6 +125,17 @@ def settings_problems(devices, farm_os):
                 f"Invalid allow_reboot of device '{label(device)}': true or false, of an Android device or of an iOS "
                 "device with the usb or wireless connection."
             )
+        if "unavailable_timeout" in device and (
+            isinstance(device["unavailable_timeout"], bool)
+            or not isinstance(device["unavailable_timeout"], int)
+            or device["unavailable_timeout"] < 0
+            or device["os"] != "ios"
+            or connection(device) not in ("usb", "wireless")
+        ):
+            problems.append(
+                f"Invalid unavailable_timeout of device '{label(device)}': the seconds (0 or more, 0: forever), of an "
+                "iOS device with the usb or wireless connection (DEVICE_UNAVAILABLE_TIMEOUT of its connector)."
+            )
         ports = range(to_int(device["min_port"]), to_int(device["max_port"]) + 1)
         needed = STF_PORTS + (1 if "connect_port" in device and to_int(device["connect_port"]) in ports else 0)
         if device["os"] == "android" and len(ports) < needed:
