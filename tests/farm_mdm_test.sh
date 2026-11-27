@@ -42,6 +42,7 @@ case "\$url" in
   */mdm/release*) body=\$'udid=00008020-0005308201DA002E\ncommand=CMD-1' ;;
 esac
 [[ "\$code" == 409 ]] && body=\$'udid=x\nerror=not an enrolled device'
+[[ -f "\${STUB_DIR}/curl_body" ]] && body="\$(cat "\${STUB_DIR}/curl_body")"
 if [[ -n "\$out" ]]; then
   printf '%s' "\$body" > "\$out"
   printf '\n%s' "\$code"
@@ -129,7 +130,7 @@ setup_case() {
   : > "${WORK}/run_stdin.log"
   : > "${WORK}/curl_stdin.log"
   : > "${WORK}/mdm_files.log"
-  rm -f "${WORK}/curl_status" "${WORK}/run_statuses" "${WORK}/wifi.log"
+  rm -f "${WORK}/curl_status" "${WORK}/curl_body" "${WORK}/run_statuses" "${WORK}/wifi.log"
   # lsusb and ioreg show the serial number of an iPhone without the dash of its udid
   printf '%s\n' R28M1384YQY 000080200005308201DA002E 000081200010359E0240201E > "${WORK}/usb"
 }
@@ -194,6 +195,12 @@ output="$(mdm "$LINUX" status Galaxy)"
 check "a refused address fails" "1" "$?"
 check_contains "a refused address is explained" "not in MDM_SITE_ADDRESSES of MCloud" "$output"
 setup_case
+echo 403 > "${WORK}/curl_status"
+printf 'forbidden\n' > "${WORK}/curl_body"
+output="$(mdm "$LINUX" status Galaxy)"
+check "a device of another node fails" "1" "$?"
+check_contains "a device of another node is explained" "STF binds it to another node" "$output"
+setup_case
 echo 503 > "${WORK}/curl_status"
 printf '%s\n' "${IPHONE}-connector running" > "${WORK}/docker_ps"
 output="$(mdm "$LINUX" enroll iPhone_XR 2>&1)"
@@ -232,7 +239,7 @@ check_contains "a device that is not plugged in" "Not connected over USB" "$(mdm
 section "Android release"
 setup_case
 mdm "$LINUX" release Galaxy --uninstall > /dev/null
-check_contains "the release command of the MDM" "https://mcloud.example.com:443/android/release" "$(calls curl)"
+check_contains "the release command of the MDM, for the serial of the device" "https://mcloud.example.com:443/android/release?serial=R28M1384YQY" "$(calls curl)"
 script="$(cat "${WORK}/run_stdin.log")"
 check_contains "the script releases the device" "shell 'content call --uri content://com.hmdm.launcher.mcloud --method release" "$script"
 check_contains "--uninstall removes the agent" "uninstall com.hmdm.launcher" "$script"
