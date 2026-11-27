@@ -56,7 +56,14 @@ mdm_call() {
     return 0
     ;;
   401) ui_fail "MCloud refuses the node token of this host" "./zebrunner.sh doctor" >&2 ;;
-  403) ui_fail "MCloud refuses this address: the public address of this site is not in MDM_SITE_ADDRESSES of MCloud" >&2 ;;
+  403)
+    # mcloud-mdm answers "forbidden" for a device of another node (MDM_ENFORCE_NODE_BINDING), stf-proxy a page
+    if [[ "$answer" == forbidden* ]]; then
+      ui_fail "MCloud refuses the MDM of this device to this node: STF binds it to another node or does not know it yet (MDM_ENFORCE_NODE_BINDING of MCloud)" >&2
+    else
+      ui_fail "MCloud refuses this address: the public address of this site is not in MDM_SITE_ADDRESSES of MCloud" >&2
+    fi
+    ;;
   404) ui_fail "No MDM on MCloud (MDM_ENABLED of its .env) or no Android there (${path%%\?*})" >&2 ;;
   409) ui_fail "${answer##*error=}" >&2 ;;
   *) ui_fail "MCloud answers ${MDM_STATUS}: ${answer}" >&2 ;;
@@ -197,7 +204,8 @@ mdm_android() {
     mdm_call GET /android/agent.apk "${work}/agent.apk" || return 1
     command="$(mdm_call GET "/android/enroll?serial=$(mdm_query "$dev_udid")&name=$(mdm_query "$dev_device_name")&format=shell")" || return 1
   else
-    command="$(mdm_call GET /android/release)" || return 1
+    # the serial: an MCloud with MDM_ENFORCE_NODE_BINDING=true releases only a device of this node
+    command="$(mdm_call GET "/android/release?serial=$(mdm_query "$dev_udid")")" || return 1
   fi
   command="$(head -n 1 <<< "$command")"
   # the command goes into single quotes of the script: an answer with one is refused
