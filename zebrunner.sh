@@ -689,7 +689,8 @@ shutdown() {
   fi
   sudo rm -vf /usr/local/bin/zebrunner-farm
   # the scripts zebrunner-farm sources
-  sudo rm -vf /usr/local/lib/zebrunner-farm/utility.sh /usr/local/lib/zebrunner-farm/ui.sh
+  sudo rm -vf /usr/local/lib/zebrunner-farm/utility.sh /usr/local/lib/zebrunner-farm/ui.sh \
+    /usr/local/lib/zebrunner-farm/usb_stats.py /usr/local/lib/zebrunner-farm/usb_map.py
   sudo rmdir /usr/local/lib/zebrunner-farm 2> /dev/null
   sudo rm -vf /usr/local/etc/zebrunner-farm.env
   sudo rm -vf /usr/local/bin/mcloud-devices.txt

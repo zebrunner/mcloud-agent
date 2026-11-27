@@ -15,8 +15,8 @@
     group: "{{ common_farm_group }}"
   tags: [devices, files]
 
-# the scripts zebrunner-farm sources (ZEBRUNNER_FARM_LIB of its settings): copies owned by root, the units of udev run it
-# as root and the clone of the agent is writable by the user
+# the scripts zebrunner-farm sources and runs (ZEBRUNNER_FARM_LIB of its settings): copies owned by root, the units of
+# udev run it as root (and doctor usb-stats may run with sudo), the clone of the agent is writable by the user
 - name: Create the folder of the scripts of 'zebrunner-farm'
   ansible.builtin.file:
     path: "{{ common_farm_lib_dir | default('/usr/local/lib/zebrunner-farm', true) }}"
@@ -26,7 +26,7 @@
     group: "{{ 'wheel' if common_farm_os == 'macos' else 'root' }}"
   tags: [devices, files]
 
-- name: Copy the scripts 'zebrunner-farm' sources
+- name: Copy the scripts 'zebrunner-farm' sources and runs
   ansible.builtin.copy:
     src: "{{ agent_dir }}/patch/{{ item }}"
     dest: "{{ common_farm_lib_dir | default('/usr/local/lib/zebrunner-farm', true) }}/{{ item }}"
@@ -36,6 +36,8 @@
   loop:
     - utility.sh
     - ui.sh
+    - usb_stats.py
+    - usb_map.py
   tags: [devices, files]
 
 - name: Create the folder of the settings of 'zebrunner-farm'

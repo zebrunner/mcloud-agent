@@ -1226,6 +1226,8 @@ reset_calls
 farm devices doctor usb-stats > /dev/null
 check "doctor usb-stats: the report of every port of the devices list" "|--devices|${WORK}/devices.txt" \
   "$(calls python3 | sed 's/^[^|]*usb_stats\.py//')"
+check "doctor usb-stats: the script of the deploy (ZEBRUNNER_FARM_LIB), not of the clone" "${REPO}/patch/usb_stats.py" \
+  "$(calls python3 | cut -d '|' -f 1)"
 reset_calls
 farm devices doctor usb-stats iPhone_8_Plus Galaxy --days 30 --threshold 5 --json > /dev/null
 check "doctor usb-stats: the options and the devices of the selection" \

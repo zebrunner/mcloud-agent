@@ -276,7 +276,7 @@ mkdir -p "${WORK}/bash_completion.d"
 output="$(playbook "$OS_ROLE" --check --tags files --extra-vars "common_farm_completion_dir=${WORK}/bash_completion.d")"
 check_contains "file tasks pass" "failed=0" "$output"
 check_contains "zebrunner-farm is deployed" "Copy 'zebrunner-farm' script file" "$output"
-check_contains "the scripts zebrunner-farm sources are copied, owned by root" "TASK [common : Copy the scripts 'zebrunner-farm' sources]" "$output"
+check_contains "the scripts zebrunner-farm sources are copied, owned by root" "TASK [common : Copy the scripts 'zebrunner-farm' sources and runs]" "$output"
 if [[ "$OS_ROLE" == "mac-devices" ]]; then
   check_contains "usbmuxd_watch binary is copied, not templated" "Copy 'usbmuxd_watch' binary file" "$output"
   completion_task="Copy the bash completion of 'zebrunner-farm' into the folder of Homebrew"
