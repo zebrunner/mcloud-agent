@@ -102,19 +102,27 @@ check_contains "nor its authorized keys" "Permission denied" "$(sim "echo x >> /
 
 section "a simulator of the user of the simulators"
 runtimes="$(sim xcrun simctl list runtimes --json 2>&1)"
-runtime="$(python3 -c 'import json, sys
+# the newest available iOS runtime and an iPhone it supports
+read -r runtime type <<< "$(python3 -c 'import json, sys
 runtimes = [r for r in json.loads(sys.stdin.read()).get("runtimes", []) if r.get("isAvailable") and r.get("platform") == "iOS"]
-print(runtimes[-1]["identifier"] if runtimes else "")' <<< "$runtimes" 2> /dev/null)"
-if [[ -z "$runtime" ]]; then
-  fail "xcrun simctl of the user of the simulators lists the iOS runtimes" "no available iOS runtime" "$runtimes"
+for r in reversed(runtimes):
+    types = [t["identifier"] for t in r.get("supportedDeviceTypes", []) if t.get("productFamily") == "iPhone"]
+    if types:
+        print(r["identifier"], types[-1])
+        break' <<< "$runtimes" 2> /dev/null)"
+if [[ -z "$runtime" || -z "$type" ]]; then
+  fail "xcrun simctl of the user of the simulators lists the iOS runtimes" "no available iOS runtime with an iPhone" "$runtimes"
   finish
 fi
-pass "xcrun simctl of the user of the simulators lists the iOS runtimes: ${runtime}"
-type="$(sim xcrun simctl list devicetypes --json 2>&1 | python3 -c 'import json, sys
-types = [t["identifier"] for t in json.loads(sys.stdin.read()).get("devicetypes", []) if ".iPhone-" in t["identifier"]]
-print(types[-1] if types else "")' 2> /dev/null)"
-SIM_UDID="$(sim xcrun simctl create mcloud-test "$type" "$runtime" 2>&1)"
-check_contains "a simulator is created as the user of the simulators" "-" "$SIM_UDID"
+pass "xcrun simctl of the user of the simulators lists the iOS runtimes: ${runtime} ${type}"
+output="$(sim xcrun simctl create mcloud-test "$type" "$runtime" 2>&1)"
+if [[ "$output" =~ ^[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}$ ]]; then
+  SIM_UDID="$output"
+  pass "a simulator is created as the user of the simulators: ${SIM_UDID}"
+else
+  fail "a simulator is created as the user of the simulators" "no udid" "$output"
+  finish
+fi
 run_check "the simulator boots headless over the ssh key" sim xcrun simctl bootstatus "$SIM_UDID" -b
 check_contains "the deploy finds the simulator of the device" "The simulators of the devices are simulators of ${SIM_USER}." \
   "$(deploy "$(device "$SIM_UDID")")"

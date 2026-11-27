@@ -693,8 +693,10 @@ sim='{"id": "B1B07E76-0000-0000-0000-000000000001", "name": "Sim", "os": "ios", 
 check_contains "mac-devices: the user of the simulators passes" "failed=0" \
   "$(playbook mac-devices --tags validate --extra-vars "{\"devices\": [${sim}]}")"
 for extra in '"SIMULATOR_USER": "root"' '"SIMULATOR_USER": "Sim User"' '"SIMULATOR_SSH_FROM": "127.0.0.1\" x"' '"SIMULATOR_SSH_FROM": ""'; do
+  # the JSON is made outside of the command substitution: bash brace-expands it there
+  json="{\"devices\": [${sim}], ${extra}}"
   check_contains "mac-devices: an invalid ${extra} fails" "SIMULATOR_USER must be the name of a macOS user other than root" \
-    "$(playbook mac-devices --tags validate --extra-vars "{\"devices\": [${sim}], ${extra}}")"
+    "$(playbook mac-devices --tags validate --extra-vars "$json")"
 done
 tasks="$(playbook mac-devices --list-tasks --tags simulators)"
 for task in "Create the user of the simulators" "Authorize the ssh key of the simulators for the user of the simulators" \
