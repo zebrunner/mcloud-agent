@@ -298,18 +298,42 @@
       when: not mac_devices_watchdog | bool
       become: false
 
-# The iOS simulators run on the host: their connector and Appium containers run xcrun of the host over ssh with a key of
-# the agent, Remote Login (System Settings, General, Sharing) must be on for the user.
+# The iOS simulators run on the host as SIMULATOR_USER (README.md#ios-simulators): their connector and Appium containers
+# run xcrun of the host over ssh with a key of the agent, Remote Login (System Settings, General, Sharing) must be on for
+# that user. The apps under test of a simulator run as that user too: a dedicated user without access to the secrets of
+# the host (zebrunner-farm.env, config/settings.yml, ~/.ssh and the scripts of the agent of the user of the deploy).
 - name: Simulators
   when: "'ios-sim' in mac_devices_connections"
   tags: [devices, simulators]
+  vars:
+    mac_devices_deploy_user: "{{ lookup('env', 'USER') }}"
+    mac_devices_sim_user: "{{ SIMULATOR_USER | default('', true) | string | trim }}"
+    # the user of the deploy as SIMULATOR_USER: the behaviour of the earlier versions, no user is created
+    mac_devices_sim_dedicated: "{{ mac_devices_sim_user != mac_devices_deploy_user }}"
+    mac_devices_sim_home: "/Users/{{ mac_devices_sim_user }}"
+    # restrict: no forwarding and no pty; from: the loopback of Docker Desktop; command: the commands run by the shell
+    # and the environment of zebrunner-simulator-ssh, never an interactive shell or the login files of the user
+    mac_devices_sim_key_options: >-
+      restrict,from="{{ SIMULATOR_SSH_FROM }}",command="/usr/local/bin/zebrunner-simulator-ssh"
   block:
+    - name: Check the user of the simulators
+      ansible.builtin.assert:
+        that:
+          - mac_devices_sim_user is regex('^[a-z_][a-z0-9_.-]{0,31}$')
+          - mac_devices_sim_user != 'root'
+          - SIMULATOR_SSH_FROM | string is regex('^[A-Za-z0-9.:/*?!_-]+(,[A-Za-z0-9.:/*?!_-]+)*$')
+        fail_msg: >-
+          SIMULATOR_USER must be the name of a macOS user other than root (lower case letters, digits, '_', '.' and '-'),
+          SIMULATOR_SSH_FROM the comma separated addresses, networks or names of from= of authorized_keys
+        quiet: true
+      tags: [precheck, validate]
+
     - name: Create the ssh folder of the agent
       ansible.builtin.file:
         path: "{{ agent_dir }}/ssh"
         state: directory
         mode: "0700"
-        owner: "{{ lookup('env', 'USER') }}"
+        owner: "{{ mac_devices_deploy_user }}"
       become: false
 
     - name: Generate the ssh key of the simulators
@@ -334,16 +358,128 @@
       register: mac_devices_ssh_public_key
       become: false
 
-    # restrict: no forwarding and no pty, the containers only run commands of the host
-    - name: Authorize the ssh key of the simulators
+    - name: Copy the forced command of the ssh key of the simulators
+      ansible.builtin.copy:
+        src: zebrunner-simulator-ssh
+        dest: /usr/local/bin/zebrunner-simulator-ssh
+        mode: "0755"
+        owner: root
+        group: wheel
+
+    - name: Create the group of the user of the simulators
+      ansible.builtin.group:
+        name: "{{ mac_devices_sim_user }}"
+        system: true
+        state: present
+      when: mac_devices_sim_dedicated | bool
+
+    # hidden (not in the login window), no password: ssh with the key of the simulators only
+    - name: Create the user of the simulators
+      ansible.builtin.user:
+        name: "{{ mac_devices_sim_user }}"
+        group: "{{ mac_devices_sim_user }}"
+        comment: Zebrunner MCloud simulators
+        home: "{{ mac_devices_sim_home }}"
+        create_home: true
+        shell: /bin/zsh
+        hidden: true
+        state: present
+      when: mac_devices_sim_dedicated | bool
+
+    - name: Make the home of the user of the simulators private
+      ansible.builtin.file:
+        path: "{{ mac_devices_sim_home }}"
+        state: directory
+        mode: "0700"
+        owner: "{{ mac_devices_sim_user }}"
+        group: "{{ mac_devices_sim_user }}"
+      when: mac_devices_sim_dedicated | bool and not ansible_check_mode
+
+    # the authorized keys of the user of the simulators are of root: a process of the user (an app under test) does not
+    # change the options of the key
+    - name: Create the ssh folder of the user of the simulators
+      ansible.builtin.file:
+        path: "{{ mac_devices_sim_home }}/.ssh"
+        state: directory
+        mode: "0755"
+        owner: root
+        group: wheel
+      when: mac_devices_sim_dedicated | bool and not ansible_check_mode
+
+    - name: Authorize the ssh key of the simulators for the user of the simulators
+      ansible.builtin.copy:
+        content: "{{ mac_devices_sim_key_options }} {{ mac_devices_ssh_public_key.content | b64decode | trim }}\n"
+        dest: "{{ mac_devices_sim_home }}/.ssh/authorized_keys"
+        mode: "0644"
+        owner: root
+        group: wheel
+      when: mac_devices_sim_dedicated | bool and not ansible_check_mode
+
+    # Remote Login for "Only these users" is the group com.apple.access_ssh, for all users there is no such group
+    - name: Find the users of Remote Login
+      ansible.builtin.command: dscl . -read /Groups/com.apple.access_ssh
+      register: mac_devices_access_ssh
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      when: mac_devices_sim_dedicated | bool
+
+    - name: Let the user of the simulators in over Remote Login
+      ansible.builtin.command:
+        argv: [dseditgroup, -o, edit, -a, "{{ mac_devices_sim_user }}", -t, user, com.apple.access_ssh]
+      changed_when: false
+      when: mac_devices_sim_dedicated | bool and mac_devices_access_ssh.rc | default(1) == 0
+
+    # an ACL denies the user of the simulators the home and the agent folder of the user of the deploy, whatever their
+    # mode and groups (every local user of macOS is in staff, the group of the home); the earlier entry is replaced
+    - name: Deny the user of the simulators the home and the agent folder of the user of the deploy
+      ansible.builtin.command:
+        argv:
+          - /bin/bash
+          - -c
+          - |
+            entry="user:${1} deny list,search,readattr,readextattr,readsecurity,add_file,add_subdirectory,delete_child"
+            for path in "${@:2}"; do
+              /bin/chmod -a "$entry" "$path" 2> /dev/null
+              /bin/chmod +a "$entry" "$path" || exit 1
+            done
+          - acl
+          - "{{ mac_devices_sim_user }}"
+          - "{{ lookup('env', 'HOME') }}"
+          - "{{ agent_dir }}"
+      changed_when: false
+      when: mac_devices_sim_dedicated | bool and not ansible_check_mode
+
+    # the key of the earlier versions gave a shell of the user of the deploy
+    - name: Remove the ssh key of the simulators from the user of the deploy
       ansible.builtin.lineinfile:
         path: "{{ lookup('env', 'HOME') }}/.ssh/authorized_keys"
-        line: "restrict {{ mac_devices_ssh_public_key.content | b64decode | trim }}"
+        regexp: "zebrunner-mcloud-simulators$"
+        state: absent
+      become: false
+      when: mac_devices_sim_dedicated | bool
+
+    - name: Authorize the ssh key of the simulators for the user of the deploy
+      ansible.builtin.lineinfile:
+        path: "{{ lookup('env', 'HOME') }}/.ssh/authorized_keys"
+        line: "{{ mac_devices_sim_key_options }} {{ mac_devices_ssh_public_key.content | b64decode | trim }}"
         regexp: "zebrunner-mcloud-simulators$"
         create: true
         mode: "0600"
-        owner: "{{ lookup('env', 'USER') }}"
+        owner: "{{ mac_devices_deploy_user }}"
       become: false
+      when: not mac_devices_sim_dedicated | bool
+
+    # reported, the deploy goes on
+    - name: Report the simulators as the user of the deploy  # noqa: ignore-errors
+      ansible.builtin.assert:
+        that: mac_devices_sim_dedicated | bool
+        fail_msg: >-
+          SIMULATOR_USER is the user of the deploy: the apps under test of the simulators read the secrets of the host.
+          Remove SIMULATOR_USER from config/settings.yml (mcloud-sim by default) and recreate the simulators as that
+          user (README.md#ios-simulators).
+        success_msg: "The simulators run as {{ mac_devices_sim_user }}."
+      ignore_errors: true
 
     - name: Check Remote Login of the host
       ansible.builtin.command: nc -z -G 3 127.0.0.1 22
@@ -358,4 +494,51 @@
         that: mac_devices_remote_login.rc == 0
         fail_msg: "Remote Login is off: turn it on in System Settings, General, Sharing for the iOS simulators."
         success_msg: "Remote Login is on."
+      ignore_errors: true
+
+    # the simulators of the devices are the ones of the user of the simulators (xcrun simctl of its own): the ones of
+    # another user (e.g. of the user of the deploy, the earlier versions) are created again as it (README.md#ios-simulators)
+    - name: List the simulators of the user of the simulators
+      ansible.builtin.command:
+        argv:
+          - ssh
+          - -i
+          - "{{ agent_dir }}/ssh/id_ed25519"
+          - -o
+          - BatchMode=yes
+          - -o
+          - StrictHostKeyChecking=accept-new
+          - -o
+          - "UserKnownHostsFile={{ agent_dir }}/ssh/known_hosts"
+          - -o
+          - ConnectTimeout=10
+          - "{{ mac_devices_sim_user }}@127.0.0.1"
+          - xcrun simctl list devices --json
+      register: mac_devices_simulators
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      become: false
+      when: mac_devices_remote_login.rc | default(1) == 0
+
+    - name: Report the simulators of the devices that the user of the simulators does not have  # noqa: ignore-errors
+      vars:
+        mac_devices_sim_udids: >-
+          {{ ((mac_devices_simulators.stdout | default('{}', true) | from_json).devices | default({})).values()
+             | flatten | map(attribute='udid') | list }}
+        mac_devices_sim_missing: >-
+          {{ devices | selectattr('connection', 'defined') | selectattr('connection', 'match', '(?i)^ios-sim$')
+             | map(attribute='id') | map('string') | map('trim') | reject('in', mac_devices_sim_udids) | list }}
+      ansible.builtin.assert:
+        that:
+          - mac_devices_simulators.rc == 0
+          - mac_devices_sim_missing | length == 0
+        fail_msg: >-
+          {{ ('the simulators ' ~ (mac_devices_sim_missing | join(', ')) ~ ' are not simulators of ' ~ mac_devices_sim_user
+              ~ ': create them as that user and put their udids into config/devices.yml (README.md#ios-simulators)')
+             if mac_devices_simulators.rc == 0
+             else ('xcrun simctl of ' ~ mac_devices_sim_user ~ ' over ssh failed: '
+                   ~ (mac_devices_simulators.stderr | default('', true) | trim)) }}
+        success_msg: "The simulators of the devices are simulators of {{ mac_devices_sim_user }}."
+      when: mac_devices_simulators is not skipped
       ignore_errors: true

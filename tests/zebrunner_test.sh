@@ -774,6 +774,47 @@ check_contains "no port of MCloud used by the devices" "the devices use no port 
 echo "192.168.30.2" > "${WORK}/net/local"
 rm -f "${WORK}/devices.txt"
 
+# the iOS simulators of macOS (README.md#ios-simulators): ssh answers the simulators of the user of the simulators from
+# ${WORK}/simulators.json, id knows the users of ${WORK}/users
+# the stub bodies are expanded when the stubs run
+# shellcheck disable=SC2016
+stub ssh '(IFS="|"; echo "ssh|$*") >> "${STUB_DIR}/calls.log"
+[[ -f "${STUB_DIR}/simulators.json" ]] || { echo "Permission denied (publickey)." >&2; exit 255; }
+cat "${STUB_DIR}/simulators.json"'
+# shellcheck disable=SC2016
+stub id '[[ "$1" == "-u" && -n "$2" ]] && { grep -qx "$2" "${STUB_DIR}/users" 2> /dev/null && echo 502 && exit 0; exit 1; }
+exec /usr/bin/id "$@"'
+# doctor_run_macos: doctor of a macOS host
+doctor_run_macos() {
+  printf '' | env -i HOME="${WORK}/home" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
+    FAKE_UNAME=Darwin DOCTOR_FARM="${WORK}/farm" DOCTOR_FARM_ENV="${WORK}/farm.env" DOCTOR_DEVICES="${WORK}/devices.txt" \
+    ZEBRUNNER_PYTHON="$YAML_PYTHON" /bin/bash "${AGENT}/zebrunner.sh" doctor 2>&1 | unwrap
+}
+sim_udid="B1B07E76-0000-0000-0000-000000000001"
+printf '%s\n' "id=${sim_udid}|os=ios|name=Sim|location=loc|appium_port=7481|adb_port=7482|min_port=7485|max_port=7490|connection=ios-sim|wda_file=|wda_bundleid=|address=|wda_port=8110|mjpeg_port=|connect_port=" > "${WORK}/devices.txt"
+: > "${WORK}/users"
+check_contains "the missing user of the simulators is a problem" "the user mcloud-sim of the simulators does not exist" "$(doctor_run_macos)"
+echo mcloud-sim > "${WORK}/users"
+reset_calls
+output="$(doctor_run_macos)"
+check_contains "the simulators run as the user of the simulators" "the simulators run as mcloud-sim, not as the user of the deploy" "$output"
+check_contains "a refused key of the simulators is a problem" "xcrun simctl of mcloud-sim over the ssh key of the simulators failed: Permission denied (publickey)." "$output"
+check_contains "doctor runs xcrun simctl as the user of the simulators with the key of the agent" \
+  "-i|ssh/id_ed25519|" "$(calls ssh)"
+check_contains "on the loopback" "|mcloud-sim@127.0.0.1|xcrun|simctl|list|devices|--json" "$(calls ssh)"
+echo '{"devices": {"com.apple.CoreSimulator.SimRuntime.iOS-18-2": [{"udid": "OTHER"}]}}' > "${WORK}/simulators.json"
+check_contains "a simulator of another user is a problem" "the simulators ${sim_udid} of the devices are not simulators of mcloud-sim" \
+  "$(doctor_run_macos)"
+echo "{\"devices\": {\"com.apple.CoreSimulator.SimRuntime.iOS-18-2\": [{\"udid\": \"${sim_udid}\"}]}}" > "${WORK}/simulators.json"
+check_contains "the simulators of the user of the simulators" "xcrun simctl of mcloud-sim knows the simulators of the devices" \
+  "$(doctor_run_macos)"
+echo "SIMULATOR_USER: $(whoami)" >> "$vars"
+check_contains "the simulators as the user of the deploy are a warning" \
+  "the simulators run as the user of the deploy $(whoami): their apps under test read the secrets of this host" "$(doctor_run_macos)"
+sed -i.bak '/^SIMULATOR_USER:/d' "$vars" && rm -f "${vars}.bak"
+check_not_contains "Linux: no check of the simulators" "iOS simulators" "$(doctor_run)"
+rm -f "${WORK}/devices.txt" "${WORK}/simulators.json" "${WORK}/users" "${WORK}/bin/ssh" "${WORK}/bin/id"
+
 # the WireGuard tunnel to MCloud (README.md#wireguard-tunnel): wg shows the time of the last handshake of
 # ${WORK}/wg_handshake, fails without it (no root)
 # the stub body is expanded when the stub runs

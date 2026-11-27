@@ -318,12 +318,25 @@ remove_profile_variable() {
 }
 
 # remove_simulators_ssh_key: the ssh key of the iOS simulators (the mac-devices role) and its line of
-# ~/.ssh/authorized_keys removed, the key gives a shell of the user
+# ~/.ssh/authorized_keys removed (the earlier versions and SIMULATOR_USER of the user of the deploy), the authorized keys
+# of the user of the simulators (of root, sudo) too; that user and its simulators are kept
 remove_simulators_ssh_key() {
   local keys="${HOME}/.ssh/authorized_keys"
   if [[ -f "$keys" ]] && grep -q "zebrunner-mcloud-simulators$" "$keys"; then
     ui_info "Removing the ssh key of the simulators from ${keys}"
     sed -i.bak "/zebrunner-mcloud-simulators$/d" "$keys" && rm -f "${keys}.bak"
+  fi
+  local user
+  user="$(sed -n 's/^HOST_SSH_USER=//p' "${ZEBRUNNER_FARM_ENV:-/usr/local/etc/zebrunner-farm.env}" 2> /dev/null | tr -d "'")"
+  if [[ "$user" =~ ^[a-z_][a-z0-9_.-]*$ && "$user" != "$(whoami)" && "$user" != root ]]; then
+    keys="/Users/${user}/.ssh/authorized_keys"
+    if sudo grep -q "zebrunner-mcloud-simulators$" "$keys" 2> /dev/null; then
+      ui_info "Removing the ssh key of the simulators from ${keys}"
+      sudo rm -f "$keys"
+    fi
+    if id -u "$user" > /dev/null 2>&1; then
+      ui_info "The user ${user} of the simulators and its simulators are kept: sudo sysadminctl -deleteUser ${user} removes them"
+    fi
   fi
   if [[ -d "${ZEBRUNNER_MCLOUD_AGENT_DIR}/ssh" ]]; then
     rm -rvf "${ZEBRUNNER_MCLOUD_AGENT_DIR}/ssh"

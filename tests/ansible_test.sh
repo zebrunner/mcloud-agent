@@ -545,6 +545,8 @@ for role in devices mac-devices; do
     check_contains "${role}: the docker network by default" "STF_DOCKER_NETWORK=infra" "$farm"
     check_contains "${role}: zebrunner-farm sources the scripts of the deploy owned by root" \
       "ZEBRUNNER_FARM_LIB=/usr/local/lib/zebrunner-farm" "$farm"
+    check "${role}: the simulators run as the user of the simulators" \
+      "HOST_SSH_USER=$([[ "$role" == mac-devices ]] && echo mcloud-sim || echo "$USER")" "$(grep '^HOST_SSH_USER=' "${WORK}/farm")"
     check_contains "${role}: a network per device by default" "DEVICE_NETWORK_ISOLATION=true" "$farm"
     check_contains "${role}: the subnets of the networks of the devices" "DEVICE_NETWORK_SUBNETS=10.233.0.0/16" "$farm"
     check "${role}: no certificate of MCloud by default" "MCLOUD_CA_PEM=''" "$(grep '^MCLOUD_CA_PEM=' "${WORK}/farm")"
@@ -686,6 +688,31 @@ for address in USBMUXD_SOCKET_ADDRESS=host.docker.internal ADB_SERVER_SOCKET_ADD
   check_contains "mac-devices: an invalid ${address} fails" "USBMUXD_SOCKET_ADDRESS and ADB_SERVER_SOCKET_ADDRESS are <host>:<port>" \
     "$(playbook mac-devices --tags validate --extra-vars "$address")"
 done
+# the user of the iOS simulators (README.md#ios-simulators)
+sim='{"id": "B1B07E76-0000-0000-0000-000000000001", "name": "Sim", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 4, "connection": "ios-sim", "wda_port": 8110}'
+check_contains "mac-devices: the user of the simulators passes" "failed=0" \
+  "$(playbook mac-devices --tags validate --extra-vars "{\"devices\": [${sim}]}")"
+for extra in '"SIMULATOR_USER": "root"' '"SIMULATOR_USER": "Sim User"' '"SIMULATOR_SSH_FROM": "127.0.0.1\" x"' '"SIMULATOR_SSH_FROM": ""'; do
+  check_contains "mac-devices: an invalid ${extra} fails" "SIMULATOR_USER must be the name of a macOS user other than root" \
+    "$(playbook mac-devices --tags validate --extra-vars "{\"devices\": [${sim}], ${extra}}")"
+done
+tasks="$(playbook mac-devices --list-tasks --tags simulators)"
+for task in "Create the user of the simulators" "Authorize the ssh key of the simulators for the user of the simulators" \
+  "Deny the user of the simulators the home and the agent folder of the user of the deploy" \
+  "Remove the ssh key of the simulators from the user of the deploy" "Copy the forced command of the ssh key of the simulators" \
+  "Report the simulators of the devices that the user of the simulators does not have"; do
+  check_contains "mac-devices: the simulators: ${task}" "$task" "$tasks"
+done
+key_options="$(sed -n 's/^ *restrict,from=/restrict,from=/p' "${REPO}/roles/mac-devices/tasks/usbmuxd.yml")"
+check "mac-devices: the key of the simulators: no forwarding, the loopback, the forced command" \
+  'restrict,from="{{ SIMULATOR_SSH_FROM }}",command="/usr/local/bin/zebrunner-simulator-ssh"' "$key_options"
+forced="${REPO}/roles/mac-devices/files/zebrunner-simulator-ssh"
+env -u SSH_ORIGINAL_COMMAND bash "$forced" > /dev/null 2>&1
+check "the forced command refuses an interactive shell" "1" "$?"
+check "the forced command runs the command with a fixed PATH and private files" "/usr/bin:/bin:/usr/sbin:/sbin 0077" \
+  "$(SSH_ORIGINAL_COMMAND='echo "$PATH $(umask)"' PATH="/opt/evil:${PATH}" bash "$forced" 2>&1)"
+check "the forced command reads no login file of the user" "" \
+  "$(HOME="$WORK" BASH_ENV="${WORK}/evil" SSH_ORIGINAL_COMMAND='echo "${BASH_ENV:-}"' bash "$forced" 2>&1)"
 check_contains "mac-devices: the addresses of the settings pass" "failed=0" \
   "$(playbook mac-devices --tags validate --extra-vars "USBMUXD_SOCKET_ADDRESS=10.0.0.5:2345 ADB_SERVER_SOCKET_ADDRESS=host.docker.internal:5038")"
 

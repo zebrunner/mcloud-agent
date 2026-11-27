@@ -11,3 +11,12 @@ ADB_SERVER_SOCKET_ADDRESS: host.docker.internal:5037
 
 # the simulator build of WebDriverAgent for the iOS simulators
 WDA_SIMULATOR_FILE:
+
+# the macOS user the iOS simulators run as (README.md#ios-simulators): the deploy creates it hidden, with a group and a
+# home of its own, no password and no access to the home and the agent folder of the user of the deploy; the containers
+# of a simulator run xcrun of the host as it over ssh. The user of the deploy itself is the behaviour of the earlier
+# versions: the apps under test read the secrets of the host then (not recommended)
+SIMULATOR_USER: mcloud-sim
+# the addresses the ssh key of the simulators is accepted from (from= of authorized_keys): Docker Desktop connects the
+# containers to host.docker.internal from the loopback of the Mac
+SIMULATOR_SSH_FROM: "127.0.0.1,::1"

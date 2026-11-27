@@ -1,0 +1,23 @@
+#!/bin/bash
+# zebrunner-simulator-ssh: the forced command of the ssh key of the iOS simulators (command= of its line of
+# authorized_keys of SIMULATOR_USER, README.md#ios-simulators). The connector and appium of a simulator run xcrun of the
+# host and the copies of their apps with the key; sshd runs this script instead of their command, with the command in
+# SSH_ORIGINAL_COMMAND. It runs the command with a shell and an environment of its own: no interactive shell, no login
+# files of the user (an app under test of a simulator runs as the same user and may change them), a fixed PATH, private
+# new files. The user is the boundary: the command runs with the rights of SIMULATOR_USER only.
+
+command="${SSH_ORIGINAL_COMMAND-}"
+if [[ -z "${command//[[:space:]]/}" ]]; then
+  echo "zebrunner-simulator-ssh: the key of the simulators runs commands only, no interactive shell" >&2
+  exit 1
+fi
+if [[ "$(/usr/bin/id -u)" -eq 0 ]]; then
+  echo "zebrunner-simulator-ssh: the key of the simulators is not for root" >&2
+  exit 1
+fi
+user="$(/usr/bin/id -un)"
+# sshd sets HOME of the user of the key
+cd "$HOME" || exit 1
+umask 077
+exec /usr/bin/env -i HOME="$HOME" USER="$user" LOGNAME="$user" SHELL=/bin/bash \
+  PATH=/usr/bin:/bin:/usr/sbin:/sbin LANG="${LANG:-en_US.UTF-8}" /bin/bash --noprofile --norc -c "$command"

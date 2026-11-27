@@ -77,7 +77,7 @@ The other files of the settings are in git, do not change them: `git pull` bring
 | --- | --- |
 | `versions.yml` | the images of the devices and their versions |
 | `roles/common/defaults/main.yml` | the values by default of both OS: the options of Appium (`APPIUM_RELAXED_SECURITY`, ...), `RESTARTS_LIMIT`, `DEVICE_UNAVAILABLE_TIMEOUT` and `WIRELESS_WATCHDOG_INTERVAL` (see [Wireless devices](#wireless-devices) and [Wireless watchdog](#wireless-watchdog)), `STF_DOCKER_NETWORK` (`infra`: the docker network of the containers of the devices, the deploy and `zebrunner-farm` create it), the empty optional settings (`STF_API_URL`, `S3_*`, `WDA_FILE`, `WDA_BUNDLEID`, the supervision identity of the [MDM](#mdm) `MDM_SUPERVISION_P12*`), the [WireGuard tunnel](#wireguard-tunnel) off (`WG_ENABLED: false`, the empty `WG_*`, `WG_PERSISTENT_KEEPALIVE: 25`): a line of them removed from `config/settings.yml` is the value by default, the [Developer Disk Images](#developer-disk-images) (`DDI_*`) |
-| `roles/devices/defaults/main.yml`, `roles/mac-devices/defaults/main.yml` | the values by default of the OS: `STF_PROVIDER_NAME`; `USB_DEVICE_GROUP` of Linux (`plugdev`: the group of the device nodes of the USB devices, see [Linux OS](#linux-os)); `USBMUXD_SOCKET_ADDRESS`, `ADB_SERVER_SOCKET_ADDRESS` of macOS |
+| `roles/devices/defaults/main.yml`, `roles/mac-devices/defaults/main.yml` | the values by default of the OS: `STF_PROVIDER_NAME`; `USB_DEVICE_GROUP` of Linux (`plugdev`: the group of the device nodes of the USB devices, see [Linux OS](#linux-os)); `USBMUXD_SOCKET_ADDRESS`, `ADB_SERVER_SOCKET_ADDRESS`, `SIMULATOR_USER` (`mcloud-sim`) and `SIMULATOR_SSH_FROM` (`127.0.0.1,::1`) of macOS, see [iOS simulators](#ios-simulators) |
 
 The playbooks load them in this order: the values by default of the roles, `versions.yml`, `config/settings.yml`, `config/devices.yml`. The deploy renders the settings zebrunner-farm runs with into `/usr/local/etc/zebrunner-farm.env`: udev and launchd run it without the environment of the user, a change of `config/` needs `./zebrunner.sh ansible` (`./zebrunner.sh doctor` reports the settings that differ). `./zebrunner.sh backup` keeps the two files of `config/` in a private folder `backup/bak_<time>_<random>/config/`, `restore` puts them back; the code of the agent is not in a backup, it comes from git (`git pull`).
 
@@ -199,7 +199,7 @@ Security:
 - Whitelisted devices properties are in /usr/local/bin/mcloud-devices.txt, rendered from `config/devices.yml`: one device per line, its fields `key=value` (the keys of `config/devices.yml`) separated by `|`; an empty value is the value by default (`wda_file`, `wda_bundleid`: `WDA_FILE`, `WDA_BUNDLEID` of the settings).
 - Deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerUsbmuxd.plist to share usbmuxd into the device containers: socat on localhost of the Mac, on the port of `USBMUXD_SOCKET_ADDRESS` (`host.docker.internal:2222` by default) the containers reach it with
 - USB Android devices: deployed and loaded $HOME/Library/LaunchAgents/ZebrunnerAdb.plist, the adb server of the host (`brew install android-platform-tools`) on the port of `ADB_SERVER_SOCKET_ADDRESS` (`host.docker.internal:5037` by default); the connectors take the devices from it, the containers of a USB Android device are created by `zebrunner-farm start` (the devices listener handles iOS only).
-- iOS simulators (`ios-sim`): the ssh key of the agent is generated into `ssh/id_ed25519` of the agent folder and authorized in `~/.ssh/authorized_keys` (`restrict`), turn on Remote Login (System Settings, General, Sharing) for the user. Set the simulator build of WebDriverAgent (`WDA_SIMULATOR_FILE` or `wda_file` of the device), e.g. `WebDriverAgentRunner-Build-Sim-arm64.zip` of [appium/WebDriverAgent](https://github.com/appium/WebDriverAgent/releases).
+- iOS simulators (`ios-sim`): they run as a dedicated user, `SIMULATOR_USER` (`mcloud-sim`), created by the deploy; the ssh key of the agent is generated into `ssh/id_ed25519` of the agent folder and authorized for that user only. Turn on Remote Login (System Settings, General, Sharing) for it, see [iOS simulators](#ios-simulators). Set the simulator build of WebDriverAgent (`WDA_SIMULATOR_FILE` or `wda_file` of the device), e.g. `WebDriverAgentRunner-Build-Sim-arm64.zip` of [appium/WebDriverAgent](https://github.com/appium/WebDriverAgent/releases).
 - Deployed $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist to load and manage iOS devices connect/disconnect automatically: the devices listener (/usr/local/bin/zebrunner-device-listener and usbmuxd_watch) restarts the containers of a connected USB device and removes them on disconnect, devices reachable over Wi-Fi only are not handled by it.
 - Log rotation of the devices listener log is set up in /etc/newsyslog.d/zebrunner-mcloud.conf.
 - Run `zebrunner-farm start` to create the containers of the connected devices and to load the devices listener (otherwise it is loaded on the next login only).
@@ -212,7 +212,7 @@ Security:
 - `ansible [devices] [arguments]` - deploys the agent, `devices` without the download of the images and keeping the running containers of the devices, the arguments are of ansible-playbook (see [Run ansible playbook](#run-ansible-playbook)).
 - `status` - shows the state of the agent components: tools, Rosetta 2 of an Apple Silicon Mac, deployed files, launch agents.
 - `backup` and `restore` - save the settings of `config/` into the `backup` folder and restore them from it (see [Settings](#settings)); a backup of an earlier version (`vars/main.yml`, `defaults/main.yml`) goes to `config/` with `./zebrunner.sh migrate <its files>`.
-- `shutdown` - removes the devices containers, the docker volumes of the agent (`device-*`: the logs and the pair records of the iOS devices, `devimages_cache`, `mcloud-key-volume`: the adb key of the host, so the devices ask to trust the host again after a new setup), the launch agents or udev rules, the deployed files (also the bash completion of `zebrunner-farm` and the scripts of /usr/local/lib/zebrunner-farm), the settings, the ssh key of the simulators (and its line of `~/.ssh/authorized_keys`), the [wireless watchdog](#wireless-watchdog), the [WireGuard tunnel](#wireguard-tunnel) and the environment variable (asks for confirmation).
+- `shutdown` - removes the devices containers, the docker volumes of the agent (`device-*`: the logs and the pair records of the iOS devices, `devimages_cache`, `mcloud-key-volume`: the adb key of the host, so the devices ask to trust the host again after a new setup), the launch agents or udev rules, the deployed files (also the bash completion of `zebrunner-farm` and the scripts of /usr/local/lib/zebrunner-farm), the settings, the ssh key of the simulators (and its authorized keys; the user of the simulators and its simulators are kept: `sudo sysadminctl -deleteUser mcloud-sim` removes them), the [wireless watchdog](#wireless-watchdog), the [WireGuard tunnel](#wireguard-tunnel) and the environment variable (asks for confirmation).
 - `version` - shows the versions of the agent components: a `NAME: value` line each on stdout (`DEVICE_VERSION: 3.1.2`), the header and the footer on stderr, so `./zebrunner.sh version 2> /dev/null` is the data only.
 - `doctor` - checks the host, the settings, the deployment, the network to the MCloud server and the devices, and tells what to fix, see [Doctor](#doctor).
 - `join` - enrolls this host in MCloud with the join string of `./zebrunner.sh node-invite` of mcloud, see [Node enrollment](#node-enrollment).
@@ -307,6 +307,7 @@ STF of MCloud accepts on its ZeroMQ ports only the enrolled device hosts: the CU
 - the network: the name resolution and the ports of `PUBLIC_IP`, mcloud-grid and the ZeroMQ triproxies; `STF_PROVIDER_HOST` is an address of this host, or a public address of a NAT while the MCloud server is in the network of this host (see [Device hosts in a private network](#device-hosts-in-a-private-network)); MCloud on this machine and the devices using its ports (see [Devices on the MCloud server](#devices-on-the-mcloud-server));
 - the remote debug: with `REMOTE_CONNECT_HOST` the adb relay of mcloud accepts the remote debug ports of the Android devices (printed);
 - the devices: their containers, the refused grid registrations of Appium and the refused CURVE key in the logs of the last 30 minutes.
+- the [iOS simulators](#ios-simulators) (macOS): they run as `SIMULATOR_USER`, not as the user of the deploy, that user exists, and its `xcrun simctl` over the ssh key of the simulators knows the simulators of the devices.
 - the USB (Linux): the USB devices of the farm that are not on USB, with their last port (see [USB map](#usb-map)), and the USB ports that flapped in the last 7 days, a warning each with the verdict, see [USB stability](#usb-stability).
 
 The MCloud server checks a host too: `./zebrunner.sh nodes check <label>` of [mcloud](https://github.com/zebrunner/mcloud#nodes) shows its record, its devices and whether the server reaches their screens.
@@ -588,6 +589,34 @@ A change needs `./zebrunner.sh ansible` and `zebrunner-farm restart ios`.
 #### Reboot of an iOS device
 
 Sometimes testmanagerd of an iPhone stops answering (often after a mass restart of the containers): WebDriverAgent hangs at `loading Accessibility`, the connector restarts until `RESTARTS_LIMIT` and only a reboot of the device helps. `allow_reboot: true` of the device in `config/devices.yml` (or `config/mac-devices.yml`; iOS with the `usb` or `wireless` connection) lets its connector reboot it (`ALLOW_REBOOT` of [mcloud-ios-connector](https://github.com/zebrunner/mcloud-ios-connector#wda-cant-start-reboot)): after 3 starts in a row with this failure, at most once per 6 hours; a device that fails again after its reboot is left to a person, and an iOS 17+ device with a passcode is rebooted only when the connector keeps a backup of its pair record. Without it the connector log recommends the reboot. A change needs `./zebrunner.sh ansible` and `zebrunner-farm restart <device>`.
+
+### iOS simulators
+
+The iOS and tvOS simulators of a macOS host (`connection: ios-sim`) run on the host, outside of docker. Their connector and appium containers run `xcrun simctl` (and copy the apps) on the host over ssh, through `host.docker.internal`. The apps under test of a simulator are not sandboxed from the user that runs it, so the simulators run as a dedicated user, `SIMULATOR_USER` (`mcloud-sim` by default):
+
+- the deploy creates it: hidden (not in the login window), with a group and a home (`/Users/mcloud-sim`, mode 700) of its own, no password;
+- an ACL (`chmod +a ... deny`) denies it the home and the agent folder of the user of the deploy: the settings (`config/settings.yml` with the node token, the CURVE key, the S3 keys, the supervision identity of the MDM, the WireGuard key), `~/.ssh`, the scripts of the agent. `/usr/local/etc/zebrunner-farm.env` is readable by the user of the deploy only;
+- the ssh key of the simulators (`ssh/id_ed25519` of the agent folder, mounted read-only into the containers of the simulators) is authorized for that user only, in `/Users/mcloud-sim/.ssh/authorized_keys` (owned by root, so the user cannot change it), with `restrict` (no forwarding, no pty), `from="<SIMULATOR_SSH_FROM>"` (`127.0.0.1,::1`: Docker Desktop connects the containers to `host.docker.internal` from the loopback of the Mac; another address for another docker runtime) and `command="/usr/local/bin/zebrunner-simulator-ssh"`. The forced command runs the command of the container with a shell and an environment of its own: no interactive shell, no login files of the user, a fixed `PATH`, private new files (umask 077). The user is the boundary, the command runs with its rights only;
+- with Remote Login for "Only these users" the deploy adds it to them (`com.apple.access_ssh`);
+- the deploy and `./zebrunner.sh doctor` check that `xcrun simctl` of that user knows the simulators of the devices.
+
+A simulator is of the user that created it (`~/Library/Developer/CoreSimulator` of the user): create the simulators of the farm as `SIMULATOR_USER`, with the key of the agent, from the agent folder:
+
+```bash
+ssh -i ssh/id_ed25519 mcloud-sim@127.0.0.1 xcrun simctl list runtimes
+ssh -i ssh/id_ed25519 mcloud-sim@127.0.0.1 xcrun simctl create iPhone_16 com.apple.CoreSimulator.SimDeviceType.iPhone-16 com.apple.CoreSimulator.SimRuntime.iOS-18-2
+```
+
+`create` prints the udid of the new simulator: it is the `id` of the device in `config/devices.yml`.
+
+Migration of a macOS host of an earlier version (its simulators run as the user of the deploy, the key was authorized in `~/.ssh/authorized_keys` of that user):
+
+1. `git pull`, then `./zebrunner.sh ansible`: the deploy creates `mcloud-sim`, authorizes the key for it and removes the key from `~/.ssh/authorized_keys` of the user of the deploy. It reports the simulators of `config/devices.yml` that `mcloud-sim` does not have: all of them, they are simulators of the user of the deploy.
+2. Create the simulators again as `mcloud-sim` (above), with the same device types and runtimes (`xcrun simctl list devices` of the user of the deploy shows them), and put their new udids into `config/devices.yml`.
+3. `./zebrunner.sh ansible` and `zebrunner-farm restart <the simulators>`; `./zebrunner.sh doctor` checks them.
+4. The old simulators of the user of the deploy are not used any more: `xcrun simctl delete <udid>` as that user removes them.
+
+`SIMULATOR_USER` set to the user of the deploy keeps the behaviour of the earlier versions (no user is created, the key is authorized for the user of the deploy with the same options): the apps under test read the secrets of the host, the deploy and `./zebrunner.sh doctor` warn about it.
 
 ### SmartTestFarm
 
