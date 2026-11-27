@@ -551,6 +551,7 @@ for role in devices mac-devices; do
     check_contains "${role}: the subnets of the networks of the devices" "DEVICE_NETWORK_SUBNETS=10.233.0.0/16" "$farm"
     check "${role}: no certificate of MCloud by default" "MCLOUD_CA_PEM=''" "$(grep '^MCLOUD_CA_PEM=' "${WORK}/farm")"
     check "${role}: STF verifies the certificate by default" "STF_TLS_INSECURE=false" "$(grep '^STF_TLS_INSECURE=' "${WORK}/farm")"
+    check "${role}: STF sends the node token to the pinned key only by default" "STF_TLS_PIN=true" "$(grep '^STF_TLS_PIN=' "${WORK}/farm")"
     for name in STF_API_URL S3_BUCKET S3_TENANT S3_ENDPOINT S3_ACCESS_KEY_ID S3_SECRET S3_REGION WDA_FILE WDA_BUNDLEID; do
       check "${role}: ${name} is empty by default" "${name}=''" "$(grep "^${name}=" "${WORK}/farm")"
     done

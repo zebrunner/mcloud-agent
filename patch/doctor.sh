@@ -426,22 +426,47 @@ doctor_wireguard() {
 }
 
 # doctor_network: the endpoints of the MCloud server and the address of this host it connects to
-# doctor_tls: the certificate of MCloud the containers of STF trust (patch/tlstrust.py, README.md#tls-of-mcloud)
+# doctor_tls: the certificate of MCloud the containers of STF trust (patch/tlstrust.py, README.md#tls-of-mcloud): the
+# pinned key of the join string with STF_TLS_PIN (by default), STF_TLS_INSECURE fails unless it is acknowledged
 doctor_tls() {
   [[ "$(setting PUBLIC_IP_PROTOCOL)" == "https" ]] || return 0
+  local pinned=""
+  [[ "$(setting STF_TLS_PIN)" == "false" || -z "$(setting MCLOUD_TLS_PIN)" ]] || pinned="true"
+  local out
   if [[ "$(setting STF_TLS_INSECURE)" == "true" ]]; then
-    doctor_warn "STF_TLS_INSECURE: the containers of STF do not verify the certificate of MCloud" \
-      "a certificate valid for PUBLIC_IP (a public CA, or the self-signed one of the join string) and STF_TLS_INSECURE: false"
+    if [[ "$(setting STF_TLS_INSECURE_ACKNOWLEDGED)" == "true" ]]; then
+      doctor_warn "STF_TLS_INSECURE: the containers of STF do not verify the certificate of MCloud (acknowledged)" \
+        "a certificate valid for PUBLIC_IP (a public CA, or the self-signed one of the join string) and STF_TLS_INSECURE: false"
+    else
+      doctor_fail "STF_TLS_INSECURE: the containers of STF do not verify the certificate of MCloud" \
+        "a certificate valid for PUBLIC_IP (a public CA, or the self-signed one of the join string) and STF_TLS_INSECURE: false, or STF_TLS_INSECURE_ACKNOWLEDGED: true (README.md#tls-of-mcloud)"
+    fi
+    [[ -n "$pinned" ]] || return 0
+    if ! out="$(python3 patch/tlstrust.py "$(setting PUBLIC_IP)" "$(setting PUBLIC_IP_PORT)" "$(setting MCLOUD_TLS_PIN)" --pin-only 2>&1)"; then
+      doctor_fail "the containers of STF send the node token only to the pinned TLS key of MCloud, MCloud has another one: ${out}" \
+        "README.md#tls-of-mcloud, then ./zebrunner.sh ansible"
+    else
+      doctor_ok "the containers of STF send the node token only to the pinned TLS key of MCloud (MCLOUD_TLS_PIN)"
+    fi
     return 0
   fi
-  local out
-  if ! out="$(python3 patch/tlstrust.py "$(setting PUBLIC_IP)" "$(setting PUBLIC_IP_PORT)" "$(setting MCLOUD_TLS_PIN)" 2>&1)"; then
+  local mode=()
+  [[ -z "$pinned" ]] || mode=(--pin-required)
+  if ! out="$(python3 patch/tlstrust.py "$(setting PUBLIC_IP)" "$(setting PUBLIC_IP_PORT)" "$(setting MCLOUD_TLS_PIN)" \
+    "${mode[@]+"${mode[@]}"}" 2>&1)"; then
     doctor_fail "the containers of STF do not trust the certificate of MCloud: ${out}" \
       "README.md#tls-of-mcloud, then ./zebrunner.sh ansible"
+    return 0
   elif [[ -n "$out" ]]; then
     doctor_ok "the containers of STF trust the pinned certificate of MCloud (MCLOUD_TLS_PIN)"
   else
     doctor_ok "a public CA signs the certificate of MCloud"
+  fi
+  if [[ -n "$pinned" ]]; then
+    doctor_ok "the containers of STF send the node token only to the pinned TLS key of MCloud (MCLOUD_TLS_PIN)"
+  elif [[ -n "$(setting MCLOUD_TLS_PIN)" ]]; then
+    doctor_warn "STF_TLS_PIN: false: the containers of STF send the node token to any certificate a public CA issues for PUBLIC_IP" \
+      "STF_TLS_PIN: true (README.md#tls-of-mcloud)"
   fi
 }
 

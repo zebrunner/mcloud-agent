@@ -508,10 +508,14 @@ create_containers() {
   # the secrets are in the environment of docker only, `-e NAME` takes them from it: the arguments of a process are seen
   # by every local user (ps), its environment by its user and root only
   # the certificate of MCloud (README.md#tls-of-mcloud): MCLOUD_CA_PEM for NODE_EXTRA_CA_CERTS of the image, none for a
-  # public CA; STF_TLS_INSECURE: no verification
+  # public CA; STF_TLS_INSECURE: no verification; STF_TLS_PIN: STF sends the node token to the pinned TLS key of the join
+  # string only (MCLOUD_TLS_PIN, whatever the chain, the name and NODE_TLS_REJECT_UNAUTHORIZED)
   local tls_args=()
   [[ -n "${MCLOUD_CA_PEM:-}" ]] && tls_args+=(-e MCLOUD_CA_PEM)
   [[ "${STF_TLS_INSECURE:-false}" == "true" ]] && tls_args+=(-e NODE_TLS_REJECT_UNAUTHORIZED=0)
+  if [[ "${STF_TLS_PIN:-true}" == "true" && "$PUBLIC_IP_PROTOCOL" == "https" && -n "${MCLOUD_TLS_PIN:-}" ]]; then
+    tls_args+=(-e MCLOUD_TLS_PIN="$MCLOUD_TLS_PIN")
+  fi
   # the cleanup between the uses (README.md#cleanup): the settings of this host only, otherwise the defaults of the
   # image; an empty -e would replace the default of the image
   local cleanup_args=()

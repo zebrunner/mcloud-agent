@@ -619,6 +619,8 @@ import sys
 
 path = os.path.join(os.environ["STUB_DIR"], "net", "tls")
 state = open(path).read().strip() if os.path.exists(path) else ""
+with open(os.path.join(os.environ["STUB_DIR"], "tls-args"), "a") as log:
+    log.write(" ".join(sys.argv[1:]) + "\n")
 if state == "pinned":
     print("-----BEGIN CERTIFICATE-----")
 elif state.startswith("fail "):
@@ -899,17 +901,39 @@ else
   skip_check "the settings of the deployed zebrunner-farm" "no ansible"
 fi
 
-check_contains "a certificate of a public CA" "a public CA signs the certificate of MCloud" "$(doctor_run)"
+output="$(doctor_run)"
+check_contains "a certificate of a public CA" "a public CA signs the certificate of MCloud" "$output"
+check_contains "the containers send the node token to the pinned key only (STF_TLS_PIN)" \
+  "ok   the containers of STF send the node token only to the pinned TLS key of MCloud (MCLOUD_TLS_PIN)" "$output"
 echo pinned > "${WORK}/net/tls"
 check_contains "the pinned self-signed certificate" "the containers of STF trust the pinned certificate of MCloud" "$(doctor_run)"
 echo "fail the TLS key is not the pinned one" > "${WORK}/net/tls"
+output="$(doctor_run)"
 check_contains "a certificate the containers do not trust is a problem" \
-  "the containers of STF do not trust the certificate of MCloud: the TLS key is not the pinned one" "$(doctor_run)"
-echo 'STF_TLS_INSECURE: true' >> "$vars"
-check_contains "STF_TLS_INSECURE is a warning" "STF_TLS_INSECURE: the containers of STF do not verify the certificate of MCloud" \
-  "$(doctor_run)"
-sed -i.bak '/^STF_TLS_INSECURE:/d' "$vars" && rm -f "${vars}.bak"
+  "the containers of STF do not trust the certificate of MCloud: the TLS key is not the pinned one" "$output"
+check_contains "doctor checks the pin of a certificate of a public CA too" "--pin-required" "$(tail -n 1 "${WORK}/tls-args")"
 rm -f "${WORK}/net/tls"
+echo 'STF_TLS_PIN: false' >> "$vars"
+check_contains "STF_TLS_PIN false is a warning" \
+  "warn STF_TLS_PIN: false: the containers of STF send the node token to any certificate a public CA issues for PUBLIC_IP" "$(doctor_run)"
+sed -i.bak '/^STF_TLS_PIN:/d' "$vars" && rm -f "${vars}.bak"
+echo 'STF_TLS_INSECURE: true' >> "$vars"
+output="$(doctor_run)"
+check_contains "STF_TLS_INSECURE is a problem" "FAIL STF_TLS_INSECURE: the containers of STF do not verify the certificate of MCloud" "$output"
+check_contains "STF_TLS_INSECURE: the pin is still checked" \
+  "ok   the containers of STF send the node token only to the pinned TLS key of MCloud (MCLOUD_TLS_PIN)" "$output"
+check_contains "STF_TLS_INSECURE: the key only, not the chain and the name" "--pin-only" "$(tail -n 1 "${WORK}/tls-args")"
+echo "fail the TLS key is not the pinned one" > "${WORK}/net/tls"
+check_contains "STF_TLS_INSECURE: another key of MCloud is a problem" \
+  "the containers of STF send the node token only to the pinned TLS key of MCloud, MCloud has another one: the TLS key is not the pinned one" \
+  "$(doctor_run)"
+rm -f "${WORK}/net/tls"
+echo 'STF_TLS_INSECURE_ACKNOWLEDGED: true' >> "$vars"
+output="$(doctor_run)"
+check_contains "an acknowledged STF_TLS_INSECURE is a warning" \
+  "warn STF_TLS_INSECURE: the containers of STF do not verify the certificate of MCloud (acknowledged)" "$output"
+check_not_contains "an acknowledged STF_TLS_INSECURE is no problem" "FAIL STF_TLS_INSECURE" "$output"
+sed -i.bak -e '/^STF_TLS_INSECURE:/d' -e '/^STF_TLS_INSECURE_ACKNOWLEDGED:/d' "$vars" && rm -f "${vars}.bak"
 echo "192.168.50.2:4446" > "${WORK}/net/closed"
 check_contains "a closed port is a problem" "192.168.50.2:4446 (192.168.50.2) does not accept connections: Connection refused" "$(doctor_run)"
 : > "${WORK}/net/closed"

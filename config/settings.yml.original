@@ -69,8 +69,14 @@ STF_API_URL:
 
 # [OPTIONAL] true: the containers of STF do not verify the certificate of MCloud. Only for a self-signed certificate
 # that is not valid for PUBLIC_IP: the deploy trusts a certificate of a public CA and the pinned self-signed one of the
-# join string (MCLOUD_TLS_PIN) by itself (README.md#tls-of-mcloud)
+# join string (MCLOUD_TLS_PIN) by itself (README.md#tls-of-mcloud). ./zebrunner.sh doctor fails with it unless
+# STF_TLS_INSECURE_ACKNOWLEDGED is true too
 # STF_TLS_INSECURE: false
+# STF_TLS_INSECURE_ACKNOWLEDGED: false
+# [OPTIONAL] false: the containers of STF send the node token to any certificate a public CA issues for PUBLIC_IP, not
+# only to the pinned TLS key of the join string (MCLOUD_TLS_PIN); e.g. for a certificate renewed with a new key
+# automatically (README.md#tls-of-mcloud)
+# STF_TLS_PIN: true
 
 # [OPTIONAL] S3 compatible storage for the videos and the logs of the sessions: without S3_BUCKET appium records no
 # video and the devices have no uploader (README.md#recordings); S3_ACCESS_KEY_ID and S3_SECRET: write-only credentials

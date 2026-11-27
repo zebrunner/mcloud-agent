@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """The certificate of MCloud the containers of STF trust (README.md#tls-of-mcloud).
 
-Usage: tlstrust.py <host> <port> <pin>
+Usage: tlstrust.py <host> <port> <pin> [--pin-required | --pin-only]
 
 Prints nothing when a public CA of this host signs the certificate of <host>:<port> for <host>: the containers trust it
 already. Otherwise prints the certificates the server sends (PEM) when their key is the pinned one of the join string
 (<pin>: sha256 of the public key in base64, MCLOUD_TLS_PIN) and they are valid for <host>, for NODE_EXTRA_CA_CERTS of
 the containers. Exits with 1 and the reason on stderr for another key, a certificate of another host or no server.
+
+--pin-required (STF_TLS_PIN: the containers send the node token only to the pinned key): a certificate of a public CA
+must have the pinned key too. --pin-only (STF_TLS_INSECURE: no verification of the chain and the name): only the key of
+the server is checked, nothing is printed. Without a pin both check nothing more.
 """
 
 import base64
@@ -103,15 +107,41 @@ def trusted_with(host, port, chain):
             ) from err
 
 
-def certificate(host, port, pin):
+def unverified_chain(host, port):
+    unverified = ssl.create_default_context()
+    unverified.check_hostname = False
+    unverified.verify_mode = ssl.CERT_NONE
+    return connect(host, port, unverified)
+
+
+def check_pin(host, port, certs, pin, public=False):
+    if pin_of(certs[0]) == pin:
+        return
+    if public:
+        raise TrustError(
+            f"the TLS key of {host}:{port} (a certificate of a public CA) is not the pinned one of the join string "
+            "(MCLOUD_TLS_PIN): a new key of MCloud needs a new join string (./zebrunner.sh join), or another server or "
+            "a man in the middle; STF_TLS_PIN: false lets the containers trust any certificate of a public CA for it "
+            "(README.md#tls-of-mcloud)"
+        )
+    raise TrustError(
+        f"the TLS key of {host}:{port} is not the pinned one of the join string (MCLOUD_TLS_PIN): another server "
+        "or a man in the middle"
+    )
+
+
+def certificate(host, port, pin, mode=""):
     """The PEM to trust: empty for a certificate of a public CA, the pinned chain otherwise."""
     try:
-        if publicly_trusted(host, port):
+        if mode == "--pin-only":
+            if pin:
+                check_pin(host, port, unverified_chain(host, port), pin)
             return ""
-        unverified = ssl.create_default_context()
-        unverified.check_hostname = False
-        unverified.verify_mode = ssl.CERT_NONE
-        certs = connect(host, port, unverified)
+        if publicly_trusted(host, port):
+            if mode == "--pin-required" and pin:
+                check_pin(host, port, unverified_chain(host, port), pin, public=True)
+            return ""
+        certs = unverified_chain(host, port)
     except (OSError, ssl.SSLError) as err:
         raise TrustError(f"MCloud {host}:{port} is not reachable over https: {err}") from err
     if not pin:
@@ -119,23 +149,20 @@ def certificate(host, port, pin):
             f"the certificate of {host}:{port} is not of a public CA and MCLOUD_TLS_PIN is empty: ./zebrunner.sh join, "
             "or set STF_TLS_INSECURE: true (README.md#tls-of-mcloud)"
         )
-    if pin_of(certs[0]) != pin:
-        raise TrustError(
-            f"the TLS key of {host}:{port} is not the pinned one of the join string (MCLOUD_TLS_PIN): another server "
-            "or a man in the middle"
-        )
+    check_pin(host, port, certs, pin)
     chain = pem(certs)
     trusted_with(host, port, chain)
     return chain
 
 
 def main(argv):
-    if len(argv) != 4:
+    if len(argv) not in (4, 5) or (len(argv) == 5 and argv[4] not in ("--pin-required", "--pin-only")):
         print(__doc__.strip().splitlines()[2], file=sys.stderr)
         return 2
-    _, host, port, pin = argv
+    host, port, pin = argv[1:4]
+    mode = argv[4] if len(argv) == 5 else ""
     try:
-        sys.stdout.write(certificate(host, int(port), pin.strip()))
+        sys.stdout.write(certificate(host, int(port), pin.strip(), mode))
     except (TrustError, ValueError) as err:
         print(err, file=sys.stderr)
         return 1
