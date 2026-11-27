@@ -1040,6 +1040,8 @@ OS=Darwin zbr "y\n" autostart enable > /dev/null
 check "macOS: enable creates the launch agent" "yes" "$([[ -f "$plist" ]] && echo yes)"
 check "macOS: the launch agent is valid XML" "ok" "$(python3 -c 'import plistlib, sys; plistlib.load(open(sys.argv[1], "rb")); print("ok")' "$plist" 2>&1)"
 check_contains "macOS: the launch agent logs into the agent dir" "${AGENT}/logs/autostart.log" "$(cat "$plist")"
+check_contains "macOS: the launch agent waits for the WireGuard tunnel when it is on" \
+  "/usr/local/bin/zebrunner-farm __tunnel-ready &amp;&amp; exec /usr/local/bin/zebrunner-farm start --quiet" "$(cat "$plist")"
 check "macOS: enable needs no sudo and loads nothing now" "" "$(calls sudo)$(calls launchctl)"
 check_contains "macOS: the status of the enabled autostart" "Autostart is on: ${plist}" "$(OS=Darwin zbr "" autostart)"
 OS=Darwin zbr "y\n" autostart disable > /dev/null

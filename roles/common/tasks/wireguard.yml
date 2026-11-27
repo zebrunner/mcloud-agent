@@ -2,6 +2,9 @@
 # The WireGuard tunnel of this host to MCloud (README.md#wireguard-tunnel): the interface mcloud-node of wg-quick with
 # the settings of ./zebrunner.sh join (WG_*), up at the boot; removed when WG_ENABLED is not true, a host that never had
 # it is not changed. The head of MCloud names its interface mcloud: a node on the machine of the head has both.
+# The containers of the devices publish their ports on its address, which exists once the interface is up: on Linux
+# docker starts after wg-quick@mcloud-node at the boot, and mcloud-wireguard-up starts the devices docker could not start
+# before it (a later try of wg-quick); macOS brings it up at the boot, before the login starts Docker Desktop.
 # Imported by the roles of the OS (import_role tasks_from: wireguard) with:
 #   common_wg_os: linux (wireguard-tools of apt, the unit wg-quick@mcloud-node) or macos (wireguard-tools and
 #   wireguard-go of Homebrew, the launch daemon com.zebrunner.wireguard)
@@ -54,11 +57,48 @@
           [Service]
           Restart=on-failure
           RestartSec=10
+          # docker starts after a try of wg-quick (docker.service.d/zebrunner-wireguard.conf): a try ends after this time,
+          # wg-quick of the unit resolves the endpoint without an end otherwise
+          TimeoutStartSec=90
+          # the interface is up: the devices docker could not start without its address (the jobs of systemd, no wait)
+          ExecStartPost=-/usr/bin/systemctl --no-block start mcloud-wireguard-up.service
         dest: /etc/systemd/system/wg-quick@mcloud-node.service.d/zebrunner.conf
         mode: "0644"
         owner: root
         group: root
       register: common_wg_dropin
+
+    - name: Copy the unit of the devices once the tunnel to MCloud is up (mcloud-wireguard-up)
+      ansible.builtin.template:
+        src: mcloud-wireguard-up.service
+        dest: /etc/systemd/system/mcloud-wireguard-up.service
+        mode: "0644"
+        owner: root
+        group: root
+      register: common_wg_up_unit
+
+    - name: Create the folder of the settings of docker.service
+      ansible.builtin.file:
+        path: /etc/systemd/system/docker.service.d
+        state: directory
+        mode: "0755"
+        owner: root
+        group: root
+
+    # at the next boot: docker is not restarted, its containers keep running
+    - name: Start docker after the tunnel to MCloud at the boot
+      ansible.builtin.copy:
+        content: |
+          # the tunnel to MCloud (README.md#wireguard-tunnel), deployed by ./zebrunner.sh ansible with WG_ENABLED: docker
+          # starts after wg-quick@mcloud-node at the boot, the containers of the devices publish their ports on its address
+          [Unit]
+          Wants=wg-quick@mcloud-node.service
+          After=wg-quick@mcloud-node.service
+        dest: /etc/systemd/system/docker.service.d/zebrunner-wireguard.conf
+        mode: "0644"
+        owner: root
+        group: root
+      register: common_wg_docker_dropin
 
     # check mode: the unit comes with the package, which is not installed then
     - name: Enable and start the tunnel to MCloud (wg-quick@mcloud-node)
@@ -66,7 +106,7 @@
         name: wg-quick@mcloud-node
         enabled: true
         state: started
-        daemon_reload: "{{ common_wg_dropin is changed }}"
+        daemon_reload: "{{ common_wg_dropin is changed or common_wg_up_unit is changed or common_wg_docker_dropin is changed }}"
       register: common_wg_service
       when: not (ansible_check_mode and common_wg_package is changed)
 
@@ -101,6 +141,22 @@
         - /etc/wireguard/mcloud-node.conf
         - /etc/systemd/system/wg-quick@mcloud-node.service.d
       when: common_wg_config_file.stat.exists
+
+    # docker starts without waiting for the tunnel again at the next boot; nothing changes on a host without them
+    - name: Remove the unit of the devices of the tunnel and the order of docker after it
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/mcloud-wireguard-up.service
+        - /etc/systemd/system/docker.service.d/zebrunner-wireguard.conf
+      register: common_wg_removed_units
+
+    # at once after the removal above, as the other tasks of the tunnel reload them; the role has no handlers
+    - name: Reload the units without the tunnel to MCloud  # noqa: no-handler
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: common_wg_removed_units is changed
 
 # macOS: wireguard-go is the interface (a utun of the kernel); /var/run/wireguard/mcloud-node.name of wg-quick names
 # it

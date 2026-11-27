@@ -19,7 +19,8 @@ IPHONE="device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"
 
 # docker: records the calls, prints ${STUB_DIR}/docker_ps for `ps`, fails `run` of a container
 # ending with $DOCKER_FAIL_RUN and `stop` of one ending with $DOCKER_FAIL_STOP, has no network with $DOCKER_NO_NETWORK
-# and returns $DOCKER_STARTED_AT/$DOCKER_FINISHED_AT for `inspect`; the variables of
+# and returns $DOCKER_STARTED_AT/$DOCKER_FINISHED_AT for `inspect` (the error of a container: ${STUB_DIR}/docker_errors,
+# `<name> <error>`); the variables of
 # `run -e NAME` (no value: docker takes it from its environment) as it sees them go to ${STUB_DIR}/run_env.log,
 # `<container>|NAME=value|...|`, a NAME missing from its environment is not there
 cat > "${WORK}/bin/docker" << 'EOF'
@@ -72,6 +73,9 @@ case "$1" in
         [[ -n "$status" ]] || exit 1
         echo "${status}|healthy|${DOCKER_STARTED_AT}|2"
         ;;
+      *'{{.State.Error}}'*)
+        awk -v name="${*: -1}" '$1 == name { sub(/^[^ ]+ /, ""); print; exit }' "${STUB_DIR}/docker_errors" 2> /dev/null
+        ;;
       *StartedAt*) echo "$DOCKER_STARTED_AT" ;;
       *FinishedAt*) echo "${DOCKER_FINISHED_AT:-0001-01-01T00:00:00Z}" ;;
     esac
@@ -88,6 +92,12 @@ stub lsusb 'cat "${STUB_DIR}/usb" 2> /dev/null'
 # shellcheck disable=SC2016
 stub ioreg 'cat "${STUB_DIR}/usb" 2> /dev/null'
 record_stub launchctl
+# the addresses of the host: ${STUB_DIR}/addresses, as ip (Linux) and ifconfig (macOS) print them
+# the stub bodies are expanded when the stubs run
+# shellcheck disable=SC2016
+stub ip 'sed "s|.*|2: eth0    inet &/24 scope global eth0|" "${STUB_DIR}/addresses" 2> /dev/null'
+# shellcheck disable=SC2016
+stub ifconfig 'sed "s|.*|    inet & netmask 0xffffff00|" "${STUB_DIR}/addresses" 2> /dev/null'
 
 for role in devices mac-devices; do
   render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
@@ -125,6 +135,8 @@ setup_case() {
   : > "${WORK}/run_env.log"
   : > "${WORK}/docker_ps"
   : > "${WORK}/usb"
+  : > "${WORK}/docker_errors"
+  echo 192.168.1.10 > "${WORK}/addresses"
 }
 
 section "device selection"
@@ -863,6 +875,58 @@ for role in devices mac-devices; do
   sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
 done
 mv "${WORK}/devices.saved" "${WORK}/devices.txt"
+
+section "the devices once the WireGuard tunnel is up"
+for role in devices mac-devices; do
+  setup_case
+  check "${role}: the tunnel off: ready" "0" "$(
+    farm "$role" __tunnel-ready > /dev/null
+    echo "$?"
+  )"
+  output="$(farm "$role" __tunnel-up)"
+  check "${role}: the tunnel off: nothing to start" ":" "${output}:$(calls docker)"
+  render_farm "$role" "${WORK}/farm-${role}.env" --extra-vars '{"WG_ENABLED": true, "WG_ADDRESS": "10.234.0.2"}' || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+  check "${role}: the tunnel down: not ready" "1" "$(
+    farm "$role" __tunnel-ready > /dev/null
+    echo "$?"
+  )"
+  output="$(farm "$role" __tunnel-up)"
+  check "${role}: the tunnel down: tunnel-up fails" "1" "$(
+    farm "$role" __tunnel-up > /dev/null
+    echo "$?"
+  )"
+  check_contains "${role}: the tunnel down is told" "WG_ADDRESS 10.234.0.2 is not an address of this host" "$output"
+  check "${role}: the tunnel down: no container started" "" "$(calls docker | grep '^start|')"
+  printf '%s\n' 192.168.1.10 10.234.0.2 > "${WORK}/addresses"
+  check "${role}: the tunnel up: ready" "0" "$(
+    farm "$role" __tunnel-ready > /dev/null
+    echo "$?"
+  )"
+  # WiFi: docker could not start stf and appium at the boot; Emu stopped by a person; AppleTV failed on another address
+  printf '%s\n' "device-WiFi-192.168.1.50-connector running" "device-WiFi-192.168.1.50-stf exited" \
+    "device-WiFi-192.168.1.50-appium created" "device-Emu-emu1-connector exited" "device-Emu-emu1-stf exited" \
+    "device-AppleTV-aaaa1111-appium exited" "device-AppleTV-aaaa1111-stf running" > "${WORK}/docker_ps"
+  printf '%s\n' "device-WiFi-192.168.1.50-stf failed to bind host port 10.234.0.2:7435/tcp: cannot assign requested address" \
+    "device-WiFi-192.168.1.50-appium Error starting userland proxy: listen tcp4 10.234.0.2:7431: bind: cannot assign requested address" \
+    "device-AppleTV-aaaa1111-appium failed to bind host port 10.234.0.20:7451/tcp: cannot assign requested address" > "${WORK}/docker_errors"
+  reset_calls
+  output="$(farm "$role" __tunnel-up)"
+  check_contains "${role}: the devices that failed on the address of the tunnel are told" \
+    "The containers of 1 devices failed on WG_ADDRESS 10.234.0.2 before the tunnel was up: starting them" "$output"
+  check "${role}: their containers are started again, the running ones kept" "start|device-WiFi-192.168.1.50-stf
+start|device-WiFi-192.168.1.50-appium" "$(calls docker | grep '^start|')"
+  check "${role}: a container stopped by a person or of another error stays as it is" "" \
+    "$(calls docker | grep -E '^(start|run)\|.*(Emu|AppleTV)')"
+  : > "${WORK}/docker_errors"
+  reset_calls
+  output="$(farm "$role" __tunnel-up)"
+  check_contains "${role}: nothing failed on the address of the tunnel" "No container of a device failed on WG_ADDRESS 10.234.0.2: nothing to start" "$output"
+  check "${role}: nothing failed: no container started" "" "$(calls docker | grep -E '^(start|run)\|')"
+  check_not_contains "${role}: the internal commands are not in the help" "__tunnel" "$(farm "$role" help)"
+  render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+done
 
 section "remote connect host"
 for role in devices mac-devices; do

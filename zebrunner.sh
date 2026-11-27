@@ -518,7 +518,8 @@ status() {
 }
 
 # remove_wireguard: the WireGuard tunnel to MCloud of the deploy (README.md#wireguard-tunnel): stopped, its config and
-# its launch daemon (macOS) or the settings of wg-quick@mcloud-node (Linux) removed; wireguard-tools stays installed
+# its launch daemon (macOS) or the settings of wg-quick@mcloud-node, the order of docker after it and the unit
+# mcloud-wireguard-up (Linux) removed; wireguard-tools stays installed
 remove_wireguard() {
   if [[ "$(uname)" == "Darwin" ]]; then
     [[ -f /Library/LaunchDaemons/com.zebrunner.wireguard.plist ]] || return 0
@@ -533,7 +534,9 @@ remove_wireguard() {
     [[ -e /etc/systemd/system/wg-quick@mcloud-node.service.d/zebrunner.conf ]] || return 0
     ui_info "Removing the WireGuard tunnel to MCloud: wg-quick@mcloud-node"
     sudo systemctl disable --now wg-quick@mcloud-node
-    sudo rm -vrf /etc/wireguard/mcloud-node.conf /etc/systemd/system/wg-quick@mcloud-node.service.d
+    sudo rm -vrf /etc/wireguard/mcloud-node.conf /etc/systemd/system/wg-quick@mcloud-node.service.d \
+      /etc/systemd/system/docker.service.d/zebrunner-wireguard.conf /etc/systemd/system/mcloud-wireguard-up.service
+    sudo systemctl daemon-reload
   fi
 }
 
@@ -748,7 +751,9 @@ WantedBy=multi-user.target
 EOF
 }
 
-# autostart_plist: the launch agent of macOS, run once at the login when Docker Desktop answers (10 minutes at most)
+# autostart_plist: the launch agent of macOS, run once at the login when Docker Desktop answers and the WireGuard tunnel to
+# MCloud is up when it is on (README.md#wireguard-tunnel: the ports of the devices are published on its address), 10
+# minutes at most
 autostart_plist() {
   cat << EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -767,7 +772,7 @@ autostart_plist() {
     <array>
       <string>/bin/bash</string>
       <string>-c</string>
-      <string>for i in \$(seq 1 120); do docker info &gt; /dev/null 2&gt;&amp;1 &amp;&amp; exec /usr/local/bin/zebrunner-farm start --quiet; sleep 5; done; echo "Docker Desktop does not answer" &gt;&amp;2; exit 1</string>
+      <string>for i in \$(seq 1 120); do docker info &gt; /dev/null 2&gt;&amp;1 &amp;&amp; /usr/local/bin/zebrunner-farm __tunnel-ready &amp;&amp; exec /usr/local/bin/zebrunner-farm start --quiet; sleep 5; done; echo "Docker Desktop does not answer or the WireGuard tunnel to MCloud is down" &gt;&amp;2; exit 1</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
@@ -801,7 +806,7 @@ autostart() {
       return 0
     fi
     if [[ "$(uname)" == "Darwin" ]]; then
-      ui_paragraph "It creates ${file}: a launch agent of $(id -un 2> /dev/null || echo "this user") loaded at the next login, nothing starts now. At the login it waits for Docker Desktop (10 minutes at most: let Docker Desktop start at the login, its Settings, General) and runs 'zebrunner-farm start --quiet' once: the containers of all the devices, also the Android, wireless, emulator and proxy ones the devices listener does not start. Its log: ${MCLOUD_AGENT_DIR_VALUE}/logs/autostart.log. No sudo is needed."
+      ui_paragraph "It creates ${file}: a launch agent of $(id -un 2> /dev/null || echo "this user") loaded at the next login, nothing starts now. At the login it waits for Docker Desktop (10 minutes at most: let Docker Desktop start at the login, its Settings, General) and for the WireGuard tunnel to MCloud when it is on, and runs 'zebrunner-farm start --quiet' once: the containers of all the devices, also the Android, wireless, emulator and proxy ones the devices listener does not start. Its log: ${MCLOUD_AGENT_DIR_VALUE}/logs/autostart.log. No sudo is needed."
       ui_muted "The content of ${file}:"
       echo ""
       autostart_plist

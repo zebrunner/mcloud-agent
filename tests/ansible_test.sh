@@ -278,6 +278,11 @@ tasks="$(playbook "$OS_ROLE" --list-tasks --tags registerDevices)"
 check_contains "the tunnel is deployed by the role of the OS" "Copy the WireGuard config of the tunnel to MCloud" "$tasks"
 check_contains "the tunnel is removed by the role of the OS" \
   "$([[ "$OS_ROLE" == devices ]] && echo "Stop and disable the tunnel to MCloud (wg-quick@mcloud-node)" || echo "Remove the launch daemon and the WireGuard config")" "$tasks"
+if [[ "$OS_ROLE" == "devices" ]]; then
+  check_contains "Linux: docker starts after the tunnel" "Start docker after the tunnel to MCloud at the boot" "$tasks"
+  check_contains "Linux: the unit of the devices once the tunnel is up" "Copy the unit of the devices once the tunnel to MCloud is up (mcloud-wireguard-up)" "$tasks"
+  check_contains "Linux: without the tunnel the order of docker goes" "Remove the unit of the devices of the tunnel and the order of docker after it" "$tasks"
+fi
 output="$(playbook "$OS_ROLE" --check --tags wireguard)"
 check_contains "the tunnel off: the tasks pass" "failed=0" "$output"
 check_contains "the tunnel off: nothing changes on a host without it" "changed=0" "$output"
@@ -460,6 +465,27 @@ check "the tunnel off: the unit of a device after docker" "After=docker.service"
 render "${REPO}/roles/devices/templates/mcloud-device-restart@.service" "${WORK}/restart.service" --extra-vars "$wireguard" || exit 1
 check "the tunnel on: the unit of a device after the tunnel" "After=docker.service wg-quick@mcloud-node.service" \
   "$(grep '^After=' "${WORK}/restart.service")"
+render "${REPO}/roles/common/templates/mcloud-wireguard-up.service" "${WORK}/wireguard-up.service" || exit 1
+check "the unit of the devices once the tunnel is up: zebrunner-farm after docker and the tunnel" \
+  "After=docker.service wg-quick@mcloud-node.service
+ExecStart=/usr/local/bin/zebrunner-farm __tunnel-up" "$(grep -E '^(After|ExecStart)=' "${WORK}/wireguard-up.service")"
+# dropin <name of the task>: the content of a drop-in of systemd of roles/common/tasks/wireguard.yml, its lines of settings
+dropin() {
+  python3 -c 'import sys, yaml
+for block in yaml.safe_load(open(sys.argv[1])):
+    for task in block.get("block", []):
+        if task["name"] == sys.argv[2]:
+            print("\n".join(l for l in task["ansible.builtin.copy"]["content"].splitlines() if l and not l.startswith("#")))' \
+    "${REPO}/roles/common/tasks/wireguard.yml" "$1"
+}
+check "Linux: docker starts after the tunnel at the boot" "[Unit]
+Wants=wg-quick@mcloud-node.service
+After=wg-quick@mcloud-node.service" "$(dropin "Start docker after the tunnel to MCloud at the boot")"
+check "Linux: a try of wg-quick ends, then the devices that failed without the tunnel" "[Service]
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=90
+ExecStartPost=-/usr/bin/systemctl --no-block start mcloud-wireguard-up.service" "$(dropin "Copy the settings of wg-quick@mcloud-node")"
 
 # the optional settings removed from config/settings.yml: the values by default of the roles, no undefined variable
 grep -v -E '^(STF_DOCKER_NETWORK|STF_API_URL|S3_[A-Z_]+|WDA_FILE|WDA_BUNDLEID|WDA_SIMULATOR_FILE|REMOTE_CONNECT_HOST):' \
@@ -534,8 +560,10 @@ if command -v systemd-analyze > /dev/null 2>&1; then
     sed "s|/usr/local/bin/zebrunner-farm|${WORK}/bin/zebrunner-farm|" "${WORK}/${unit}.service" \
       > "${WORK}/mcloud-device-${unit}@.service"
   done
-  run_check "the units are valid (systemd-analyze verify)" \
-    systemd-analyze verify "${WORK}/mcloud-device-restart@.service" "${WORK}/mcloud-device-down@.service"
+  sed "s|/usr/local/bin/zebrunner-farm|${WORK}/bin/zebrunner-farm|" "${WORK}/wireguard-up.service" \
+    > "${WORK}/mcloud-wireguard-up.service"
+  run_check "the units are valid (systemd-analyze verify)" systemd-analyze verify "${WORK}/mcloud-device-restart@.service" \
+    "${WORK}/mcloud-device-down@.service" "${WORK}/mcloud-wireguard-up.service"
 else
   skip_check "the units are valid (systemd-analyze verify)" "no systemd-analyze"
 fi

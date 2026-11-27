@@ -2391,6 +2391,55 @@ doctor_command() {
   esac
 }
 
+#### WireGuard tunnel
+
+# tunnel_ready: 0 when the ports of the devices can be published: without the WireGuard tunnel to MCloud
+# (README.md#wireguard-tunnel), or when WG_ADDRESS is an address of this host (the interface mcloud-node is up); the
+# autostart of macOS waits for it
+tunnel_ready() {
+  local addresses
+  [[ "${WG_ENABLED:-false}" == "true" && -n "${WG_ADDRESS:-}" ]] || return 0
+  if [[ "$FARM_OS" == "macos" ]]; then
+    addresses="$(ifconfig 2> /dev/null | awk '$1 == "inet" { print $2 }')"
+  else
+    addresses="$(ip -4 -o address show 2> /dev/null | awk '{ sub(/\/.*/, "", $4); print $4 }')"
+  fi
+  grep -qxF "$WG_ADDRESS" <<< "$addresses"
+}
+
+# tunnel_up: once the WireGuard tunnel to MCloud is up, `start` of the devices whose containers docker could not start
+# because WG_ADDRESS was not an address of this host yet (e.g. docker or udev started them at the boot before the
+# interface, README.md#wireguard-tunnel): their error of docker names the address. The containers stopped by a person
+# (no error) and the removed ones stay as they are; mcloud-wireguard-up.service runs it after wg-quick@mcloud-node
+tunnel_up() {
+  local name error line
+  local failed=""
+  local udids=()
+  [[ "${WG_ENABLED:-false}" == "true" && -n "${WG_ADDRESS:-}" ]] || return 0
+  if ! tunnel_ready; then
+    farm_status fail "WG_ADDRESS ${WG_ADDRESS} is not an address of this host: the WireGuard tunnel to MCloud is down" \
+      "./zebrunner.sh doctor (README.md#wireguard-tunnel)"
+    return 1
+  fi
+  while read -r name _; do
+    [[ "$name" == device-* ]] || continue
+    error="$(docker inspect --format '{{.State.Error}}' "$name" 2> /dev/null)"
+    [[ "$error" != *"${WG_ADDRESS}:"* ]] || failed+="${name}"$'\n'
+  done < <(docker ps -a --filter status=created --filter status=exited --format '{{.Names}}' 2> /dev/null)
+  # the devices of the containers, device-<name>-<udid>-<role>
+  while IFS= read -r line; do
+    [[ "|${line}|" =~ \|id=([^|]*)\| ]] || continue
+    get_device_fields "${BASH_REMATCH[1]}" > /dev/null || continue
+    [[ $'\n'"${failed}" != *$'\n'"${dev_container}-"* ]] || udids+=("$dev_udid")
+  done < "$MCLOUD_DEVICES"
+  if [[ "$(count "${udids[@]}")" -eq 0 ]]; then
+    farm_status info "No container of a device failed on WG_ADDRESS ${WG_ADDRESS}: nothing to start"
+    return 0
+  fi
+  farm_status info "The containers of $(count "${udids[@]}") devices failed on WG_ADDRESS ${WG_ADDRESS} before the tunnel was up: starting them"
+  farm_command start --quiet "${udids[@]}"
+}
+
 #### Help and completion
 
 # the commands of zebrunner-farm
@@ -2804,6 +2853,13 @@ main() {
   doctor)
     FARM_COMMAND="$command"
     doctor_command "${@:2}"
+    ;;
+  # the WireGuard tunnel to MCloud, for the units and the launch agents of the deploy (README.md#wireguard-tunnel)
+  __tunnel-up)
+    tunnel_up
+    ;;
+  __tunnel-ready)
+    tunnel_ready
     ;;
   ansible)
     "${ZEBRUNNER_MCLOUD_AGENT_DIR}"/zebrunner.sh ansible "${@:2}"
