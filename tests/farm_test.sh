@@ -545,6 +545,26 @@ for role in devices mac-devices; do
   farm "$role" start WiFi > /dev/null
   check_contains "${role}: STF_TLS_INSECURE: STF does not verify the certificate" "|-e|NODE_TLS_REJECT_UNAUTHORIZED=0|" \
     "$(run_args device-WiFi-192.168.1.50-stf)"
+  # the peer filter of the connectors (CONNECTOR_PEER_FILTER, README.md#docker-network)
+  render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+  setup_case
+  farm "$role" start WiFi iPhoneWiFi > /dev/null
+  for device in WiFi-192.168.1.50 iPhoneWiFi-bbbb2222; do
+    check_contains "${role}: ${device%%-*}: only the stf and appium of the device reach its connector" \
+      "|-e|CONNECTOR_PEERS=device-${device}-stf,device-${device}-appium|" "$(run_args "device-${device}-connector")"
+    check "${role}: ${device%%-*}: the connector has NET_ADMIN once" "1" \
+      "$(run_args "device-${device}-connector" | grep -o -- '--cap-add=NET_ADMIN' | wc -l | tr -d ' ')"
+    for container in stf appium; do
+      check_not_contains "${role}: ${device%%-*}: ${container} gets no NET_ADMIN" "NET_ADMIN" "$(run_args "device-${device}-${container}")"
+    done
+  done
+  render_farm "$role" "${WORK}/farm-${role}.env" --extra-vars "CONNECTOR_PEER_FILTER=false" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+  setup_case
+  farm "$role" start WiFi > /dev/null
+  check_not_contains "${role}: CONNECTOR_PEER_FILTER false: no peer filter" "CONNECTOR_PEERS" \
+    "$(run_args device-WiFi-192.168.1.50-connector)"
   render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
   sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
   setup_case
