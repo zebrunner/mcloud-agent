@@ -25,7 +25,8 @@ FARM_SCRIPT="${REPO}/roles/common/files/zebrunner-farm"
 
 # render_farm <devices|mac-devices> <destination> [ansible arguments...]: the settings of zebrunner-farm (the env file)
 # of the OS of the role with the example settings and devices of the role (config/<role>.yml.original), over the
-# versions and the values by default of the roles as the playbooks load them
+# versions and the values by default of the roles as the playbooks load them; zebrunner-farm sources the scripts of
+# patch/ of the repo (ZEBRUNNER_FARM_LIB), the deploy copies them into /usr/local/lib/zebrunner-farm
 render_farm() {
   local role="$1"
   local dest="$2"
@@ -34,7 +35,7 @@ render_farm() {
   shift 2
   render "${REPO}/roles/common/templates/zebrunner-farm.env" "$dest" --extra-vars "common_farm_os=${farm_os}" \
     --extra-vars "@${REPO}/roles/common/defaults/main.yml" --extra-vars "@${REPO}/roles/${role}/defaults/main.yml" \
-    --extra-vars "@${REPO}/versions.yml" \
+    --extra-vars "@${REPO}/versions.yml" --extra-vars "common_farm_lib_dir=${REPO}/patch" \
     --extra-vars "@${REPO}/config/settings.yml.original" --extra-vars "@${REPO}/config/${role}.yml.original" "$@"
 }
 

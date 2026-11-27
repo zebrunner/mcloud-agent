@@ -834,6 +834,14 @@ if command -v ansible > /dev/null 2>&1; then
   check_contains "a deployment with other settings is reported" "zebrunner-farm is deployed with other values of STF_PROVIDER_HOST" "$(doctor_run)"
   render_farm_env --extra-vars "DEVICE_VERSION=0.1" || exit 1
   check_contains "a deployment with another version is reported" "zebrunner-farm is deployed with other values of DEVICE_VERSION" "$(doctor_run)"
+  mkdir -p "${WORK}/farm-lib"
+  render_farm_env --extra-vars "common_farm_lib_dir=${WORK}/farm-lib" || exit 1
+  check_contains "the scripts zebrunner-farm sources, missing in the folder of the deploy, are reported" \
+    "the scripts zebrunner-farm sources (${WORK}/farm-lib) are missing or not the ones of this folder: utility.sh ui.sh" "$(doctor_run)"
+  cp "${AGENT}/patch/utility.sh" "${AGENT}/patch/ui.sh" "${WORK}/farm-lib/"
+  check_not_contains "the scripts zebrunner-farm sources are the ones of this folder" "are missing or not the ones" "$(doctor_run)"
+  echo "# changed" >> "${WORK}/farm-lib/ui.sh"
+  check_contains "another script zebrunner-farm sources is reported" "are missing or not the ones of this folder: ui.sh" "$(doctor_run)"
   render_farm_env || exit 1
   chmod 644 "${WORK}/farm.env"
   output="$(doctor_run)"
@@ -1082,6 +1090,7 @@ check "macOS: deployed files are removed" "rm|-vf|/usr/local/bin/zebrunner-devic
 rm|-vf|/usr/local/bin/usbmuxd_watch
 rm|-vf|/etc/newsyslog.d/zebrunner-mcloud.conf
 rm|-vf|/usr/local/bin/zebrunner-farm
+rm|-vf|/usr/local/lib/zebrunner-farm/utility.sh|/usr/local/lib/zebrunner-farm/ui.sh
 rm|-vf|/usr/local/etc/zebrunner-farm.env
 rm|-vf|/usr/local/bin/mcloud-devices.txt" "$(calls sudo | grep '^rm|')"
 check "macOS: no udev and systemd" "" "$(calls sudo | grep -E '^(udevadm|systemctl)\|')"
@@ -1101,6 +1110,7 @@ rm|-vf|/etc/systemd/system/mcloud-device-restart@.service
 rm|-vf|/etc/systemd/system/mcloud-device-down@.service
 rm|-vf|/etc/bash_completion.d/zebrunner-farm
 rm|-vf|/usr/local/bin/zebrunner-farm
+rm|-vf|/usr/local/lib/zebrunner-farm/utility.sh|/usr/local/lib/zebrunner-farm/ui.sh
 rm|-vf|/usr/local/etc/zebrunner-farm.env
 rm|-vf|/usr/local/bin/mcloud-devices.txt" "$(calls sudo | grep '^rm|')"
 check "Linux: udev and systemd forget the removed rules and units" "udevadm|control|--reload

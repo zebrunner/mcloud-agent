@@ -4,6 +4,7 @@
 #   common_farm_os: linux or macos
 #   common_farm_owner and common_farm_group: the owner of the files
 #   common_farm_env_mode: the mode of the settings, readable by the user of the deploy and udev (root) or launchd only
+#   common_farm_lib_dir (optional): the folder of the scripts zebrunner-farm sources, /usr/local/lib/zebrunner-farm
 
 - name: Copy 'zebrunner-farm' script file
   ansible.builtin.copy:
@@ -12,6 +13,29 @@
     mode: "0755"
     owner: "{{ common_farm_owner }}"
     group: "{{ common_farm_group }}"
+  tags: [devices, files]
+
+# the scripts zebrunner-farm sources (ZEBRUNNER_FARM_LIB of its settings): copies owned by root, the units of udev run it
+# as root and the clone of the agent is writable by the user
+- name: Create the folder of the scripts of 'zebrunner-farm'
+  ansible.builtin.file:
+    path: "{{ common_farm_lib_dir | default('/usr/local/lib/zebrunner-farm', true) }}"
+    state: directory
+    mode: "0755"
+    owner: root
+    group: "{{ 'wheel' if common_farm_os == 'macos' else 'root' }}"
+  tags: [devices, files]
+
+- name: Copy the scripts 'zebrunner-farm' sources
+  ansible.builtin.copy:
+    src: "{{ agent_dir }}/patch/{{ item }}"
+    dest: "{{ common_farm_lib_dir | default('/usr/local/lib/zebrunner-farm', true) }}/{{ item }}"
+    mode: "0644"
+    owner: root
+    group: "{{ 'wheel' if common_farm_os == 'macos' else 'root' }}"
+  loop:
+    - utility.sh
+    - ui.sh
   tags: [devices, files]
 
 - name: Create the folder of the settings of 'zebrunner-farm'

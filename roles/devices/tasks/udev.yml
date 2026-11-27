@@ -34,6 +34,21 @@
   vars:
     common_wg_os: linux
 
+# the group of the device nodes of the USB devices of the rules (USB_DEVICE_GROUP), plugdev of Debian and Ubuntu
+- name: Check the group of the USB devices
+  ansible.builtin.assert:
+    that: USB_DEVICE_GROUP | string is regex('^[a-z_][a-z0-9_-]{0,31}$')
+    fail_msg: "USB_DEVICE_GROUP must be the name of a group (lower case letters, digits, '_' and '-')"
+    quiet: true
+  tags: [devices, precheck, validate, udev]
+
+- name: Create the group of the USB devices
+  ansible.builtin.group:
+    name: "{{ USB_DEVICE_GROUP }}"
+    system: true
+    state: present
+  tags: [devices, udev, files]
+
 - name: Copy rules file
   ansible.builtin.template:
     src: 90_mcloud.rules
@@ -125,6 +140,24 @@
   register: devices_udev_reload
   failed_when: devices_udev_reload.rc != 0
   changed_when: false
+  tags: [devices, udev]
+
+# the mode and the group of the rules for the USB devices plugged in already (a change event: no unit of the device
+# starts); a device missing now gets them on its connection
+- name: Apply the mode of the rules to the plugged USB devices
+  ansible.builtin.command:
+    argv:
+      - udevadm
+      - trigger
+      - --action=change
+      - --subsystem-match=usb
+      - "--property-match=ID_SERIAL_SHORT={{ item.id | string | trim | replace('-', '') }}"
+  loop: "{{ devices | selectattr('id', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.name | default(item.id) }}"
+  when: item.connection | default('usb') | string | lower == 'usb'
+  changed_when: false
+  failed_when: false
   tags: [devices, udev]
 
 # the usbmuxd service may be absent: a failure is shown but does not stop the deploy
