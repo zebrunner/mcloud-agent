@@ -56,6 +56,61 @@
     - mcloud-device-down@.service
   tags: [devices, udev, files]
 
+# The wireless watchdog (README.md#wireless-watchdog): udev starts no wireless device, a timer starts the containers of
+# the wireless devices that stopped by themselves; removed from a host without wireless devices or with
+# WIRELESS_WATCHDOG_INTERVAL 0 (the next task makes systemd forget the removed units)
+- name: Wireless watchdog
+  vars:
+    devices_watchdog: >-
+      {{ (WIRELESS_WATCHDOG_INTERVAL | int) > 0 and (devices | map(attribute='connection', default='usb') | map('string')
+         | map('lower') | select('equalto', 'wireless') | list | length > 0) }}
+  tags: [devices, watchdog]
+  block:
+    - name: Copy the units of the wireless watchdog
+      ansible.builtin.template:
+        src: "{{ item }}"
+        dest: "/etc/systemd/system/{{ item }}"
+        mode: "0644"
+        owner: root
+        group: root
+      loop:
+        - mcloud-wireless-watchdog.service
+        - mcloud-wireless-watchdog.timer
+      register: devices_watchdog_units
+      when: devices_watchdog | bool
+      tags: [files]
+
+    # a changed interval applies at once
+    - name: Start the timer of the wireless watchdog (mcloud-wireless-watchdog.timer)
+      ansible.builtin.systemd:
+        name: mcloud-wireless-watchdog.timer
+        daemon_reload: true
+        enabled: true
+        state: "{{ 'restarted' if devices_watchdog_units is changed else 'started' }}"
+      when: devices_watchdog | bool and not ansible_check_mode
+
+    - name: Find the timer of the wireless watchdog
+      ansible.builtin.stat:
+        path: /etc/systemd/system/mcloud-wireless-watchdog.timer
+      register: devices_watchdog_timer
+      when: not devices_watchdog | bool
+
+    - name: Stop and disable the timer of the wireless watchdog
+      ansible.builtin.systemd:
+        name: mcloud-wireless-watchdog.timer
+        enabled: false
+        state: stopped
+      when: not devices_watchdog | bool and devices_watchdog_timer.stat.exists
+
+    - name: Remove the units of the wireless watchdog
+      ansible.builtin.file:
+        path: "/etc/systemd/system/{{ item }}"
+        state: absent
+      loop:
+        - mcloud-wireless-watchdog.service
+        - mcloud-wireless-watchdog.timer
+      when: not devices_watchdog | bool
+
 - name: Load the units of the devices
   ansible.builtin.systemd:
     daemon_reload: true

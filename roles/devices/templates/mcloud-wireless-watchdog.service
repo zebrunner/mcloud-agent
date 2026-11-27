@@ -1,0 +1,18 @@
+# The containers of the wireless devices that stopped by themselves (README.md#wireless-watchdog): no udev starts them,
+# mcloud-wireless-watchdog.timer runs it every WIRELESS_WATCHDOG_INTERVAL seconds. The log:
+# journalctl -u mcloud-wireless-watchdog
+[Unit]
+Description=MCloud: the containers of the wireless devices that stopped by themselves
+Wants=docker.service
+{% if WG_ENABLED | default(false) | bool %}
+# the ports of the devices are published on the address of the tunnel to MCloud (README.md#wireguard-tunnel)
+After=docker.service wg-quick@mcloud-node.service
+{% else %}
+After=docker.service
+{% endif %}
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/zebrunner-farm __wireless-watchdog
+# the images may be pulled
+TimeoutStartSec=30min

@@ -144,6 +144,13 @@ for role in devices mac-devices; do
 [{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 6, "allow_reboot": true, "connection": "android-sim", "address": "emu:5555"}]=failed=0
 [{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 6, "allow_reboot": "true", "connection": "wireless"}]=Invalid allow_reboot of device 'A'
 [{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6, "allow_reboot": true, "connection": "proxy", "address": "10.0.0.7"}]=Invalid allow_reboot of device 'A'
+[{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6, "unavailable_timeout": 0}]=failed=0
+[{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6, "unavailable_timeout": 1800, "connection": "wireless", "address": "10.0.0.7"}]=failed=0
+[{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6, "unavailable_timeout": -1}]=Invalid unavailable_timeout of device 'A'
+[{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6, "unavailable_timeout": "600"}]=Invalid unavailable_timeout of device 'A'
+[{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6, "unavailable_timeout": true}]=Invalid unavailable_timeout of device 'A'
+[{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 6, "unavailable_timeout": 600, "connection": "wireless"}]=Invalid unavailable_timeout of device 'A'
+[{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6, "unavailable_timeout": 600, "connection": "proxy", "address": "10.0.0.7"}]=Invalid unavailable_timeout of device 'A'
 [{"id": "a", "name": "-A", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6}]=Invalid name '-A' of device '-A'
 [{"id": "a/b", "name": "", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6}]=Invalid id 'a/b', name '' of device ''
 [{"id": "a", "name": "A", "location": "NYC, 2nd floor", "os": "ios", "appium_port": 1, "min_port": 3, "max_port": 6}]=Invalid location 'NYC, 2nd floor' of device 'A'
@@ -235,6 +242,14 @@ for role in devices mac-devices; do
     "$(playbook "$role" --tags validate --extra-vars "$extra")"
   check_contains "${role}: the settings of the cleanup pass" "The setting of the cleanup is valid." \
     "$(playbook "$role" --tags validate)"
+  check_contains "${role}: the settings of the unavailable devices and of the wireless watchdog pass" \
+    "The settings of the unavailable devices and of the wireless watchdog are valid." \
+    "$(playbook "$role" --tags validate --extra-vars '{"DEVICE_UNAVAILABLE_TIMEOUT": 0, "WIRELESS_WATCHDOG_INTERVAL": 0}')"
+  for extra in '{"DEVICE_UNAVAILABLE_TIMEOUT": "10m"}' '{"DEVICE_UNAVAILABLE_TIMEOUT": -1}' '{"WIRELESS_WATCHDOG_INTERVAL": ""}' \
+    '{"WIRELESS_WATCHDOG_INTERVAL": "5m"}'; do
+    check_contains "${role}: ${extra} fails" "DEVICE_UNAVAILABLE_TIMEOUT of config/settings.yml is empty (the default of the connector) or the seconds" \
+      "$(playbook "$role" --tags validate --extra-vars "$extra")"
+  done
   check_contains "${role}: the tunnel is off by default" "The WireGuard tunnel to MCloud is off." "$(playbook "$role" --tags validate)"
   check_contains "${role}: the tunnel without its settings fails" \
     "WG_ENABLED is true, the settings of the WireGuard tunnel are missing or invalid in config/settings.yml: WG_PRIVATE_KEY, WG_SERVER_PUBLIC_KEY, WG_ADDRESS, WG_SERVER_ADDRESS, WG_ENDPOINT, STF_PROVIDER_HOST" \
@@ -272,6 +287,34 @@ output="$(playbook "$OS_ROLE" --check --tags files --start-at-task "Check the fo
 check_contains "without bash-completion the deploy passes" "failed=0" "$output"
 check_not_contains "without bash-completion the completion is not deployed" "changed: [localhost]" \
   "$(sed -n "/${completion_task}/,/^\$/p" <<< "$output")"
+
+section "wireless watchdog of ${OS_ROLE} (check mode)"
+tasks="$(playbook "$OS_ROLE" --list-tasks --tags watchdog)"
+if [[ "$OS_ROLE" == "devices" ]]; then
+  check_contains "Linux: the timer of the wireless watchdog is deployed" "Start the timer of the wireless watchdog (mcloud-wireless-watchdog.timer)" "$tasks"
+  check_contains "Linux: the timer of the wireless watchdog is removed without wireless devices" "Remove the units of the wireless watchdog" "$tasks"
+  watchdog_task="Copy the units of the wireless watchdog"
+else
+  check_contains "macOS: the launch agent of the wireless watchdog is loaded" "Load ZebrunnerWirelessWatchdog agent via launchctl" "$tasks"
+  check_contains "macOS: the launch agent of the wireless watchdog is removed without wireless devices" \
+    "Remove ZebrunnerWirelessWatchdog.plist without wireless devices" "$tasks"
+  watchdog_task="Copy ZebrunnerWirelessWatchdog.plist into LaunchAgents"
+fi
+wireless_device='{"devices": [{"id": "a", "name": "WiFi", "os": "android", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 6, "connection": "wireless"}]}'
+usb_device='{"devices": [{"id": "a", "name": "A", "os": "ios", "appium_port": 1, "adb_port": 2, "min_port": 3, "max_port": 6}]}'
+# task_result <name of the task> <output of the playbook>: the first result line of the task
+task_result() {
+  grep -A1 -F ": ${1}]" <<< "$2" | grep -v '^TASK' | head -1
+}
+output="$(playbook "$OS_ROLE" --check --tags files --extra-vars "$wireless_device" --extra-vars "common_farm_completion_dir=${WORK}/bash_completion.d")"
+check_contains "a wireless device: the tasks pass" "failed=0" "$output"
+check_contains "a wireless device: the wireless watchdog is deployed" "changed: [localhost]" "$(task_result "$watchdog_task" "$output")"
+output="$(playbook "$OS_ROLE" --check --tags files --extra-vars "$usb_device" --extra-vars "common_farm_completion_dir=${WORK}/bash_completion.d")"
+check_contains "no wireless device: the wireless watchdog is not deployed" "skipping: [localhost]" "$(task_result "$watchdog_task" "$output")"
+output="$(playbook "$OS_ROLE" --check --tags files --extra-vars "$wireless_device" --extra-vars '{"WIRELESS_WATCHDOG_INTERVAL": 0}' \
+  --extra-vars "common_farm_completion_dir=${WORK}/bash_completion.d")"
+check_contains "WIRELESS_WATCHDOG_INTERVAL 0: the wireless watchdog is not deployed" "skipping: [localhost]" \
+  "$(task_result "$watchdog_task" "$output")"
 
 section "WireGuard tunnel of ${OS_ROLE} (check mode)"
 tasks="$(playbook "$OS_ROLE" --list-tasks --tags registerDevices)"
@@ -518,7 +561,7 @@ devices:
   - {id: abc, os: ios, name: Phone, appium_port: 11, adb_port: 12, min_port: 13, max_port: 14, wda_file: /wda.ipa, wda_bundleid: my.wda, wda_port: 8101, allow_reboot: true}
   - {id: tv, os: ios, name: TV, appium_port: 15, adb_port: 16, min_port: 17, max_port: 18, connection: proxy, address: 10.0.0.6}
   - {id: sim, os: ios, name: Sim, appium_port: 19, adb_port: 20, min_port: 21, max_port: 22, connection: iOS-Sim, wda_port: 8110, mjpeg_port: 8111}
-  - {id: phone, os: ios, name: WiFi, appium_port: 23, adb_port: 24, min_port: 25, max_port: 26, connection: wireless, address: 10.0.0.7, allow_reboot: false}
+  - {id: phone, os: ios, name: WiFi, appium_port: 23, adb_port: 24, min_port: 25, max_port: 26, connection: wireless, address: 10.0.0.7, allow_reboot: false, unavailable_timeout: 0}
 EOF
 render "${REPO}/roles/common/templates/mcloud-devices.txt" "${WORK}/devices.txt" --extra-vars "@${WORK}/devices.yml" || exit 1
 check "devices list: the fields key=value of every device" "id=R28M-1384YQY|os=android|name=Galaxy_S10|location=|appium_port=1|adb_port=2|min_port=3|max_port=4|connection=usb|wda_file=|wda_bundleid=|address=|wda_port=|mjpeg_port=|connect_port=
@@ -526,7 +569,7 @@ id=12345|os=android|name=Numeric|location=|appium_port=5|adb_port=6|min_port=9|m
 id=abc|os=ios|name=Phone|location=|appium_port=11|adb_port=12|min_port=13|max_port=14|connection=usb|wda_file=/wda.ipa|wda_bundleid=my.wda|address=|wda_port=8101|mjpeg_port=|connect_port=|allow_reboot=true
 id=tv|os=ios|name=TV|location=|appium_port=15|adb_port=16|min_port=17|max_port=18|connection=proxy|wda_file=|wda_bundleid=|address=10.0.0.6|wda_port=|mjpeg_port=|connect_port=
 id=sim|os=ios|name=Sim|location=|appium_port=19|adb_port=20|min_port=21|max_port=22|connection=ios-sim|wda_file=|wda_bundleid=|address=|wda_port=8110|mjpeg_port=8111|connect_port=
-id=phone|os=ios|name=WiFi|location=|appium_port=23|adb_port=24|min_port=25|max_port=26|connection=wireless|wda_file=|wda_bundleid=|address=10.0.0.7|wda_port=|mjpeg_port=|connect_port=|allow_reboot=false" "$(grep -v '^#' "${WORK}/devices.txt")"
+id=phone|os=ios|name=WiFi|location=|appium_port=23|adb_port=24|min_port=25|max_port=26|connection=wireless|wda_file=|wda_bundleid=|address=10.0.0.7|wda_port=|mjpeg_port=|connect_port=|allow_reboot=false|unavailable_timeout=0" "$(grep -v '^#' "${WORK}/devices.txt")"
 check "devices list: the comment of its format" "# One device per line, its fields key=value separated by '|' in any order; an empty value is the value by default." \
   "$(grep '^# One device' "${WORK}/devices.txt")"
 render "${REPO}/roles/devices/templates/90_mcloud.rules" "${WORK}/rules" --extra-vars "@${WORK}/devices.yml" || exit 1
@@ -553,6 +596,18 @@ check_contains "a connection cancels an unfinished down" "Conflicts=mcloud-devic
 check "the macOS listener waits for an action as long as the restart unit of Linux" \
   "$(($(sed -n 's/^TimeoutStartSec=\([0-9]*\)min$/\1/p' "${WORK}/restart.service") * 60))" \
   "$(sed -n 's/^ACTION_TIMEOUT_SECONDS=//p' "${REPO}/roles/mac-devices/templates/zebrunner-device-listener")"
+render "${REPO}/roles/devices/templates/mcloud-wireless-watchdog.service" "${WORK}/watchdog.service" || exit 1
+check "the wireless watchdog: a oneshot zebrunner-farm after docker" "After=docker.service
+Type=oneshot
+ExecStart=/usr/local/bin/zebrunner-farm __wireless-watchdog" "$(grep -E '^(After|Type|ExecStart)=' "${WORK}/watchdog.service")"
+render "${REPO}/roles/devices/templates/mcloud-wireless-watchdog.service" "${WORK}/watchdog.service" --extra-vars "$wireguard" || exit 1
+check "the tunnel on: the wireless watchdog after the tunnel" "After=docker.service wg-quick@mcloud-node.service" \
+  "$(grep '^After=' "${WORK}/watchdog.service")"
+render "${REPO}/roles/devices/templates/mcloud-wireless-watchdog.timer" "${WORK}/watchdog.timer" \
+  --extra-vars "@${REPO}/roles/common/defaults/main.yml" || exit 1
+check "the timer of the wireless watchdog: every WIRELESS_WATCHDOG_INTERVAL after its last run, enabled for the boot" "OnBootSec=300s
+OnUnitInactiveSec=300s
+WantedBy=timers.target" "$(grep -E '^(OnBootSec|OnUnitInactiveSec|WantedBy)=' "${WORK}/watchdog.timer")"
 if command -v systemd-analyze > /dev/null 2>&1; then
   # verify needs an executable ExecStart: zebrunner-farm is not installed on the test host, a stub replaces it
   stub zebrunner-farm "exit 0"
@@ -562,15 +617,20 @@ if command -v systemd-analyze > /dev/null 2>&1; then
   done
   sed "s|/usr/local/bin/zebrunner-farm|${WORK}/bin/zebrunner-farm|" "${WORK}/wireguard-up.service" \
     > "${WORK}/mcloud-wireguard-up.service"
+  sed "s|/usr/local/bin/zebrunner-farm|${WORK}/bin/zebrunner-farm|" "${WORK}/watchdog.service" \
+    > "${WORK}/mcloud-wireless-watchdog.service"
+  cp "${WORK}/watchdog.timer" "${WORK}/mcloud-wireless-watchdog.timer"
   run_check "the units are valid (systemd-analyze verify)" systemd-analyze verify "${WORK}/mcloud-device-restart@.service" \
-    "${WORK}/mcloud-device-down@.service" "${WORK}/mcloud-wireguard-up.service"
+    "${WORK}/mcloud-device-down@.service" "${WORK}/mcloud-wireguard-up.service" "${WORK}/mcloud-wireless-watchdog.service" \
+    "${WORK}/mcloud-wireless-watchdog.timer"
 else
   skip_check "the units are valid (systemd-analyze verify)" "no systemd-analyze"
 fi
 
 render "${REPO}/roles/mac-devices/templates/zebrunner-mcloud.newsyslog.conf" "${WORK}/newsyslog.conf" || exit 1
-check "log rotation of the listener log: owner, mode, 7 archives of 10 MB, bzip2, no signal" \
-  "${REPO}/logs/listener.log|${USER}:staff|644|7|10240|*|JN" \
+check "log rotation of the listener and the wireless watchdog logs: owner, mode, 7 archives of 10 MB, bzip2, no signal" \
+  "${REPO}/logs/listener.log|${USER}:staff|644|7|10240|*|JN
+${REPO}/logs/wireless-watchdog.log|${USER}:staff|644|7|10240|*|JN" \
   "$(grep -v '^#' "${WORK}/newsyslog.conf" | awk '{print $1 "|" $2 "|" $3 "|" $4 "|" $5 "|" $6 "|" $7}')"
 # newsyslog needs root even for a dry run: passwordless sudo is available on CI macOS runners
 if [[ "$(uname)" == "Darwin" ]] && sudo -n true 2> /dev/null; then
@@ -585,15 +645,22 @@ else
   skip_check "newsyslog dry run" "needs macOS and passwordless sudo"
 fi
 
-for plist in ZebrunnerDevicesListener ZebrunnerUsbmuxd ZebrunnerAdb; do
+for plist in ZebrunnerDevicesListener ZebrunnerUsbmuxd ZebrunnerAdb ZebrunnerWirelessWatchdog; do
   render "${REPO}/roles/mac-devices/templates/${plist}.plist" "${WORK}/${plist}.plist" \
-    --extra-vars "@${REPO}/roles/mac-devices/defaults/main.yml" --extra-vars "mac_devices_adb_path=/opt/homebrew/bin/adb" || exit 1
+    --extra-vars "@${REPO}/roles/mac-devices/defaults/main.yml" --extra-vars "@${REPO}/roles/common/defaults/main.yml" \
+    --extra-vars "mac_devices_adb_path=/opt/homebrew/bin/adb" || exit 1
   check_contains "${plist}: runs in the agent dir" "<string>${REPO}</string>" "$(cat "${WORK}/${plist}.plist")"
   check_contains "${plist}: logs into the agent dir" "<string>${REPO}/logs/" "$(cat "${WORK}/${plist}.plist")"
   if command -v plutil > /dev/null 2>&1; then
     check "${plist}: valid plist" "${WORK}/${plist}.plist: OK" "$(plutil -lint "${WORK}/${plist}.plist")"
   fi
 done
+check_contains "the wireless watchdog runs zebrunner-farm every WIRELESS_WATCHDOG_INTERVAL seconds" "<string>/usr/local/bin/zebrunner-farm</string>
+        <string>__wireless-watchdog</string>
+      </array>
+
+    <key>StartInterval</key>
+      <integer>300</integer>" "$(cat "${WORK}/ZebrunnerWirelessWatchdog.plist")"
 # the launch agents listen on the ports of the addresses the containers reach them with
 check_contains "socat of usbmuxd listens on the port of USBMUXD_SOCKET_ADDRESS" "<string>TCP-LISTEN:2222,reuseaddr,fork,bind=127.0.0.1</string>" \
   "$(cat "${WORK}/ZebrunnerUsbmuxd.plist")"

@@ -123,6 +123,19 @@
     success_msg: "The setting of the cleanup is valid."
   tags: [devices, precheck, validate]
 
+# the unavailable iOS devices and the wireless watchdog (README.md#wireless-devices): the seconds
+- name: Check the settings of the unavailable devices and of the wireless watchdog
+  ansible.builtin.assert:
+    that:
+      - ('' if DEVICE_UNAVAILABLE_TIMEOUT is none else DEVICE_UNAVAILABLE_TIMEOUT) | string is match('^[0-9]*$')
+      - ('' if WIRELESS_WATCHDOG_INTERVAL is none else WIRELESS_WATCHDOG_INTERVAL) | string is match('^[0-9]+$')
+    fail_msg: >-
+      DEVICE_UNAVAILABLE_TIMEOUT of config/settings.yml is empty (the default of the connector) or the seconds (0 or
+      more), not '{{ DEVICE_UNAVAILABLE_TIMEOUT }}'; WIRELESS_WATCHDOG_INTERVAL is the seconds (0: off), not
+      '{{ WIRELESS_WATCHDOG_INTERVAL }}' (README.md#wireless-devices).
+    success_msg: "The settings of the unavailable devices and of the wireless watchdog are valid."
+  tags: [devices, precheck, validate]
+
 # the obligatory settings, the host ports and the connections of the devices of the OS
 - name: Validate the settings of the devices
   ansible.builtin.command:

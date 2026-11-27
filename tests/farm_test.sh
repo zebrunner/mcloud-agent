@@ -20,7 +20,7 @@ IPHONE="device-iPhone_8_Plus-d6afc6b3a65584ca0813eb8957c6479b9b6ebb11"
 # docker: records the calls, prints ${STUB_DIR}/docker_ps for `ps`, fails `run` of a container
 # ending with $DOCKER_FAIL_RUN and `stop` of one ending with $DOCKER_FAIL_STOP, has no network with $DOCKER_NO_NETWORK
 # and returns $DOCKER_STARTED_AT/$DOCKER_FINISHED_AT for `inspect` (the error of a container: ${STUB_DIR}/docker_errors,
-# `<name> <error>`); the variables of
+# `<name> <error>`), the lines of ${STUB_DIR}/docker_logs `<name> <line>` for `logs`; the variables of
 # `run -e NAME` (no value: docker takes it from its environment) as it sees them go to ${STUB_DIR}/run_env.log,
 # `<container>|NAME=value|...|`, a NAME missing from its environment is not there
 cat > "${WORK}/bin/docker" << 'EOF'
@@ -54,6 +54,9 @@ case "$1" in
     ;;
   network)
     [[ "$2" != "inspect" || -z "$DOCKER_NO_NETWORK" ]] || exit 1
+    ;;
+  logs)
+    awk -v name="${*: -1}" '$1 == name { sub(/^[^ ]+ /, ""); print }' "${STUB_DIR}/docker_logs" 2> /dev/null
     ;;
   inspect)
     case "$*" in
@@ -136,6 +139,7 @@ setup_case() {
   : > "${WORK}/docker_ps"
   : > "${WORK}/usb"
   : > "${WORK}/docker_errors"
+  : > "${WORK}/docker_logs"
   echo 192.168.1.10 > "${WORK}/addresses"
 }
 
@@ -794,6 +798,81 @@ setup_case
 farm devices start iPhoneWiFi WiFi > /dev/null
 check_not_contains "without allow_reboot the connector gets no ALLOW_REBOOT" "ALLOW_REBOOT" \
   "$(run_args device-iPhoneWiFi-bbbb2222-connector)$(run_args device-WiFi-192.168.1.50-connector)"
+
+section "DEVICE_UNAVAILABLE_TIMEOUT"
+cp "${WORK}/devices.txt" "${WORK}/devices.saved"
+sed -e 's/^\(id=bbbb2222|.*\)$/\1|unavailable_timeout=0/' "${WORK}/devices.saved" > "${WORK}/devices.with-timeout"
+for role in devices mac-devices; do
+  setup_case
+  farm "$role" start iPhoneWiFi > /dev/null
+  check_not_contains "${role}: without unavailable_timeout and the setting the connector keeps its default" \
+    "DEVICE_UNAVAILABLE_TIMEOUT" "$(run_args device-iPhoneWiFi-bbbb2222-connector)"
+  cp "${WORK}/devices.with-timeout" "${WORK}/devices.txt"
+  setup_case
+  farm "$role" start iPhoneWiFi AppleTV > /dev/null
+  check_contains "${role}: unavailable_timeout of the device goes to its connector" "|-e|DEVICE_UNAVAILABLE_TIMEOUT=0|" \
+    "$(run_args device-iPhoneWiFi-bbbb2222-connector)"
+  render_farm "$role" "${WORK}/farm-${role}.env" --extra-vars '{"DEVICE_UNAVAILABLE_TIMEOUT": 1800}' || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+  setup_case
+  farm "$role" start iPhoneWiFi AppleTV > /dev/null
+  check_contains "${role}: unavailable_timeout of the device overrides the setting of the host" \
+    "|-e|DEVICE_UNAVAILABLE_TIMEOUT=0|" "$(run_args device-iPhoneWiFi-bbbb2222-connector)"
+  check_not_contains "${role}: a proxy connector gets no DEVICE_UNAVAILABLE_TIMEOUT" "DEVICE_UNAVAILABLE_TIMEOUT" \
+    "$(run_args device-AppleTV-aaaa1111-connector)"
+  cp "${WORK}/devices.saved" "${WORK}/devices.txt"
+  setup_case
+  farm "$role" start iPhoneWiFi > /dev/null
+  check_contains "${role}: DEVICE_UNAVAILABLE_TIMEOUT of the host goes to the connectors" "|-e|DEVICE_UNAVAILABLE_TIMEOUT=1800|" \
+    "$(run_args device-iPhoneWiFi-bbbb2222-connector)"
+  render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+done
+mv "${WORK}/devices.saved" "${WORK}/devices.txt"
+rm -f "${WORK}/devices.with-timeout"
+
+section "wireless watchdog"
+for role in devices mac-devices; do
+  setup_case
+  output="$(farm "$role" __wireless-watchdog)"
+  check_contains "${role}: no container of a wireless device: nothing to start" "No wireless device stopped by itself: nothing to start" "$output"
+  check "${role}: no container of a wireless device: no docker change" "" "$(calls docker | grep -E '^(start|run)\|')"
+  # iPhoneWiFi: the connector stopped by itself (DEVICE_UNAVAILABLE_TIMEOUT); WiFi: STF exited, the connector runs;
+  # Emu (not wireless) exited; Galaxy (usb) exited
+  printf '%s\n' "device-iPhoneWiFi-bbbb2222-connector exited" "device-iPhoneWiFi-bbbb2222-stf running" \
+    "device-iPhoneWiFi-bbbb2222-appium running" "device-WiFi-192.168.1.50-connector running" \
+    "device-WiFi-192.168.1.50-stf exited" "device-WiFi-192.168.1.50-appium running" \
+    "device-Emu-emu1-connector exited" "device-Galaxy-R28M1384YQY-connector exited" > "${WORK}/docker_ps"
+  printf '%s\n' "device-iPhoneWiFi-bbbb2222-connector [27/11/2026 10:00:00] [ERROR] Device is unavailable for 600 seconds (not more than 600 allowed, is it unpaired?). Exiting!" \
+    > "${WORK}/docker_logs"
+  reset_calls
+  output="$(farm "$role" __wireless-watchdog)"
+  check_contains "${role}: the wireless devices that stopped by themselves are told" \
+    "The containers of 2 wireless devices stopped by themselves: starting them" "$output"
+  check "${role}: their stopped containers are started, the running ones kept" "start|device-WiFi-192.168.1.50-stf
+start|device-iPhoneWiFi-bbbb2222-connector" "$(calls docker | grep '^start|')"
+  check "${role}: the other connections are not started" "" "$(calls docker | grep -E '^(start|run)\|.*(Emu|Galaxy)')"
+  check "${role}: the watchdog asks nothing and succeeds" "0" "$(
+    farm "$role" __wireless-watchdog > /dev/null
+    echo "$?"
+  )"
+  # iPhoneWiFi stopped by a person (zebrunner-farm stop: SIGTERM); WiFi removed by zebrunner-farm down
+  printf '%s\n' "device-iPhoneWiFi-bbbb2222-connector exited" "device-iPhoneWiFi-bbbb2222-stf exited" \
+    "device-iPhoneWiFi-bbbb2222-appium exited" > "${WORK}/docker_ps"
+  printf '%s\n' "device-iPhoneWiFi-bbbb2222-connector [27/11/2026 10:00:00] [WARN] Stopped. Exiting!" > "${WORK}/docker_logs"
+  reset_calls
+  output="$(farm "$role" __wireless-watchdog)"
+  check_contains "${role}: a connector stopped on purpose is told" "iPhoneWiFi: its connector was stopped (zebrunner-farm stop, docker stop), it stays stopped" "$output"
+  check_contains "${role}: nothing stopped by itself: nothing to start" "No wireless device stopped by itself: nothing to start" "$output"
+  check "${role}: a device stopped or removed on purpose stays as it is" "" "$(calls docker | grep -E '^(start|run)\|')"
+  # the connector restarting by docker: the device is left to docker
+  printf '%s\n' "device-iPhoneWiFi-bbbb2222-connector restarting" "device-iPhoneWiFi-bbbb2222-stf exited" > "${WORK}/docker_ps"
+  : > "${WORK}/docker_logs"
+  reset_calls
+  farm "$role" __wireless-watchdog > /dev/null
+  check "${role}: a device of a restarting connector is left to docker" "" "$(calls docker | grep -E '^(start|run|restart)\|')"
+  check_not_contains "${role}: the watchdog is not in the help" "__wireless" "$(farm "$role" help)"
+done
 
 section "WDA_BIND_ADDRESS"
 # usb_iphone: the USB iPhone is plugged into the host
