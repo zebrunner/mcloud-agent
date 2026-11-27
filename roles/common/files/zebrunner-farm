@@ -421,6 +421,12 @@ create_containers() {
       ddi_args=(-v "${ddi_dir}:/opt/zebrunner/ddi:ro")
     fi
 
+    # the address WebDriverAgent listens on (WDA_BIND_ADDRESS of the connector), its default by the connection without it
+    local bind_args=()
+    if [[ -n "${WDA_BIND_ADDRESS:-}" ]]; then
+      bind_args=(-e WDA_BIND_ADDRESS="$WDA_BIND_ADDRESS")
+    fi
+
     # Linux: the connection before WDA_BUNDLEID, macOS: after DEVICE_UDID
     local linux_connector_args=()
     local macos_connector_args=()
@@ -449,6 +455,7 @@ create_containers() {
       -v "${dev_container}":/tmp/log \
       -e DEVICE_UDID="$dev_udid" \
       "${reboot_args[@]+"${reboot_args[@]}"}" \
+      "${bind_args[@]+"${bind_args[@]}"}" \
       "${macos_connector_args[@]+"${macos_connector_args[@]}"}" \
       "${IOS_CONNECTOR_IMAGE}:${IOS_CONNECTOR_VERSION}" || return 1
 

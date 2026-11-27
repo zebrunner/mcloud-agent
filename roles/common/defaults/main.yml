@@ -85,3 +85,7 @@ DDI_ENABLED: true
 DDI_REPO: https://github.com/zebrunner/DeveloperDiskImage.git
 DDI_VERSION: main
 DDI_DIR:
+
+# The address WebDriverAgent of the iOS devices listens on (WDA_BIND_ADDRESS of mcloud-ios-connector): empty is auto of
+# the connector (the loopback of the device for usb, of the host for a simulator), all: every interface
+WDA_BIND_ADDRESS:

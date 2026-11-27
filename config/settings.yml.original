@@ -98,6 +98,11 @@ S3_REGION:
 # DDI_VERSION: main
 # DDI_DIR: /opt/DeveloperDiskImages
 
+# [OPTIONAL] iOS: the address WebDriverAgent listens on (README.md#webdriveragent-address): empty is the default of the
+# connector, the loopback of the device for usb and of the host for a simulator; all: every interface (the behaviour
+# before, e.g. for a tool that reaches WebDriverAgent at the Wi-Fi address of the device)
+# WDA_BIND_ADDRESS: all
+
 # Path to prebuild WebDriverAgent.ipa
 WDA_FILE:
 # macOS: path to the simulator build of WebDriverAgent for the simulators: a .app folder or its .zip, e.g.
