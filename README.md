@@ -378,6 +378,29 @@ A change needs `./zebrunner.sh ansible` and `zebrunner-farm restart`.
 
 With S3 (`S3_BUCKET` and the other `S3_*` settings of `config/settings.yml`) appium records the video of every session and the uploader container of the device uploads it with the logs of the session to `s3://<S3_BUCKET>[/<S3_TENANT>]/artifacts/test-sessions/<session id>/`. Without `S3_BUCKET` appium records no video (`RECORD_ARTIFACTS=false`) and the device has no uploader: there is nothing to upload to, the videos filled the disk. Appium still keeps the log of every session in a folder of the volume of the logs of the device, the volume is removed with the containers (`zebrunner-farm restart`, `down`, a disconnection of a USB device). A change of S3 needs `./zebrunner.sh ansible` and `zebrunner-farm restart`.
 
+#### S3 credentials of a host
+
+`S3_ACCESS_KEY_ID` and `S3_SECRET` are in the environment of every uploader container of the host, so give every device host its own credentials that can only write the recordings, never the keys of an administrator or one key for the whole farm. The uploader only uploads (`aws s3 cp` of a folder: `PutObject` and the multipart upload); it never reads, lists or deletes objects. A host whose credentials leak then can't read or delete the recordings of the other hosts, and its key is revoked alone. The prefix of a host is `<S3_TENANT>/artifacts/test-sessions/` (`artifacts/test-sessions/` without `S3_TENANT`); `S3_TENANT` is a setting of the host, so a host can get a prefix of its own (e.g. `S3_TENANT: <tenant>/<host label>`) when the application that reads the recordings reads that prefix, otherwise the hosts share the prefix of the tenant and their credentials stay write-only.
+
+An AWS IAM user per host (e.g. `mcloud-node-<host label>`, its access key in `config/settings.yml` of that host) with this policy, `<S3_BUCKET>` and `<prefix of the host>` replaced; the optional condition limits the key to the public address of the host:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "UploadTheRecordingsOfThisHostOnly",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:AbortMultipartUpload"],
+      "Resource": "arn:aws:s3:::<S3_BUCKET>/<prefix of the host>/artifacts/test-sessions/*",
+      "Condition": {"IpAddress": {"aws:SourceIp": "<public IP of the host>/32"}}
+    }
+  ]
+}
+```
+
+MinIO takes the same policy for a user per host (`mc admin policy create`, `mc admin user add`, `mc admin policy attach`). Enable the versioning of the bucket to keep an object a leaked key overwrites. The uploader runs as the owner of the logs volume (`androidusr` of appium), not as root, and reads its markers as data (the artifacts-uploader release after 3.6.2, [artifacts-uploader#76](https://github.com/zebrunner/artifacts-uploader/pull/76)).
+
 ### Devices management
 
 `zebrunner-farm <command> [devices...] [options]` manages the containers of the devices: `status`, `start` (creates the missing containers, starts the stopped ones, keeps the running ones), `stop`, `restart` (removes and creates them again) and `down` (removes them); `logs`, `shell` and `exec` help to debug a device; `./zebrunner.sh mdm` is the [MDM](#mdm) of a device. `zebrunner-farm help` lists the commands, `zebrunner-farm help <command>` (or `<command> --help`) shows the options and examples of one; an unknown command suggests the closest ones and exits with `2`.

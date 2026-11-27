@@ -73,7 +73,8 @@ STF_API_URL:
 # STF_TLS_INSECURE: false
 
 # [OPTIONAL] S3 compatible storage for the videos and the logs of the sessions: without S3_BUCKET appium records no
-# video and the devices have no uploader (README.md#recordings)
+# video and the devices have no uploader (README.md#recordings); S3_ACCESS_KEY_ID and S3_SECRET: write-only credentials
+# of this host, not of the farm (README.md#s3-credentials-of-a-host)
 S3_BUCKET:
 S3_TENANT:
 S3_ENDPOINT:
