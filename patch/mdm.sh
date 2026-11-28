@@ -26,8 +26,10 @@ mdm_ready() {
   fi
 }
 
-# mdm_call <method> <path> [<output file>]: a request to MCloud over HTTPS to the pinned TLS key, with the node token
-# on the stdin of curl; MDM_STATUS is the HTTP status, the answer goes to stdout or to the file, a failure to stderr
+# mdm_call <method> <path> [<output file>]: a request to MCloud over HTTPS, with the node token on the stdin of curl:
+# to the pinned TLS key, or for a certificate of a public CA (MCLOUD_TLS_PUBLIC of the deploy) to the name PUBLIC_IP
+# with the CAs of the system (mcloud_tls of patch/utility.sh); MDM_STATUS is the HTTP status, the answer goes to stdout
+# or to the file, a failure to stderr
 MDM_STATUS=""
 mdm_call() {
   local method="$1"
@@ -37,9 +39,9 @@ mdm_call() {
   local out_args=()
   [[ -n "$output" ]] && out_args=(-o "$output")
   MDM_STATUS=""
-  if ! answer="$(printf 'Authorization: Bearer %s\n' "$MCLOUD_NODE_TOKEN" | curl -sS -k --max-time 120 \
-    --pinnedpubkey "sha256//${MCLOUD_TLS_PIN}" -H @- -X "$method" "${out_args[@]+"${out_args[@]}"}" \
-    -w '\n%{http_code}' "${MCLOUD_URL%/}${path}" 2>&1)"; then
+  mcloud_tls "$MCLOUD_URL" "$MCLOUD_TLS_PIN" "${MCLOUD_TLS_PUBLIC:-false}" "${PUBLIC_IP:-}" "${PUBLIC_IP_PORT:-}"
+  if ! answer="$(printf 'Authorization: Bearer %s\n' "$MCLOUD_NODE_TOKEN" | curl -sS "${MCLOUD_TLS_ARGS[@]}" --max-time 120 \
+    -H @- -X "$method" "${out_args[@]+"${out_args[@]}"}" -w '\n%{http_code}' "${MCLOUD_TLS_BASE}${path}" 2>&1)"; then
     ui_fail "MCloud ${MCLOUD_URL} does not answer: ${answer##*$'\n'}" >&2
     return 1
   fi

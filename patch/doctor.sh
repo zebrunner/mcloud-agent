@@ -201,8 +201,16 @@ doctor_settings() {
   fi
 }
 
+# farm_setting <name>: the value of the deployed settings of zebrunner-farm (DOCTOR_FARM_ENV), empty when they are not
+# readable or have no such line
+farm_setting() {
+  sed -n "s/^${1}=//p" "$DOCTOR_FARM_ENV" 2> /dev/null | tail -n 1 | tr -d "'"
+}
+
 # doctor_enrollment: what MCloud knows about this host: GET /api/v1/nodes/self of MCLOUD_URL with the token of this host,
-# over HTTPS to the pinned TLS key only (the token goes to curl on stdin, never in its arguments)
+# over HTTPS to the pinned TLS key, or for a certificate of a public CA (MCLOUD_TLS_PUBLIC of the deploy) to the name
+# PUBLIC_IP with the CAs of the system (mcloud_tls of patch/utility.sh); the token goes to curl on stdin, never in its
+# arguments
 doctor_enrollment() {
   doctor_section "Enrollment in MCloud"
   local url pin token answer code report
@@ -217,9 +225,15 @@ doctor_enrollment() {
     doctor_warn "the enrollment is not checked without curl and python3"
     return 0
   fi
-  if ! answer="$(printf 'Authorization: Bearer %s\n' "$token" | curl -sS -k --max-time 15 --pinnedpubkey "sha256//${pin}" \
-    -H @- "${url}/api/v1/nodes/self" -w '\n%{http_code}' 2>&1)"; then
-    if [[ "$answer" == *"pinned public key"* || "$answer" == *"(90)"* ]]; then
+  local public
+  public="$(farm_setting MCLOUD_TLS_PUBLIC)"
+  mcloud_tls "$url" "$pin" "$public" "$(setting PUBLIC_IP)" "$(setting PUBLIC_IP_PORT)"
+  if ! answer="$(printf 'Authorization: Bearer %s\n' "$token" | curl -sS "${MCLOUD_TLS_ARGS[@]}" --max-time 15 \
+    -H @- "${MCLOUD_TLS_BASE}/api/v1/nodes/self" -w '\n%{http_code}' 2>&1)"; then
+    if [[ "$public" == "true" && ("$answer" == *"SSL"* || "$answer" == *"certificate"* || "$answer" == *"(60)"*) ]]; then
+      doctor_fail "the certificate of MCloud ${MCLOUD_TLS_BASE} (on ${url}) is not valid with the CAs of this host: ${answer}" \
+        "the deploy found a certificate of a public CA: a wrong MCLOUD_URL or a man in the middle; a self-signed certificate of MCloud now: ./zebrunner.sh ansible (README.md#tls-of-mcloud)"
+    elif [[ "$answer" == *"pinned public key"* || "$answer" == *"(90)"* ]]; then
       doctor_fail "the TLS key of MCloud ${url} is not the pinned one" "a wrong MCLOUD_URL or a man in the middle; a new TLS key of MCloud needs a new join string"
     else
       doctor_fail "MCloud ${url} does not answer: ${answer}" "the network to MCloud (MCLOUD_URL is the address of the join string)"
@@ -435,6 +449,8 @@ doctor_tls() {
   [[ "$(setting STF_TLS_PIN)" == "false" || -z "$(setting MCLOUD_TLS_PIN)" ]] || use_pin="true"
   local out
   local pinned="false"
+  # a certificate of a public CA valid for PUBLIC_IP: no pin, the CAs of the system (STF_TLS_INSECURE: the pin)
+  local public="false"
   if [[ "$(setting STF_TLS_INSECURE)" == "true" ]]; then
     if [[ "$(setting STF_TLS_INSECURE_ACKNOWLEDGED)" == "true" ]]; then
       doctor_warn "STF_TLS_INSECURE: the containers of STF do not verify the certificate of MCloud (acknowledged)" \
@@ -468,12 +484,25 @@ doctor_tls() {
       fi
     else
       doctor_ok "a public CA signs the certificate of MCloud"
-      [[ -z "$use_pin" ]] || doctor_info "public certificate, TLS pin not used: the containers of STF verify it with the CAs of the system, a renewal with a new key keeps working"
+      public="true"
+      [[ -z "$use_pin" ]] || doctor_info "public certificate, TLS pin not used: the containers of STF, doctor and mdm verify it with the CAs of the system, a renewal with a new key keeps working"
     fi
   fi
-  # the deploy decides the pin (STF_TLS_PINNED of the settings of zebrunner-farm): the certificate changed since
+  # the deploy decides the pin (MCLOUD_TLS_PUBLIC and STF_TLS_PINNED of the settings of zebrunner-farm): the certificate
+  # changed since
   local deployed
-  deployed="$(sed -n 's/^STF_TLS_PINNED=//p' "$DOCTOR_FARM_ENV" 2> /dev/null)"
+  deployed="$(farm_setting MCLOUD_TLS_PUBLIC)"
+  if [[ -n "$deployed" && "$deployed" != "$public" ]]; then
+    if [[ "$public" == "true" ]]; then
+      doctor_warn "zebrunner-farm is deployed for a self-signed or private-CA certificate of MCloud, a public CA signs it now" \
+        "./zebrunner.sh ansible, then zebrunner-farm restart (README.md#tls-of-mcloud)"
+    else
+      doctor_warn "zebrunner-farm is deployed for a certificate of a public CA of MCloud, it is not one now" \
+        "./zebrunner.sh ansible, then zebrunner-farm restart (README.md#tls-of-mcloud)"
+    fi
+    return 0
+  fi
+  deployed="$(farm_setting STF_TLS_PINNED)"
   if [[ -n "$deployed" && "$deployed" != "$pinned" ]]; then
     if [[ "$pinned" == "true" ]]; then
       doctor_warn "zebrunner-farm is deployed without the TLS pin for the containers of STF, the certificate of MCloud needs it now" \

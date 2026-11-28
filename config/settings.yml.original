@@ -11,7 +11,8 @@
 
 # The connection to MCloud: `./zebrunner.sh join` writes these settings (README.md#node-enrollment), do not change them
 # by hand; a new join string of `./zebrunner.sh node-invite` of mcloud replaces them. Keep this file private (mode 600).
-# MCLOUD_URL and MCLOUD_TLS_PIN: the API of MCloud and the pin of its TLS key (doctor talks to MCloud with them)
+# MCLOUD_URL and MCLOUD_TLS_PIN: the API of MCloud and the pin of its TLS key (doctor and mdm talk to MCloud with them;
+# a certificate of a public CA is verified with the CAs of the system instead of the pin, README.md#tls-of-mcloud)
 MCLOUD_URL:
 MCLOUD_TLS_PIN:
 # the token of this host: the grid, the storage and the proof of its devices

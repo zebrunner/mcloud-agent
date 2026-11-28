@@ -68,11 +68,15 @@
     and (not STF_TLS_INSECURE | bool or (STF_TLS_PIN | bool and MCLOUD_TLS_PIN | default('', true) | length > 0))
   tags: [devices, files]
 
-# the pin of the TLS key for the containers of STF (STF_TLS_PIN), decided here: only for a self-signed or private-CA
-# certificate (tlstrust.py printed the pinned chain) or with STF_TLS_INSECURE. A certificate a public CA signs for
-# PUBLIC_IP is verified with the CAs of the system, without the pin: a renewal with a new key keeps the nodes working
+# the pin of the TLS key (STF_TLS_PIN), decided here: only for a self-signed or private-CA certificate (tlstrust.py
+# printed the pinned chain) or with STF_TLS_INSECURE. A certificate a public CA signs for PUBLIC_IP (common_farm_tls_public)
+# is verified with the CAs of the system, without the pin, by the containers of STF, doctor and mdm: a renewal with a
+# new key keeps the nodes working
 - name: Decide the pin of the TLS key of MCloud for the containers of STF
   ansible.builtin.set_fact:
+    common_farm_tls_public: >-
+      {{ PUBLIC_IP_PROTOCOL == 'https' and not STF_TLS_INSECURE | bool and common_farm_tls.rc | default(1) == 0
+         and common_farm_tls.stdout | default('', true) | length == 0 }}
     common_farm_tls_pinned: >-
       {{ PUBLIC_IP_PROTOCOL == 'https' and STF_TLS_PIN | bool and MCLOUD_TLS_PIN | default('', true) | length > 0
          and common_farm_tls.rc | default(1) == 0
@@ -96,10 +100,9 @@
   ansible.builtin.debug:
     msg: >-
       public certificate, TLS pin not used: a public CA signs the certificate of MCloud for {{ PUBLIC_IP }}, the containers
-      of STF verify it with the CAs of the system, a renewal with a new key keeps working (README.md#tls-of-mcloud)
-  when: >-
-    PUBLIC_IP_PROTOCOL == 'https' and STF_TLS_PIN | bool and not STF_TLS_INSECURE | bool
-    and MCLOUD_TLS_PIN | default('', true) | length > 0 and not common_farm_tls_pinned | bool
+      of STF, doctor and mdm verify it with the CAs of the system, a renewal with a new key keeps working
+      (README.md#tls-of-mcloud)
+  when: common_farm_tls_public | bool and MCLOUD_TLS_PIN | default('', true) | length > 0
   tags: [devices, files]
 
 # reported, the deploy goes on: ./zebrunner.sh doctor fails with it unless it is acknowledged
