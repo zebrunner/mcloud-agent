@@ -291,6 +291,47 @@ check_contains "without bash-completion the deploy passes" "failed=0" "$output"
 check_not_contains "without bash-completion the completion is not deployed" "changed: [localhost]" \
   "$(sed -n "/${completion_task}/,/^\$/p" <<< "$output")"
 
+section "the pin of the TLS key of MCloud for the containers of STF (check mode)"
+# the deploy decides it (README.md#tls-of-mcloud): patch/tlstrust.py of a stub agent prints the pinned chain of a
+# self-signed certificate (state "pinned") or nothing for a certificate of a public CA
+mkdir -p "${WORK}/agent-tls/patch"
+for script in "${REPO}"/patch/*; do
+  ln -s "$script" "${WORK}/agent-tls/patch/"
+done
+rm -f "${WORK}/agent-tls/patch/tlstrust.py"
+cat > "${WORK}/agent-tls/patch/tlstrust.py" << EOF
+import sys
+if open("${WORK}/tls-state").read().strip() == "pinned":
+    print("-----BEGIN CERTIFICATE-----")
+EOF
+tls_pin="$(printf '%043d' 0 | tr 0 p)="
+tls_deploy() {
+  playbook "$OS_ROLE" --check --diff --tags files --start-at-task "Find the certificate of MCloud the containers of STF trust" \
+    --extra-vars "agent_dir=${WORK}/agent-tls common_farm_completion_dir=${WORK}/bash_completion.d" \
+    --extra-vars "PUBLIC_IP_PROTOCOL=https MCLOUD_TLS_PIN=${tls_pin}" "$@"
+}
+echo pinned > "${WORK}/tls-state"
+output="$(tls_deploy)"
+check_contains "a self-signed certificate: the deploy passes" "failed=0" "$output"
+check_contains "a self-signed certificate: the containers of STF get the pin" "+STF_TLS_PINNED=true" "$output"
+check_contains "a self-signed certificate: doctor and mdm use the pin" "+MCLOUD_TLS_PUBLIC=false" "$output"
+check_contains "a self-signed certificate: the deploy tells the pin" "and send the node token to its pinned key only" "$output"
+check_not_contains "a self-signed certificate: the pin is used" "TLS pin not used" "$output"
+check_contains "STF_TLS_PIN false: no pin for a self-signed certificate" "+STF_TLS_PINNED=false" \
+  "$(tls_deploy --extra-vars "STF_TLS_PIN=false")"
+echo public > "${WORK}/tls-state"
+output="$(tls_deploy)"
+check_contains "a certificate of a public CA: the deploy passes" "failed=0" "$output"
+check_contains "a certificate of a public CA: the containers of STF get no pin" "+STF_TLS_PINNED=false" "$output"
+check_contains "a certificate of a public CA: doctor and mdm verify it with the CAs of the system" "+MCLOUD_TLS_PUBLIC=true" "$output"
+check_contains "a certificate of a public CA: the deploy tells the pin is not used" \
+  "public certificate, TLS pin not used: a public CA signs the certificate of MCloud for mcloud.example.com" "$output"
+output="$(tls_deploy --extra-vars "STF_TLS_INSECURE=true")"
+check_contains "STF_TLS_INSECURE: the containers of STF verify the pinned key only, also of a certificate of a public CA" \
+  "+STF_TLS_PINNED=true" "$output"
+check_contains "STF_TLS_INSECURE: doctor and mdm use the pin" "+MCLOUD_TLS_PUBLIC=false" "$output"
+check_not_contains "STF_TLS_INSECURE: no certificate for the containers" "+MCLOUD_CA_PEM='-----BEGIN" "$output"
+
 section "wireless watchdog of ${OS_ROLE} (check mode)"
 tasks="$(playbook "$OS_ROLE" --list-tasks --tags watchdog)"
 if [[ "$OS_ROLE" == "devices" ]]; then
@@ -552,6 +593,11 @@ for role in devices mac-devices; do
     check_contains "${role}: the subnets of the networks of the devices" "DEVICE_NETWORK_SUBNETS=10.233.0.0/16" "$farm"
     check "${role}: no certificate of MCloud by default" "MCLOUD_CA_PEM=''" "$(grep '^MCLOUD_CA_PEM=' "${WORK}/farm")"
     check "${role}: STF verifies the certificate by default" "STF_TLS_INSECURE=false" "$(grep '^STF_TLS_INSECURE=' "${WORK}/farm")"
+    check "${role}: the pin of the TLS key is on by default" "STF_TLS_PIN=true" "$(grep '^STF_TLS_PIN=' "${WORK}/farm")"
+    check "${role}: no pin for the containers without the decision of the deploy" "STF_TLS_PINNED=false" \
+      "$(grep '^STF_TLS_PINNED=' "${WORK}/farm")"
+    check "${role}: doctor and mdm use the pin without the decision of the deploy" "MCLOUD_TLS_PUBLIC=false" \
+      "$(grep '^MCLOUD_TLS_PUBLIC=' "${WORK}/farm")"
     for name in STF_API_URL S3_BUCKET S3_TENANT S3_ENDPOINT S3_ACCESS_KEY_ID S3_SECRET S3_REGION WDA_FILE WDA_BUNDLEID; do
       check "${role}: ${name} is empty by default" "${name}=''" "$(grep "^${name}=" "${WORK}/farm")"
     done

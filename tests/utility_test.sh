@@ -33,6 +33,27 @@ check "the prompt hints the default n" "  > Continue? [y/N] " "$(confirm_prompt 
 check "the prompt hints the default y" "  > Continue? [Y/n] " "$(confirm_prompt "Continue?" y)"
 check "the indent of an earlier caller is dropped" "  > Continue? [y/N] " "$(confirm_prompt "      Continue?" n)"
 
+section "mcloud_tls"
+# tls <arguments of mcloud_tls>: the URL and the arguments of curl, separated by '|'
+tls() {
+  mcloud_tls "$@"
+  (IFS='|' && echo "${MCLOUD_TLS_BASE}|${MCLOUD_TLS_ARGS[*]}")
+}
+check "a self-signed certificate: MCLOUD_URL with the pinned key" "https://192.168.50.2:443|-k|--pinnedpubkey|sha256//pin=" \
+  "$(tls https://192.168.50.2:443/ pin= false mcloud.example.com 443)"
+check "no decision of the deploy: the pinned key" "https://192.168.50.2:443|-k|--pinnedpubkey|sha256//pin=" \
+  "$(tls https://192.168.50.2:443 pin= "" mcloud.example.com 443)"
+check "a public CA: the name PUBLIC_IP on the address of MCLOUD_URL, the CAs of the system" \
+  "https://mcloud.example.com:443|--connect-to|mcloud.example.com:443:192.168.50.2:8443" \
+  "$(tls https://192.168.50.2:8443 pin= true mcloud.example.com 443)"
+check "a public CA: an IPv6 address of MCLOUD_URL" "https://mcloud.example.com:443|--connect-to|mcloud.example.com:443:[fd00::2]:443" \
+  "$(tls "https://[fd00::2]:443" pin= true mcloud.example.com 443)"
+check "a public CA: MCLOUD_URL without a port, PUBLIC_IP_PORT empty" \
+  "https://mcloud.example.com:443|--connect-to|mcloud.example.com:443:mcloud.example.com:443" \
+  "$(tls https://mcloud.example.com pin= true mcloud.example.com "")"
+check "a public CA without PUBLIC_IP: the pinned key, never without a verification" \
+  "https://192.168.50.2:443|-k|--pinnedpubkey|sha256//pin=" "$(tls https://192.168.50.2:443 pin= true "" 443)"
+
 section "random_string"
 check "default length" "48" "$(random_string | tr -d '\n' | wc -c | tr -d ' ')"
 check "custom length" "5" "$(random_string 5 | tr -d '\n' | wc -c | tr -d ' ')"

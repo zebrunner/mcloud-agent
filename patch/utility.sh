@@ -134,3 +134,33 @@ yaml_python() {
   fi
   return 1
 }
+
+# mcloud_tls <MCLOUD_URL> <MCLOUD_TLS_PIN> <MCLOUD_TLS_PUBLIC> <PUBLIC_IP> <PUBLIC_IP_PORT>: how curl verifies MCloud
+# (README.md#tls-of-mcloud), MCLOUD_TLS_BASE the URL to call and MCLOUD_TLS_ARGS the arguments of curl. The deploy found a
+# certificate of a public CA valid for PUBLIC_IP (MCLOUD_TLS_PUBLIC): the CAs of the system and the name PUBLIC_IP, on
+# the address of MCLOUD_URL (the one of the join string), so a renewal with a new key keeps working without a new join
+# string. Otherwise the pinned key only: -k as the chain of a self-signed certificate has no CA, curl refuses any other
+# key. Never without a verification.
+# the results are for the caller
+# shellcheck disable=SC2034
+mcloud_tls() {
+  local url="${1%/}"
+  local pin="$2"
+  local public="$3"
+  local name="$4"
+  local port="${5:-443}"
+  MCLOUD_TLS_BASE="$url"
+  MCLOUD_TLS_ARGS=(-k --pinnedpubkey "sha256//${pin}")
+  [[ "$public" == "true" && -n "$name" ]] || return 0
+  # host:port of MCLOUD_URL, [IPv6]:port too
+  local address="${url#https://}"
+  address="${address%%/*}"
+  local address_host="$address"
+  local address_port=443
+  if [[ "$address" =~ ^(.*):([0-9]+)$ ]]; then
+    address_host="${BASH_REMATCH[1]}"
+    address_port="${BASH_REMATCH[2]}"
+  fi
+  MCLOUD_TLS_BASE="https://${name}:${port}"
+  MCLOUD_TLS_ARGS=(--connect-to "${name}:${port}:${address_host}:${address_port}")
+}

@@ -187,7 +187,7 @@ check_contains "the section of the device with its counter" "[ MDM STATUS ] ---"
 check_contains "the counter of the devices" " 1/1"$'\n' "$output"
 check_contains "the device under the title" "  Galaxy (R28M1384YQY, android, usb)" "$output"
 check "an Android device: the status of Headwind MDM, over the pinned key" \
-  "-sS|-k|--max-time|120|--pinnedpubkey|sha256//pin=|-H|@-|-X|GET|-w|\n%{http_code}|https://mcloud.example.com:443/android/status?serial=R28M1384YQY&format=shell" \
+  "-sS|-k|--pinnedpubkey|sha256//pin=|--max-time|120|-H|@-|-X|GET|-w|\n%{http_code}|https://mcloud.example.com:443/android/status?serial=R28M1384YQY&format=shell" \
   "$(calls curl)"
 check "the node token goes on the stdin of curl" "Authorization: Bearer ${TOKEN}" "$(cat "${WORK}/curl_stdin.log")"
 check "status does not touch the device" "" "$(calls docker)"
@@ -212,6 +212,23 @@ printf '%s\n' "${IPHONE}-connector running" > "${WORK}/docker_ps"
 output="$(mdm "$LINUX" enroll iPhone_XR 2>&1)"
 check "an error of the MDM fails" "1" "$?"
 check_contains "the error of the MDM shows its body" "MCloud answers 503: PROFILE" "$output"
+
+section "status: a certificate of a public CA (MCLOUD_TLS_PUBLIC of the deploy)"
+# the CAs of the system and the name PUBLIC_IP on the address of MCLOUD_URL, no pin: a renewal with a new key works
+render_farm devices "${WORK}/farm-public.env" --extra-vars "$settings" \
+  --extra-vars '{"MCLOUD_URL": "https://192.168.50.2:8443", "PUBLIC_IP": "mcloud.example.com", "PUBLIC_IP_PORT": "443", "common_farm_tls_public": true}' ||
+  exit 1
+sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-public.env"
+check "the deploy decided a certificate of a public CA" "MCLOUD_TLS_PUBLIC=true" "$(grep '^MCLOUD_TLS_PUBLIC=' "${WORK}/farm-public.env")"
+setup_case
+mdm "${WORK}/farm-public.env" status Galaxy > /dev/null
+check "a public CA: the name of the certificate on the address of MCLOUD_URL, verified with the CAs of the system" \
+  "-sS|--connect-to|mcloud.example.com:443:192.168.50.2:8443|--max-time|120|-H|@-|-X|GET|-w|\n%{http_code}|https://mcloud.example.com:443/android/status?serial=R28M1384YQY&format=shell" \
+  "$(calls curl)"
+check_not_contains "a public CA: no pin" "pinnedpubkey" "$(calls curl)"
+check_not_contains "a public CA: never without a verification" "|-k|" "$(calls curl)"
+check "the deploy decided no public CA by default: the pin" "MCLOUD_TLS_PUBLIC=false" "$(grep '^MCLOUD_TLS_PUBLIC=' "$LINUX")"
+no_secret_in_args "a public CA"
 
 section "Android enroll on Linux"
 setup_case
@@ -355,7 +372,7 @@ check_not_contains "macOS: no pairing volume" "lockdown" "$(calls docker | grep 
 setup_case
 mdm "$LINUX" release iPhone_XR > /dev/null
 check "the release of an iOS device is a request to the MDM only" \
-  "-sS|-k|--max-time|120|--pinnedpubkey|sha256//pin=|-H|@-|-X|POST|-w|\n%{http_code}|https://mcloud.example.com:443/mdm/release?udid=00008020-0005308201DA002E&format=shell" \
+  "-sS|-k|--pinnedpubkey|sha256//pin=|--max-time|120|-H|@-|-X|POST|-w|\n%{http_code}|https://mcloud.example.com:443/mdm/release?udid=00008020-0005308201DA002E&format=shell" \
   "$(calls curl)"
 check "the iOS release does not touch the device" "" "$(calls docker | grep -E '^(run|stop)\|')"
 setup_case

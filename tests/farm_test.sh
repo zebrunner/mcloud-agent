@@ -574,6 +574,28 @@ for role in devices mac-devices; do
   for env in PLATFORM_NAME DEVICE_UDID; do
     check_not_contains "${role}: the Android connector gets no ${env}, it does not read it" "|${env}=" "$connector"
   done
+  # the pin of the TLS key of MCloud (STF_TLS_PINNED the deploy decides: STF_TLS_PIN and a self-signed or private-CA
+  # certificate, README.md#tls-of-mcloud)
+  tls_pin="$(printf '%043d' 0 | tr 0 p)="
+  check_not_contains "${role}: no pin without the join: STF verifies the certificate as before" "MCLOUD_TLS_PIN" \
+    "$(run_args device-WiFi-192.168.1.50-stf)"
+  for case in "https|true|self-signed|yes" "https|false|public|no" "http|true|self-signed|no"; do
+    IFS='|' read -r protocol pinned certificate expected <<< "$case"
+    render_farm "$role" "${WORK}/farm-${role}.env" \
+      --extra-vars "MCLOUD_TLS_PIN=${tls_pin} common_farm_tls_pinned=${pinned} PUBLIC_IP_PROTOCOL=${protocol}" || exit 1
+    sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+    setup_case
+    farm "$role" start WiFi > /dev/null
+    if [[ "$expected" == yes ]]; then
+      check_contains "${role}: ${protocol}, a ${certificate} certificate: STF sends the node token to the pinned key only" \
+        "|-e|MCLOUD_TLS_PIN=${tls_pin}|" "$(run_args device-WiFi-192.168.1.50-stf)"
+    else
+      check_not_contains "${role}: ${protocol}, a ${certificate} certificate: no pin for STF" "MCLOUD_TLS_PIN" \
+        "$(run_args device-WiFi-192.168.1.50-stf)"
+    fi
+    check_not_contains "${role}: ${protocol}, a ${certificate} certificate: appium gets no pin" "MCLOUD_TLS_PIN" \
+      "$(run_args device-WiFi-192.168.1.50-appium)"
+  done
 
   render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
   sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"

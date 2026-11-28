@@ -619,6 +619,8 @@ import sys
 
 path = os.path.join(os.environ["STUB_DIR"], "net", "tls")
 state = open(path).read().strip() if os.path.exists(path) else ""
+with open(os.path.join(os.environ["STUB_DIR"], "tls-args"), "a") as log:
+    log.write(" ".join(sys.argv[1:]) + "\n")
 if state == "pinned":
     print("-----BEGIN CERTIFICATE-----")
 elif state.startswith("fail "):
@@ -668,6 +670,22 @@ check "an enrolled host passes" "0" "$?"
 check_contains "the enrollment is checked with MCloud" "this host is enrolled and active in MCloud as build-ua" "$output"
 check_contains "the check goes to MCLOUD_URL with the pinned key" "--pinnedpubkey|sha256//${pin}|" "$(calls curl)"
 check_contains "the check URL" "https://192.168.50.2:443/api/v1/nodes/self" "$(calls curl)"
+# a certificate of a public CA (MCLOUD_TLS_PUBLIC of the deploy): the CAs of the system and the name PUBLIC_IP on the
+# address of MCLOUD_URL, no pin (README.md#tls-of-mcloud)
+echo "MCLOUD_TLS_PUBLIC=true" > "${WORK}/farm.env"
+reset_calls
+check_contains "a public CA: the enrollment is checked" "this host is enrolled and active in MCloud as build-ua" "$(doctor_run)"
+check_contains "a public CA: the name PUBLIC_IP on the address of MCLOUD_URL with the CAs of the system" \
+  "-sS|--connect-to|demo.zebrunner.farm:443:192.168.50.2:443|--max-time|15|-H|@-|https://demo.zebrunner.farm:443/api/v1/nodes/self|" "$(calls curl)"
+check_contains "a public CA: the check URL" "https://demo.zebrunner.farm:443/api/v1/nodes/self" "$(calls curl)"
+check_not_contains "a public CA: no pin" "pinnedpubkey" "$(calls curl)"
+check_not_contains "a public CA: never without a verification" "|-k|" "$(calls curl)"
+echo 60 > "${WORK}/mcloud/self_exit"
+check_contains "a public CA: a certificate the CAs of the system refuse is a problem" \
+  "the certificate of MCloud https://demo.zebrunner.farm:443 (on https://192.168.50.2:443) is not valid with the CAs of this host" \
+  "$(doctor_run)"
+rm -f "${WORK}/mcloud/self_exit" "${WORK}/farm.env"
+reset_calls
 check_contains "the token goes in the header on stdin" "Authorization: Bearer ${node_token}" "$(cat "${WORK}/mcloud/self_input")"
 check_not_contains "the token is not in the arguments of curl" "$node_token" "$(calls curl)"
 check_contains "the devices of STF are counted" "STF knows 2 devices of this host, 1 bound to it" "$output"
@@ -899,17 +917,66 @@ else
   skip_check "the settings of the deployed zebrunner-farm" "no ansible"
 fi
 
-check_contains "a certificate of a public CA" "a public CA signs the certificate of MCloud" "$(doctor_run)"
+output="$(doctor_run)"
+check_contains "a certificate of a public CA" "a public CA signs the certificate of MCloud" "$output"
+check_contains "a certificate of a public CA: the pin is not used (STF_TLS_PIN)" \
+  "info public certificate, TLS pin not used" "$output"
+check_not_contains "a certificate of a public CA: the containers get no pin" "send the node token only to the pinned TLS key" "$output"
+check "a certificate of a public CA: no option of tlstrust.py" "demo.zebrunner.farm 443 ${pin}" "$(tail -n 1 "${WORK}/tls-args")"
+echo "STF_TLS_PINNED=true" > "${WORK}/farm.env"
+check_contains "a deploy with the pin for a certificate of a public CA now is reported" \
+  "zebrunner-farm is deployed with the TLS pin for the containers of STF, the certificate of MCloud does not use it now" "$(doctor_run)"
+printf 'MCLOUD_TLS_PUBLIC=false\nSTF_TLS_PINNED=true\n' > "${WORK}/farm.env"
+check_contains "a deploy for a self-signed certificate, a public one now, is reported" \
+  "zebrunner-farm is deployed for a self-signed or private-CA certificate of MCloud, a public CA signs it now" "$(doctor_run)"
+printf 'MCLOUD_TLS_PUBLIC=true\nSTF_TLS_PINNED=false\n' > "${WORK}/farm.env"
+check_not_contains "a deploy for the certificate of a public CA is the current one" "zebrunner-farm is deployed" "$(doctor_run)"
+printf 'MCLOUD_TLS_PUBLIC=false\nSTF_TLS_PINNED=true\n' > "${WORK}/farm.env"
 echo pinned > "${WORK}/net/tls"
-check_contains "the pinned self-signed certificate" "the containers of STF trust the pinned certificate of MCloud" "$(doctor_run)"
+output="$(doctor_run)"
+check_contains "the pinned self-signed certificate" "the containers of STF trust the pinned certificate of MCloud" "$output"
+check_contains "a self-signed certificate: the containers send the node token to the pinned key only (STF_TLS_PIN)" \
+  "ok   the containers of STF send the node token only to the pinned TLS key of MCloud (MCLOUD_TLS_PIN)" "$output"
+check_not_contains "a self-signed certificate: the pin is used" "TLS pin not used" "$output"
+check_not_contains "a deploy with the pin for a self-signed certificate is the current one" "zebrunner-farm is deployed" "$output"
+printf 'MCLOUD_TLS_PUBLIC=true\nSTF_TLS_PINNED=false\n' > "${WORK}/farm.env"
+check_contains "a deploy for a certificate of a public CA, a self-signed one now, is reported" \
+  "zebrunner-farm is deployed for a certificate of a public CA of MCloud, it is not one now" "$(doctor_run)"
+echo "STF_TLS_PINNED=false" > "${WORK}/farm.env"
+check_contains "a deploy without the pin for a self-signed certificate now is reported" \
+  "zebrunner-farm is deployed without the TLS pin for the containers of STF, the certificate of MCloud needs it now" "$(doctor_run)"
+rm -f "${WORK}/farm.env"
 echo "fail the TLS key is not the pinned one" > "${WORK}/net/tls"
 check_contains "a certificate the containers do not trust is a problem" \
   "the containers of STF do not trust the certificate of MCloud: the TLS key is not the pinned one" "$(doctor_run)"
-echo 'STF_TLS_INSECURE: true' >> "$vars"
-check_contains "STF_TLS_INSECURE is a warning" "STF_TLS_INSECURE: the containers of STF do not verify the certificate of MCloud" \
-  "$(doctor_run)"
-sed -i.bak '/^STF_TLS_INSECURE:/d' "$vars" && rm -f "${vars}.bak"
+echo pinned > "${WORK}/net/tls"
+echo 'STF_TLS_PIN: false' >> "$vars"
+output="$(doctor_run)"
+check_contains "STF_TLS_PIN false with a self-signed certificate is a warning" \
+  "warn STF_TLS_PIN: false: the containers of STF send the node token to any certificate for PUBLIC_IP a public CA or the CA of MCloud issues" \
+  "$output"
 rm -f "${WORK}/net/tls"
+output="$(doctor_run)"
+check_not_contains "STF_TLS_PIN false with a certificate of a public CA: nothing to tell" "STF_TLS_PIN" "$output"
+check_not_contains "STF_TLS_PIN false: no pin at all" "TLS pin not used" "$output"
+sed -i.bak '/^STF_TLS_PIN:/d' "$vars" && rm -f "${vars}.bak"
+echo 'STF_TLS_INSECURE: true' >> "$vars"
+output="$(doctor_run)"
+check_contains "STF_TLS_INSECURE is a problem" "FAIL STF_TLS_INSECURE: the containers of STF do not verify the certificate of MCloud" "$output"
+check_contains "STF_TLS_INSECURE: the pin is still checked" \
+  "ok   the containers of STF send the node token only to the pinned TLS key of MCloud (MCLOUD_TLS_PIN)" "$output"
+check_contains "STF_TLS_INSECURE: the key only, not the chain and the name" "--pin-only" "$(tail -n 1 "${WORK}/tls-args")"
+echo "fail the TLS key is not the pinned one" > "${WORK}/net/tls"
+check_contains "STF_TLS_INSECURE: another key of MCloud is a problem" \
+  "the containers of STF send the node token only to the pinned TLS key of MCloud, MCloud has another one: the TLS key is not the pinned one" \
+  "$(doctor_run)"
+rm -f "${WORK}/net/tls"
+echo 'STF_TLS_INSECURE_ACKNOWLEDGED: true' >> "$vars"
+output="$(doctor_run)"
+check_contains "an acknowledged STF_TLS_INSECURE is a warning" \
+  "warn STF_TLS_INSECURE: the containers of STF do not verify the certificate of MCloud (acknowledged)" "$output"
+check_not_contains "an acknowledged STF_TLS_INSECURE is no problem" "FAIL STF_TLS_INSECURE" "$output"
+sed -i.bak -e '/^STF_TLS_INSECURE:/d' -e '/^STF_TLS_INSECURE_ACKNOWLEDGED:/d' "$vars" && rm -f "${vars}.bak"
 echo "192.168.50.2:4446" > "${WORK}/net/closed"
 check_contains "a closed port is a problem" "192.168.50.2:4446 (192.168.50.2) does not accept connections: Connection refused" "$(doctor_run)"
 : > "${WORK}/net/closed"
