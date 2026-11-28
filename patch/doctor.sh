@@ -317,6 +317,18 @@ doctor_deployment() {
   if [[ "$farm_dir" != "$MCLOUD_AGENT_DIR_VALUE" ]]; then
     doctor_warn "zebrunner-farm is deployed from another folder: ${farm_dir}" "./zebrunner.sh ansible of this folder ${MCLOUD_AGENT_DIR_VALUE}"
   fi
+  # the scripts zebrunner-farm sources and runs: the copies of the deploy owned by root, the same as the ones of this folder
+  local lib script
+  local stale_scripts=()
+  lib="$(sed -n 's/^ZEBRUNNER_FARM_LIB=//p' <<< "$deployed")"
+  lib="${lib:-/usr/local/lib/zebrunner-farm}"
+  for script in utility.sh ui.sh usb_stats.py usb_map.py; do
+    cmp -s "${lib}/${script}" "patch/${script}" || stale_scripts+=("$script")
+  done
+  if [[ "$(count_values "${stale_scripts[@]}")" -gt 0 ]]; then
+    doctor_warn "the scripts zebrunner-farm sources (${lib}) are missing or not the ones of this folder: ${stale_scripts[*]}" \
+      "./zebrunner.sh ansible copies them"
+  fi
   local line
   local name
   local changed=()

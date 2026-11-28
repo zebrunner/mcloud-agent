@@ -2,3 +2,7 @@
 # The values by default of the settings of a Linux host: config/settings.yml overrides them (README.md#settings)
 
 STF_PROVIDER_NAME: mcloud-linux
+
+# the group of the device nodes of the USB devices of the farm (90_mcloud.rules, MODE 0660): root and the members of the
+# group open them, the connector gets the device from docker; the deploy creates the group when it is missing
+USB_DEVICE_GROUP: plugdev

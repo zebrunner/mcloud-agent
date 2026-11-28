@@ -197,6 +197,8 @@ EOF
 extra='{"devices": [{"id": "a", "name": "A", "os": "android", "appium_port": 1, "min_port": 3, "max_port": 4, "connect_port": 1}]}'
 check_contains "mac-devices: adb_port is obligatory for a USB Android device" "are obligatory, adb_port for a USB Android device;" \
   "$(playbook mac-devices --tags validate --extra-vars "$extra")"
+check_contains "devices: an invalid USB_DEVICE_GROUP fails" "USB_DEVICE_GROUP must be the name of a group" \
+  "$(playbook devices --tags validate --extra-vars '{"USB_DEVICE_GROUP": "plug dev"}')"
 check_contains "devices: adb_port is not obligatory" "max_port are obligatory;" "$(playbook devices --tags validate --extra-vars "$extra")"
 
 section "prechecks of ${OS_ROLE}"
@@ -274,6 +276,7 @@ mkdir -p "${WORK}/bash_completion.d"
 output="$(playbook "$OS_ROLE" --check --tags files --extra-vars "common_farm_completion_dir=${WORK}/bash_completion.d")"
 check_contains "file tasks pass" "failed=0" "$output"
 check_contains "zebrunner-farm is deployed" "Copy 'zebrunner-farm' script file" "$output"
+check_contains "the scripts zebrunner-farm sources are copied, owned by root" "TASK [common : Copy the scripts 'zebrunner-farm' sources and runs]" "$output"
 if [[ "$OS_ROLE" == "mac-devices" ]]; then
   check_contains "usbmuxd_watch binary is copied, not templated" "Copy 'usbmuxd_watch' binary file" "$output"
   completion_task="Copy the bash completion of 'zebrunner-farm' into the folder of Homebrew"
@@ -540,6 +543,8 @@ for role in devices mac-devices; do
     farm="$(cat "${WORK}/farm")"
     pass "${role}: the settings of zebrunner-farm without the optional settings"
     check_contains "${role}: the docker network by default" "STF_DOCKER_NETWORK=infra" "$farm"
+    check_contains "${role}: zebrunner-farm sources the scripts of the deploy owned by root" \
+      "ZEBRUNNER_FARM_LIB=/usr/local/lib/zebrunner-farm" "$farm"
     check_contains "${role}: a network per device by default" "DEVICE_NETWORK_ISOLATION=true" "$farm"
     check_contains "${role}: the subnets of the networks of the devices" "DEVICE_NETWORK_SUBNETS=10.233.0.0/16" "$farm"
     check "${role}: no certificate of MCloud by default" "MCLOUD_CA_PEM=''" "$(grep '^MCLOUD_CA_PEM=' "${WORK}/farm")"
@@ -572,13 +577,18 @@ id=sim|os=ios|name=Sim|location=|appium_port=19|adb_port=20|min_port=21|max_port
 id=phone|os=ios|name=WiFi|location=|appium_port=23|adb_port=24|min_port=25|max_port=26|connection=wireless|wda_file=|wda_bundleid=|address=10.0.0.7|wda_port=|mjpeg_port=|connect_port=|allow_reboot=false|unavailable_timeout=0" "$(grep -v '^#' "${WORK}/devices.txt")"
 check "devices list: the comment of its format" "# One device per line, its fields key=value separated by '|' in any order; an empty value is the value by default." \
   "$(grep '^# One device' "${WORK}/devices.txt")"
-render "${REPO}/roles/devices/templates/90_mcloud.rules" "${WORK}/rules" --extra-vars "@${WORK}/devices.yml" || exit 1
+render "${REPO}/roles/devices/templates/90_mcloud.rules" "${WORK}/rules" --extra-vars "@${REPO}/roles/devices/defaults/main.yml" \
+  --extra-vars "@${WORK}/devices.yml" || exit 1
 cat > "${WORK}/expected_rules" << 'EOF'
-SUBSYSTEM=="usb", ENV{ID_SERIAL_SHORT}=="R28M1384YQY", MODE="0666", SYMLINK+="device-Galaxy_S10-R28M-1384YQY"
+SUBSYSTEM=="usb", ENV{ID_SERIAL_SHORT}=="R28M1384YQY", MODE="0660", GROUP="plugdev", SYMLINK+="device-Galaxy_S10-R28M-1384YQY"
 ACTION=="remove", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{ID_SERIAL_SHORT}=="R28M1384YQY", RUN+="/usr/bin/systemctl --no-block start mcloud-device-down@R28M-1384YQY.service"
 ACTION=="add", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ENV{ID_SERIAL_SHORT}=="R28M1384YQY", RUN+="/usr/bin/systemctl --no-block start mcloud-device-restart@R28M-1384YQY.service"
 EOF
 check "udev rules" "$(cat "${WORK}/expected_rules")" "$(head -3 "${WORK}/rules")"
+render "${REPO}/roles/devices/templates/90_mcloud.rules" "${WORK}/rules-group" --extra-vars "@${WORK}/devices.yml" \
+  --extra-vars "USB_DEVICE_GROUP=adbusers" || exit 1
+check_contains "udev rules: the group of the USB devices" 'MODE="0660", GROUP="adbusers"' "$(cat "${WORK}/rules-group")"
+check_not_contains "udev rules: no USB device is writable by every user" '0666' "$(cat "${WORK}/rules")"
 check "udev rules of the usb devices only" "R28M1384YQY abc" \
   "$(grep -o 'SUBSYSTEM=="usb", ENV{ID_SERIAL_SHORT}=="[^"]*' "${WORK}/rules" | sed 's/.*"//' | paste -s -d ' ' -)"
 check_not_contains "udev runs no zebrunner-farm itself" "zebrunner-farm" "$(cat "${WORK}/rules")"

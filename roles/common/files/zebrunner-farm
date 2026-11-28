@@ -22,9 +22,18 @@ else
   # `zebrunner-farm ansible` and `version` run zebrunner.sh of the agent, which needs it
   export ZEBRUNNER_MCLOUD_AGENT_DIR
 
-  source "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/utility.sh"
+  # the scripts zebrunner-farm sources are the copies of the deploy owned by root (ZEBRUNNER_FARM_LIB), not the ones of
+  # the clone of the agent: the units of udev run zebrunner-farm as root, the clone is writable by the user
+  ZEBRUNNER_FARM_LIB="${ZEBRUNNER_FARM_LIB:-/usr/local/lib/zebrunner-farm}"
+  if [[ ! -r "${ZEBRUNNER_FARM_LIB}/utility.sh" || ! -r "${ZEBRUNNER_FARM_LIB}/ui.sh" ]]; then
+    echo "zebrunner-farm: the scripts of ${ZEBRUNNER_FARM_LIB} are not readable: deploy them with ./zebrunner.sh ansible" >&2
+    exit 1
+  fi
+  # shellcheck source=patch/utility.sh
+  source "${ZEBRUNNER_FARM_LIB}/utility.sh"
   # the terminal output (CONVENTIONS.md#terminal-output)
-  source "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/ui.sh"
+  # shellcheck source=patch/ui.sh
+  source "${ZEBRUNNER_FARM_LIB}/ui.sh"
 
   if [[ "$FARM_OS" == "macos" ]]; then
     # Export docker env variables to avoid issues on macOS
@@ -2313,7 +2322,8 @@ usb_stats() {
     farm_status fail "usb-stats needs python3" "install Python 3"
     return 1
   fi
-  python3 "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/usb_stats.py" --devices "$MCLOUD_DEVICES" "${args[@]+"${args[@]}"}"
+  # the copy of the deploy owned by root: the command may run as root (sudo reads the kernel log)
+  python3 "${ZEBRUNNER_FARM_LIB}/usb_stats.py" --devices "$MCLOUD_DEVICES" "${args[@]+"${args[@]}"}"
 }
 
 # usb_map [devices...] [--days <n>] [--json] [-x <devices>]: doctor usb-map, the USB tree of patch/usb_map.py of the
@@ -2378,7 +2388,8 @@ usb_map() {
     farm_status fail "usb-map needs python3" "install Python 3"
     return 1
   fi
-  python3 "${ZEBRUNNER_MCLOUD_AGENT_DIR}/patch/usb_map.py" --devices "$MCLOUD_DEVICES" "${args[@]+"${args[@]}"}"
+  # the copy of the deploy owned by root, as usb_stats.py
+  python3 "${ZEBRUNNER_FARM_LIB}/usb_map.py" --devices "$MCLOUD_DEVICES" "${args[@]+"${args[@]}"}"
 }
 
 # the checks of zebrunner-farm doctor

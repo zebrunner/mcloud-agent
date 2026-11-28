@@ -361,6 +361,11 @@ done
 check_not_contains "macOS: no default platform" "DOCKER_DEFAULT_PLATFORM=" "$(grep -v '^ *#' "$FARM_SCRIPT")"
 output="$(env -i PATH=/usr/bin:/bin ZEBRUNNER_FARM_ENV="${WORK}/missing.env" /bin/bash "$FARM_SCRIPT" status 2>&1)"
 check_contains "zebrunner-farm without its settings asks for the deploy" "the settings ${WORK}/missing.env are not readable: deploy them with ./zebrunner.sh ansible" "$output"
+sed "s|^ZEBRUNNER_FARM_LIB=.*|ZEBRUNNER_FARM_LIB=${WORK}/no-lib|" "${WORK}/farm-devices.env" > "${WORK}/no-lib.env"
+output="$(env -i PATH=/usr/bin:/bin ZEBRUNNER_FARM_ENV="${WORK}/no-lib.env" /bin/bash "$FARM_SCRIPT" status 2>&1)"
+check_contains "zebrunner-farm without the scripts of the deploy asks for the deploy" "the scripts of ${WORK}/no-lib are not readable: deploy them with ./zebrunner.sh ansible" "$output"
+check_not_contains "zebrunner-farm never sources the scripts of the clone of the agent" "source \"\${ZEBRUNNER_MCLOUD_AGENT_DIR}" \
+  "$(cat "$FARM_SCRIPT")"
 output="$(farm devices version)"
 check_contains "zebrunner-farm runs zebrunner.sh of the agent of its settings" "DEVICE_VERSION:" "$output"
 check_not_contains "zebrunner.sh gets the agent dir from zebrunner-farm" "is not set" "$output"
@@ -1221,6 +1226,8 @@ reset_calls
 farm devices doctor usb-stats > /dev/null
 check "doctor usb-stats: the report of every port of the devices list" "|--devices|${WORK}/devices.txt" \
   "$(calls python3 | sed 's/^[^|]*usb_stats\.py//')"
+check "doctor usb-stats: the script of the deploy (ZEBRUNNER_FARM_LIB), not of the clone" "${REPO}/patch/usb_stats.py" \
+  "$(calls python3 | cut -d '|' -f 1)"
 reset_calls
 farm devices doctor usb-stats iPhone_8_Plus Galaxy --days 30 --threshold 5 --json > /dev/null
 check "doctor usb-stats: the options and the devices of the selection" \
