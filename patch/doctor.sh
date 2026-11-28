@@ -691,6 +691,65 @@ count_values() {
   echo "$#"
 }
 
+# simulator_ssh <user> <command...>: the command on this Mac as the user of the simulators with the ssh key of the
+# simulators, as the containers of a simulator run it
+simulator_ssh() {
+  local user="$1"
+  shift
+  ssh -i ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=ssh/known_hosts \
+    -o LogLevel=ERROR -o ConnectTimeout=10 "${user}@127.0.0.1" "$@"
+}
+
+# doctor_simulators: the iOS simulators of a macOS host (README.md#ios-simulators): they run as SIMULATOR_USER, not as
+# the user of the deploy, and xcrun simctl of that user over the ssh key of the simulators knows the simulators of the
+# deployed devices
+doctor_simulators() {
+  [[ "$(uname)" == "Darwin" ]] || return 0
+  local udids
+  udids="$(awk -F '|' '!/^#/ {
+      id = ""
+      sim = 0
+      for (i = 1; i <= NF; i++) {
+        if ($i ~ /^id=/) id = substr($i, 4)
+        if ($i == "connection=ios-sim") sim = 1
+      }
+      if (sim && id != "") print id
+    }' "$DOCTOR_DEVICES" 2> /dev/null)"
+  [[ -n "$udids" ]] || return 0
+  doctor_section "iOS simulators"
+  local user
+  user="$(setting SIMULATOR_USER)"
+  user="${user:-$(whoami)}"
+  if [[ "$user" == "$(whoami)" ]]; then
+    doctor_warn "the simulators run as the user of the deploy ${user}: their apps under test read the secrets of this host" \
+      "remove SIMULATOR_USER from ${DOCTOR_VARS} (mcloud-sim by default), ./zebrunner.sh ansible, then create the simulators as that user (README.md#ios-simulators)"
+  elif ! id -u "$user" > /dev/null 2>&1; then
+    doctor_fail "the user ${user} of the simulators does not exist" "./zebrunner.sh ansible creates it (README.md#ios-simulators)"
+    return 0
+  else
+    doctor_ok "the simulators run as ${user}, not as the user of the deploy"
+  fi
+  local out
+  if ! out="$(simulator_ssh "$user" xcrun simctl list devices --json 2>&1)"; then
+    doctor_fail "xcrun simctl of ${user} over the ssh key of the simulators failed: $(tail -n 1 <<< "$out")" \
+      "Remote Login on for ${user} (System Settings, General, Sharing); ./zebrunner.sh ansible authorizes the key"
+    return 0
+  fi
+  local missing
+  # the udids are words of letters, digits and '-' (the checks of the deploy)
+  # shellcheck disable=SC2086
+  missing="$(python3 -c 'import json, sys
+text = sys.stdin.read()
+known = {d.get("udid") for ds in json.loads(text[text.find("{"):] or "{}").get("devices", {}).values() for d in ds}
+print(" ".join(u for u in sys.argv[1:] if u not in known))' $udids <<< "$out" 2>&1)"
+  if [[ -n "$missing" ]]; then
+    doctor_fail "the simulators ${missing} of the devices are not simulators of ${user}" \
+      "create them as ${user} and put their udids into ${DOCTOR_DEVICE_LIST}, then ./zebrunner.sh ansible (README.md#ios-simulators)"
+  else
+    doctor_ok "xcrun simctl of ${user} knows the simulators of the devices"
+  fi
+}
+
 # doctor: all the checks; fails when one of them fails
 doctor() {
   ui_banner "MCloud Agent doctor"
@@ -711,6 +770,7 @@ doctor() {
     doctor_wireguard
     doctor_network
     doctor_devices
+    doctor_simulators
     doctor_usb
   fi
   ui_summary "$DOCTOR_PASSED" "$DOCTOR_WARNINGS" "$DOCTOR_PROBLEMS"

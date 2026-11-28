@@ -67,7 +67,8 @@ jobs:
       matrix:
         os: ${{ fromJSON(needs.changes.outputs.os) }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    # macOS also creates and boots an iOS simulator as the user of the simulators (tests/simulator_user_test.sh)
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -82,6 +83,8 @@ jobs:
         run: tests/run_all.sh
         env:
           JUNIT_DIR: ${{ runner.temp }}/junit
+          # the runner is disposable: the test of the user of the simulators creates a macOS user
+          MCLOUD_SIMULATOR_E2E: ${{ runner.os == 'macOS' && '1' || '' }}
       - name: Tests report
         if: ${{ !cancelled() }}
         uses: mikepenz/action-junit-report@a16be3a69023e9bd7e748ede768b3282ea7b30ce # v6.7.1

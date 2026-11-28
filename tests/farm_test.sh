@@ -391,13 +391,13 @@ check_contains "STF of macOS uses the shared tunnel of the connector" "|GO_IOS_A
 setup_case
 farm mac-devices start Sim > /dev/null
 connector="$(run_args device-Sim-B1B07E76-connector)"
-check_contains "simulator connector runs simctl of the host" "|DEVICE_CONNECTION=ios-sim|-e|HOST_SSH_USER=${USER}|-e|DEVICE_WDA_PORT=8110|-e|DEVICE_MJPEG_PORT=8111|" "$connector"
+check_contains "simulator connector runs simctl of the host as the user of the simulators" "|DEVICE_CONNECTION=ios-sim|-e|HOST_SSH_USER=mcloud-sim|-e|DEVICE_WDA_PORT=8110|-e|DEVICE_MJPEG_PORT=8111|" "$connector"
 check_contains "simulator connector gets the ssh key of the agent" "/ssh/id_ed25519:/opt/zebrunner/ssh/id_ed25519:ro|" "$connector"
 check_contains "simulator connector gets the simulator build of WDA" "|/tmp/wda-sim.zip:/tmp/zebrunner/wda-sim.zip|" "$connector"
 check_contains "simulator connector gets the path of the build" "|WDA_FILE=/tmp/zebrunner/wda-sim.zip|" "$connector"
 appium="$(run_args device-Sim-B1B07E76-appium)"
 check_contains "simulator appium has no usbmuxd" "|WIRELESS=true|" "$appium"
-check_contains "simulator appium runs xcrun of the host" "|DEVICE_CONNECTION=ios-sim|-e|HOST_SSH_USER=${USER}|" "$appium"
+check_contains "simulator appium runs xcrun of the host as the user of the simulators" "|DEVICE_CONNECTION=ios-sim|-e|HOST_SSH_USER=mcloud-sim|" "$appium"
 
 setup_case
 echo '"USB Serial Number" = "R28M1384YQY"' > "${WORK}/usb"
