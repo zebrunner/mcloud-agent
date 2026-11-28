@@ -126,6 +126,14 @@
         - mcloud-wireless-watchdog.timer
       when: not devices_watchdog | bool
 
+# the containers of all the devices after a boot by AUTOSTART (README.md#autostart): mcloud-farm.service
+- name: Deploy the autostart of the devices
+  ansible.builtin.import_role:
+    name: common
+    tasks_from: autostart
+  vars:
+    common_autostart_os: linux
+
 - name: Load the units of the devices
   ansible.builtin.systemd:
     daemon_reload: true

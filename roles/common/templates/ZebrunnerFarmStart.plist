@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The containers of all the devices at the login (README.md#autostart): the deploy installs it with AUTOSTART: true of
+     config/settings.yml and removes it with AUTOSTART: false, ./zebrunner.sh autostart enable and disable do it at once -->
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.zebrunner.mcloud.autostart</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>PATH</key>
+      <string>/bin:/usr/bin:/usr/local/bin:/usr/sbin:/sbin:/opt/homebrew/bin</string>
+    </dict>
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/bash</string>
+      <string>-c</string>
+      <string>for i in $(seq 1 120); do docker info &gt; /dev/null 2&gt;&amp;1 &amp;&amp; /usr/local/bin/zebrunner-farm __tunnel-ready &amp;&amp; exec /usr/local/bin/zebrunner-farm start --quiet; sleep 5; done; echo "Docker Desktop does not answer or the WireGuard tunnel to MCloud is down" &gt;&amp;2; exit 1</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>{{ agent_dir }}/logs/autostart.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{ agent_dir }}/logs/autostart.log</string>
+  </dict>
+</plist>

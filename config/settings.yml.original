@@ -120,6 +120,12 @@ S3_REGION:
 # themselves are started every this many seconds (300 by default), 0: off
 # WIRELESS_WATCHDOG_INTERVAL: 300
 
+# The containers of all the devices after a boot (README.md#autostart): ./zebrunner.sh setup asks (yes by default). true:
+# the deploy installs the autostart (Linux: the systemd unit mcloud-farm.service, macOS: the launch agent
+# ZebrunnerFarmStart.plist of the user), false: it removes it; without the line the deploy keeps the autostart as it is.
+# ./zebrunner.sh autostart enable and disable change it at once and write this line too
+AUTOSTART: true
+
 # Path to prebuild WebDriverAgent.ipa
 WDA_FILE:
 # macOS: path to the simulator build of WebDriverAgent for the simulators: a .app folder or its .zip, e.g.

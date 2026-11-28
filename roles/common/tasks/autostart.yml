@@ -1,0 +1,108 @@
+---
+# The autostart of the containers of all the devices after a boot (README.md#autostart) by AUTOSTART of the settings:
+# true installs it, false removes it, empty (a config/settings.yml of an earlier version without the line) keeps it as it
+# is, also an autostart of ./zebrunner.sh autostart enable. The files are the ones ./zebrunner.sh autostart enable
+# writes; nothing starts at the deploy. Imported by the roles of the OS (import_role tasks_from: autostart) with:
+#   common_autostart_os: linux (the systemd unit mcloud-farm.service, enabled for the next boot) or macos (the launch
+#   agent ZebrunnerFarmStart.plist of the user, loaded at the next login)
+
+- name: Check AUTOSTART
+  ansible.builtin.assert:
+    that: AUTOSTART is none or AUTOSTART | string | trim | lower in ['', 'true', 'false']
+    fail_msg: "AUTOSTART of config/settings.yml must be true, false or empty (README.md#autostart), not {{ AUTOSTART }}"
+    quiet: true
+  tags: [devices, precheck, validate, autostart]
+
+- name: Autostart of the devices
+  vars:
+    common_autostart: "{{ '' if AUTOSTART is none else AUTOSTART | string | trim | lower }}"
+  tags: [devices, autostart]
+  block:
+    - name: Copy the unit of the autostart (mcloud-farm.service)
+      ansible.builtin.copy:
+        src: mcloud-farm.service
+        dest: /etc/systemd/system/mcloud-farm.service
+        mode: "0644"
+        owner: root
+        group: root
+      when: common_autostart_os == 'linux' and common_autostart == 'true'
+      tags: [files]
+
+    # enabled for the next boot, not started: the deploy keeps the containers as they are
+    - name: Enable the autostart for the next boot (mcloud-farm.service)
+      ansible.builtin.systemd:
+        name: mcloud-farm.service
+        daemon_reload: true
+        enabled: true
+      when: common_autostart_os == 'linux' and common_autostart == 'true' and not ansible_check_mode
+
+    - name: Find the unit of the autostart
+      ansible.builtin.stat:
+        path: /etc/systemd/system/mcloud-farm.service
+      register: common_autostart_unit
+      when: common_autostart_os == 'linux' and common_autostart == 'false'
+
+    # the running containers keep running
+    - name: Disable the autostart (mcloud-farm.service)
+      ansible.builtin.systemd:
+        name: mcloud-farm.service
+        enabled: false
+      when: common_autostart_os == 'linux' and common_autostart == 'false' and common_autostart_unit.stat.exists
+
+    - name: Remove the unit of the autostart
+      ansible.builtin.file:
+        path: /etc/systemd/system/mcloud-farm.service
+        state: absent
+      when: common_autostart_os == 'linux' and common_autostart == 'false'
+      register: common_autostart_removed
+
+    - name: Forget the removed unit of the autostart
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: common_autostart_removed is changed and not ansible_check_mode
+
+    # loaded at the next login: loaded now it would start the containers at once
+    - name: Copy ZebrunnerFarmStart.plist into LaunchAgents
+      ansible.builtin.template:
+        src: ZebrunnerFarmStart.plist
+        dest: "{{ lookup('env', 'HOME') }}/Library/LaunchAgents/ZebrunnerFarmStart.plist"
+        mode: "0644"
+        owner: "{{ lookup('env', 'USER') }}"
+        group: staff
+      when: common_autostart_os == 'macos' and common_autostart == 'true'
+      tags: [files]
+
+    - name: Find ZebrunnerFarmStart.plist
+      ansible.builtin.stat:
+        path: "{{ lookup('env', 'HOME') }}/Library/LaunchAgents/ZebrunnerFarmStart.plist"
+      register: common_autostart_plist
+      become: false
+      when: common_autostart_os == 'macos' and common_autostart == 'false'
+
+    - name: Get the id of the user of ZebrunnerFarmStart agent
+      ansible.builtin.command: id -u
+      register: common_autostart_uid
+      changed_when: false
+      check_mode: false
+      become: false
+      when: common_autostart_os == 'macos' and common_autostart == 'false' and common_autostart_plist.stat.exists
+
+    # the running containers keep running; a launch agent that is not loaded is fine
+    - name: Unload ZebrunnerFarmStart agent
+      ansible.builtin.command:
+        argv:
+          - launchctl
+          - bootout
+          - "gui/{{ common_autostart_uid.stdout }}"
+          - "{{ lookup('env', 'HOME') }}/Library/LaunchAgents/ZebrunnerFarmStart.plist"
+      failed_when: false
+      changed_when: false
+      become: false
+      when: common_autostart_os == 'macos' and common_autostart == 'false' and common_autostart_plist.stat.exists and not ansible_check_mode
+
+    - name: Remove ZebrunnerFarmStart.plist
+      ansible.builtin.file:
+        path: "{{ lookup('env', 'HOME') }}/Library/LaunchAgents/ZebrunnerFarmStart.plist"
+        state: absent
+      become: false
+      when: common_autostart_os == 'macos' and common_autostart == 'false'

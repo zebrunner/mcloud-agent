@@ -42,6 +42,11 @@ DEVICE_UNAVAILABLE_TIMEOUT:
 # devices that stopped by themselves are started every this many seconds; 0: off
 WIRELESS_WATCHDOG_INTERVAL: 300
 
+# The autostart of the containers of all the devices after a boot (README.md#autostart): true installs it, false removes
+# it; empty (a config/settings.yml of an earlier version without the line) keeps it as it is. ./zebrunner.sh setup writes
+# it (yes by default), ./zebrunner.sh autostart enable and disable too
+AUTOSTART: ""
+
 # every device has a docker network of its own (README.md#docker-network): its containers reach only its connector; the
 # networks are /28 subnets of DEVICE_NETWORK_SUBNETS. false: the containers of all the devices share STF_DOCKER_NETWORK
 DEVICE_NETWORK_ISOLATION: true

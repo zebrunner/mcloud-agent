@@ -195,21 +195,53 @@ setup() {
     rosetta_report
   fi
 
+  ### The containers of the devices after a boot (README.md#autostart)
+  ui_section "Autostart"
+  setup_autostart
+
   ### Next steps
   ui_section "Next steps"
   local addresses
+  local autostart_step="AUTOSTART: false, no autostart"
   addresses="$(host_addresses)"
+  if [[ "$(autostart_setting)" == "true" ]]; then
+    autostart_step="with AUTOSTART: true it installs the autostart of the devices"
+  fi
   ui_muted "https://github.com/zebrunner/mcloud-agent#node-enrollment"
   echo ""
   ui_step 1 "The administrator of MCloud invites this host on its server: ./zebrunner.sh node-invite <label> <address>, the address is the one the MCloud server connects to: the addresses of this host are ${addresses:-unknown}; in the network of the MCloud server the address there (on the MCloud server itself its LAN address, not 127.0.0.1)."
   ui_step 2 "Enroll this host: ./zebrunner.sh join and paste the join string of step 1. It writes the connection to MCloud into '${vars}'."
   ui_step 3 "Declare the devices in 'devices:' of '${devices}': the udid (adb devices, idevice_id -l), a unique name and unique ports."
   ui_step 4 "Check the settings, the enrollment and the network to MCloud: ./zebrunner.sh doctor"
-  ui_step 5 "Deploy the agent: ./zebrunner.sh ansible"
+  ui_step 5 "Deploy the agent: ./zebrunner.sh ansible (${autostart_step}, README.md#autostart)"
   ui_step 6 "Start the devices: zebrunner-farm start, then zebrunner-farm status and ./zebrunner.sh doctor. zebrunner-farm knows this folder: zebrunner-farm ansible deploys again from any folder."
 
   ui_rule
   ui_ok "Setting up MCloud Agent in '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished successfully"
+}
+
+# setup_autostart: asks whether the deploy installs the autostart of the devices (AUTOSTART of the settings,
+# README.md#autostart): yes by default, Enter keeps a false of the settings; without a terminal (the end of the input)
+# the default is taken, nothing waits
+setup_autostart() {
+  local default=y
+  local value=true
+  if [[ "$(autostart_setting)" == "false" ]]; then
+    default=n
+  fi
+  if [[ "$(uname)" == "Darwin" ]]; then
+    ui_paragraph "After a reboot the devices listener starts the iOS USB devices at the login; the other devices (Android, wireless, emulators, simulators, proxy) stay stopped until zebrunner-farm start. The autostart runs zebrunner-farm start once at the login, when Docker Desktop answers: the deploy (./zebrunner.sh ansible) installs the launch agent ${AUTOSTART_PLIST} of this user."
+  else
+    ui_paragraph "After a reboot udev starts the USB devices; the other devices (wireless, emulators, proxy) stay stopped until zebrunner-farm start. The autostart runs zebrunner-farm start once after docker at the boot: the deploy (./zebrunner.sh ansible) installs the systemd unit ${AUTOSTART_UNIT}."
+  fi
+  confirm "" "Start the containers of the devices after a boot (autostart)?" "$default" || value=false
+  if ! set_autostart_setting "$value"; then
+    ui_warn "AUTOSTART of '${SETTINGS_FILE}' is not written" "AUTOSTART: ${value} in ${SETTINGS_FILE}"
+  elif [[ "$value" == "true" ]]; then
+    ui_ok "AUTOSTART: true in '${SETTINGS_FILE}': the deploy installs the autostart, ./zebrunner.sh autostart disable removes it"
+  else
+    ui_info "AUTOSTART: false in '${SETTINGS_FILE}': the deploy installs no autostart (and removes one of an earlier deploy), ./zebrunner.sh autostart enable adds it"
+  fi
 }
 
 # ansible [devices] [ansible-playbook arguments...]: deploys the agent (README.md#run-ansible-playbook); devices skips the
@@ -274,6 +306,11 @@ ansible() {
   ui_rule
   if [[ -n "$deploy" ]]; then
     ui_info "Run 'zebrunner-farm start' to create the containers of the connected devices."
+    case "$(autostart_setting)" in
+    true) ui_info "Autostart (AUTOSTART: true): the containers of all the devices start after a reboot: $(autostart_file)" ;;
+    false) ui_info "No autostart (AUTOSTART: false): after a reboot only the USB devices start, ./zebrunner.sh autostart enable adds it." ;;
+    *) ui_info "Autostart: ./zebrunner.sh autostart tells whether the containers of all the devices start after a reboot (AUTOSTART is not set)." ;;
+    esac
   fi
   ui_ok "Deploying MCloud Agent from '${ZEBRUNNER_MCLOUD_AGENT_DIR}' finished successfully"
 }
@@ -729,10 +766,13 @@ version() {
   } >&2
 }
 
-# The containers of the devices after a reboot (README.md#autostart), off by default: the USB devices are started by
-# udev (Linux) and the devices listener (iOS of macOS) anyway, autostart starts all the devices once
+# The containers of the devices after a reboot (README.md#autostart): the USB devices are started by udev (Linux) and
+# the devices listener (iOS of macOS) anyway, autostart starts all the devices once. setup offers it (AUTOSTART of the
+# settings), the deploy installs or removes it by the setting; the files are the ones of the deploy
 AUTOSTART_UNIT="/etc/systemd/system/mcloud-farm.service"
 AUTOSTART_PLIST="${HOME}/Library/LaunchAgents/ZebrunnerFarmStart.plist"
+AUTOSTART_UNIT_SOURCE="${MCLOUD_AGENT_DIR_VALUE}/roles/common/files/mcloud-farm.service"
+AUTOSTART_PLIST_TEMPLATE="${MCLOUD_AGENT_DIR_VALUE}/roles/common/templates/ZebrunnerFarmStart.plist"
 
 # autostart_file: the file of the autostart of the OS
 autostart_file() {
@@ -752,78 +792,97 @@ autostart_enabled() {
   fi
 }
 
-# autostart_unit: the systemd unit of Linux, run once after docker at the boot
+# autostart_unit: the systemd unit of Linux, run once after docker at the boot: the file the deploy installs
 autostart_unit() {
-  cat << 'EOF'
-# The containers of all the devices after a boot: ./zebrunner.sh autostart enable made it, disable removes it
-# (README.md#autostart). The log: journalctl -u mcloud-farm
-[Unit]
-Description=MCloud: the containers of the devices after a boot
-Wants=docker.service network-online.target
-# the ports of the devices are published on the address of the WireGuard tunnel to MCloud when it is on
-After=docker.service network-online.target wg-quick@mcloud-node.service
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/zebrunner-farm start --quiet
-# the images may be pulled
-TimeoutStartSec=30min
-
-[Install]
-WantedBy=multi-user.target
-EOF
+  cat "$AUTOSTART_UNIT_SOURCE"
 }
 
 # autostart_plist: the launch agent of macOS, run once at the login when Docker Desktop answers and the WireGuard tunnel to
 # MCloud is up when it is on (README.md#wireguard-tunnel: the ports of the devices are published on its address), 10
-# minutes at most
+# minutes at most: the template of the deploy with the folder of the agent, as ansible renders it
 autostart_plist() {
-  cat << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- The containers of all the devices at the login: ./zebrunner.sh autostart enable made it, disable removes it -->
-<plist version="1.0">
-  <dict>
-    <key>Label</key>
-    <string>com.zebrunner.mcloud.autostart</string>
-    <key>EnvironmentVariables</key>
-    <dict>
-      <key>PATH</key>
-      <string>/bin:/usr/bin:/usr/local/bin:/usr/sbin:/sbin:/opt/homebrew/bin</string>
-    </dict>
-    <key>ProgramArguments</key>
-    <array>
-      <string>/bin/bash</string>
-      <string>-c</string>
-      <string>for i in \$(seq 1 120); do docker info &gt; /dev/null 2&gt;&amp;1 &amp;&amp; /usr/local/bin/zebrunner-farm __tunnel-ready &amp;&amp; exec /usr/local/bin/zebrunner-farm start --quiet; sleep 5; done; echo "Docker Desktop does not answer or the WireGuard tunnel to MCloud is down" &gt;&amp;2; exit 1</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>${MCLOUD_AGENT_DIR_VALUE}/logs/autostart.log</string>
-    <key>StandardErrorPath</key>
-    <string>${MCLOUD_AGENT_DIR_VALUE}/logs/autostart.log</string>
-  </dict>
-</plist>
-EOF
+  # ENVIRON: awk -v would interpret the backslashes of the folder; index: no character of the folder is a pattern
+  AGENT_DIR="$MCLOUD_AGENT_DIR_VALUE" awk '{
+      line = $0
+      out = ""
+      while ((i = index(line, "{{ agent_dir }}")) > 0) {
+        out = out substr(line, 1, i - 1) ENVIRON["AGENT_DIR"]
+        line = substr(line, i + 15)
+      }
+      print out line
+    }' "$AUTOSTART_PLIST_TEMPLATE"
 }
 
-# autostart [status|enable|disable]: the state of the autostart; enable and disable tell what they change and ask
+# autostart_setting: AUTOSTART of config/settings.yml as the deploy reads it: true, false, or nothing when it is not set
+# (the deploy keeps the autostart as it is) or there are no settings
+autostart_setting() {
+  local value
+  [[ -f "$SETTINGS_FILE" ]] || return 0
+  value="$(sed -nE 's/^AUTOSTART:[[:space:]]*([^#]*).*$/\1/p' "$SETTINGS_FILE" | tail -n 1 | tr -d "\"' " | tr '[:upper:]' '[:lower:]')"
+  case "$value" in
+  true | yes | on) echo true ;;
+  false | no | off) echo false ;;
+  esac
+}
+
+# set_autostart_setting <true|false>: AUTOSTART of config/settings.yml, so the next deploy keeps the choice: the line
+# replaced or added at the end; the file keeps its mode (the settings have secrets), nothing without the settings
+set_autostart_setting() {
+  local value="$1"
+  local text
+  [[ -f "$SETTINGS_FILE" ]] || return 0
+  [[ "$(autostart_setting)" != "$value" ]] || return 0
+  if grep -q '^AUTOSTART:' "$SETTINGS_FILE"; then
+    text="$(sed -E "s/^AUTOSTART:.*/AUTOSTART: ${value}/" "$SETTINGS_FILE")" || return 1
+  else
+    text="$(cat "$SETTINGS_FILE")" || return 1
+    text="${text}"$'\n\n'"# the containers of the devices after a boot (README.md#autostart): the deploy installs or removes the autostart"$'\n'"AUTOSTART: ${value}"
+  fi
+  printf '%s\n' "$text" > "$SETTINGS_FILE"
+}
+
+# autostart_note_setting <true|false>: the setting written after a change of autostart enable or disable, so the next
+# deploy keeps it
+autostart_note_setting() {
+  if [[ ! -f "$SETTINGS_FILE" || "$(autostart_setting)" == "$1" ]]; then
+    return 0
+  fi
+  if set_autostart_setting "$1"; then
+    ui_info "AUTOSTART: $1 in '${SETTINGS_FILE}': the deploy keeps it."
+  else
+    ui_warn "AUTOSTART of '${SETTINGS_FILE}' is not written: set it to $1, otherwise the next deploy changes the autostart back."
+  fi
+}
+
+# autostart [status|enable|disable]: the state of the autostart; enable and disable tell what they change and ask, then
+# write AUTOSTART of the settings, so the next deploy keeps the choice
 autostart() {
   ui_section "Autostart" "" "Autostart of the devices after a reboot"
   local file
+  local setting
   file="$(autostart_file)"
+  setting="$(autostart_setting)"
   case "${1:-status}" in
   status)
     if autostart_enabled; then
       ui_ok "Autostart is on: ${file}"
+      if [[ "$setting" == "false" ]]; then
+        ui_warn "AUTOSTART: false of '${SETTINGS_FILE}': the next deploy removes the autostart." "./zebrunner.sh autostart enable keeps it"
+      fi
     else
-      ui_info "Autostart is off (by default): ./zebrunner.sh autostart enable tells what it adds and asks first."
+      ui_info "Autostart is off: ./zebrunner.sh autostart enable tells what it adds and asks first."
+      if [[ "$setting" == "true" ]]; then
+        ui_warn "AUTOSTART: true of '${SETTINGS_FILE}': the next deploy installs the autostart." "./zebrunner.sh ansible"
+      fi
+    fi
+    if [[ -f "$SETTINGS_FILE" && -z "$setting" ]]; then
+      ui_info "AUTOSTART is not set in '${SETTINGS_FILE}': the deploy keeps the autostart as it is."
     fi
     ;;
   enable)
     if autostart_enabled; then
       ui_info "Autostart is on already: ${file}"
+      autostart_note_setting true
       echo ""
       ui_rule
       return 0
@@ -847,6 +906,9 @@ autostart() {
       autostart_unit
     fi
     echo ""
+    if [[ -f "$SETTINGS_FILE" ]]; then
+      ui_paragraph "Then AUTOSTART: true in '${SETTINGS_FILE}': the deploy keeps the autostart."
+    fi
     confirm "" "Enable the autostart as described above?" "n" || exit 0
     if [[ "$(uname)" == "Darwin" ]]; then
       mkdir -p "$(dirname "$file")"
@@ -858,10 +920,12 @@ autostart() {
       sudo systemctl enable mcloud-farm.service || exit 1
     fi
     ui_ok "Autostart is on: ${file}"
+    autostart_note_setting true
     ;;
   disable)
     if ! autostart_enabled && [[ ! -f "$file" ]]; then
       ui_info "Autostart is off already."
+      autostart_note_setting false
       echo ""
       ui_rule
       return 0
@@ -871,9 +935,13 @@ autostart() {
     else
       ui_paragraph "It runs with sudo: systemctl disable mcloud-farm.service, removes ${file}, systemctl daemon-reload: the containers of the devices are not started at the boot anymore, the running ones keep running."
     fi
+    if [[ -f "$SETTINGS_FILE" ]]; then
+      ui_paragraph "Then AUTOSTART: false in '${SETTINGS_FILE}': the deploy does not install it again."
+    fi
     confirm "" "Disable the autostart as described above?" "n" || exit 0
     autostart_remove
     ui_ok "Autostart is off."
+    autostart_note_setting false
     ;;
   *)
     ui_usage "./zebrunner.sh autostart [status|enable|disable]"
@@ -959,7 +1027,7 @@ echo_help() {
   ui_help_group "Operate"
   ui_help_cmd status "" "Status of MCloud Agent deployment"
   ui_help_cmd doctor "" "Check the settings, the deployment and the network to MCloud, tell what to fix"
-  ui_help_cmd autostart "$(command_args autostart)" "The containers of the devices after a reboot (off by default, asks first)"
+  ui_help_cmd autostart "$(command_args autostart)" "The containers of the devices after a reboot (AUTOSTART of the settings, setup offers it; asks first)"
   ui_help_cmd mdm "$(command_args mdm)" "The devices in the MDM of MCloud (README.md#mdm): status: what the MDM knows; enroll: the agent as the device owner (Android), the enrollment profile (supervised iOS); release [--uninstall]: out of the MDM; supervise [--force] [--yes]: ERASES an iOS device, supervises it, joins MDM_WIFI_SSID, enrolls it"
   ui_help_cmd version "" "Version of MCloud Agent components"
 
@@ -992,7 +1060,7 @@ command_help() {
   local readme="agent-management"
   case "$command" in
   setup)
-    help_text "Prepares MCloud Agent in this folder: config/settings.yml and config/devices.yml from the examples of the OS (an existing file is kept, a copy goes to *.bak), the variable ZEBRUNNER_MCLOUD_AGENT_DIR of an earlier version is removed from the shell profiles; then it tells the next steps."
+    help_text "Prepares MCloud Agent in this folder: config/settings.yml and config/devices.yml from the examples of the OS (an existing file is kept, a copy goes to *.bak), the variable ZEBRUNNER_MCLOUD_AGENT_DIR of an earlier version is removed from the shell profiles; it asks whether the deploy installs the autostart of the devices after a boot (AUTOSTART, yes by default; without a terminal the default), then it tells the next steps."
     readme="clone-and-setup"
     ;;
   join)
@@ -1021,7 +1089,7 @@ command_help() {
     readme="doctor"
     ;;
   autostart)
-    help_text "The containers of all the devices after a reboot, off by default: a systemd unit (Linux, with sudo) or a launch agent of the user (macOS). enable and disable tell what they change and ask first; nothing starts at once."
+    help_text "The containers of all the devices after a reboot: a systemd unit (Linux, with sudo) or a launch agent of the user (macOS). setup offers it (yes by default) and writes AUTOSTART of config/settings.yml, the deploy installs or removes it by the setting. enable and disable tell what they change and ask first, then write AUTOSTART too; nothing starts at once."
     ui_help_group "Actions"
     ui_help_cmd status "" "Whether the autostart is on (the default action)"
     ui_help_cmd enable "" "Adds the autostart: zebrunner-farm start --quiet once after the boot (Linux) or the login (macOS)"

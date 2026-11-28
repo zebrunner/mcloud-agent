@@ -360,6 +360,34 @@ output="$(playbook "$OS_ROLE" --check --tags files --extra-vars "$wireless_devic
 check_contains "WIRELESS_WATCHDOG_INTERVAL 0: the wireless watchdog is not deployed" "skipping: [localhost]" \
   "$(task_result "$watchdog_task" "$output")"
 
+section "autostart of ${OS_ROLE} (check mode)"
+# AUTOSTART of the settings (README.md#autostart): true installs the autostart, false removes it, empty keeps it
+if [[ "$OS_ROLE" == "devices" ]]; then
+  autostart_install="Copy the unit of the autostart (mcloud-farm.service)"
+  autostart_remove="Remove the unit of the autostart"
+  check_contains "Linux: the autostart is enabled for the next boot" "Enable the autostart for the next boot (mcloud-farm.service)" \
+    "$(playbook "$OS_ROLE" --list-tasks --tags autostart)"
+else
+  autostart_install="Copy ZebrunnerFarmStart.plist into LaunchAgents"
+  autostart_remove="Remove ZebrunnerFarmStart.plist"
+fi
+output="$(playbook "$OS_ROLE" --check --tags autostart)"
+check_contains "AUTOSTART true of the example settings: the tasks pass" "failed=0" "$output"
+check_contains "AUTOSTART true of the example settings: the autostart is installed" "changed: [localhost]" "$(task_result "$autostart_install" "$output")"
+check_contains "AUTOSTART true: nothing is removed" "skipping: [localhost]" "$(task_result "$autostart_remove" "$output")"
+output="$(playbook "$OS_ROLE" --check --tags autostart --extra-vars '{"AUTOSTART": false}')"
+check_contains "AUTOSTART false: the tasks pass" "failed=0" "$output"
+check_contains "AUTOSTART false: the autostart is not installed" "skipping: [localhost]" "$(task_result "$autostart_install" "$output")"
+check_not_contains "AUTOSTART false: the autostart is removed" "skipping: [localhost]" "$(task_result "$autostart_remove" "$output")"
+output="$(playbook "$OS_ROLE" --check --tags autostart --extra-vars '{"AUTOSTART": ""}')"
+check_contains "AUTOSTART empty (the settings of an earlier version): the tasks pass" "failed=0" "$output"
+check_contains "AUTOSTART empty: the autostart is kept as it is" "skipping: [localhost]" "$(task_result "$autostart_install" "$output")"
+check_contains "AUTOSTART empty: nothing is removed" "skipping: [localhost]" "$(task_result "$autostart_remove" "$output")"
+output="$(playbook "$OS_ROLE" --check --tags autostart --extra-vars '{"AUTOSTART": null}')"
+check_contains "AUTOSTART without a value: the autostart is kept as it is" "skipping: [localhost]" "$(task_result "$autostart_install" "$output")"
+check_contains "AUTOSTART of another value is refused" "AUTOSTART of config/settings.yml must be true, false or empty" \
+  "$(playbook "$OS_ROLE" --check --tags autostart --extra-vars AUTOSTART=maybe)"
+
 section "WireGuard tunnel of ${OS_ROLE} (check mode)"
 tasks="$(playbook "$OS_ROLE" --list-tasks --tags registerDevices)"
 check_contains "the tunnel is deployed by the role of the OS" "Copy the WireGuard config of the tunnel to MCloud" "$tasks"
@@ -679,12 +707,24 @@ if command -v systemd-analyze > /dev/null 2>&1; then
   sed "s|/usr/local/bin/zebrunner-farm|${WORK}/bin/zebrunner-farm|" "${WORK}/watchdog.service" \
     > "${WORK}/mcloud-wireless-watchdog.service"
   cp "${WORK}/watchdog.timer" "${WORK}/mcloud-wireless-watchdog.timer"
+  sed "s|/usr/local/bin/zebrunner-farm|${WORK}/bin/zebrunner-farm|" "${REPO}/roles/common/files/mcloud-farm.service" \
+    > "${WORK}/mcloud-farm.service"
   run_check "the units are valid (systemd-analyze verify)" systemd-analyze verify "${WORK}/mcloud-device-restart@.service" \
     "${WORK}/mcloud-device-down@.service" "${WORK}/mcloud-wireguard-up.service" "${WORK}/mcloud-wireless-watchdog.service" \
-    "${WORK}/mcloud-wireless-watchdog.timer"
+    "${WORK}/mcloud-wireless-watchdog.timer" "${WORK}/mcloud-farm.service"
 else
   skip_check "the units are valid (systemd-analyze verify)" "no systemd-analyze"
 fi
+check "the autostart: a oneshot zebrunner-farm start after docker and the tunnel, enabled for the boot" \
+  "After=docker.service network-online.target wg-quick@mcloud-node.service
+Type=oneshot
+ExecStart=/usr/local/bin/zebrunner-farm start --quiet
+WantedBy=multi-user.target" "$(grep -E '^(After|Type|ExecStart|WantedBy)=' "${REPO}/roles/common/files/mcloud-farm.service")"
+render "${REPO}/roles/common/templates/ZebrunnerFarmStart.plist" "${WORK}/ZebrunnerFarmStart.plist" || exit 1
+check "the launch agent of the autostart is valid XML" "ok" \
+  "$(python3 -c 'import plistlib, sys; plistlib.load(open(sys.argv[1], "rb")); print("ok")' "${WORK}/ZebrunnerFarmStart.plist" 2>&1)"
+check_contains "the launch agent of the autostart logs into the agent folder" "<string>${REPO}/logs/autostart.log</string>" \
+  "$(cat "${WORK}/ZebrunnerFarmStart.plist")"
 
 render "${REPO}/roles/mac-devices/templates/zebrunner-mcloud.newsyslog.conf" "${WORK}/newsyslog.conf" || exit 1
 check "log rotation of the listener and the wireless watchdog logs: owner, mode, 7 archives of 10 MB, bzip2, no signal" \
