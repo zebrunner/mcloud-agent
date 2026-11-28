@@ -102,11 +102,17 @@ mdm_status() {
   sed 's/^/  /' <<< "$answer"
 }
 
+# MDM_ONE_SHOT_RUNNER: the shell of a one-shot container reads the whole script of its stdin first, then runs it with
+# the stdin /dev/null: adb shell forwards its stdin to the device, under sh -s it took the rest of a long script
+# (sh: syntax error: unterminated quoted string after the device owner); the secrets stay out of the arguments
+# shellcheck disable=SC2016
+MDM_ONE_SHOT_RUNNER='script="$(cat)" && eval "$script" < /dev/null'
+
 # mdm_one_shot <image> <arguments of docker run...>: a one-shot container of the image that runs the script of its stdin
 mdm_one_shot() {
   local image="$1"
   shift
-  docker run --rm -i --name "${dev_container}-mdm" "$@" --entrypoint sh "$image" -s
+  docker run --rm -i --name "${dev_container}-mdm" "$@" --entrypoint sh "$image" -c "$MDM_ONE_SHOT_RUNNER"
 }
 
 # mdm_usb_args: the USB device of the connector (Linux) into MDM_USB_ARGS; macOS reaches the device by the host
