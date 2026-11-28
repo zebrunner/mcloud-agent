@@ -298,6 +298,14 @@
       when: not mac_devices_watchdog | bool
       become: false
 
+# the containers of all the devices at the login by AUTOSTART (README.md#autostart): the launch agent ZebrunnerFarmStart
+- name: Deploy the autostart of the devices
+  ansible.builtin.import_role:
+    name: common
+    tasks_from: autostart
+  vars:
+    common_autostart_os: macos
+
 # The iOS simulators run on the host as SIMULATOR_USER (README.md#ios-simulators): their connector and Appium containers
 # run xcrun of the host over ssh with a key of the agent, Remote Login (System Settings, General, Sharing) must be on for
 # that user. The apps under test of a simulator run as that user too: a dedicated user without access to the secrets of

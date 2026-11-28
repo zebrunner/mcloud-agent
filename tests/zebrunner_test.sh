@@ -160,6 +160,28 @@ output="$(OS=Linux zbr "" setup)"
 check_contains "a second setup backs up existing settings" "making a backup" "$output"
 check "the backup of the settings exists" "yes" "$([[ -f "${AGENT}/config/settings.yml.bak" ]] && echo yes)"
 check "the backup of the devices exists" "yes" "$([[ -f "${AGENT}/config/devices.yml.bak" ]] && echo yes)"
+# the autostart (README.md#autostart): offered, yes by default, written to AUTOSTART of the settings
+# read shows the question at a terminal only
+check_contains "setup offers the autostart" "[ AUTOSTART ]" "$output"
+check_contains "setup tells what the autostart is" "The autostart runs zebrunner-farm start once after docker at the boot" "$(unwrapped "$output")"
+check_contains "without an answer (no terminal) the default is taken" "AUTOSTART: true in 'config/settings.yml': the deploy installs the autostart" "$output"
+check "the default is the one of the example" "AUTOSTART: true" "$(grep '^AUTOSTART:' "${AGENT}/config/settings.yml")"
+check_contains "the deploy step tells the autostart" "./zebrunner.sh ansible (with AUTOSTART: true it installs the autostart of the devices" "$(unwrapped "$output")"
+output="$(OS=Linux zbr "n\n" setup)"
+check "no autostart: AUTOSTART false" "AUTOSTART: false" "$(grep '^AUTOSTART:' "${AGENT}/config/settings.yml")"
+check_contains "no autostart: the deploy step tells it" "./zebrunner.sh ansible (AUTOSTART: false, no autostart" "$(unwrapped "$output")"
+check "the settings stay private" "600" "$(stat -c '%a' "${AGENT}/config/settings.yml" 2> /dev/null || stat -f '%Lp' "${AGENT}/config/settings.yml")"
+OS=Linux zbr "" setup > /dev/null
+check "Enter keeps the earlier no" "AUTOSTART: false" "$(grep '^AUTOSTART:' "${AGENT}/config/settings.yml")"
+# the settings of an earlier version without the line: the answer is added at the end
+sed -i.bak '/AUTOSTART/d' "${AGENT}/config/settings.yml" && rm -f "${AGENT}/config/settings.yml.bak"
+OS=Linux zbr "y\n" setup > /dev/null
+check "settings without AUTOSTART: the answer is added" "AUTOSTART: true" "$(tail -n 1 "${AGENT}/config/settings.yml")"
+check "settings without AUTOSTART: the other settings are kept" "MCLOUD_NODE_TOKEN:" "$(grep '^MCLOUD_NODE_TOKEN:' "${AGENT}/config/settings.yml")"
+check "settings without AUTOSTART: the file is valid YAML with the boolean" "True" \
+  "$("$YAML_PYTHON" -c 'import sys, yaml; print(yaml.safe_load(open(sys.argv[1]))["AUTOSTART"])' "${AGENT}/config/settings.yml")"
+cp "${AGENT}/config/settings.yml.original" "${AGENT}/config/settings.yml"
+chmod 600 "${AGENT}/config/settings.yml"
 mv "${AGENT}/config/devices.yml" "${WORK}/devices.yml"
 mkdir -p "${AGENT}/roles/mac-devices/vars"
 touch "${AGENT}/roles/mac-devices/vars/main.yml"
@@ -727,6 +749,27 @@ check_not_contains "a simulator is not on USB" "Emu is not on USB" "$usb_output"
 mkdir -p "${WORK}/usb-sysfs/1-6"
 echo R28M1384YQY > "${WORK}/usb-sysfs/1-6/serial"
 check_contains "a device on USB" "every USB device of the farm is on USB" "$(doctor_run)"
+# the autostart (README.md#autostart): no systemctl of the test answers that mcloud-farm.service is enabled
+autostart_output="$(doctor_run)"
+check_contains "doctor: the autostart is off" "info autostart of the devices after a boot: off" "$autostart_output"
+check_contains "doctor: AUTOSTART true without the autostart: the deploy installs it" \
+  "warn AUTOSTART: true of config/settings.yml, but the autostart is not installed" "$autostart_output"
+check_not_contains "doctor: AUTOSTART true: no other warning of the autostart" "the autostart is off:" "$autostart_output"
+sed -i.bak 's/^AUTOSTART:.*/AUTOSTART: false/' "$vars" && rm -f "${vars}.bak"
+autostart_output="$(doctor_run)"
+check_contains "doctor: the autostart off: the devices nothing starts after a reboot are a warning" \
+  "warn the autostart is off: after a reboot the containers of Emu stay stopped until zebrunner-farm start" "$autostart_output"
+check_not_contains "doctor: the autostart off: a USB device of Linux starts by udev" "containers of Galaxy" "$autostart_output"
+check_contains "doctor: the autostart off: its fix" "./zebrunner.sh autostart enable" "$autostart_output"
+# the stub body is expanded when the stub runs
+# shellcheck disable=SC2016
+stub systemctl '[[ "$1" == "is-enabled" ]]'
+autostart_output="$(doctor_run)"
+check_contains "doctor: the autostart on" "info autostart of the devices after a boot: on (/etc/systemd/system/mcloud-farm.service)" "$autostart_output"
+check_contains "doctor: AUTOSTART false with the autostart: the deploy removes it" \
+  "warn AUTOSTART: false of config/settings.yml: the next deploy removes the autostart" "$autostart_output"
+rm -f "${WORK}/bin/systemctl"
+sed -i.bak 's/^AUTOSTART:.*/AUTOSTART: true/' "$vars" && rm -f "${vars}.bak"
 rm -rf "${WORK}/usb-sysfs/1-6" "${WORK}/devices.txt"
 : > "${WORK}/kernel.log"
 rm -f "${WORK}/kernel.log"
@@ -1123,11 +1166,14 @@ stub systemctl '(IFS="|"; echo "systemctl|$*") >> "${STUB_DIR}/calls.log"
 [[ "$1" == "is-enabled" ]] && { [[ -f "${STUB_DIR}/autostart_on" ]]; exit; }
 exit 0'
 reset_calls
-check_contains "Linux: autostart is off by default" "Autostart is off (by default)" "$(OS=Linux zbr "" autostart)"
+output="$(OS=Linux zbr "" autostart)"
+check_contains "Linux: autostart is off" "Autostart is off: ./zebrunner.sh autostart enable" "$output"
+check_contains "Linux: AUTOSTART true of the settings: the next deploy installs it" "warn AUTOSTART: true of 'config/settings.yml': the next deploy installs the autostart." "$output"
 check "Linux: the status adds nothing" "" "$(calls sudo)"
 output="$(OS=Linux zbr "n\n" autostart enable)"
 check_contains "Linux: enable tells the unit" "creates /etc/systemd/system/mcloud-farm.service (mode 644)" "$output"
 check_contains "Linux: enable shows the content of the unit" "ExecStart=/usr/local/bin/zebrunner-farm start --quiet" "$output"
+check_contains "Linux: the unit is the file of the deploy" "$(sed -n 2p "${AGENT}/roles/common/files/mcloud-farm.service")" "$output"
 check_contains "Linux: enable tells nothing starts now" "it runs at the next boot, nothing starts now" "$(unwrapped "$output")"
 check "Linux: a declined enable changes nothing" "" "$(calls sudo)"
 OS=Linux zbr "y\n" autostart enable > /dev/null
@@ -1145,6 +1191,21 @@ OS=Linux zbr "y\n" autostart disable > /dev/null
 check "Linux: disable removes the unit with sudo" "systemctl|disable|mcloud-farm.service
 rm|-f|/etc/systemd/system/mcloud-farm.service
 systemctl|daemon-reload" "$(calls sudo)"
+check "Linux: disable writes AUTOSTART false, the next deploy keeps it off" "AUTOSTART: false" "$(grep '^AUTOSTART:' "$vars")"
+rm -f "${WORK}/autostart_on"
+output="$(OS=Linux zbr "" autostart)"
+check_not_contains "Linux: the autostart off with AUTOSTART false: nothing to warn" "warn" "$output"
+sed -i.bak '/^AUTOSTART:/d' "$vars" && rm -f "${vars}.bak"
+check_contains "Linux: AUTOSTART not set: the deploy keeps the autostart" "AUTOSTART is not set in 'config/settings.yml': the deploy keeps the autostart as it is." "$(OS=Linux zbr "" autostart)"
+OS=Linux zbr "y\n" autostart enable > /dev/null
+check "Linux: enable writes AUTOSTART true" "AUTOSTART: true" "$(tail -n 1 "$vars")"
+check "Linux: the settings stay private" "600" "$(stat -c '%a' "$vars" 2> /dev/null || stat -f '%Lp' "$vars")"
+touch "${WORK}/autostart_on"
+sed -i.bak 's/^AUTOSTART:.*/AUTOSTART: false/' "$vars" && rm -f "${vars}.bak"
+check_contains "Linux: the autostart on with AUTOSTART false: the next deploy removes it" \
+  "warn AUTOSTART: false of 'config/settings.yml': the next deploy removes the autostart." "$(OS=Linux zbr "" autostart)"
+OS=Linux zbr "" autostart enable > /dev/null
+check "Linux: enable of an enabled autostart writes AUTOSTART true" "AUTOSTART: true" "$(grep '^AUTOSTART:' "$vars")"
 rm -f "${WORK}/autostart_on"
 
 plist="${WORK}/home/Library/LaunchAgents/ZebrunnerFarmStart.plist"
@@ -1161,6 +1222,12 @@ check_contains "macOS: the launch agent waits for the WireGuard tunnel when it i
   "/usr/local/bin/zebrunner-farm __tunnel-ready &amp;&amp; exec /usr/local/bin/zebrunner-farm start --quiet" "$(cat "$plist")"
 check "macOS: enable needs no sudo and loads nothing now" "" "$(calls sudo)$(calls launchctl)"
 check_contains "macOS: the status of the enabled autostart" "Autostart is on: ${plist}" "$(OS=Darwin zbr "" autostart)"
+if command -v ansible > /dev/null 2>&1; then
+  render "${AGENT}/roles/common/templates/ZebrunnerFarmStart.plist" "${WORK}/ansible.plist" --extra-vars "agent_dir=${AGENT}" || exit 1
+  check "macOS: the launch agent is the one the deploy renders" "same" "$(cmp -s "$plist" "${WORK}/ansible.plist" && echo same)"
+else
+  skip_check "macOS: the launch agent is the one the deploy renders" "no ansible"
+fi
 OS=Darwin zbr "y\n" autostart disable > /dev/null
 check "macOS: disable removes the launch agent" "no" "$([[ -f "$plist" ]] && echo yes || echo no)"
 check_contains "macOS: disable unloads it" "bootout|" "$(calls launchctl)"

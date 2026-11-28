@@ -60,6 +60,7 @@ Feel free to support the development with a [**donation**](https://www.paypal.co
   ./zebrunner.sh setup
   ```
 
+- The setup asks whether the containers of the devices start after a boot: `Start the containers of the devices after a boot (autostart)? [Y/n]`, yes by default (Enter keeps an earlier `AUTOSTART: false`; without a terminal, e.g. `./zebrunner.sh setup < /dev/null`, the default is taken), its answer is `AUTOSTART` of `config/settings.yml` and the deploy installs the autostart by it, see [Autostart](#autostart).
 - The setup ends with the numbered next steps: the invite of this host on the MCloud server, `./zebrunner.sh join`, the devices, `./zebrunner.sh doctor`, `./zebrunner.sh ansible` and `zebrunner-farm start`.
 
 ## Settings
@@ -68,7 +69,7 @@ The local settings of the host are in `config/`, out of git; `./zebrunner.sh set
 
 | File | What it is | Example |
 | --- | --- | --- |
-| `config/settings.yml` | the settings of the host, the same for Linux and macOS: the connection to MCloud of `./zebrunner.sh join`, S3, WebDriverAgent; mode 600, it has secrets | `config/settings.yml.original` |
+| `config/settings.yml` | the settings of the host, the same for Linux and macOS: the connection to MCloud of `./zebrunner.sh join`, S3, WebDriverAgent, the [autostart](#autostart) (`AUTOSTART`); mode 600, it has secrets | `config/settings.yml.original` |
 | `config/devices.yml` | the list of the devices (`devices:`) | `config/devices.yml.original` (Linux), `config/mac-devices.yml.original` (macOS) |
 
 The other files of the settings are in git, do not change them: `git pull` brings their new values. A line of `config/settings.yml` overrides any of them:
@@ -76,7 +77,7 @@ The other files of the settings are in git, do not change them: `git pull` bring
 | File | What it is |
 | --- | --- |
 | `versions.yml` | the images of the devices and their versions |
-| `roles/common/defaults/main.yml` | the values by default of both OS: the options of Appium (`APPIUM_RELAXED_SECURITY`, ...), `RESTARTS_LIMIT`, `DEVICE_UNAVAILABLE_TIMEOUT` and `WIRELESS_WATCHDOG_INTERVAL` (see [Wireless devices](#wireless-devices) and [Wireless watchdog](#wireless-watchdog)), `STF_DOCKER_NETWORK` (`infra`: the docker network of the containers of the devices, the deploy and `zebrunner-farm` create it), `CONNECTOR_PEER_FILTER` (`true`, see [Docker network](#docker-network)), the empty optional settings (`STF_API_URL`, `S3_*`, `WDA_FILE`, `WDA_BUNDLEID`, the supervision identity of the [MDM](#mdm) `MDM_SUPERVISION_P12*`), the [WireGuard tunnel](#wireguard-tunnel) off (`WG_ENABLED: false`, the empty `WG_*`, `WG_PERSISTENT_KEEPALIVE: 25`): a line of them removed from `config/settings.yml` is the value by default, the [Developer Disk Images](#developer-disk-images) (`DDI_*`) |
+| `roles/common/defaults/main.yml` | the values by default of both OS: the options of Appium (`APPIUM_RELAXED_SECURITY`, ...), `RESTARTS_LIMIT`, `DEVICE_UNAVAILABLE_TIMEOUT` and `WIRELESS_WATCHDOG_INTERVAL` (see [Wireless devices](#wireless-devices) and [Wireless watchdog](#wireless-watchdog)), `STF_DOCKER_NETWORK` (`infra`: the docker network of the containers of the devices, the deploy and `zebrunner-farm` create it), `CONNECTOR_PEER_FILTER` (`true`, see [Docker network](#docker-network)), the empty optional settings (`STF_API_URL`, `S3_*`, `WDA_FILE`, `WDA_BUNDLEID`, the supervision identity of the [MDM](#mdm) `MDM_SUPERVISION_P12*`), the [WireGuard tunnel](#wireguard-tunnel) off (`WG_ENABLED: false`, the empty `WG_*`, `WG_PERSISTENT_KEEPALIVE: 25`): a line of them removed from `config/settings.yml` is the value by default, the [Developer Disk Images](#developer-disk-images) (`DDI_*`), `AUTOSTART` empty (the deploy keeps the [autostart](#autostart) as it is) |
 | `roles/devices/defaults/main.yml`, `roles/mac-devices/defaults/main.yml` | the values by default of the OS: `STF_PROVIDER_NAME`; `USB_DEVICE_GROUP` of Linux (`plugdev`: the group of the device nodes of the USB devices, see [Linux OS](#linux-os)); `USBMUXD_SOCKET_ADDRESS`, `ADB_SERVER_SOCKET_ADDRESS`, `SIMULATOR_USER` (`mcloud-sim`) and `SIMULATOR_SSH_FROM` (`127.0.0.1,::1`) of macOS, see [iOS simulators](#ios-simulators) |
 
 The playbooks load them in this order: the values by default of the roles, `versions.yml`, `config/settings.yml`, `config/devices.yml`. The deploy renders the settings zebrunner-farm runs with into `/usr/local/etc/zebrunner-farm.env`: udev and launchd run it without the environment of the user, a change of `config/` needs `./zebrunner.sh ansible` (`./zebrunner.sh doctor` reports the settings that differ). `./zebrunner.sh backup` keeps the two files of `config/` in a private folder `backup/bak_<time>_<random>/config/`, `restore` puts them back; the code of the agent is not in a backup, it comes from git (`git pull`).
@@ -168,7 +169,7 @@ Security:
 - Usbmuxd service is stopped and masked (disabled).
 - Wireless, emulator and proxy devices have no udev rules: `zebrunner-farm start` creates their containers.
 - Android emulators (`android-sim`) are started outside the farm (e.g. an AVD, Genymotion, a container Android): set `address` to their adb address reachable from the docker network; appium gets `DEVICE_CONNECTION=android-sim` (a `default` device is a phone).
-- [Optional] The containers of all the devices after a reboot: `./zebrunner.sh autostart enable`, see [Autostart](#autostart).
+- The containers of all the devices after a reboot: with `AUTOSTART: true` (the answer of `./zebrunner.sh setup`, yes by default) the deploy installs and enables the systemd unit `mcloud-farm.service`, see [Autostart](#autostart).
 - [Optional] Increased `fs.inotify.max_user_instances` to workaround [#328](https://github.com/zebrunner/mcloud-agent/issues/328)
   > `sudo sysctl fs.inotify.max_user_instances=2048`
 
@@ -204,12 +205,13 @@ Security:
 - Deployed $HOME/Library/LaunchAgents/ZebrunnerDevicesListener.plist to load and manage iOS devices connect/disconnect automatically: the devices listener (/usr/local/bin/zebrunner-device-listener and usbmuxd_watch) restarts the containers of a connected USB device and removes them on disconnect, devices reachable over Wi-Fi only are not handled by it.
 - Log rotation of the devices listener log is set up in /etc/newsyslog.d/zebrunner-mcloud.conf.
 - Run `zebrunner-farm start` to create the containers of the connected devices and to load the devices listener (otherwise it is loaded on the next login only).
+- The containers of all the devices at the login: with `AUTOSTART: true` (the answer of `./zebrunner.sh setup`, yes by default) the deploy installs the launch agent `~/Library/LaunchAgents/ZebrunnerFarmStart.plist` (not loaded at the deploy), see [Autostart](#autostart).
 
 ## Agent management
 
 `./zebrunner.sh` without arguments (or `help`, `--help`, `-h`) lists its commands, grouped by stage: set up, operate, maintain, help. `./zebrunner.sh help <command>` (or `./zebrunner.sh <command> --help`, `-h`) shows the usage, the description and the options of a command without running it: `-h` or `--help` anywhere in the arguments of a command shows its help, so `./zebrunner.sh ansible --check --help` deploys nothing (`ansible-playbook --help` shows the options of ansible-playbook). An unknown command is an error with the closest commands (`Did you mean: status?`) and the usage on stderr, its exit code is 2. Its output has the terminal style of every MCloud repository (`patch/ui.sh`, [CONVENTIONS.md](CONVENTIONS.md#terminal-output)): colors on a terminal only (`NO_COLOR`, `UI_COLOR=always` or `never`), the Unicode glyphs with a UTF-8 locale (`UI_ASCII=true` for ASCII); without a terminal it is plain text. The commands:
 
-- `setup` - prepares the agent: the settings of `config/` from the examples. It changes no shell profile: `zebrunner.sh` knows its folder, `zebrunner-farm` has it in its settings, so `zebrunner-farm ansible` deploys again from any folder; the `ZEBRUNNER_MCLOUD_AGENT_DIR` line of the earlier versions is removed from the profiles.
+- `setup` - prepares the agent: the settings of `config/` from the examples and the question of the [autostart](#autostart) (`AUTOSTART`, yes by default). It changes no shell profile: `zebrunner.sh` knows its folder, `zebrunner-farm` has it in its settings, so `zebrunner-farm ansible` deploys again from any folder; the `ZEBRUNNER_MCLOUD_AGENT_DIR` line of the earlier versions is removed from the profiles.
 - `ansible [devices] [arguments]` - deploys the agent, `devices` without the download of the images and keeping the running containers of the devices, the arguments are of ansible-playbook (see [Run ansible playbook](#run-ansible-playbook)).
 - `status` - shows the state of the agent components: tools, Rosetta 2 of an Apple Silicon Mac, deployed files, launch agents.
 - `backup` and `restore` - save the settings of `config/` into the `backup` folder and restore them from it (see [Settings](#settings)); a backup of an earlier version (`vars/main.yml`, `defaults/main.yml`) goes to `config/` with `./zebrunner.sh migrate <its files>`.
@@ -218,7 +220,7 @@ Security:
 - `doctor` - checks the host, the settings, the deployment, the network to the MCloud server and the devices, and tells what to fix, see [Doctor](#doctor).
 - `join` - enrolls this host in MCloud with the join string of `./zebrunner.sh node-invite` of mcloud, see [Node enrollment](#node-enrollment).
 - `migrate [files...]` - moves the settings of an earlier version to `config/`, see [Settings](#settings).
-- `autostart [status|enable|disable]` - the containers of the devices after a reboot, off by default, see [Autostart](#autostart).
+- `autostart [status|enable|disable]` - the containers of the devices after a reboot (`AUTOSTART` of the settings, offered by `setup`), see [Autostart](#autostart).
 - `mdm <status|enroll|release|supervise> [devices...] [options]` - the devices in the MDM of MCloud, see [MDM](#mdm).
 - `help [command]` - the commands, or the help of a command.
 - `completion bash|zsh` - the completion of the shell, see [Completion](#completion).
@@ -246,13 +248,22 @@ The completion is safe at any folder: it runs only a `zebrunner.sh` (or `zebrunn
 
 ### Autostart
 
-The deploy adds no autostart. After a reboot the USB devices are started by udev (Linux) and by the devices listener at the login (iOS of macOS); the containers of the other devices (wireless, emulators, proxy; the USB Android devices of macOS) stay stopped: `zebrunner-farm start` starts them. The autostart is a choice of the administrator of the host, off by default:
+After a reboot the USB devices are started by udev (Linux) and by the devices listener at the login (iOS of macOS); the containers of the other devices (wireless, emulators, proxy; the USB Android devices and the simulators of macOS) stay stopped: docker stopped them at the shutdown (exit `0`, their restart policy does not start them again) and `zebrunner-farm start` starts them. The autostart runs `zebrunner-farm start --quiet` once after the boot: the stopped containers are started, the running ones kept, the missing ones created; on Linux the commands of a device wait for each other (see [Linux OS](#linux-os)), so the autostart and the units of udev of the same device do not change its containers together.
 
-- `./zebrunner.sh autostart` shows whether it is on.
-- `./zebrunner.sh autostart enable` tells what it adds, shows the content of the file and asks first (No by default); nothing starts at once:
-  - Linux: the systemd unit `/etc/systemd/system/mcloud-farm.service` (sudo, `systemctl enable`), it runs `zebrunner-farm start --quiet` once after docker (and the [WireGuard tunnel](#wireguard-tunnel) when there is one) at the boot; its log: `journalctl -u mcloud-farm`;
-  - macOS: the launch agent `~/Library/LaunchAgents/ZebrunnerFarmStart.plist` of the user (no sudo), at the login it waits for Docker Desktop and, when it is on, for the [WireGuard tunnel](#wireguard-tunnel) (10 minutes at most: let Docker Desktop start at the login) and runs `zebrunner-farm start --quiet` once; its log: `logs/autostart.log` of the agent folder.
-- `./zebrunner.sh autostart disable` tells what it removes and asks first; the running containers keep running. `./zebrunner.sh shutdown` removes it too.
+- `./zebrunner.sh setup` asks `Start the containers of the devices after a boot (autostart)? [Y/n]`: yes by default (Enter keeps an earlier `AUTOSTART: false` of the settings; without a terminal the default is taken, nothing waits). The answer is `AUTOSTART: true` or `false` of `config/settings.yml`; the deploy applies it, nothing starts at the deploy:
+
+  | `AUTOSTART` | The deploy |
+  | --- | --- |
+  | `true` (the example settings, the default answer) | installs the autostart |
+  | `false` | removes the autostart (the running containers keep running) |
+  | empty or missing (a `config/settings.yml` of an earlier version) | keeps the autostart as it is: one of `./zebrunner.sh autostart enable` keeps working |
+
+  - Linux: the systemd unit `/etc/systemd/system/mcloud-farm.service` (`roles/common/files/mcloud-farm.service`, enabled with `systemctl enable`), it runs `zebrunner-farm start --quiet` once after docker (and the [WireGuard tunnel](#wireguard-tunnel) when there is one) at the boot; its log: `journalctl -u mcloud-farm`;
+  - macOS: the launch agent `~/Library/LaunchAgents/ZebrunnerFarmStart.plist` of the user (`roles/common/templates/ZebrunnerFarmStart.plist`, no sudo, loaded at the next login, not at the deploy), at the login it waits for Docker Desktop and, when it is on, for the [WireGuard tunnel](#wireguard-tunnel) (10 minutes at most: let Docker Desktop start at the login) and runs `zebrunner-farm start --quiet` once; its log: `logs/autostart.log` of the agent folder. A Mac starts it at the login of the user of the deploy only: turn on the automatic login of that user for a farm that reboots unattended.
+- `./zebrunner.sh autostart` shows whether it is on and the `AUTOSTART` the next deploy applies.
+- `./zebrunner.sh autostart enable` tells what it adds, shows the content of the file (the one of the deploy) and asks first (No by default); then it writes `AUTOSTART: true`, so the next deploy keeps it; nothing starts at once.
+- `./zebrunner.sh autostart disable` tells what it removes and asks first, then writes `AUTOSTART: false`; the running containers keep running. `./zebrunner.sh shutdown` removes it too.
+- `./zebrunner.sh doctor` tells whether it is on, warns when it is off and devices of this host stay stopped after a reboot (their names), and when `AUTOSTART` differs from the host (the next deploy changes it).
 
 ### Wireless watchdog
 
@@ -303,7 +314,7 @@ STF of MCloud accepts on its ZeroMQ ports only the enrolled device hosts: the CU
 - the YAML of `config/settings.yml` and `config/devices.yml`: doctor reads the settings as the playbooks load them (the values by default of the roles, `versions.yml`, `config/settings.yml`), a file that is not valid YAML is a problem;
 - the settings of `config/settings.yml`: the ones of `./zebrunner.sh join`, the formats of the token and of the CURVE keys, the file readable by other users, a `roles/.../vars/main.yml` of an earlier version; the devices of `config/devices.yml` with the checks of the deploy (unique ids and names, the obligatory settings, the characters of the ids, names and locations, the size of the port ranges, the host ports, the connections of the OS);
 - the enrollment: it asks MCloud about this host (`GET /api/v1/nodes/self` of `MCLOUD_URL` with the token, over HTTPS to the pinned TLS key, or for a certificate of a public CA to `PUBLIC_IP` with the CAs of the system, see [TLS of MCloud](#tls-of-mcloud)): enrolled and active (or unknown, revoked), its address in MCloud is `STF_PROVIDER_HOST`, the devices STF knows of it, which of them are bound to it and connected;
-- the deployment: the settings of `zebrunner-farm` (`/usr/local/etc/zebrunner-farm.env`) are the ones of this folder and the current ones, also the versions of the images (otherwise `./zebrunner.sh ansible`) and readable by this user only, the scripts of `/usr/local/lib/zebrunner-farm` are the ones of this folder, the containers created with the current `STF_PROVIDER_HOST` (otherwise `zebrunner-farm restart`);
+- the deployment: the settings of `zebrunner-farm` (`/usr/local/etc/zebrunner-farm.env`) are the ones of this folder and the current ones, also the versions of the images (otherwise `./zebrunner.sh ansible`) and readable by this user only, the scripts of `/usr/local/lib/zebrunner-farm` are the ones of this folder, the containers created with the current `STF_PROVIDER_HOST` (otherwise `zebrunner-farm restart`); the [autostart](#autostart): on or off, a warning when it is off and devices stay stopped after a reboot or when `AUTOSTART` differs from the host;
 - the [WireGuard tunnel](#wireguard-tunnel) with `WG_ENABLED: true`: the interface `mcloud-node` up with `WG_ADDRESS`, a handshake with MCloud within 3 minutes (`wg show` needs root: sudo without a password, otherwise reported as not checked), mcloud-grid answers at `WG_SERVER_ADDRESS`, `STF_PROVIDER_HOST` is `WG_ADDRESS`;
 - the network: the name resolution and the ports of `PUBLIC_IP`, mcloud-grid and the ZeroMQ triproxies; `STF_PROVIDER_HOST` is an address of this host, or a public address of a NAT while the MCloud server is in the network of this host (see [Device hosts in a private network](#device-hosts-in-a-private-network)); MCloud on this machine and the devices using its ports (see [Devices on the MCloud server](#devices-on-the-mcloud-server));
 - the remote debug: with `REMOTE_CONNECT_HOST` the adb relay of mcloud accepts the remote debug ports of the Android devices (printed);

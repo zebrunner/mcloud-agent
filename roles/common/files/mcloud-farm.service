@@ -1,0 +1,17 @@
+# The containers of all the devices after a boot (README.md#autostart): the deploy installs it with AUTOSTART: true of
+# config/settings.yml and removes it with AUTOSTART: false, ./zebrunner.sh autostart enable and disable do it at once.
+# The log: journalctl -u mcloud-farm
+[Unit]
+Description=MCloud: the containers of the devices after a boot
+Wants=docker.service network-online.target
+# the ports of the devices are published on the address of the WireGuard tunnel to MCloud when it is on
+After=docker.service network-online.target wg-quick@mcloud-node.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/zebrunner-farm start --quiet
+# the images may be pulled
+TimeoutStartSec=30min
+
+[Install]
+WantedBy=multi-user.target

@@ -379,6 +379,42 @@ doctor_deployment() {
   fi
 }
 
+# boot_stopped_devices: the names of the deployed devices nothing starts after a reboot without the autostart, separated
+# by ', ': udev starts the USB devices of Linux, the devices listener the iOS USB devices of macOS at the login
+boot_stopped_devices() {
+  local macos=""
+  [[ "$(uname)" == "Darwin" ]] && macos=1
+  device_list_fields name os connection | awk -F '|' -v macos="$macos" '
+    $1 == "" { next }
+    { connection = ($3 == "" ? "usb" : tolower($3)) }
+    connection != "usb" || (macos && $2 != "ios") { names = names (names == "" ? "" : ", ") $1 }
+    END { print names }'
+}
+
+# doctor_autostart: the autostart of the containers of the devices after a boot (README.md#autostart): its state, the
+# devices that stay stopped after a reboot without it, and AUTOSTART of the settings the next deploy applies
+doctor_autostart() {
+  local value
+  local names
+  value="$(setting AUTOSTART | tr '[:upper:]' '[:lower:]')"
+  names="$(boot_stopped_devices)"
+  if autostart_enabled; then
+    doctor_info "autostart of the devices after a boot: on ($(autostart_file))"
+    if [[ "$value" == "false" ]]; then
+      doctor_warn "AUTOSTART: false of ${DOCTOR_VARS}: the next deploy removes the autostart" \
+        "AUTOSTART: true keeps it; ./zebrunner.sh autostart disable removes it now"
+    fi
+    return 0
+  fi
+  doctor_info "autostart of the devices after a boot: off"
+  if [[ "$value" == "true" ]]; then
+    doctor_warn "AUTOSTART: true of ${DOCTOR_VARS}, but the autostart is not installed" "./zebrunner.sh ansible installs it"
+  elif [[ -n "$names" ]]; then
+    doctor_warn "the autostart is off: after a reboot the containers of ${names} stay stopped until zebrunner-farm start (only the USB devices start by themselves)" \
+      "./zebrunner.sh autostart enable (it writes AUTOSTART: true to ${DOCTOR_VARS})"
+  fi
+}
+
 # wireguard_handshake: the seconds since the last handshake with MCloud of the interface mcloud-node (wg show
 # latest-handshakes: 0 is none), nothing when wg cannot tell: it needs root (sudo without a password only) and on macOS
 # the utun of the interface (<name>.name of wg-quick)
@@ -836,6 +872,7 @@ doctor() {
   if doctor_settings; then
     doctor_enrollment
     doctor_deployment
+    doctor_autostart
     doctor_wireguard
     doctor_network
     doctor_devices
