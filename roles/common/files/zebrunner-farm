@@ -45,23 +45,29 @@ else
   fi
 fi
 
+# lock_file <name>: the path of the lock file <name>.lock of the host, created when it is missing; fails when flock cannot
+# be used (macOS, a host without flock, --dry-run) or the file is not readable
+lock_file() {
+  if [[ "$FARM_OS" == "macos" || -n "${DRY_RUN:-}" ]] || ! command -v flock > /dev/null 2>&1; then
+    return 1
+  fi
+  local lock="${MCLOUD_LOCK_DIR:-/run/lock}/${1//[^A-Za-z0-9._-]/_}.lock"
+  # the file is shared by root (udev) and the users of docker: flock needs it readable only. noclobber creates it with
+  # O_EXCL, which follows no symlink planted in the world-writable lock directory
+  [[ -e "$lock" ]] || (set -C && umask 022 && : > "$lock") 2> /dev/null
+  [[ -r "$lock" ]] || return 1
+  echo "$lock"
+}
+
 # with_device_lock <udid> <command...>: the commands of one device run one at a time: the jobs of udev
 # (mcloud-device-restart@, mcloud-device-down@) and the manual calls of the device or of a group of devices do not
 # change its containers together; macOS (no udev) and a host without flock run without it
 with_device_lock() {
   local id="$1"
   shift
-  # --dry-run changes nothing: it waits for no other command
-  if [[ -z "$id" || "$FARM_OS" == "macos" || -n "${DRY_RUN:-}" ]] || ! command -v flock > /dev/null 2>&1; then
-    "$@"
-    return
-  fi
-  # the lock of the id: udev names the device by its id
-  local lock="${MCLOUD_LOCK_DIR:-/run/lock}/mcloud-device-${id//[^A-Za-z0-9._-]/_}.lock"
-  # the file is shared by root (udev) and the users of docker: flock needs it readable only. noclobber creates it with
-  # O_EXCL, which follows no symlink planted in the world-writable lock directory
-  [[ -e "$lock" ]] || (set -C && umask 022 && : > "$lock") 2> /dev/null
-  if [[ ! -r "$lock" ]]; then
+  local lock
+  # the lock of the id: udev names the device by its id; --dry-run changes nothing: it waits for no other command
+  if [[ -z "$id" ]] || ! lock="$(lock_file "mcloud-device-${id}")"; then
     "$@"
     return
   fi
@@ -73,6 +79,25 @@ with_device_lock() {
     fi
     "$@"
   ) 9< "$lock"
+}
+
+# with_networks_lock <command...>: the networks of the devices are created one at a time on the host: the free subnet
+# one zebrunner-farm picks is the one another one picks at the same moment (the units of udev and the autostart at a
+# boot, README.md#docker-network). Held for the choice of the subnet and the creation of the network only; without the
+# lock (macOS, no flock) or after MCLOUD_NETWORK_LOCK_TIMEOUT seconds (60) the command runs anyway, its retries take
+# another subnet
+with_networks_lock() {
+  local lock
+  if ! lock="$(lock_file mcloud-device-networks)"; then
+    "$@"
+    return
+  fi
+  local status=0
+  {
+    flock -w "${MCLOUD_NETWORK_LOCK_TIMEOUT:-60}" 8
+    "$@" || status=$?
+  } 8< "$lock"
+  return "$status"
 }
 
 # device_line <udid or name>: the line of the device of mcloud-devices.txt (README.md#devices-management): one device per
@@ -941,8 +966,9 @@ device_network() {
   fi
 }
 
-# free_device_subnets <pool>: the /28 subnets of the pool (an IPv4 CIDR of a prefix of 8 to 28) that overlap no docker
-# network, in their order; nothing for an invalid pool
+# free_device_subnets <pool> [count]: the /28 subnets of the pool (an IPv4 CIDR of a prefix of 8 to 28) that overlap no
+# docker network, in their order, the first count of them (all by default); nothing for an invalid pool. awk stops
+# after them: a reader that stops early (head) is a broken pipe for awk, which systemd units report (SIGPIPE ignored)
 free_device_subnets() {
   local ids
   ids="$(docker network ls -q 2> /dev/null)"
@@ -954,7 +980,7 @@ free_device_subnets() {
       docker network inspect -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}' $ids 2> /dev/null | tr ' ' '\n'
     fi
     echo "pool $1"
-  } | awk '
+  } | awk -v count="${2:-0}" '
     /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\/[0-9]+$/ {
       split($1, c, "/"); split(c[1], o, ".")
       size = 2 ^ (32 - c[2]); first = ((o[1] * 256 + o[2]) * 256 + o[3]) * 256 + o[4]; first -= first % size
@@ -965,17 +991,20 @@ free_device_subnets() {
       split($2, c, "/"); split(c[1], o, ".")
       if (c[2] < 8 || c[2] > 28) exit
       size = 2 ^ (32 - c[2]); base = ((o[1] * 256 + o[2]) * 256 + o[3]) * 256 + o[4]; base -= base % size
+      printed = 0
       for (start = base; start < base + size; start += 16) {
         free = 1
         for (i = 1; i <= used; i++) if (start <= used_last[i] && start + 15 >= used_first[i]) { free = 0; break }
-        if (free) print int(start / 16777216) "." int(start / 65536) % 256 "." int(start / 256) % 256 "." start % 256 "/28"
+        if (!free) continue
+        print int(start / 16777216) "." int(start / 65536) % 256 "." int(start / 256) % 256 "." start % 256 "/28"
+        if (count > 0 && ++printed >= count) exit
       }
     }'
 }
 
 # ensure_device_network: the network of the device with a free /28 of DEVICE_NETWORK_SUBNETS (10.233.0.0/16 by
-# default, not a pool of docker: they are about 30 networks and may overlap the networks of the sites); a subnet a
-# parallel start took meanwhile is skipped
+# default, not a pool of docker: they are about 30 networks and may overlap the networks of the sites), created under
+# the lock of the networks of the host (with_networks_lock)
 ensure_device_network() {
   [[ "${DEVICE_NETWORK_ISOLATION:-true}" == "true" ]] || return 0
   if docker network inspect "$dev_network" > /dev/null 2>&1; then
@@ -985,13 +1014,34 @@ ensure_device_network() {
     container_line info "would create" "$dev_network" "network of the device"
     return 0
   fi
+  with_networks_lock create_device_network
+}
+
+# create_device_network: the network of the device with the first free /28 of DEVICE_NETWORK_SUBNETS; a subnet docker
+# refuses as overlapping (another zebrunner-farm without the lock, a network of another tool created meanwhile, one
+# docker network ls does not show yet) is not tried again, the next free one is
+create_device_network() {
+  # another zebrunner-farm created it while this one waited for the lock
+  if docker network inspect "$dev_network" > /dev/null 2>&1; then
+    return 0
+  fi
   local pool="${DEVICE_NETWORK_SUBNETS:-10.233.0.0/16}"
   local subnet
-  local output
+  local output=""
   local attempt
-  for attempt in 1 2 3 4 5; do
-    subnet="$(free_device_subnets "$pool" | head -n 1)"
+  local tried=" "
+  local free
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    subnet=""
+    # the subnets are words
+    for free in $(free_device_subnets "$pool" 20); do
+      if [[ "$tried" != *" ${free} "* ]]; then
+        subnet="$free"
+        break
+      fi
+    done
     if [[ -z "$subnet" ]]; then
+      [[ -n "$output" ]] && break
       container_line fail "NOT created" "$dev_network" "no free /28 subnet in DEVICE_NETWORK_SUBNETS ${pool}" \
         "a larger or another free range of DEVICE_NETWORK_SUBNETS (README.md#docker-network), then: zebrunner-farm start ${dev_device_name}"
       return 1
@@ -1001,12 +1051,14 @@ ensure_device_network() {
       container_line ok created "$dev_network" "network of the device, ${subnet}"
       return 0
     fi
-    # a parallel start of another device took the subnet, or the network
+    # a parallel start of the device created the network
     if docker network inspect "$dev_network" > /dev/null 2>&1; then
       return 0
     fi
     grep -qi "overlap" <<< "$output" || break
-    [[ "$attempt" -lt 5 ]] || break
+    tried+="${subnet} "
+    # without the lock the other zebrunner-farm tries again at the same moment
+    [[ "$attempt" -eq 1 ]] || sleep "0.$((RANDOM % 9 + 1))"
   done
   container_line fail "NOT created" "$dev_network" "$(tail -n 1 <<< "$output")" \
     "docker network create --subnet <a free /28> ${dev_network}, then: zebrunner-farm start ${dev_device_name}"
@@ -1675,8 +1727,14 @@ down_device() {
 }
 
 # restart_device: the containers of the device removed and created again; fails when one of them failed, SKIPPED as
-# start_device
+# start_device. The restart of a connection (the unit of udev, MCLOUD_DEVICE_EVENT=connect) keeps the containers created
+# for this connection already: a zebrunner-farm start (the autostart at a boot) took the device while the unit waited
+# for its lock, so the containers of the device are created once
 restart_device() {
+  if [[ "${MCLOUD_DEVICE_EVENT:-}" == "connect" ]] && created_for_connection; then
+    farm_status info "the containers run for this connection already (created after it was plugged in): kept"
+    return 0
+  fi
   DEVICE_FAILED=""
   remove_containers
   local removed="$DEVICE_FAILED"
@@ -1684,6 +1742,39 @@ restart_device() {
   local status=$?
   [[ -z "$removed" ]] || return 1
   return "$status"
+}
+
+# created_for_connection: 0 when the containers of the USB device of get_device_fields (Linux) run and were created for
+# its current connection: the connector after the symlink of udev of the connection appeared, with the USB bus of the
+# symlink; a container that stopped, a container of an earlier connection or boot is not
+created_for_connection() {
+  [[ "$FARM_OS" != "macos" && "$dev_connection" == "usb" && -z "${DRY_RUN:-}" ]] || return 1
+  local link="/dev/${dev_container}"
+  local since
+  local details
+  local running
+  local created
+  local devices
+  local role
+  local state
+  # the time of the symlink itself (stat without -L): udev makes it at the connection
+  since="$(stat -c '%Y' "$link" 2> /dev/null)"
+  [[ "$since" =~ ^[0-9]+$ ]] || return 1
+  details="$(docker inspect -f '{{.State.Running}}|{{.Created}}|{{range .HostConfig.Devices}}{{.PathInContainer}} {{end}}' \
+    "${dev_container}-connector" 2> /dev/null)" || return 1
+  IFS='|' read -r running created devices <<< "$details"
+  [[ "$running" == "true" && " ${devices} " == *" $(readlink -f "$link") "* ]] || return 1
+  created="$(epoch "$created" 2> /dev/null)"
+  [[ "$created" =~ ^[0-9]+$ && "$created" -ge "$since" ]] || return 1
+  read_container_states
+  for role in stf appium uploader; do
+    state="$(container_state "${dev_container}-${role}")"
+    # a device has an uploader with S3 only (README.md#recordings)
+    if [[ "$role" == "uploader" && -z "$state" ]]; then
+      continue
+    fi
+    [[ "$state" == "running" ]] || return 1
+  done
 }
 
 # start_skipped: 0 when start skips the device of get_device_fields: on Linux a USB device that is not plugged in (no
@@ -2826,7 +2917,7 @@ farm_complete() {
 
 # check_devices_list: mcloud-devices.txt of an earlier version (positional fields) needs the deploy of this version
 check_devices_list() {
-  if grep -v '^#' "$MCLOUD_DEVICES" 2> /dev/null | grep -q . && ! grep -Eq '(^|[|])id=' "$MCLOUD_DEVICES"; then
+  if grep -q '^[^#]' "$MCLOUD_DEVICES" 2> /dev/null && ! grep -Eq '(^|[|])id=' "$MCLOUD_DEVICES"; then
     farm_status fail "The devices list ${MCLOUD_DEVICES} is of an earlier version: deploy it with ./zebrunner.sh ansible"
     return 1
   fi
