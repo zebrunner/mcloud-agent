@@ -545,6 +545,15 @@ for role in devices mac-devices; do
   farm "$role" start WiFi > /dev/null
   check_contains "${role}: STF_TLS_INSECURE: STF does not verify the certificate" "|-e|NODE_TLS_REJECT_UNAUTHORIZED=0|" \
     "$(run_args device-WiFi-192.168.1.50-stf)"
+  render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
+  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
+  setup_case
+  farm "$role" start WiFi > /dev/null
+  connector="$(run_args device-WiFi-192.168.1.50-connector)"
+  check_contains "${role}: the Android connector is created" "|ANDROID_DEVICE=192.168.1.50:5555|" "$connector"
+  for env in PLATFORM_NAME DEVICE_UDID; do
+    check_not_contains "${role}: the Android connector gets no ${env}, it does not read it" "|${env}=" "$connector"
+  done
   # the pin of the TLS key of MCloud (STF_TLS_PINNED the deploy decides: STF_TLS_PIN and a self-signed or private-CA
   # certificate, README.md#tls-of-mcloud)
   tls_pin="$(printf '%043d' 0 | tr 0 p)="
@@ -566,15 +575,6 @@ for role in devices mac-devices; do
     fi
     check_not_contains "${role}: ${protocol}, a ${certificate} certificate: appium gets no pin" "MCLOUD_TLS_PIN" \
       "$(run_args device-WiFi-192.168.1.50-appium)"
-  done
-  render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
-  sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
-  setup_case
-  farm "$role" start WiFi > /dev/null
-  connector="$(run_args device-WiFi-192.168.1.50-connector)"
-  check_contains "${role}: the Android connector is created" "|ANDROID_DEVICE=192.168.1.50:5555|" "$connector"
-  for env in PLATFORM_NAME DEVICE_UDID; do
-    check_not_contains "${role}: the Android connector gets no ${env}, it does not read it" "|${env}=" "$connector"
   done
 
   render_farm "$role" "${WORK}/farm-${role}.env" || exit 1
