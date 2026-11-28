@@ -545,25 +545,26 @@ for role in devices mac-devices; do
   farm "$role" start WiFi > /dev/null
   check_contains "${role}: STF_TLS_INSECURE: STF does not verify the certificate" "|-e|NODE_TLS_REJECT_UNAUTHORIZED=0|" \
     "$(run_args device-WiFi-192.168.1.50-stf)"
-  # the pin of the TLS key of MCloud (STF_TLS_PIN, README.md#tls-of-mcloud)
+  # the pin of the TLS key of MCloud (STF_TLS_PINNED the deploy decides: STF_TLS_PIN and a self-signed or private-CA
+  # certificate, README.md#tls-of-mcloud)
   tls_pin="$(printf '%043d' 0 | tr 0 p)="
   check_not_contains "${role}: no pin without the join: STF verifies the certificate as before" "MCLOUD_TLS_PIN" \
     "$(run_args device-WiFi-192.168.1.50-stf)"
-  for case in "https|true|yes" "https|false|no" "http|true|no"; do
-    IFS='|' read -r protocol enforce expected <<< "$case"
+  for case in "https|true|self-signed|yes" "https|false|public|no" "http|true|self-signed|no"; do
+    IFS='|' read -r protocol pinned certificate expected <<< "$case"
     render_farm "$role" "${WORK}/farm-${role}.env" \
-      --extra-vars "MCLOUD_TLS_PIN=${tls_pin} STF_TLS_PIN=${enforce} PUBLIC_IP_PROTOCOL=${protocol}" || exit 1
+      --extra-vars "MCLOUD_TLS_PIN=${tls_pin} common_farm_tls_pinned=${pinned} PUBLIC_IP_PROTOCOL=${protocol}" || exit 1
     sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
     setup_case
     farm "$role" start WiFi > /dev/null
     if [[ "$expected" == yes ]]; then
-      check_contains "${role}: ${protocol}, STF_TLS_PIN ${enforce}: STF sends the node token to the pinned key only" \
+      check_contains "${role}: ${protocol}, a ${certificate} certificate: STF sends the node token to the pinned key only" \
         "|-e|MCLOUD_TLS_PIN=${tls_pin}|" "$(run_args device-WiFi-192.168.1.50-stf)"
     else
-      check_not_contains "${role}: ${protocol}, STF_TLS_PIN ${enforce}: no pin for STF" "MCLOUD_TLS_PIN" \
+      check_not_contains "${role}: ${protocol}, a ${certificate} certificate: no pin for STF" "MCLOUD_TLS_PIN" \
         "$(run_args device-WiFi-192.168.1.50-stf)"
     fi
-    check_not_contains "${role}: ${protocol}, STF_TLS_PIN ${enforce}: appium gets no pin" "MCLOUD_TLS_PIN" \
+    check_not_contains "${role}: ${protocol}, a ${certificate} certificate: appium gets no pin" "MCLOUD_TLS_PIN" \
       "$(run_args device-WiFi-192.168.1.50-appium)"
   done
   render_farm "$role" "${WORK}/farm-${role}.env" || exit 1

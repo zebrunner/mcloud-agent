@@ -903,19 +903,37 @@ fi
 
 output="$(doctor_run)"
 check_contains "a certificate of a public CA" "a public CA signs the certificate of MCloud" "$output"
-check_contains "the containers send the node token to the pinned key only (STF_TLS_PIN)" \
-  "ok   the containers of STF send the node token only to the pinned TLS key of MCloud (MCLOUD_TLS_PIN)" "$output"
+check_contains "a certificate of a public CA: the pin is not used (STF_TLS_PIN)" \
+  "info public certificate, TLS pin not used" "$output"
+check_not_contains "a certificate of a public CA: the containers get no pin" "send the node token only to the pinned TLS key" "$output"
+check "a certificate of a public CA: no option of tlstrust.py" "demo.zebrunner.farm 443 ${pin}" "$(tail -n 1 "${WORK}/tls-args")"
+echo "STF_TLS_PINNED=true" > "${WORK}/farm.env"
+check_contains "a deploy with the pin for a certificate of a public CA now is reported" \
+  "zebrunner-farm is deployed with the TLS pin for the containers of STF, the certificate of MCloud does not use it now" "$(doctor_run)"
 echo pinned > "${WORK}/net/tls"
-check_contains "the pinned self-signed certificate" "the containers of STF trust the pinned certificate of MCloud" "$(doctor_run)"
-echo "fail the TLS key is not the pinned one" > "${WORK}/net/tls"
 output="$(doctor_run)"
+check_contains "the pinned self-signed certificate" "the containers of STF trust the pinned certificate of MCloud" "$output"
+check_contains "a self-signed certificate: the containers send the node token to the pinned key only (STF_TLS_PIN)" \
+  "ok   the containers of STF send the node token only to the pinned TLS key of MCloud (MCLOUD_TLS_PIN)" "$output"
+check_not_contains "a self-signed certificate: the pin is used" "TLS pin not used" "$output"
+check_not_contains "a deploy with the pin for a self-signed certificate is the current one" "is deployed with" "$output"
+echo "STF_TLS_PINNED=false" > "${WORK}/farm.env"
+check_contains "a deploy without the pin for a self-signed certificate now is reported" \
+  "zebrunner-farm is deployed without the TLS pin for the containers of STF, the certificate of MCloud needs it now" "$(doctor_run)"
+rm -f "${WORK}/farm.env"
+echo "fail the TLS key is not the pinned one" > "${WORK}/net/tls"
 check_contains "a certificate the containers do not trust is a problem" \
-  "the containers of STF do not trust the certificate of MCloud: the TLS key is not the pinned one" "$output"
-check_contains "doctor checks the pin of a certificate of a public CA too" "--pin-required" "$(tail -n 1 "${WORK}/tls-args")"
-rm -f "${WORK}/net/tls"
+  "the containers of STF do not trust the certificate of MCloud: the TLS key is not the pinned one" "$(doctor_run)"
+echo pinned > "${WORK}/net/tls"
 echo 'STF_TLS_PIN: false' >> "$vars"
-check_contains "STF_TLS_PIN false is a warning" \
-  "warn STF_TLS_PIN: false: the containers of STF send the node token to any certificate a public CA issues for PUBLIC_IP" "$(doctor_run)"
+output="$(doctor_run)"
+check_contains "STF_TLS_PIN false with a self-signed certificate is a warning" \
+  "warn STF_TLS_PIN: false: the containers of STF send the node token to any certificate for PUBLIC_IP a public CA or the CA of MCloud issues" \
+  "$output"
+rm -f "${WORK}/net/tls"
+output="$(doctor_run)"
+check_not_contains "STF_TLS_PIN false with a certificate of a public CA: nothing to tell" "STF_TLS_PIN" "$output"
+check_not_contains "STF_TLS_PIN false: no pin at all" "TLS pin not used" "$output"
 sed -i.bak '/^STF_TLS_PIN:/d' "$vars" && rm -f "${vars}.bak"
 echo 'STF_TLS_INSECURE: true' >> "$vars"
 output="$(doctor_run)"

@@ -69,9 +69,9 @@ STF_API_URL: ""
 # certificate of another name than PUBLIC_IP; doctor fails with it unless STF_TLS_INSECURE_ACKNOWLEDGED is true too
 STF_TLS_INSECURE: false
 STF_TLS_INSECURE_ACKNOWLEDGED: false
-# the containers of STF send the node token only to the pinned TLS key of MCloud (MCLOUD_TLS_PIN of the join string),
-# also with a certificate of a public CA and with STF_TLS_INSECURE (README.md#tls-of-mcloud). false: any certificate a
-# public CA issues for PUBLIC_IP, e.g. one renewed with a new key automatically
+# the containers of STF send the node token only to the pinned TLS key of MCloud (MCLOUD_TLS_PIN of the join string)
+# for a self-signed or private-CA certificate and with STF_TLS_INSECURE; the deploy decides it, a certificate of a public
+# CA valid for PUBLIC_IP is not pinned (README.md#tls-of-mcloud). false: no pin at all
 STF_TLS_PIN: true
 S3_BUCKET: ""
 S3_TENANT: ""

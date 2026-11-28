@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """The certificate of MCloud the containers of STF trust (README.md#tls-of-mcloud).
 
-Usage: tlstrust.py <host> <port> <pin> [--pin-required | --pin-only]
+Usage: tlstrust.py <host> <port> <pin> [--pin-only]
 
 Prints nothing when a public CA of this host signs the certificate of <host>:<port> for <host>: the containers trust it
-already. Otherwise prints the certificates the server sends (PEM) when their key is the pinned one of the join string
-(<pin>: sha256 of the public key in base64, MCLOUD_TLS_PIN) and they are valid for <host>, for NODE_EXTRA_CA_CERTS of
-the containers. Exits with 1 and the reason on stderr for another key, a certificate of another host or no server.
+already and the pin is not used, so a renewal with a new key keeps working. Otherwise prints the certificates the server
+sends (PEM) when their key is the pinned one of the join string (<pin>: sha256 of the public key in base64,
+MCLOUD_TLS_PIN) and they are valid for <host>, for NODE_EXTRA_CA_CERTS of the containers; the deploy then passes the pin
+to the containers too (STF_TLS_PIN). Exits with 1 and the reason on stderr for another key, a certificate of another
+host or no server.
 
---pin-required (STF_TLS_PIN: the containers send the node token only to the pinned key): a certificate of a public CA
-must have the pinned key too. --pin-only (STF_TLS_INSECURE: no verification of the chain and the name): only the key of
-the server is checked, nothing is printed. Without a pin both check nothing more.
+--pin-only (STF_TLS_INSECURE: the containers verify no chain and no name, the pin is all they check): only the key of
+the server is checked, whatever its certificate, nothing is printed. Without a pin it checks nothing.
 """
 
 import base64
@@ -114,32 +115,22 @@ def unverified_chain(host, port):
     return connect(host, port, unverified)
 
 
-def check_pin(host, port, certs, pin, public=False):
-    if pin_of(certs[0]) == pin:
-        return
-    if public:
+def check_pin(host, port, certs, pin):
+    if pin_of(certs[0]) != pin:
         raise TrustError(
-            f"the TLS key of {host}:{port} (a certificate of a public CA) is not the pinned one of the join string "
-            "(MCLOUD_TLS_PIN): a new key of MCloud needs a new join string (./zebrunner.sh join), or another server or "
-            "a man in the middle; STF_TLS_PIN: false lets the containers trust any certificate of a public CA for it "
-            "(README.md#tls-of-mcloud)"
+            f"the TLS key of {host}:{port} is not the pinned one of the join string (MCLOUD_TLS_PIN): another server "
+            "or a man in the middle"
         )
-    raise TrustError(
-        f"the TLS key of {host}:{port} is not the pinned one of the join string (MCLOUD_TLS_PIN): another server "
-        "or a man in the middle"
-    )
 
 
 def certificate(host, port, pin, mode=""):
-    """The PEM to trust: empty for a certificate of a public CA, the pinned chain otherwise."""
+    """The PEM to trust: empty for a certificate of a public CA (no pin), the pinned chain otherwise."""
     try:
         if mode == "--pin-only":
             if pin:
                 check_pin(host, port, unverified_chain(host, port), pin)
             return ""
         if publicly_trusted(host, port):
-            if mode == "--pin-required" and pin:
-                check_pin(host, port, unverified_chain(host, port), pin, public=True)
             return ""
         certs = unverified_chain(host, port)
     except (OSError, ssl.SSLError) as err:
@@ -156,7 +147,7 @@ def certificate(host, port, pin, mode=""):
 
 
 def main(argv):
-    if len(argv) not in (4, 5) or (len(argv) == 5 and argv[4] not in ("--pin-required", "--pin-only")):
+    if len(argv) not in (4, 5) or (len(argv) == 5 and argv[4] != "--pin-only"):
         print(__doc__.strip().splitlines()[2], file=sys.stderr)
         return 2
     host, port, pin = argv[1:4]

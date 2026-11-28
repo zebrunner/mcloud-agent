@@ -57,17 +57,15 @@ check "the usage" "rc=2" "$(trust localhost | tail -n 1)"
 check "an unknown option is the usage" "rc=2" "$(trust localhost "$port" "$pin" --pin | tail -n 1)"
 
 section "tlstrust.py: the pin of the containers (STF_TLS_PIN)"
-check "--pin-required: the pinned self-signed certificate is printed" "-----BEGIN CERTIFICATE-----" \
-  "$(trust localhost "$port" "$pin" --pin-required | sed -n 1p)"
-check_contains "--pin-required: another key is refused" "is not the pinned one of the join string" \
-  "$(trust localhost "$port" "AAAA${pin:4}" --pin-required)"
+check_contains "--pin-required is no option (a public CA is never pinned): the usage" "[--pin-only]" "$(trust localhost "$port" "$pin" --pin-required)"
 check "--pin-only (STF_TLS_INSECURE): the pinned key of a certificate of another name passes, nothing is printed" "rc=0" \
   "$(trust 127.0.0.1 "$port" "$pin" --pin-only)"
 check_contains "--pin-only: another key is refused" "is not the pinned one of the join string" \
   "$(trust 127.0.0.1 "$port" "AAAA${pin:4}" --pin-only)"
 check "--pin-only without a pin checks nothing" "rc=0" "$(trust 127.0.0.1 "$port" "" --pin-only)"
 check_contains "--pin-only: a closed port" "is not reachable over https" "$(trust localhost 1 "$pin" --pin-only)"
-# a certificate of a public CA: publicly_trusted() of the module answers true for the server of the test
+# a certificate of a public CA (the CAs of the system verify the chain and the name): publicly_trusted() of the module
+# answers true for the server of the test
 public() {
   python3 - "$@" 2>&1 << 'PYTHON'
 import sys
@@ -78,12 +76,14 @@ sys.exit(tlstrust.main(["tlstrust.py"] + sys.argv[2:]))
 PYTHON
   echo "rc=$?"
 }
-check "a public CA: nothing is printed without --pin-required, whatever the key" "rc=0" \
+# the deploy passes the pin to the containers only when tlstrust.py prints the pinned chain (README.md#tls-of-mcloud)
+check "a self-signed certificate: the pinned chain is printed, the deploy pins it" "-----BEGIN CERTIFICATE-----" \
+  "$(trust localhost "$port" "$pin" | sed -n 1p)"
+check "a public CA: nothing is printed, the deploy does not pin it" "rc=0" "$(public "${REPO}/patch" localhost "$port" "$pin")"
+check "a public CA renewed with a new key: nothing is printed, no error" "rc=0" \
   "$(public "${REPO}/patch" localhost "$port" "AAAA${pin:4}")"
-check "a public CA and --pin-required: the pinned key passes, nothing is printed" "rc=0" \
-  "$(public "${REPO}/patch" localhost "$port" "$pin" --pin-required)"
-check_contains "a public CA and --pin-required: another key is refused" "(a certificate of a public CA) is not the pinned one" \
-  "$(public "${REPO}/patch" localhost "$port" "AAAA${pin:4}" --pin-required)"
-check "a public CA and --pin-required without a pin: as before" "rc=0" "$(public "${REPO}/patch" localhost "$port" "" --pin-required)"
+check "a public CA without a pin: as before" "rc=0" "$(public "${REPO}/patch" localhost "$port" "")"
+check_contains "--pin-only checks the key of a certificate of a public CA too (STF_TLS_INSECURE verifies no chain)" \
+  "is not the pinned one of the join string" "$(public "${REPO}/patch" localhost "$port" "AAAA${pin:4}" --pin-only)"
 rm -f "${WORK}/cert.pem"
 finish

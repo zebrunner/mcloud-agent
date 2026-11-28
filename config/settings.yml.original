@@ -73,9 +73,9 @@ STF_API_URL:
 # STF_TLS_INSECURE_ACKNOWLEDGED is true too
 # STF_TLS_INSECURE: false
 # STF_TLS_INSECURE_ACKNOWLEDGED: false
-# [OPTIONAL] false: the containers of STF send the node token to any certificate a public CA issues for PUBLIC_IP, not
-# only to the pinned TLS key of the join string (MCLOUD_TLS_PIN); e.g. for a certificate renewed with a new key
-# automatically (README.md#tls-of-mcloud)
+# [OPTIONAL] the containers of STF send the node token only to the pinned TLS key of the join string (MCLOUD_TLS_PIN)
+# when MCloud has a self-signed or private-CA certificate (or with STF_TLS_INSECURE); a certificate of a public CA valid
+# for PUBLIC_IP is not pinned, its renewal with a new key keeps working. false: no pin at all (README.md#tls-of-mcloud)
 # STF_TLS_PIN: true
 
 # [OPTIONAL] S3 compatible storage for the videos and the logs of the sessions: without S3_BUCKET appium records no
