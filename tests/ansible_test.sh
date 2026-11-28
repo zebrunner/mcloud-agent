@@ -548,6 +548,7 @@ for role in devices mac-devices; do
     check "${role}: the simulators run as the user of the simulators" \
       "HOST_SSH_USER=$([[ "$role" == mac-devices ]] && echo mcloud-sim || echo "$USER")" "$(grep '^HOST_SSH_USER=' "${WORK}/farm")"
     check_contains "${role}: a network per device by default" "DEVICE_NETWORK_ISOLATION=true" "$farm"
+    check_contains "${role}: the peer filter of the connectors by default" "CONNECTOR_PEER_FILTER=true" "$farm"
     check_contains "${role}: the subnets of the networks of the devices" "DEVICE_NETWORK_SUBNETS=10.233.0.0/16" "$farm"
     check "${role}: no certificate of MCloud by default" "MCLOUD_CA_PEM=''" "$(grep '^MCLOUD_CA_PEM=' "${WORK}/farm")"
     check "${role}: STF verifies the certificate by default" "STF_TLS_INSECURE=false" "$(grep '^STF_TLS_INSECURE=' "${WORK}/farm")"

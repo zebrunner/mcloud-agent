@@ -281,6 +281,15 @@ create_containers() {
   local appium_platform_args=()
   local appium_tail_args=()
   local appium_adb_port=""
+  # the peer filter of the connector (CONNECTOR_PEER_FILTER, README.md#docker-network): only the stf and appium
+  # containers of the device open connections to it, its own packet filter (NET_ADMIN of its network namespace) drops
+  # the others: the docker host, an emulator container, the containers of other devices on a shared network
+  local peer_args=()
+  local peer_cap_args=()
+  if [[ "${CONNECTOR_PEER_FILTER:-true}" == "true" ]]; then
+    peer_cap_args=(--cap-add=NET_ADMIN)
+    peer_args=(-e CONNECTOR_PEERS="${dev_container}-stf,${dev_container}-appium")
+  fi
   # 'allow_reboot': the connector reboots the device when only a reboot helps (ALLOW_REBOOT, once per its
   # REBOOT_INTERVAL): iOS: WDA can't start because testmanagerd does not answer; Android: no free app UIDs
   local reboot_args=()
@@ -336,6 +345,8 @@ create_containers() {
       "${android_args[@]+"${android_args[@]}"}" \
       "${connector_args[@]+"${connector_args[@]}"}" \
       "${reboot_args[@]+"${reboot_args[@]}"}" \
+      "${peer_cap_args[@]+"${peer_cap_args[@]}"}" \
+      "${peer_args[@]+"${peer_args[@]}"}" \
       "${ANDROID_CONNECTOR_IMAGE}:${ANDROID_CONNECTOR_VERSION}" || return 1
 
     stf_head_args=(--link "${dev_container}-connector":connector -e STF_PROVIDER_ADB_HOST=connector -e STF_PROVIDER_ADB_PORT=5037
@@ -418,6 +429,8 @@ create_containers() {
       [[ "$dev_connection" == "proxy" ]] && wireless="true"
       host_args=(--sysctl net.ipv6.conf.all.disable_ipv6=0)
       os_args=("${device_args[@]+"${device_args[@]}"}" --cap-add=NET_ADMIN --device=/dev/net/tun)
+      # the peer filter has NET_ADMIN of go-ncm
+      peer_cap_args=()
       connector_args=(-e DEVICE_CONNECTION="$dev_connection" -e DEVICE_ADDRESS="$dev_address")
       [[ -n "$dev_wda_port" ]] && connector_args+=(-e DEVICE_WDA_PORT="$dev_wda_port")
       [[ -n "$dev_mjpeg_port" ]] && connector_args+=(-e DEVICE_MJPEG_PORT="$dev_mjpeg_port")
@@ -477,6 +490,8 @@ create_containers() {
       "${bind_args[@]+"${bind_args[@]}"}" \
       "${unavailable_args[@]+"${unavailable_args[@]}"}" \
       "${macos_connector_args[@]+"${macos_connector_args[@]}"}" \
+      "${peer_cap_args[@]+"${peer_cap_args[@]}"}" \
+      "${peer_args[@]+"${peer_args[@]}"}" \
       "${IOS_CONNECTOR_IMAGE}:${IOS_CONNECTOR_VERSION}" || return 1
 
     # the GO_IOS_AGENT_HOST of the connector: Linux after WDA_HOST, macOS after WIRELESS

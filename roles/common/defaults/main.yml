@@ -48,6 +48,10 @@ DEVICE_NETWORK_ISOLATION: true
 DEVICE_NETWORK_SUBNETS: 10.233.0.0/16
 # the shared docker network of DEVICE_NETWORK_ISOLATION=false, the deploy and zebrunner-farm create it
 STF_DOCKER_NETWORK: infra
+# the peer filter of the connectors (README.md#docker-network): only the stf and appium containers of a device open
+# connections to its connector (CONNECTOR_PEERS of the connectors, the container gets NET_ADMIN for its own packet
+# filter); false: every host of the network of the device reaches its connector
+CONNECTOR_PEER_FILTER: true
 
 # The WireGuard tunnel to MCloud (README.md#wireguard-tunnel), off by default: ./zebrunner.sh join writes these settings
 # when MCloud has the tunnel on. The deploy sets up the interface mcloud-node of this host with them, zebrunner-farm
