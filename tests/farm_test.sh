@@ -79,6 +79,8 @@ case "$1" in
       *'{{.State.Error}}'*)
         awk -v name="${*: -1}" '$1 == name { sub(/^[^ ]+ /, ""); print; exit }' "${STUB_DIR}/docker_errors" 2> /dev/null
         ;;
+      # the connector of a connection: ${STUB_DIR}/docker_connector, `<running>|<created>|<devices in the container> `
+      *'{{.State.Running}}|{{.Created}}|'*) cat "${STUB_DIR}/docker_connector" 2> /dev/null ;;
       *StartedAt*) echo "$DOCKER_STARTED_AT" ;;
       *FinishedAt*) echo "${DOCKER_FINISHED_AT:-0001-01-01T00:00:00Z}" ;;
     esac
@@ -107,6 +109,11 @@ for role in devices mac-devices; do
   sed -i.bak "s|^MCLOUD_DEVICES=.*|MCLOUD_DEVICES=${WORK}/devices.txt|" "${WORK}/farm-${role}.env"
 done
 
+# the flock of the test runner for the locks of the Linux role, also one outside the PATH of zebrunner-farm (Homebrew)
+if command -v flock > /dev/null 2>&1; then
+  ln -s "$(command -v flock)" "${WORK}/bin/flock"
+fi
+
 # farm <devices|mac-devices> <arguments...>: runs zebrunner-farm without the user's environment
 farm() {
   local role="$1"
@@ -114,8 +121,8 @@ farm() {
   env -i HOME="${WORK}" PATH="${WORK}/bin:/usr/bin:/bin:/usr/sbin:/sbin" TERM=dumb STUB_DIR="$WORK" \
     DOCKER_FAIL_RUN="${DOCKER_FAIL_RUN:-}" DOCKER_STARTED_AT="${DOCKER_STARTED_AT:-}" DOCKER_FINISHED_AT="${DOCKER_FINISHED_AT:-}" \
     DOCKER_FAIL_STOP="${DOCKER_FAIL_STOP:-}" DOCKER_NO_NETWORK="${DOCKER_NO_NETWORK:-}" DOCKER_RESTARTS="${DOCKER_RESTARTS:-}" \
-    MCLOUD_LOCK_DIR="$WORK" MCLOUD_LOCK_TIMEOUT="${MCLOUD_LOCK_TIMEOUT:-}" MCLOUD_FARM_INTERACTIVE="${MCLOUD_FARM_INTERACTIVE:-}" \
-    ZEBRUNNER_FARM_ENV="${WORK}/farm-${role}.env" /bin/bash "$FARM_SCRIPT" "$@" 2>&1
+    MCLOUD_LOCK_DIR="${LOCK_DIR:-$WORK}" MCLOUD_LOCK_TIMEOUT="${MCLOUD_LOCK_TIMEOUT:-}" MCLOUD_FARM_INTERACTIVE="${MCLOUD_FARM_INTERACTIVE:-}" \
+    MCLOUD_DEVICE_EVENT="${MCLOUD_DEVICE_EVENT:-}" ZEBRUNNER_FARM_ENV="${WORK}/farm-${role}.env" /bin/bash "$FARM_SCRIPT" "$@" 2>&1
 }
 
 # run_args <container>: arguments of the `docker run` of a container, joined by '|'
@@ -1774,6 +1781,185 @@ check "Ctrl-C of a device ends the run with 130" "130" "$status"
 check_contains "the first device ran" "device R28M1384YQY" "$output"
 check_not_contains "no other device after Ctrl-C" "device 192.168.1.50" "$output"
 check_not_contains "nothing after the run" "the run went on" "$output"
+
+section "the networks of the devices at once"
+# docker of the networks: ${STUB_DIR}/nets/<name> has the subnet of a network (its id is its name); the create of a
+# subnet another network has (or of the one of ${STUB_DIR}/overlap, all: every one) fails as docker does; the listing of
+# the subnets is slow, so two zebrunner-farm without the lock of the networks pick the same free subnet
+cp "${WORK}/bin/docker" "${WORK}/docker.saved"
+cat > "${WORK}/bin/docker" << 'EOF'
+#!/bin/bash
+(IFS='|'; echo "docker|$*") >> "${STUB_DIR}/calls.log"
+nets="${STUB_DIR}/nets"
+overlap="$(cat "${STUB_DIR}/overlap" 2> /dev/null)"
+case "$1 $2" in
+  "network ls") ls "$nets" ;;
+  "network inspect")
+    if [[ "$3" == "-f" ]]; then
+      for id in "${@:5}"; do
+        cat "${nets}/${id}" 2> /dev/null
+      done
+      sleep 0.3
+    else
+      [[ -f "${nets}/$3" ]] || exit 1
+    fi
+    ;;
+  "network create")
+    subnet="$6"
+    if [[ "$subnet" == "$overlap" || "$overlap" == "all" ]] || ! mkdir "${nets}/.${subnet//\//_}" 2> /dev/null; then
+      echo "Error response from daemon: invalid pool request: Pool overlaps with other one on this address space" >&2
+      exit 1
+    fi
+    echo "$subnet " > "${nets}/${*: -1}"
+    ;;
+  ps*) cat "${STUB_DIR}/docker_ps" 2> /dev/null ;;
+  run*) echo "id" ;;
+esac
+exit 0
+EOF
+chmod +x "${WORK}/bin/docker"
+# reset_networks: no network of the devices
+reset_networks() {
+  rm -rf "${WORK}/nets" "${WORK}/overlap"
+  mkdir "${WORK}/nets"
+}
+# subnets: the subnets of the networks, sorted
+subnets() {
+  cat "${WORK}/nets/"* | tr -d ' ' | sort | paste -s -d ' ' -
+}
+network="device-WiFi-192.168.1.50"
+for role in devices mac-devices; do
+  setup_case
+  reset_networks
+  echo 10.233.0.0/28 > "${WORK}/overlap"
+  output="$(farm "$role" start WiFi)"
+  check "${role}: a subnet docker refuses as overlapping (not listed yet): the next free one" "10.233.0.16/28" "$(subnets)"
+  check_not_contains "${role}: the overlap is retried, the device starts" "NOT created" "$output"
+  setup_case
+  reset_networks
+  echo all > "${WORK}/overlap"
+  output="$(farm "$role" start WiFi)"
+  check "${role}: overlaps every time: the device fails" "1" "$?"
+  check "${role}: overlaps every time: 10 subnets are tried, each one once" "10 10" \
+    "$(calls docker | grep -c '^network|create|') $(calls docker | grep '^network|create|' | cut -d '|' -f 6 | sort -u | grep -c .)"
+  check_contains "${role}: overlaps every time: the error of docker" \
+    "NOT created  ${network}: Error response from daemon: invalid pool request: Pool overlaps" "$output"
+  check "${role}: overlaps every time: no container" "" "$(calls docker | grep '^run|')"
+  # a systemd unit ignores SIGPIPE: awk of the free subnets is not cut by a reader that stops early
+  setup_case
+  reset_networks
+  output="$(
+    trap '' PIPE
+    farm "$role" start WiFi
+  )"
+  check_not_contains "${role}: SIGPIPE ignored (a systemd unit): no broken pipe" "roken pipe" "$output"
+  check_not_contains "${role}: SIGPIPE ignored (a systemd unit): no write failure" "write" "$output"
+  check "${role}: SIGPIPE ignored (a systemd unit): the first free subnet" "10.233.0.0/28" "$(subnets)"
+done
+
+# at_once <role>: the autostart (zebrunner-farm start of the group) and the start of every device of the group at the
+# same moment, as the units of udev at a boot; the statuses of the runs
+at_once() {
+  local role="$1"
+  local device
+  local pids=()
+  local statuses=""
+  for device in "wireless proxy android-sim -q" WiFi AppleTV iPhoneWiFi Emu; do
+    # the words of the group are arguments
+    # shellcheck disable=SC2086
+    farm "$role" start $device > "${WORK}/at-once-${device%% *}.log" 2>&1 &
+    pids+=($!)
+  done
+  for device in "${pids[@]}"; do
+    wait "$device"
+    statuses+="$?"
+  done
+  echo "$statuses"
+}
+if command -v flock > /dev/null 2>&1; then
+  setup_case
+  reset_networks
+  check "Linux: the starts at once all succeed (no failed unit)" "00000" "$(at_once devices)"
+  check "Linux: a network of its own for each device" "4" "$(find "${WORK}/nets" -type f | grep -c .)"
+  check "Linux: the subnets of the networks differ" "10.233.0.0/28 10.233.0.16/28 10.233.0.32/28 10.233.0.48/28" "$(subnets)"
+  check "Linux: each network is created once, no overlap (the lock of the networks)" "4" "$(calls docker | grep -c '^network|create|')"
+  check_not_contains "Linux: no device failed" "NOT created" "$(cat "${WORK}"/at-once-*.log)"
+  check "Linux: the lock file of the networks is readable by the users of docker" "644" \
+    "$(stat -c '%a' "${WORK}/mcloud-device-networks.lock" 2> /dev/null || stat -f '%Lp' "${WORK}/mcloud-device-networks.lock")"
+  # without the lock file (an unusable lock directory) the overlaps are retried with the next free subnets
+  setup_case
+  reset_networks
+  check "Linux without the lock: the starts at once all succeed" "00000" "$(LOCK_DIR="${WORK}/no-such-dir" at_once devices)"
+  check "Linux without the lock: the subnets of the networks differ" "4" "$(subnets | tr ' ' '\n' | sort -u | grep -c .)"
+else
+  skip_check "the starts at once with the lock of the networks" "no flock (util-linux)"
+fi
+# macOS: no lock, the overlaps are retried with the next free subnets
+setup_case
+reset_networks
+check "macOS: the starts at once all succeed" "00000" "$(at_once mac-devices)"
+check "macOS: a network of its own for each device" "4" "$(find "${WORK}/nets" -type f | grep -c .)"
+check "macOS: the subnets of the networks differ" "4" "$(subnets | tr ' ' '\n' | sort -u | grep -c .)"
+mv "${WORK}/docker.saved" "${WORK}/bin/docker"
+
+section "a connection after a start of the device"
+# the unit of udev of a connection (MCLOUD_DEVICE_EVENT=connect) waited for the lock of the device while a
+# zebrunner-farm start (the autostart at a boot) created its containers: they are kept, created once. The time of the
+# symlink of udev is ${STUB_DIR}/link_time (stat), its USB bus /dev/bus/usb/001/002 (readlink)
+# the stub bodies are expanded when the stubs run
+# shellcheck disable=SC2016
+stub stat 'cat "${STUB_DIR}/link_time"'
+stub readlink 'echo /dev/bus/usb/001/002'
+# the GNU date of Linux the Linux role uses for the times of docker (epoch), gdate of Homebrew on macOS
+gnu_date=""
+if date -d @0 > /dev/null 2>&1; then
+  gnu_date="date"
+elif command -v gdate > /dev/null 2>&1; then
+  ln -s "$(command -v gdate)" "${WORK}/bin/date"
+  gnu_date="${WORK}/bin/date"
+fi
+galaxy="device-Galaxy-R28M1384YQY"
+# connection_case <created> <devices of the connector>: the containers of Galaxy run, the connector created then with
+# these devices, plugged in 100 seconds ago; the docker ps of the stub does not change, so a restart removes the
+# containers and creates none: the removal is the check
+connection_case() {
+  setup_case
+  echo "iSerial R28M1384YQY" > "${WORK}/usb"
+  printf '%s\n' "${galaxy}-connector running" "${galaxy}-stf running" "${galaxy}-appium running" > "${WORK}/docker_ps"
+  echo $(($(date +%s) - 100)) > "${WORK}/link_time"
+  echo "true|$1|$2" > "${WORK}/docker_connector"
+}
+# iso <seconds>: the time of docker of the seconds ago
+iso() {
+  "$gnu_date" -u -d "@$(($(date +%s) - $1))" +%Y-%m-%dT%H:%M:%S.123456789Z
+}
+if [[ -n "$gnu_date" ]]; then
+  connection_case "$(iso 50)" "/dev/bus/usb/001/002 "
+  output="$(MCLOUD_DEVICE_EVENT=connect farm devices restart R28M1384YQY)"
+  check "the containers of this connection: the unit succeeds" "0" "$?"
+  check_contains "the containers of this connection are kept" "the containers run for this connection already" "$output"
+  check "the containers of this connection are created once (no removal, no creation)" "" "$(calls docker | grep -E '^(rm|run|stop)\|')"
+  connection_case "$(iso 500)" "/dev/bus/usb/001/002 "
+  MCLOUD_DEVICE_EVENT=connect farm devices restart R28M1384YQY > /dev/null
+  check_contains "containers of an earlier connection or boot are created again" "rm|-f|${galaxy}-connector" "$(calls docker)"
+  connection_case "$(iso 50)" "/dev/bus/usb/001/007 "
+  MCLOUD_DEVICE_EVENT=connect farm devices restart R28M1384YQY > /dev/null
+  check_contains "a connector of another USB bus is created again" "rm|-f|${galaxy}-connector" "$(calls docker)"
+  connection_case "$(iso 50)" "/dev/bus/usb/001/002 "
+  printf '%s\n' "${galaxy}-connector running" "${galaxy}-stf exited" "${galaxy}-appium running" > "${WORK}/docker_ps"
+  MCLOUD_DEVICE_EVENT=connect farm devices restart R28M1384YQY > /dev/null
+  check_contains "a stopped container of the device: created again" "rm|-f|${galaxy}-connector" "$(calls docker)"
+  connection_case "$(iso 50)" "/dev/bus/usb/001/002 "
+  farm devices restart R28M1384YQY > /dev/null
+  check_contains "a restart of a person recreates the containers anyway" "rm|-f|${galaxy}-connector" "$(calls docker)"
+  connection_case "$(iso 50)" "/dev/bus/usb/001/002 "
+  MCLOUD_DEVICE_EVENT=connect farm mac-devices restart R28M1384YQY > /dev/null
+  check_contains "macOS (no unit of udev): the restart recreates the containers" "rm|-f|${galaxy}-connector" "$(calls docker)"
+else
+  skip_check "a connection after a start of the device" "no GNU date"
+fi
+rm -f "${WORK}/bin/stat" "${WORK}/bin/readlink" "${WORK}/docker_connector"
+[[ ! -L "${WORK}/bin/date" ]] || rm -f "${WORK}/bin/date"
 
 section "the lock file of a device"
 if command -v flock > /dev/null 2>&1; then

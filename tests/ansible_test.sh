@@ -651,6 +651,9 @@ check_contains "a disconnection cancels an unfinished restart" "Conflicts=mcloud
   "$(cat "${WORK}/restart.service")"
 check_contains "a connection cancels an unfinished down" "Conflicts=mcloud-device-restart@%i.service" \
   "$(cat "${WORK}/down.service")"
+check_contains "the restart unit is the one of a connection: the containers created for it already are kept" \
+  "Environment=MCLOUD_DEVICE_EVENT=connect" "$(cat "${WORK}/restart.service")"
+check_not_contains "the down unit is not one of a connection" "MCLOUD_DEVICE_EVENT" "$(cat "${WORK}/down.service")"
 # the listener of macOS runs zebrunner-farm restart and down of its USB iOS devices as the units of Linux
 check "the macOS listener waits for an action as long as the restart unit of Linux" \
   "$(($(sed -n 's/^TimeoutStartSec=\([0-9]*\)min$/\1/p' "${WORK}/restart.service") * 60))" \

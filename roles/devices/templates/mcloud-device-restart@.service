@@ -14,6 +14,8 @@ Conflicts=mcloud-device-down@%i.service
 
 [Service]
 Type=oneshot
+# a connection: the containers zebrunner-farm start created for it meanwhile (the autostart at a boot) are kept
+Environment=MCLOUD_DEVICE_EVENT=connect
 ExecStart=/usr/local/bin/zebrunner-farm restart %i
 # the images may be pulled
 TimeoutStartSec=30min
