@@ -17,6 +17,9 @@ IPHONE="device-iPhone_XR-00008020-0005308201DA002E"
 IPHONE15="device-iPhone_15-00008120-0010359E0240201E"
 SECRET="agent-secret-0123456789"
 TOKEN="node-token-abcdef"
+# the shell of the one-shot containers (MDM_ONE_SHOT_RUNNER of patch/mdm.sh)
+# shellcheck disable=SC2016
+MDM_RUNNER='script="$(cat)" && eval "$script" < /dev/null'
 
 # curl: the answers of the MDM by the path; the status of ${STUB_DIR}/curl_status (200 by default); its arguments go to
 # calls.log, its stdin (the header with the node token) to ${STUB_DIR}/curl_stdin.log
@@ -242,6 +245,7 @@ run="$(calls docker | grep '^run|')"
 check_contains "a one-shot Android connector with the USB device and the adb key of the farm" \
   "run|--rm|-i|--name|${GALAXY}-mdm|--device=/dev/${GALAXY}:/dev/bus/usb/001/002|-v|mcloud-key-volume:/root/.android|-v|" "$run"
 check_contains "its image and the script of its stdin" "|--entrypoint|sh|public.ecr.aws/zebrunner/mcloud-android-connector:" "$run"
+check_contains "the script is read whole, then run without the stdin (adb shell reads it)" "|-c|${MDM_RUNNER}" "$run"
 script="$(cat "${WORK}/run_stdin.log")"
 check_contains "the script sets the device owner" "dpm set-device-owner com.hmdm.launcher/.AdminReceiver" "$script"
 check_contains "the script has the setup of the argument form" "command='content call --uri content://com.hmdm.launcher.mcloud --method setup" "$script"
@@ -291,13 +295,18 @@ case "$*" in
 *"--method status"*) echo "Result: Bundle[{deviceOwner=true${FAKE_FEATURES:+, features=${FAKE_FEATURES}}}]" ;;
 *"--method setup"* | *"--method release"*) echo "${FAKE_RESULT:-Result: Bundle[{configured=true}]}" ;;
 esac
+# adb shell forwards its stdin to the device: it reads whatever it gets
+case "$*" in
+*" shell "*) test -t 0 || cat > /dev/null ;;
+esac
 exit 0
 EOF
   chmod +x "${WORK}/fakeadb/adb"
   : > "${WORK}/adb.log"
   : > "${WORK}/adb_stdin.log"
+  # as the one-shot container runs it (MDM_ONE_SHOT_RUNNER of patch/mdm.sh)
   sed -e 's/^sleep [0-9]*$/:/' <<< "$1" | env -i PATH="${WORK}/fakeadb:/usr/bin:/bin" STUB_DIR="$WORK" FAKE_SDK="$2" \
-    FAKE_FEATURES="$3" FAKE_RESULT="${FAKE_RESULT:-}" sh -s 2>&1
+    FAKE_FEATURES="$3" FAKE_RESULT="${FAKE_RESULT:-}" sh -c "$MDM_RUNNER" 2>&1
 }
 for action in enroll release; do
   setup_case
